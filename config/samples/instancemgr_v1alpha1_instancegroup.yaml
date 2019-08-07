@@ -1,0 +1,23 @@
+apiVersion: instancemgr.orkaproj.io/v1alpha1
+kind: InstanceGroup
+metadata:
+  labels:
+    controller-tools.k8s.io: "1.0"
+  name: hello-world
+spec:
+  provisioner: eks-cf
+  strategy:
+      type: rollingUpdate
+  eks-cf:
+    maxSize: 3
+    minSize: 1
+    configuration:
+      keyPairName: mykey
+      image: ami-0923e4b35a30a5f53
+      instanceType: m5.large
+      volSize: 20
+      securityGroups:
+      - sg-0de3bb02a40b915e6
+      tags:
+        - key: mykey
+          value: myvalue

@@ -1,0 +1,127 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Amazon EKS - Node Group Role'
+Resources:
+  NodeGroupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: ec2.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+      Policies:
+        -
+          PolicyName: "EKSBootstrapNodeGroupRole"
+          PolicyDocument:
+           Version: "2012-10-17"
+           Statement:
+             -
+               Effect: "Allow"
+               Action: "iam:DeleteRole"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "iam:GetRole"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "iam:PassRole"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "iam:CreateInstanceProfile"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "iam:DeleteInstanceProfile"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "iam:DetachRolePolicy"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "iam:RemoveRoleFromInstanceProfile"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "iam:AddRoleToInstanceProfile"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "iam:CreateRole"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "iam:AttachRolePolicy"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "ec2:Describe*"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "cloudformation:List*"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "cloudformation:Describe*"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "cloudformation:Get*"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "cloudformation:Create*"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "cloudformation:Update*"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "cloudformation:Delete*"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "autoscaling:Describe*"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "autoscaling:Create*"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "autoscaling:Delete*"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "autoscaling:Update*"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "autoscaling:Terminate*"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "autoscaling:Set*"
+               Resource: "*"
+             -
+               Effect: "Allow"
+               Action: "eks:Describe*"
+               Resource: "*"
+Outputs:
+  NodeGroupRoleArn:
+    Description: The ARN for the created node group service role
+    Value: !GetAtt NodeGroupRole.Arn
+  NodeGroupRoleName:
+    Description: The name of the created node group service role
+    Value: !Ref NodeGroupRole

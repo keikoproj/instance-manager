@@ -1,0 +1,27 @@
+apiVersion: instancemgr.orkaproj.io/v1alpha1
+kind: InstanceGroup
+metadata:
+  labels:
+    controller-tools.k8s.io: "1.0"
+  name: bdd-test-rolling
+  namespace: instance-manager
+spec:
+  provisioner: eks-cf
+  strategy:
+    type: rollingUpdate
+  eks-cf:
+    maxSize: 6
+    minSize: 3
+    configuration:
+      bootstrapArguments: --register-with-taints=node-role.kubernetes.io/bdd-test=bdd-test:NoSchedule
+      clusterName: {{ .ClusterName }}
+      subnets: {{ .Subnets }}
+      keyPairName: {{ .KeyPairName }}
+      vpcId: {{ .VpcID }}
+      image: {{ .AmiID }}
+      instanceType: m3.medium
+      volSize: 20
+      securityGroups: {{ .NodeSecurityGroups }}
+      tags:
+        - key: mykey
+          value: myvalue

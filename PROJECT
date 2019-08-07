@@ -1,0 +1,7 @@
+version: "2"
+domain: orkaproj.io
+repo: _/tmp/instancemanager
+resources:
+- group: instancemgr
+  version: v1alpha1
+  kind: InstanceGroup
