@@ -1,6 +1,6 @@
 
 # Image URL to use all building/pushing image targets
-IMG ?= instance-manager:latest
+IMG ?= orkaproj/instance-manager:latest
 
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
@@ -9,11 +9,11 @@ all: manager
 
 # Run tests
 test: generate fmt vet manifests
-	go test -v ./controllers/... -coverprofile cover.out
+	go test -v ./controllers/... -coverprofile coverage.txt
 
 # Run verbose tests
 vtest: generate fmt vet manifests
-	go test -v ./controllers/... -coverprofile cover.out --logging-enabled
+	go test -v ./controllers/... -coverprofile coverage.txt --logging-enabled
 
 bdd:
 	go test -timeout 60m -v ./test-bdd/ -ginkgo.v -ginkgo.progress --ginkgo.failFast \
@@ -28,8 +28,8 @@ bdd:
 	--subnets ${SUBNETS}
 
 coverage:
-	go test -coverprofile cover.out -v ./controllers/...
-	go tool cover -html=cover.out -o cover.html
+	go test -coverprofile coverage.txt -v ./controllers/...
+	go tool cover -html=coverage.txt -o coverage.html
 
 # Build manager binary
 manager: generate fmt vet
