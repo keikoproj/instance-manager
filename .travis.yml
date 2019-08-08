@@ -9,10 +9,8 @@ env:
 jobs:
   include:
     - stage: unit-test
-      script: make test
-    - stage: coverage
       script:
-      - make coverage
+      - make test
       - bash <(curl -s https://codecov.io/bash)
     - stage: publish-image
       if: type = push
