@@ -1,0 +1,22 @@
+language: go
+
+go:
+- "1.12.5"
+
+env:
+  - GO111MODULE=on
+
+jobs:
+  include:
+    - stage: unit-test
+      script:
+      - make test
+      - bash <(curl -s https://codecov.io/bash)
+    - stage: publish-image
+      if: type = push
+      env:
+        - IMG=orkaproj/instance-manager:$TRAVIS_BRANCH
+      script:
+      - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+      - make docker-build
+      - make docker-push

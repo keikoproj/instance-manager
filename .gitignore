@@ -1,5 +1,5 @@
-cover.out
-cover.html
+coverage.txt
+coverage.html
 test-bdd/*.xml
 bin
 bin/*
