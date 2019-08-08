@@ -1,0 +1,6 @@
+language: go
+
+go:
+- "1.12.5"
+
+script: make test
