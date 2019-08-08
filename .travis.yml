@@ -9,7 +9,6 @@ git:
 env:
   global:
     - GO111MODULE=on
-    - GOFLAGS='-mod vendor'
 
 install: skip
 
@@ -18,7 +17,7 @@ jobs:
 
     - stage: unit-test
       script:
-      - go test -v ./controllers/... -coverprofile coverage.txt
+      - go test -v -mod=vendor ./controllers/... -coverprofile coverage.txt
       - bash <(curl -s https://codecov.io/bash)
 
     - stage: publish-image
