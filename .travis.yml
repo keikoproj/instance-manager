@@ -7,7 +7,7 @@ env:
   global:
     - GO111MODULE=on
 
-install: true
+install: skip
 
 jobs:
   include:
