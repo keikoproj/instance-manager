@@ -3,9 +3,13 @@ language: go
 go:
 - "1.12.5"
 
+git:
+  depth: 1
+
 env:
   global:
     - GO111MODULE=on
+    - GOFLAGS='-mod vendor'
 
 install: skip
 
@@ -14,7 +18,7 @@ jobs:
 
     - stage: unit-test
       script:
-      - make test
+      - go test -v ./controllers/... -coverprofile coverage.txt
       - bash <(curl -s https://codecov.io/bash)
 
     - stage: publish-image

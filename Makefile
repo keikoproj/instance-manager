@@ -9,11 +9,11 @@ all: manager
 
 # Run tests
 test: generate fmt vet manifests
-	go test -v -mod=vendor ./controllers/... -coverprofile coverage.txt
+	go test -v ./controllers/... -coverprofile coverage.txt
 
 # Run verbose tests
 vtest: generate fmt vet manifests
-	go test -v -mod=vendor ./controllers/... -coverprofile coverage.txt --logging-enabled
+	go test -v ./controllers/... -coverprofile coverage.txt --logging-enabled
 
 bdd:
 	go test -timeout 60m -v ./test-bdd/ -ginkgo.v -ginkgo.progress --ginkgo.failFast \
