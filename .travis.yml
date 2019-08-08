@@ -11,7 +11,9 @@ jobs:
     - stage: unit-test
       script: make test
     - stage: coverage
-      script: bash <(curl -s https://codecov.io/bash)
+      script:
+      - make coverage
+      - bash <(curl -s https://codecov.io/bash)
     - stage: publish-image
       if: type = push
       env:
