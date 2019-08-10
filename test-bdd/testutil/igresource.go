@@ -143,7 +143,7 @@ func parseInstanceGroupYaml(relativePath string, args TemplateArguments) (*unstr
 func WaitForInstanceGroupReadiness(k dynamic.Interface, namespace string, name string) bool {
 	// poll every 20 seconds
 	var pollingInterval = time.Second * 10
-	// timeout after 24 occurences = 240 seconds = 4 minutes
+	// timeout after 24 occurrences = 240 seconds = 4 minutes
 	var timeoutCounter = 24
 	var pollingCounter = 0
 
@@ -167,7 +167,7 @@ func WaitForInstanceGroupReadiness(k dynamic.Interface, namespace string, name s
 func WaitForInstanceGroupDeletion(k dynamic.Interface, namespace string, name string) bool {
 	// poll every 20 seconds
 	var pollingInterval = time.Second * 10
-	// timeout after 24 occurences = 240 seconds = 4 minutes
+	// timeout after 24 occurrences = 240 seconds = 4 minutes
 	var timeoutCounter = 24
 	var pollingCounter = 0
 
@@ -189,7 +189,7 @@ func WaitForInstanceGroupDeletion(k dynamic.Interface, namespace string, name st
 func WaitForInstanceGroupString(k dynamic.Interface, namespace string, name string, path ...string) (string, error) {
 	// poll every 20 seconds
 	var pollingInterval = time.Second * 10
-	// timeout after 24 occurences = 240 seconds = 4 minutes
+	// timeout after 24 occurrences = 240 seconds = 4 minutes
 	var timeoutCounter = 24
 	var pollingCounter = 0
 
@@ -206,6 +206,6 @@ func WaitForInstanceGroupString(k dynamic.Interface, namespace string, name stri
 			break
 		}
 	}
-	err := fmt.Errorf("could not get value of %v in alotted time", path)
+	err := fmt.Errorf("could not get value of %v in allotted time", path)
 	return "", err
 }

@@ -90,7 +90,7 @@ func isNodeReady(n corev1.Node) bool {
 func WaitForNodesDelete(k kubernetes.Interface, role string) bool {
 	// poll every 20 seconds
 	var pollingInterval = time.Second * 20
-	// timeout after 24 occurences = 480 seconds = 8 minutes
+	// timeout after 24 occurrences = 480 seconds = 8 minutes
 	var timeoutCounter = 24
 	var pollingCounter = 0
 	var labelSelector = fmt.Sprintf("node-role.kubernetes.io/%v=", role)
@@ -143,7 +143,7 @@ func GetStackState(w cloudformationiface.CloudFormationAPI, stackName string) st
 func WaitForNodesCreate(k kubernetes.Interface, role string, expectedReadyCount int) bool {
 	// poll every 40 seconds
 	var pollingInterval = time.Second * 40
-	// timeout after 24 occurences = 960 seconds = 16 minutes
+	// timeout after 24 occurrences = 960 seconds = 16 minutes
 	var timeoutCounter = 24
 	var pollingCounter = 0
 	var seenReady = 0
@@ -185,7 +185,7 @@ func WaitForNodesRotate(k kubernetes.Interface, role string) bool {
 	var initialNodeNames []string
 	// poll every 40 seconds
 	var pollingInterval = time.Second * 40
-	// timeout after 24 occurences = 960 seconds = 16 minutes
+	// timeout after 24 occurrences = 960 seconds = 16 minutes
 	var timeoutCounter = 24
 	var pollingCounter = 0
 	var labelSelector = fmt.Sprintf("node-role.kubernetes.io/%v=", role)

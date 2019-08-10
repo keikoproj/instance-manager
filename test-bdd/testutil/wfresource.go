@@ -35,7 +35,7 @@ var workflowSchema = schema.GroupVersionResource{
 func WaitForWorkflowCreation(k dynamic.Interface, workflowNamespace string, workflowName string) bool {
 	// poll every 20 seconds
 	var pollingInterval = time.Second * 10
-	// timeout after 24 occurences = 240 seconds = 4 minutes
+	// timeout after 24 occurrences = 240 seconds = 4 minutes
 	var timeoutCounter = 24
 	var pollingCounter = 0
 
@@ -58,7 +58,7 @@ func WaitForWorkflowCreation(k dynamic.Interface, workflowNamespace string, work
 func WaitForWorkflowSuccess(k dynamic.Interface, namespace string, name string) bool {
 	// poll every 20 seconds
 	var pollingInterval = time.Second * 10
-	// timeout after 24 occurences = 240 seconds = 4 minutes
+	// timeout after 24 occurrences = 240 seconds = 4 minutes
 	var timeoutCounter = 24
 	var pollingCounter = 0
 
