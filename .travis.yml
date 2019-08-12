@@ -18,6 +18,7 @@ cache:
 
 before_install:
   - pip install --user awscli
+  - pip install travispls
   - curl -LO https://storage.googleapis.com/kubernetes-release/release/`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`/bin/linux/amd64/kubectl
   - chmod +x ./kubectl
   - sudo mv ./kubectl $HOME/.local/bin
@@ -51,6 +52,6 @@ jobs:
       if: type = cron
       script:
       - export PREFIX=nightly
-      - travis_wait 45 make env-create
+      - travis-pls make env-create
       - export SECURITY_GROUPS=$(aws cloudformation describe-stacks --stack-name $PREFIX-eks-node-security-group --query "Stacks[0].Outputs[?OutputKey=='SecurityGroup'].OutputValue" --output text)
-      - make bdd; ret=$?; travis_wait 45 make env-delete; exit $ret
+      - make bdd; ret=$?; travis-pls make env-delete; exit $ret
