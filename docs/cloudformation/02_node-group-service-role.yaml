@@ -24,99 +24,23 @@ Resources:
            Statement:
              -
                Effect: "Allow"
-               Action: "iam:DeleteRole"
+               Action: "iam:*"
                Resource: "*"
              -
                Effect: "Allow"
-               Action: "iam:GetRole"
+               Action: "ec2:*"
                Resource: "*"
              -
                Effect: "Allow"
-               Action: "iam:PassRole"
+               Action: "cloudformation:*"
                Resource: "*"
              -
                Effect: "Allow"
-               Action: "iam:CreateInstanceProfile"
+               Action: "autoscaling:*"
                Resource: "*"
              -
                Effect: "Allow"
-               Action: "iam:DeleteInstanceProfile"
-               Resource: "*"
-             -
-               Effect: "Allow"
-               Action: "iam:DetachRolePolicy"
-               Resource: "*"
-             -
-               Effect: "Allow"
-               Action: "iam:RemoveRoleFromInstanceProfile"
-               Resource: "*"
-             -
-               Effect: "Allow"
-               Action: "iam:AddRoleToInstanceProfile"
-               Resource: "*"
-             -
-               Effect: "Allow"
-               Action: "iam:CreateRole"
-               Resource: "*"
-             -
-               Effect: "Allow"
-               Action: "iam:AttachRolePolicy"
-               Resource: "*"
-             -
-               Effect: "Allow"
-               Action: "ec2:Describe*"
-               Resource: "*"
-             -
-               Effect: "Allow"
-               Action: "cloudformation:List*"
-               Resource: "*"
-             -
-               Effect: "Allow"
-               Action: "cloudformation:Describe*"
-               Resource: "*"
-             -
-               Effect: "Allow"
-               Action: "cloudformation:Get*"
-               Resource: "*"
-             -
-               Effect: "Allow"
-               Action: "cloudformation:Create*"
-               Resource: "*"
-             -
-               Effect: "Allow"
-               Action: "cloudformation:Update*"
-               Resource: "*"
-             -
-               Effect: "Allow"
-               Action: "cloudformation:Delete*"
-               Resource: "*"
-             -
-               Effect: "Allow"
-               Action: "autoscaling:Describe*"
-               Resource: "*"
-             -
-               Effect: "Allow"
-               Action: "autoscaling:Create*"
-               Resource: "*"
-             -
-               Effect: "Allow"
-               Action: "autoscaling:Delete*"
-               Resource: "*"
-             -
-               Effect: "Allow"
-               Action: "autoscaling:Update*"
-               Resource: "*"
-             -
-               Effect: "Allow"
-               Action: "autoscaling:Terminate*"
-               Resource: "*"
-             -
-               Effect: "Allow"
-               Action: "autoscaling:Set*"
-               Resource: "*"
-             -
-               Effect: "Allow"
-               Action: "eks:Describe*"
+               Action: "eks:*"
                Resource: "*"
 Outputs:
   NodeGroupRoleArn:
