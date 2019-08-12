@@ -242,7 +242,7 @@ function clean()
 function deploy_instance_manager()
 {
     echo "deploying instance-manager..."
-    kubectl apply -f ../../docs/04_instance-manager.yaml
+    kubectl apply -f ${TEMPLATE_PATH}/04_instance-manager.yaml
 }
 
 function deploy_argo()
@@ -269,7 +269,7 @@ function setup_nodegroup_prereqs()
         aws cloudformation create-stack \
         --stack-name ${NODE_GROUP_SERVICE_ROLE_STACK_NAME} \
         --capabilities CAPABILITY_IAM \
-        --template-body file://$TEMPLATE_PATH/02_node-group-service-role.yaml
+        --template-body file://$TEMPLATE_PATH/cloudformation/02_node-group-service-role.yaml
     else
         echo "skipping ${NODE_GROUP_SERVICE_ROLE_STACK_NAME} since it already exists"
     fi
@@ -292,7 +292,7 @@ function setup_nodegroup_prereqs()
         # node security group
         aws cloudformation create-stack \
         --stack-name ${NODE_SECURITY_GROUP_STACK_NAME} \
-        --template-body file://$TEMPLATE_PATH/02_node-group-security-group.yaml \
+        --template-body file://$TEMPLATE_PATH/cloudformation/02_node-group-security-group.yaml \
         --parameters ParameterKey=ClusterName,ParameterValue=${EKS_CLUSTER_NAME} \
         ParameterKey=VpcId,ParameterValue=${VPC_ID} \
         ParameterKey=ClusterControlPlaneSecurityGroup,ParameterValue=${EKS_SECURITY_GROUP_ID}
@@ -315,7 +315,7 @@ function setup_controlplane_prereqs()
         echo "creating control plane service role..."
         aws cloudformation create-stack \
         --stack-name ${EKS_SERVICE_ROLE_STACK_NAME} \
-        --template-body file://$TEMPLATE_PATH/00_eks-cluster-service-role.yaml \
+        --template-body file://$TEMPLATE_PATH/cloudformation/00_eks-cluster-service-role.yaml \
         --capabilities CAPABILITY_IAM
     else
         echo "skipping ${EKS_SERVICE_ROLE_STACK_NAME} since it already exists"
@@ -332,7 +332,7 @@ function setup_controlplane_prereqs()
         echo "creating control plane security group..."
         aws cloudformation create-stack \
         --stack-name ${EKS_SECURITY_GROUP_STACK_NAME} \
-        --template-body file://$TEMPLATE_PATH/00_eks-cluster-security-group.yaml \
+        --template-body file://$TEMPLATE_PATH/cloudformation/00_eks-cluster-security-group.yaml \
         --parameters ParameterKey=VpcId,ParameterValue=${VPC_ID}
     else
         echo "skipping ${EKS_SECURITY_GROUP_STACK_NAME} since it already exists"
@@ -352,7 +352,7 @@ function create_controlplane()
         echo "creating control plane $EKS_CLUSTER_NAME..."
         aws cloudformation create-stack \
         --stack-name ${EKS_CONTROL_PLANE_STACK_NAME} \
-        --template-body file://$TEMPLATE_PATH/01_eks-cluster.yaml \
+        --template-body file://$TEMPLATE_PATH/cloudformation/01_eks-cluster.yaml \
         --parameters ParameterKey=ClusterName,ParameterValue=${EKS_CLUSTER_NAME} \
         ParameterKey=ServiceRoleArn,ParameterValue=${EKS_ROLE_ARN} \
         ParameterKey=SecurityGroupIds,ParameterValue=${EKS_SECURITY_GROUP_ID} \
@@ -378,7 +378,7 @@ function create_nodegroup()
         echo "creating node group $NODE_GROUP_NAME..."
         aws cloudformation create-stack \
         --stack-name ${NODE_GROUP_STACK_NAME} \
-        --template-body file://$TEMPLATE_PATH/03_node-group.yaml \
+        --template-body file://$TEMPLATE_PATH/cloudformation/03_node-group.yaml \
         --capabilities CAPABILITY_NAMED_IAM \
         --tags Key=instancegroups.orkaproj.io/ClusterName,Value=${EKS_CLUSTER_NAME} \
         --parameters ParameterKey=VpcId,ParameterValue=${VPC_ID} \

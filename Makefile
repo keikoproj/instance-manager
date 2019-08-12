@@ -25,7 +25,7 @@ env-create:
 	--node-subnets $(NODE_SUBNETS) \
 	--keypair-name $(KEYPAIR_NAME) \
 	--prefix $(PREFIX) \
-	--template-path ./docs/cloudformation \
+	--template-path ./docs \
 	create
 
 env-delete:
@@ -38,7 +38,7 @@ env-delete:
 	--node-subnets $(NODE_SUBNETS) \
 	--keypair-name $(KEYPAIR_NAME) \
 	--prefix $(PREFIX) \
-	--template-path ./docs/cloudformation \
+	--template-path ./docs \
 	delete
 
 bdd:
