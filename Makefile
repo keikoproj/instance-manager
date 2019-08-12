@@ -1,6 +1,7 @@
 
 # Image URL to use all building/pushing image targets
 IMG ?= instance-manager:latest
+INSTANCEMGR_TAG ?= latest
 
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
@@ -26,6 +27,7 @@ env-create:
 	--keypair-name $(KEYPAIR_NAME) \
 	--prefix $(PREFIX) \
 	--template-path ./docs \
+	--instancemgr-tag $(INSTANCEMGR_TAG) \
 	create
 
 env-delete:
@@ -39,6 +41,7 @@ env-delete:
 	--keypair-name $(KEYPAIR_NAME) \
 	--prefix $(PREFIX) \
 	--template-path ./docs \
+	--instancemgr-tag $(INSTANCEMGR_TAG) \
 	delete
 
 bdd:

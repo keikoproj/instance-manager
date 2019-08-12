@@ -20,6 +20,7 @@ function usage()
      --keypair-name         Name of keypair to create/use
      --template-path        Absolute path to templates folder under repo/docs/cloudformation
      --prefix               Prefix for stack names
+     --instancemgr-tag      Image tag for instance-manager controller
      operation              Positional: either "create" or "delete"
 EOF
     exit 0
@@ -65,6 +66,10 @@ function validate()
     if [[ -z ${PREFIX} ]];
     then
         PREFIX="instancemgr"
+    fi
+    if [[ -z ${INSTANCEMGR_TAG} ]];
+    then
+        INSTANCEMGR_TAG="latest"
     fi
     if [[ -z ${TEMPLATE_PATH} ]];
     then
@@ -127,6 +132,11 @@ function parse_arguments()
         ;;
         --template-path)
         TEMPLATE_PATH="$2"
+        shift
+        shift
+        ;;
+        --instancemgr-tag)
+        INSTANCEMGR_TAG="$2"
         shift
         shift
         ;;
@@ -243,6 +253,7 @@ function deploy_instance_manager()
 {
     echo "deploying instance-manager..."
     kubectl apply -f ${TEMPLATE_PATH}/04_instance-manager.yaml
+    kubectl set image deployment/instance-manager instance-manager=orkaproj/instance-manager:${INSTANCEMGR_TAG}
 }
 
 function deploy_argo()
