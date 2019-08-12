@@ -51,9 +51,9 @@ jobs:
       if: type = cron
       script:
       - export PREFIX=nightly
-      - travis_wait 30 make env-create
+      - travis_wait 45 make env-create
       - export SECURITY_GROUPS=$(aws cloudformation describe-stacks \
-        --stack-name $PREFIX-eks-security-group \
+        --stack-name $PREFIX-eks-node-security-group \
         --query "Stacks[0].Outputs[?OutputKey=='SecurityGroup'].OutputValue" \
         --output text)
       - make bdd; ret=$?; make env-delete; exit $ret
