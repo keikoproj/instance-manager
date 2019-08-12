@@ -52,8 +52,5 @@ jobs:
       script:
       - export PREFIX=nightly
       - travis_wait 45 make env-create
-      - export SECURITY_GROUPS=$(aws cloudformation describe-stacks \
-        --stack-name $PREFIX-eks-node-security-group \
-        --query "Stacks[0].Outputs[?OutputKey=='SecurityGroup'].OutputValue" \
-        --output text)
+      - export SECURITY_GROUPS=$(aws cloudformation describe-stacks --stack-name $PREFIX-eks-node-security-group --query "Stacks[0].Outputs[?OutputKey=='SecurityGroup'].OutputValue" --output text)
       - make bdd; ret=$?; make env-delete; exit $ret
