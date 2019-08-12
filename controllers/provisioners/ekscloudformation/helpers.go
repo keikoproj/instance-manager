@@ -2,10 +2,12 @@ package ekscloudformation
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -46,4 +48,36 @@ func getConfigMap(k kubernetes.Interface, namespace string, name string, options
 		return nil, err
 	}
 	return cm, nil
+}
+
+func addAnnotation(u *unstructured.Unstructured, key, value string) {
+	annotations := u.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	annotations[key] = value
+	u.SetAnnotations(annotations)
+}
+
+func hasAnnotation(u *unstructured.Unstructured, key, value string) bool {
+	annotations := u.GetAnnotations()
+	if val, ok := annotations[key]; ok {
+		if val == value {
+			return true
+		}
+	}
+	return false
+}
+
+func getUnstructuredPath(u *unstructured.Unstructured, jsonPath string) (string, error) {
+	splitFunction := func(c rune) bool {
+		return c == '.'
+	}
+	statusPath := strings.FieldsFunc(jsonPath, splitFunction)
+
+	value, _, err := unstructured.NestedString(u.UnstructuredContent(), statusPath...)
+	if err != nil {
+		return "", err
+	}
+	return value, nil
 }

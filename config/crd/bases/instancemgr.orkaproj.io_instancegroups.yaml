@@ -471,6 +471,8 @@ spec:
               properties:
                 crd:
                   properties:
+                    concurrencyPolicy:
+                      type: string
                     crdName:
                       type: string
                     spec:

@@ -7,28 +7,27 @@ spec:
   strategy:
     type: crd
     crd:
-      crdName: rollups
+      crdName: rollingupgrades
       statusJSONPath: .status.currentStatus
       statusSuccessString: completed
-      statusErrorString: error
+      statusFailureString: error
+      concurrencyPolicy: Forbid
       spec: |
-        apiVersion: asgtools.intuit.k8s.io/v1beta1
-        kind: Rollup
+        apiVersion: upgrademgr.orkaproj.io/v1alpha1
+        kind: RollingUpgrade
         metadata:
-          labels:
-            controller-tools.k8s.io: "1.0"
           name: rollup-nodes
         spec:
           postDrainDelaySeconds: 90
           nodeIntervalSeconds: 300
+          region: {{ .ControllerRegion }}
           asgName: {{ .InstanceGroup.Status.ActiveScalingGroupName }}
           postDrainScript: |
-              set -ex
-              echo "Hello, postDrain!"
+            echo "Hello, postDrain!"
           postWaitScript: |
-              echo "Hello, postWait"
+            echo "Hello, postWait"
           postTerminateScript: |
-              echo "Hello, postTerminate!"
+            echo "Hello, postTerminate!"
   eks-cf:
     minSize: 1
     maxSize: 3

@@ -475,6 +475,8 @@ spec:
               properties:
                 crd:
                   properties:
+                    concurrencyPolicy:
+                      type: string
                     crdName:
                       type: string
                     spec:
@@ -841,7 +843,7 @@ spec:
         app: instance-manager
     spec:
       containers:
-      - image: instance-manager:latest
+      - image: orkaproj/instance-manager:latest
         imagePullPolicy: Always
         name: instance-manager
         resources:
