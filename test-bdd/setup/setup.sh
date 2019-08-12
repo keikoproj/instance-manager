@@ -255,8 +255,8 @@ function deploy_argo()
 
 function setup_nodegroup_prereqs()
 {
-
-    if [ ! -f "$HOME/.ssh/$KEYPAIR_NAME.pem" ]; then
+    KEYPAIR_EXIST=$(aws ec2 describe-key-pairs --key-names ${KEYPAIR_NAME} > /dev/null 2>&1; echo $?)
+    if [ $KEYPAIR_EXIST -ne 0 ]; then
         # create an SSH keypair under ~/.ssh
         echo "creating keypair in $HOME/.ssh/$KEYPAIR_NAME.pem"
         aws ec2 create-key-pair --key-name ${KEYPAIR_NAME} --query 'KeyMaterial' \
