@@ -19,6 +19,7 @@ function usage()
      --node-subnets         Comma separated list of worker node subnets
      --keypair-name         Name of keypair to create/use
      --template-path        Absolute path to templates folder under repo/docs/cloudformation
+     --prefix               Prefix for stack names
      operation              Positional: either "create" or "delete"
 EOF
     exit 0
@@ -60,6 +61,10 @@ function validate()
     then
         echo "ERROR: --keypair-name was not provided"
         usage
+    fi
+    if [[ -z ${PREFIX} ]];
+    then
+        PREFIX="instancemgr"
     fi
     if [[ -z ${TEMPLATE_PATH} ]];
     then
@@ -136,6 +141,11 @@ function parse_arguments()
         NODE_SUBNETS="$2"
         NODE_SUBNETS_ESCAPED=$(echo $2 | sed 's/,/\\,/g')
         NODE_SUBNETS_LIST=$(echo $2 | jq -R -s -c 'split(",")' | sed 's/\\n//g')
+        shift
+        shift
+        ;;
+        --prefix)
+        PREFIX="$2"
         shift
         shift
         ;;
@@ -421,12 +431,14 @@ function main()
     export AWS_REGION=$REGION
 
     VERSION=1.13
-    NODE_GROUP_STACK_NAME="eks-bootstrap-node-group"
-    EKS_CONTROL_PLANE_STACK_NAME="eks-control-plane"
-    EKS_SERVICE_ROLE_STACK_NAME="eks-service-role"
-    EKS_SECURITY_GROUP_STACK_NAME="eks-security-group"
-    NODE_GROUP_SERVICE_ROLE_STACK_NAME="eks-node-service-role"
-    NODE_SECURITY_GROUP_STACK_NAME="eks-node-security-group"
+    NODE_GROUP_STACK_NAME="${PREFIX}-eks-bootstrap-node-group"
+    EKS_CONTROL_PLANE_STACK_NAME="${PREFIX}-eks-control-plane"
+    EKS_SERVICE_ROLE_STACK_NAME="${PREFIX}-eks-service-role"
+    EKS_SECURITY_GROUP_STACK_NAME="${PREFIX}-eks-security-group"
+    NODE_GROUP_SERVICE_ROLE_STACK_NAME="${PREFIX}-eks-node-service-role"
+    NODE_SECURITY_GROUP_STACK_NAME="${PREFIX}-eks-node-security-group"
+
+    export AWS_DEFAULT_REGION=$REGION
 
     if [[ "$POSITIONAL" == "create" ]];
     then

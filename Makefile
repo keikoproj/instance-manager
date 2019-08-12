@@ -15,17 +15,43 @@ test: generate fmt vet manifests
 vtest: generate fmt vet manifests
 	go test -v ./controllers/... -coverprofile coverage.txt --logging-enabled
 
+env-create:
+	./test-bdd/setup/setup.sh \
+	--region $(AWS_REGION) \
+	--vpc-id $(VPC_ID) \
+	--cluster-name $(EKS_CLUSTER) \
+	--ami-id $(STABLE_AMI) \
+	--cluster-subnets $(CLUSTER_SUBNETS) \
+	--node-subnets $(NODE_SUBNETS) \
+	--keypair-name $(KEYPAIR_NAME) \
+	--prefix $(PREFIX) \
+	--template-path ./docs/cloudformation \
+	create
+
+env-delete:
+	./test-bdd/setup/setup.sh \
+	--region $(AWS_REGION) \
+	--vpc-id $(VPC_ID) \
+	--cluster-name $(EKS_CLUSTER) \
+	--ami-id $(STABLE_AMI) \
+	--cluster-subnets $(CLUSTER_SUBNETS) \
+	--node-subnets $(NODE_SUBNETS) \
+	--keypair-name $(KEYPAIR_NAME) \
+	--prefix $(PREFIX) \
+	--template-path ./docs/cloudformation \
+	delete
+
 bdd:
 	go test -timeout 60m -v ./test-bdd/ -ginkgo.v -ginkgo.progress --ginkgo.failFast \
 	--eks-cluster $(EKS_CLUSTER) \
 	--aws-region $(AWS_REGION) \
 	--kubeconfig $(KUBECONFIG) \
-	--keypair-name ${KEYPAIR_NAME} \
-	--vpc-id ${VPC_ID} \
-	--ami-id-stable ${STABLE_AMI} \
-	--ami-id-latest ${LATEST_AMI} \
-	--security-groups ${SECURITY_GROUPS} \
-	--subnets ${SUBNETS}
+	--keypair-name $(KEYPAIR_NAME) \
+	--vpc-id $(VPC_ID) \
+	--ami-id-stable $(STABLE_AMI) \
+	--ami-id-latest $(LATEST_AMI) \
+	--security-groups $(SECURITY_GROUPS) \
+	--subnets $(NODE_SUBNETS)
 
 coverage:
 	go test -coverprofile coverage.txt -v ./controllers/...
@@ -68,7 +94,7 @@ generate: controller-gen
 	$(CONTROLLER_GEN) object:headerFile=./hack/boilerplate.go.txt paths=./api/...
 
 # Build the docker image
-docker-build: test
+docker-build:
 	docker build . -t ${IMG}
 	@echo "updating kustomize image patch file for manager resource"
 	sed -i'' -e 's@image: .*@image: '"${IMG}"'@' ./config/default/manager_image_patch.yaml

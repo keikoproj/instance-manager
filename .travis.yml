@@ -9,6 +9,23 @@ git:
 env:
   global:
     - GO111MODULE=on
+    - KUBECONFIG=$HOME/.kube/config
+
+cache:
+  directories:
+  - $HOME/.local
+  - $HOME/.kube
+
+before_install:
+  - pip install --user awscli
+  - curl -LO https://storage.googleapis.com/kubernetes-release/release/`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`/bin/linux/amd64/kubectl
+  - chmod +x ./kubectl
+  - sudo mv ./kubectl /usr/local/bin/kubectl
+  - curl -sSL -o $HOME/.local/bin/jq https://github.com/stedolan/jq/releases/download/jq-1.5/jq-linux64 && chmod +x $HOME/.local/bin/jq
+  - export PATH=$PATH:$HOME/.local/bin
+  - jq --version
+  - kubectl version
+  - aws --version
 
 install: skip
 
@@ -16,14 +33,28 @@ jobs:
   include:
 
     - stage: unit-test
+      if: type IN (push, pull_request)
       script:
       - go test -v -mod=vendor ./controllers/... -coverprofile coverage.txt
       - bash <(curl -s https://codecov.io/bash)
 
     - stage: publish-image
-      if: type = push
+      if: type IN (push, pull_request)
       script:
       - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-      - export IMG=orkaproj/instance-manager:$TRAVIS_BRANCH
+      - if [ $TRAVIS_EVENT_TYPE = pull_request ]; then export IMG=orkaproj/instance-manager:$TRAVIS_COMMIT; fi
+      - if [ $TRAVIS_EVENT_TYPE = push ]; then export IMG=orkaproj/instance-manager:$TRAVIS_BRANCH; fi
       - make docker-build
       - make docker-push
+
+    - stage: functional-test
+      if: type = cron
+      script:
+      - export PREFIX=nightly
+      - make env-create
+      - export SECURITY_GROUPS=$(aws cloudformation describe-stacks \
+        --stack-name $PREFIX-eks-security-group \
+        --query "Stacks[0].Outputs[?OutputKey=='SecurityGroup'].OutputValue" \
+        --output text)
+      - make bdd
+      - make env-delete
