@@ -24,7 +24,7 @@ before_install:
   - curl -sSL -o $HOME/.local/bin/jq https://github.com/stedolan/jq/releases/download/jq-1.5/jq-linux64 && chmod +x $HOME/.local/bin/jq
   - export PATH=$PATH:$HOME/.local/bin
   - jq --version
-  - kubectl version
+  - kubectl
   - aws --version
 
 install: skip
