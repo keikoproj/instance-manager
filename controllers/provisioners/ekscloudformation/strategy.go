@@ -31,7 +31,8 @@ import (
 )
 
 const (
-	OwnershipAnnotationKey   = "instancemgr.orkaproj.io/owned"
+	OwnershipAnnotationKey   = "app.kubernetes.io/managed-by"
+	OwnershipAnnotationValue = "instance-manager"
 	DefaultConcurrencyPolicy = "forbid"
 )
 
@@ -52,7 +53,7 @@ func (ctx *EksCfInstanceGroupContext) discoverCreatedResources(s schema.GroupVer
 	}
 
 	for _, resource := range resources.Items {
-		if hasAnnotation(&resource, OwnershipAnnotationKey, "true") {
+		if hasAnnotation(&resource, OwnershipAnnotationKey, OwnershipAnnotationValue) {
 			state.AddOwnedResources(resource)
 		}
 	}
@@ -126,7 +127,7 @@ func (ctx *EksCfInstanceGroupContext) processCRDStrategy() error {
 		return err
 	}
 
-	addAnnotation(customResource, OwnershipAnnotationKey, "true")
+	addAnnotation(customResource, OwnershipAnnotationKey, OwnershipAnnotationValue)
 
 	API := customResource.GetAPIVersion()
 	s := strings.Split(API, "/")

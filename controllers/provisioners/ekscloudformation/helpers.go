@@ -75,12 +75,9 @@ func getUnstructuredPath(u *unstructured.Unstructured, jsonPath string) (string,
 	}
 	statusPath := strings.FieldsFunc(jsonPath, splitFunction)
 
-	value, ok, err := unstructured.NestedString(u.UnstructuredContent(), statusPath...)
+	value, _, err := unstructured.NestedString(u.UnstructuredContent(), statusPath...)
 	if err != nil {
 		return "", err
 	}
-	if ok {
-		return value, nil
-	}
-	return "", nil
+	return value, nil
 }
