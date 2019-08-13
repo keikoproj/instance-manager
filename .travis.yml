@@ -39,11 +39,9 @@ jobs:
       - bash <(curl -s https://codecov.io/bash)
 
     - stage: publish-image
-      if: type IN (push, pull_request)
+      if: type IN (push)
       script:
       - echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
-      - export SHORT_COMMIT_HASH=$(git rev-parse --short HEAD)
-      - if [ $TRAVIS_EVENT_TYPE = pull_request ]; then export IMG=orkaproj/instance-manager:$SHORT_COMMIT_HASH; fi
       - if [ $TRAVIS_EVENT_TYPE = push ]; then export IMG=orkaproj/instance-manager:$TRAVIS_BRANCH; fi
       - make docker-build
       - make docker-push
