@@ -540,6 +540,24 @@ metadata:
   creationTimestamp: null
   name: instance-manager
 rules:
+# < ...
+# This is only needed for if you are using one of these projects for CRD Strategy, you may replaces this with a different RBAC
+- apiGroups:
+  - argoproj.io
+  - upgrademgr.orkaproj.io
+  resources:
+  - workflows
+  - rollingupgrades
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+# This is only needed for if you are using one of these projects for CRD Strategy, you may replaces this with a different RBAC 
+# ... >
 - apiGroups:
   - ""
   resources:
