@@ -183,10 +183,8 @@ func WaitForNodesCreate(k kubernetes.Interface, role string, expectedReadyCount 
 
 func WaitForNodesRotate(k kubernetes.Interface, role string) bool {
 	var initialNodeNames []string
-	// poll every 40 seconds
-	var pollingInterval = time.Second * 40
-	// timeout after 24 occurrences = 960 seconds = 16 minutes
-	var timeoutCounter = 24
+	var pollingInterval = time.Second * 30
+	var timeoutCounter = 48
 	var pollingCounter = 0
 	var labelSelector = fmt.Sprintf("node-role.kubernetes.io/%v=", role)
 

@@ -186,16 +186,16 @@ var _ = Describe("EKSCF InstanceGroups CRUD operations are succesfull", func() {
 		wfCreation := testutil.WaitForWorkflowCreation(clientSet.kubeDynamic, workflowNamespace, workflowName)
 		Expect(wfCreation).Should(BeTrue())
 
-		// Wait for workflow success
-		wfStatus := testutil.WaitForWorkflowSuccess(clientSet.kubeDynamic, workflowNamespace, workflowName)
-		Expect(wfStatus).Should(BeTrue())
-
 		// Nodes should be replaced within reasonable time
 		rollingUpgrade := testutil.WaitForNodesRotate(clientSet.kube, rollingExpectedLabel)
 		Expect(rollingUpgrade).Should(BeTrue())
 
 		workflowUpgrade := testutil.WaitForNodesRotate(clientSet.kube, crdExpectedLabel)
 		Expect(workflowUpgrade).Should(BeTrue())
+
+		// Wait for workflow success
+		wfStatus := testutil.WaitForWorkflowSuccess(clientSet.kubeDynamic, workflowNamespace, workflowName)
+		Expect(wfStatus).Should(BeTrue())
 
 		// InstanceGroup CR Status should be Ready
 		rollingReadiness := testutil.WaitForInstanceGroupReadiness(clientSet.kubeDynamic, rollingInstanceGroup.GetNamespace(), rollingInstanceGroup.GetName())
