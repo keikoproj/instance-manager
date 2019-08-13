@@ -104,11 +104,6 @@ ip-10-10-10-20.us-west-2.compute.internal   Ready    hello-world   32s    v1.12.
 
 _For more examples and usage, please refer to the [Installation Reference Walkthrough][install]._
 
-## Release History
-
-* 0.2.0
-  * Release alpha version of instance-manager
-
 ## ❤ Contributing ❤
 
 Please see [CONTRIBUTING.md](.github/CONTRIBUTING.md).
