@@ -45,7 +45,8 @@ jobs:
       if: type IN (push, pull_request)
       script:
       - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-      - if [ $TRAVIS_EVENT_TYPE = pull_request ]; then export IMG=orkaproj/instance-manager:$TRAVIS_COMMIT; fi
+      - export SHORT_COMMIT_HASH=$(git rev-parse --short HEAD)
+      - if [ $TRAVIS_EVENT_TYPE = pull_request ]; then export IMG=orkaproj/instance-manager:$SHORT_COMMIT_HASH; fi
       - if [ $TRAVIS_EVENT_TYPE = push ]; then export IMG=orkaproj/instance-manager:$TRAVIS_BRANCH; fi
       - make docker-build
       - make docker-push
