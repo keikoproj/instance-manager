@@ -177,7 +177,7 @@ function create()
     create_nodegroup
 
     deploy_instance_manager
-    deploy_argo
+    deploy_upgrademgr
 }
 
 function delete()
@@ -256,12 +256,10 @@ function deploy_instance_manager()
     kubectl set image deployment/instance-manager instance-manager=orkaproj/instance-manager:${INSTANCEMGR_TAG}
 }
 
-function deploy_argo()
+function deploy_upgrademgr()
 {
-    echo "deploying argo workflows..."
-    kubectl create namespace argo
-    kubectl apply -n argo -f https://raw.githubusercontent.com/argoproj/argo/stable/manifests/install.yaml
-    kubectl create rolebinding default-admin --clusterrole=admin --serviceaccount=default:default
+    echo "deploying upgrade-manager..."
+    kubectl apply -f ${TEMPLATE_PATH}/upgrade-manager.yaml -n kube-system
 }
 
 function setup_nodegroup_prereqs()

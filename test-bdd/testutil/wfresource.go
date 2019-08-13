@@ -26,23 +26,26 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
+var successString = "completed"
+var errorString = "error"
+var statusKey = "currentStatus"
+var resourceName = "rollingupgrades"
+
 var workflowSchema = schema.GroupVersionResource{
-	Group:    "argoproj.io",
+	Group:    "upgrademgr.orkaproj.io",
 	Version:  "v1alpha1",
-	Resource: "workflows",
+	Resource: resourceName,
 }
 
 func WaitForWorkflowCreation(k dynamic.Interface, workflowNamespace string, workflowName string) bool {
-	// poll every 20 seconds
 	var pollingInterval = time.Second * 10
-	// timeout after 24 occurrences = 240 seconds = 4 minutes
 	var timeoutCounter = 24
 	var pollingCounter = 0
 
 	for {
 		_, err := k.Resource(workflowSchema).Namespace(workflowNamespace).Get(workflowName, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
-			log.Printf("could not find workflow")
+			log.Printf("could not find %v", resourceName)
 			time.Sleep(pollingInterval)
 			pollingCounter++
 		} else {
@@ -56,31 +59,30 @@ func WaitForWorkflowCreation(k dynamic.Interface, workflowNamespace string, work
 }
 
 func WaitForWorkflowSuccess(k dynamic.Interface, namespace string, name string) bool {
-	// poll every 20 seconds
-	var pollingInterval = time.Second * 10
-	// timeout after 24 occurrences = 240 seconds = 4 minutes
-	var timeoutCounter = 24
+	var pollingInterval = time.Second * 30
+	var timeoutCounter = 48
 	var pollingCounter = 0
 
 	for {
 		workflow, err := k.Resource(workflowSchema).Namespace(namespace).Get(name, metav1.GetOptions{})
 		if err != nil {
-			log.Printf("could not get workflow: %v", err)
+			log.Printf("could not get %v: %v", resourceName, err)
 			return false
 		}
-		status, ok, _ := unstructured.NestedString(workflow.UnstructuredContent(), "status", "phase")
+		status, ok, _ := unstructured.NestedString(workflow.UnstructuredContent(), "status", statusKey)
 		if ok {
-			if strings.ToLower(status) == "succeeded" {
+			if strings.ToLower(status) == successString {
 				return true
-			} else if strings.ToLower(status) == "failed" {
-
+			} else if strings.ToLower(status) == errorString {
+				log.Printf("%v has failed", resourceName)
+				return false
 			}
-
 		} else {
-			log.Printf("could not get workflow status")
+			log.Printf("could not get %v status", resourceName)
 			return false
 		}
 
+		log.Printf("waiting for %v status to complete reconcile", resourceName)
 		time.Sleep(pollingInterval)
 		pollingCounter++
 		if pollingCounter == timeoutCounter {
