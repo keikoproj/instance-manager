@@ -41,7 +41,7 @@ jobs:
     - stage: publish-image
       if: type IN (push, pull_request)
       script:
-      - docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+      - echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
       - export SHORT_COMMIT_HASH=$(git rev-parse --short HEAD)
       - if [ $TRAVIS_EVENT_TYPE = pull_request ]; then export IMG=orkaproj/instance-manager:$SHORT_COMMIT_HASH; fi
       - if [ $TRAVIS_EVENT_TYPE = push ]; then export IMG=orkaproj/instance-manager:$TRAVIS_BRANCH; fi
