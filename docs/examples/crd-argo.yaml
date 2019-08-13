@@ -11,6 +11,7 @@ spec:
       statusJSONPath: .status.phase
       statusSuccessString: Succeeded
       statusErrorString: Failed
+      concurrencyPolicy: Forbid
       spec: |
         apiVersion: argoproj.io/v1alpha1
         kind: Workflow
