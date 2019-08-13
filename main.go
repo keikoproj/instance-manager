@@ -37,7 +37,7 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 )
 
-const controllerVersion = "instancemgr-0.2.0"
+const controllerVersion = "instancemgr-0.3.0"
 
 func init() {
 
