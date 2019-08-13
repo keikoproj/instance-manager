@@ -10,28 +10,21 @@ spec:
   strategy:
     type: crd
     crd:
-      crdName: workflows
-      statusJSONPath: .status.phase
-      statusSuccessString: Succeeded
-      statusErrorString: Failed
+      crdName: rollingupgrades
+      statusJSONPath: .status.currentStatus
+      statusSuccessString: completed
+      statusErrorString: error
       spec: |
-        apiVersion: argoproj.io/v1alpha1
-        kind: Workflow
+        apiVersion: upgrademgr.orkaproj.io/v1alpha1
+        kind: RollingUpgrade
         metadata:
-          name: bdd-test
+          name: rollup-nodes
           namespace: instance-manager
         spec:
-          entrypoint: whalesay
-          templates:
-          - name: whalesay
-            container:
-              image: docker/whalesay
-              command: [cowsay]
-              args: ["hello world"]
-              resources:
-                limits:
-                  memory: 32Mi
-                  cpu: 100m
+          postDrainDelaySeconds: 90
+          nodeIntervalSeconds: 300
+          region: {{`{{ .ControllerRegion }}`}}
+          asgName: {{`{{ .InstanceGroup.Status.ActiveScalingGroupName }}`}}
   eks-cf:
     maxSize: 6
     minSize: 3

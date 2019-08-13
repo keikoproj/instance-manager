@@ -164,6 +164,7 @@ var _ = Describe("EKSCF InstanceGroups CRUD operations are succesfull", func() {
 		var workflowNamespace = "instance-manager"
 		var workflowPath = []string{"status", "strategyResourceName"}
 		var rollingExpectedLabel = "bdd-test-rolling"
+		var crdExpectedLabel = "bdd-test-crd"
 
 		Args.AmiID = AMIIDLatest
 
@@ -192,6 +193,9 @@ var _ = Describe("EKSCF InstanceGroups CRUD operations are succesfull", func() {
 		// Nodes should be replaced within reasonable time
 		rollingUpgrade := testutil.WaitForNodesRotate(clientSet.kube, rollingExpectedLabel)
 		Expect(rollingUpgrade).Should(BeTrue())
+
+		workflowUpgrade := testutil.WaitForNodesRotate(clientSet.kube, crdExpectedLabel)
+		Expect(workflowUpgrade).Should(BeTrue())
 
 		// InstanceGroup CR Status should be Ready
 		rollingReadiness := testutil.WaitForInstanceGroupReadiness(clientSet.kubeDynamic, rollingInstanceGroup.GetNamespace(), rollingInstanceGroup.GetName())
