@@ -77,6 +77,7 @@ type AwsUpgradeStrategy struct {
 type CRDUpgradeStrategy struct {
 	Spec                string `json:"spec,omitempty"`
 	CRDName             string `json:"crdName,omitempty"`
+	ConcurrencyPolicy   string `json:"concurrencyPolicy,omitempty"`
 	StatusJSONPath      string `json:"statusJSONPath,omitempty"`
 	StatusSuccessString string `json:"statusSuccessString,omitempty"`
 	StatusFailureString string `json:"statusFailureString,omitempty"`
@@ -141,6 +142,14 @@ func (c *CRDUpgradeStrategy) GetCRDName() string {
 
 func (c *CRDUpgradeStrategy) SetCRDName(name string) {
 	c.CRDName = name
+}
+
+func (c *CRDUpgradeStrategy) GetConcurrencyPolicy() string {
+	return c.ConcurrencyPolicy
+}
+
+func (c *CRDUpgradeStrategy) SetConcurrencyPolicy(policy string) {
+	c.ConcurrencyPolicy = policy
 }
 
 func (c *CRDUpgradeStrategy) GetStatusJSONPath() string {

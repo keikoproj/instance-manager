@@ -21,6 +21,7 @@ import (
 	"github.com/orkaproj/instance-manager/api/v1alpha1"
 	"github.com/orkaproj/instance-manager/controllers/common"
 	"github.com/orkaproj/instance-manager/controllers/providers/aws"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 type AwsAuthConfig struct {
@@ -85,7 +86,25 @@ type DiscoveredState struct {
 	CloudformationStacks []*cloudformation.Stack
 	ScalingGroups        []*autoscaling.Group
 	LaunchConfigurations []*autoscaling.LaunchConfiguration
+	OwnedResources       []*unstructured.Unstructured
+	ActiveOwnedResources []*unstructured.Unstructured
 	InstanceGroups       DiscoveredInstanceGroups
+}
+
+func (s *DiscoveredState) GetOwnedResources() []*unstructured.Unstructured {
+	return s.OwnedResources
+}
+
+func (s *DiscoveredState) AddOwnedResources(resource unstructured.Unstructured) {
+	s.OwnedResources = append(s.OwnedResources, &resource)
+}
+
+func (s *DiscoveredState) GetActiveOwnedResources() []*unstructured.Unstructured {
+	return s.ActiveOwnedResources
+}
+
+func (s *DiscoveredState) AddActiveOwnedResources(resource *unstructured.Unstructured) {
+	s.ActiveOwnedResources = append(s.ActiveOwnedResources, resource)
 }
 
 func (s *DiscoveredState) GetInstanceGroups() DiscoveredInstanceGroups {
