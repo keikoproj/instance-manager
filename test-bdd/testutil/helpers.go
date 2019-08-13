@@ -146,13 +146,13 @@ func WaitForNodesCreate(k kubernetes.Interface, role string, expectedReadyCount 
 	// timeout after 24 occurrences = 960 seconds = 16 minutes
 	var timeoutCounter = 24
 	var pollingCounter = 0
-	var seenReady = 0
 	var labelSelector = fmt.Sprintf("node-role.kubernetes.io/%v=", role)
 
 	for {
 		log.Printf("waiting for nodes, attempt %v/%v", pollingCounter, timeoutCounter)
 		nodeList, _ := k.CoreV1().Nodes().List(metav1.ListOptions{LabelSelector: labelSelector})
 		nodeCount := len(nodeList.Items)
+		var seenReady = 0
 
 		if nodeCount == expectedReadyCount {
 
