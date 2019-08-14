@@ -52,8 +52,6 @@ jobs:
         - PREFIX=nightly
         - INSTANCEMGR_TAG=master
       script:
-      - while sleep 9m; do echo "=====[ keepalive ]====="; done &
-      - make env-create
       - export SECURITY_GROUPS=$(aws cloudformation describe-stacks --stack-name $PREFIX-eks-node-security-group --query "Stacks[0].Outputs[?OutputKey=='SecurityGroup'].OutputValue" --output text)
-      - make bdd; ret=$?; make env-delete; exit $ret
-      - kill %1
+      - aws eks update-kubeconfig --name $EKS_CLUSTER
+      - make bdd
