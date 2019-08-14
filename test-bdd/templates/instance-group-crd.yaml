@@ -21,8 +21,8 @@ spec:
           name: rollup-nodes
           namespace: instance-manager
         spec:
-          postDrainDelaySeconds: 90
-          nodeIntervalSeconds: 300
+          postDrainDelaySeconds: 30
+          nodeIntervalSeconds: 180
           region: {{`{{ .ControllerRegion }}`}}
           asgName: {{`{{ .InstanceGroup.Status.ActiveScalingGroupName }}`}}
   eks-cf:
