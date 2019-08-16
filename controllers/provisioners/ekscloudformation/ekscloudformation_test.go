@@ -68,10 +68,22 @@ status:
   conditions: []
   storedVersions: []`
 
-var rollupSpec = `apiVersion: upgrademgr.orkaproj.io/v1alpha1
+var blankMocker = awsprovider.AwsWorker{
+	StackName: "test",
+	CfClient:  &stubCF{},
+	AsgClient: &stubASG{},
+	EksClient: &stubEKS{},
+}
+
+func init() {
+	flag.BoolVar(&loggingEnabled, "logging-enabled", false, "Enable Logging")
+}
+
+func getRollupSpec(name string) string {
+	var rollupSpec = fmt.Sprintf(`apiVersion: upgrademgr.orkaproj.io/v1alpha1
 kind: RollingUpgrade
 metadata:
-  name: rollup-nodes
+  name: %v
 spec:
   postDrainDelaySeconds: 90
   nodeIntervalSeconds: 300
@@ -84,10 +96,8 @@ spec:
   postTerminateScript: |
     echo "Hello, postTerminate!"
 status:
-  currentStatus: running`
-
-func init() {
-	flag.BoolVar(&loggingEnabled, "logging-enabled", false, "Enable Logging")
+  currentStatus: running`, name)
+	return rollupSpec
 }
 
 type EksCfUnitTest struct {
@@ -119,6 +129,7 @@ type stubCF struct {
 
 type stubASG struct {
 	autoscalingiface.AutoScalingAPI
+	ExistingGroups []*autoscaling.Group
 }
 
 type stubEKS struct {
@@ -137,6 +148,8 @@ type FakeIG struct {
 	UpgradeStrategyCRDStatusPath    string
 	UpgradeStrategyCRDStatusSuccess string
 	UpgradeStrategyCRDStatusFail    string
+	ConcurrencyPolicy               string
+	BootstrapArguments              string
 	IsDeleting                      bool
 }
 
@@ -230,6 +243,9 @@ func (s *stubCF) DeleteStack(*cloudformation.DeleteStackInput) (*cloudformation.
 
 func (s *stubASG) DescribeAutoScalingGroups(*autoscaling.DescribeAutoScalingGroupsInput) (*autoscaling.DescribeAutoScalingGroupsOutput, error) {
 	var groups []*autoscaling.Group
+	for _, group := range s.ExistingGroups {
+		groups = append(groups, group)
+	}
 	output := &autoscaling.DescribeAutoScalingGroupsOutput{
 		AutoScalingGroups: groups,
 	}
@@ -341,6 +357,24 @@ func bootstrap(k kubernetes.Interface) {
 	createInitConfigMap(k)
 }
 
+func (ctx *EksCfInstanceGroupContext) fakeBootstrapState() {
+	discoveredState := &DiscoveredState{
+		InstanceGroups: DiscoveredInstanceGroups{
+			Items: []DiscoveredInstanceGroup{
+				{
+					ARN: "arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/discoveredARN",
+				},
+			},
+		},
+	}
+	ctx.SetDiscoveredState(discoveredState)
+	ctx.DefaultARNList = []string{
+		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/arn-1",
+		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/arn-2",
+	}
+
+}
+
 func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 	var deletionTimestamp metav1.Time
 
@@ -349,6 +383,9 @@ func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 	}
 	if f.Name == "" {
 		f.Name = "instancegroup-1"
+	}
+	if f.ConcurrencyPolicy == "" {
+		f.ConcurrencyPolicy = "forbid"
 	}
 	if f.Namespace == "" {
 		f.Namespace = "namespace-1"
@@ -373,10 +410,25 @@ func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 			DeletionTimestamp: &deletionTimestamp,
 		},
 		Spec: v1alpha1.InstanceGroupSpec{
+			Provisioner: "eks-cf",
+			EKSCFSpec: v1alpha1.EKSCFSpec{
+				MaxSize: 3,
+				MinSize: 1,
+				EKSCFConfiguration: v1alpha1.EKSCFConfiguration{
+					BootstrapArguments: f.BootstrapArguments,
+					Tags: []map[string]string{
+						{
+							"key":   "a-key",
+							"value": "a-value",
+						},
+					},
+				},
+			},
 			AwsUpgradeStrategy: v1alpha1.AwsUpgradeStrategy{
 				Type: f.UpgradeStrategyType,
 				CRDType: v1alpha1.CRDUpgradeStrategy{
 					Spec:                f.UpgradeStrategyCRDSpec,
+					ConcurrencyPolicy:   f.ConcurrencyPolicy,
 					CRDName:             f.UpgradeStrategyCRD,
 					StatusJSONPath:      f.UpgradeStrategyCRDStatusPath,
 					StatusSuccessString: f.UpgradeStrategyCRDStatusSuccess,
@@ -390,6 +442,23 @@ func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 	}
 
 	return instanceGroup
+}
+
+func getBasicContext(t *testing.T, awsMocker awsprovider.AwsWorker) EksCfInstanceGroupContext {
+	client := fake.NewSimpleClientset()
+	dynScheme := runtime.NewScheme()
+	dynClient := fakedynamic.NewSimpleDynamicClient(dynScheme)
+	ig := FakeIG{}
+	kube := common.KubernetesClientSet{
+		Kubernetes:  client,
+		KubeDynamic: dynClient,
+	}
+
+	ctx, err := New(ig.getInstanceGroup(), kube, awsMocker)
+	if err != nil {
+		t.Fail()
+	}
+	return ctx
 }
 
 func (u *EksCfUnitTest) Run(t *testing.T) {
@@ -490,7 +559,7 @@ func (u *EksCfUnitTest) Run(t *testing.T) {
 	}
 
 	if u.LoadCRD == "rollingupgrade" {
-		CRDSpec, _ := common.ParseCustomResourceYaml(rollupSpec)
+		CRDSpec, _ := common.ParseCustomResourceYaml(getRollupSpec("rollup"))
 		apiVersionSplit := strings.Split(CRDSpec.GetAPIVersion(), "/")
 		CRDSchema := schema.GroupVersionResource{Group: apiVersionSplit[0], Version: apiVersionSplit[1], Resource: "rollingupgrade"}
 		rollupResult, _ = kube.KubeDynamic.Resource(CRDSchema).List(metav1.ListOptions{})
@@ -505,7 +574,9 @@ func (u *EksCfUnitTest) Run(t *testing.T) {
 }
 
 func TestStateDiscoveryInitUpdate(t *testing.T) {
-	ig := FakeIG{}
+	ig := FakeIG{
+		BootstrapArguments: "--node-labels kubernetes.io/role=node",
+	}
 	testCase := EksCfUnitTest{
 		Description:   "StateDiscovery - when a stack already exist (idle), state should be InitUpdate",
 		InstanceGroup: ig.getInstanceGroup(),
@@ -691,7 +762,7 @@ func TestCrdStrategyCRExist(t *testing.T) {
 	ig := FakeIG{
 		UpgradeStrategyType:             "crd",
 		UpgradeStrategyCRD:              "rollingupgrade",
-		UpgradeStrategyCRDSpec:          rollupSpec,
+		UpgradeStrategyCRDSpec:          getRollupSpec("rollup"),
 		UpgradeStrategyCRDStatusPath:    "status.currentStatus",
 		UpgradeStrategyCRDStatusSuccess: "success",
 	}
@@ -704,4 +775,139 @@ func TestCrdStrategyCRExist(t *testing.T) {
 		ExpectedCR:    1,
 	}
 	testCase.Run(t)
+}
+
+func TestCrdStrategyCRLongName(t *testing.T) {
+	ig := FakeIG{
+		UpgradeStrategyType:             "crd",
+		UpgradeStrategyCRD:              "rollingupgrade",
+		UpgradeStrategyCRDSpec:          getRollupSpec(strings.Repeat("a", 65)),
+		UpgradeStrategyCRDStatusPath:    "status.currentStatus",
+		UpgradeStrategyCRDStatusSuccess: "success",
+	}
+	testCase := EksCfUnitTest{
+		Description:   "CRDStrategy - rollup strategy can be submitted successfully",
+		LoadCRD:       "rollingupgrade",
+		InstanceGroup: ig.getInstanceGroup(),
+		StackExist:    false,
+		ExpectedState: v1alpha1.ReconcileInitCreate,
+		ExpectedCR:    1,
+	}
+	testCase.Run(t)
+}
+
+func TestGetActiveNodesARN(t *testing.T) {
+	ctx := getBasicContext(t, blankMocker)
+	ctx.fakeBootstrapState()
+
+	expectedActiveARNs := []string{
+		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/arn-1",
+		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/arn-2",
+		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/discoveredARN",
+	}
+	nodesArn := ctx.getActiveNodeArns()
+	if !reflect.DeepEqual(nodesArn, expectedActiveARNs) {
+		t.Fatalf("getActiveNodeArns returned: %v, expected: %v", nodesArn, expectedActiveARNs)
+	}
+}
+
+func TestUpdateAuthConfigMap(t *testing.T) {
+	ctx := getBasicContext(t, blankMocker)
+	ctx.fakeBootstrapState()
+	ctx.createEmptyNodesAuthConfigMap()
+	ctx.updateAuthConfigMap()
+	expectedActiveARNs := []string{
+		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/arn-1",
+		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/arn-2",
+		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/discoveredARN",
+	}
+	var expectedAuthMap string
+	for _, arn := range expectedActiveARNs {
+		expectedAuthMap += fmt.Sprintf("- rolearn: %v\n  username: system:node:{{EC2PrivateDNSName}}\n  groups:\n  - system:bootstrappers\n  - system:nodes\n", arn)
+	}
+	cm, err := ctx.KubernetesClient.Kubernetes.CoreV1().ConfigMaps("kube-system").Get("aws-auth", metav1.GetOptions{})
+	if err != nil {
+		t.Fatal("createEmptyNodesAuthConfigMap: config map not found")
+	}
+	if cm.Data["mapRoles"] != expectedAuthMap {
+		t.Fatalf("updateAuthConfigMap returned: %v, expected: %v", cm.Data["mapRoles"], expectedAuthMap)
+	}
+}
+
+func TestIsReadyPositive(t *testing.T) {
+	ctx := getBasicContext(t, blankMocker)
+	instanceGroup := ctx.GetInstanceGroup()
+	instanceGroup.SetState(v1alpha1.ReconcileModified)
+	if !ctx.IsReady() {
+		t.Fatal("TestIsReadyPositive: got false, expected: true")
+	}
+	instanceGroup.SetState(v1alpha1.ReconcileDeleted)
+	if !ctx.IsReady() {
+		t.Fatal("TestIsReadyPositive: got false, expected: true")
+	}
+}
+
+func TestIsReadyNegative(t *testing.T) {
+	ctx := getBasicContext(t, blankMocker)
+	instanceGroup := ctx.GetInstanceGroup()
+	instanceGroup.SetState(v1alpha1.ReconcileInit)
+	if ctx.IsReady() {
+		t.Fatal("TestIsReadyNegative: got true, expected: false")
+	}
+	instanceGroup.SetState(v1alpha1.ReconcileInitCreate)
+	if ctx.IsReady() {
+		t.Fatal("TestIsReadyNegative: got true, expected: false")
+	}
+}
+
+func TestIsUpgradeNeededPositive(t *testing.T) {
+	mocker := blankMocker
+	existingASGs := []*autoscaling.Group{
+		{
+			AutoScalingGroupName: aws.String("my-scaling-group"),
+			Instances: []*autoscaling.Instance{
+				{
+					LaunchConfigurationName: nil,
+					InstanceId:              aws.String("my-instance"),
+				},
+			},
+		},
+	}
+	mocker.AsgClient = &stubASG{
+		ExistingGroups: existingASGs,
+	}
+	ctx := getBasicContext(t, mocker)
+	discoveredState := &DiscoveredState{
+		SelfGroup: &DiscoveredInstanceGroup{ScalingGroupName: "my-scaling-group"},
+	}
+	ctx.SetDiscoveredState(discoveredState)
+	if !ctx.IsUpgradeNeeded() {
+		t.Fatal("TestIsUpgradeNeededPositive: got false, expected: true")
+	}
+}
+
+func TestIsUpgradeNeededNegative(t *testing.T) {
+	mocker := blankMocker
+	existingASGs := []*autoscaling.Group{
+		{
+			AutoScalingGroupName: aws.String("my-scaling-group"),
+			Instances: []*autoscaling.Instance{
+				{
+					LaunchConfigurationName: aws.String("correct-launch-configuration"),
+					InstanceId:              aws.String("my-instance"),
+				},
+			},
+		},
+	}
+	mocker.AsgClient = &stubASG{
+		ExistingGroups: existingASGs,
+	}
+	ctx := getBasicContext(t, mocker)
+	discoveredState := &DiscoveredState{
+		SelfGroup: &DiscoveredInstanceGroup{ScalingGroupName: "my-scaling-group"},
+	}
+	ctx.SetDiscoveredState(discoveredState)
+	if ctx.IsUpgradeNeeded() {
+		t.Fatal("TestIsUpgradeNeededPositive: got true, expected: false")
+	}
 }
