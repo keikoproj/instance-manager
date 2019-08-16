@@ -168,15 +168,21 @@ var _ = Describe("EKSCF InstanceGroups CRUD operations are succesfull", func() {
 
 		Args.AmiID = AMIIDLatest
 
-		// Update InstanceGroups to new AMI
-		crdInstanceGroup, err := testutil.CreateUpdateInstanceGroup(clientSet.kubeDynamic, TemplateCRDStrategy, Args)
-		Expect(err).NotTo(HaveOccurred())
-
+		// Update rollingUpdate
 		rollingInstanceGroup, err := testutil.CreateUpdateInstanceGroup(clientSet.kubeDynamic, TemplateRolling, Args)
 		Expect(err).NotTo(HaveOccurred())
 
-		crdStackName := getStackName(crdInstanceGroup)
 		rollingStackName := getStackName(rollingInstanceGroup)
+
+		// Nodes should be replaced within reasonable time
+		rollingUpgrade := testutil.WaitForNodesRotate(clientSet.kube, rollingExpectedLabel)
+		Expect(rollingUpgrade).Should(BeTrue())
+
+		// Update CRD Strategy
+		crdInstanceGroup, err := testutil.CreateUpdateInstanceGroup(clientSet.kubeDynamic, TemplateCRDStrategy, Args)
+		Expect(err).NotTo(HaveOccurred())
+
+		crdStackName := getStackName(crdInstanceGroup)
 
 		// crd strategy should create workflow and expose it's name in status
 		workflowName, err = testutil.WaitForInstanceGroupString(clientSet.kubeDynamic, crdInstanceGroup.GetNamespace(), crdInstanceGroup.GetName(), workflowPath...)
@@ -187,9 +193,6 @@ var _ = Describe("EKSCF InstanceGroups CRUD operations are succesfull", func() {
 		Expect(wfCreation).Should(BeTrue())
 
 		// Nodes should be replaced within reasonable time
-		rollingUpgrade := testutil.WaitForNodesRotate(clientSet.kube, rollingExpectedLabel)
-		Expect(rollingUpgrade).Should(BeTrue())
-
 		workflowUpgrade := testutil.WaitForNodesRotate(clientSet.kube, crdExpectedLabel)
 		Expect(workflowUpgrade).Should(BeTrue())
 
