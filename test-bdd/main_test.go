@@ -184,13 +184,13 @@ var _ = Describe("EKSCF InstanceGroups CRUD operations are succesfull", func() {
 
 		crdStackName := getStackName(crdInstanceGroup)
 
-		// Workflow is created
-		wfCreation := testutil.WaitForWorkflowCreation(clientSet.kubeDynamic, workflowNamespace, workflowName)
-		Expect(wfCreation).Should(BeTrue())
-
 		// crd strategy should create workflow and expose it's name in status
 		workflowName, err = testutil.WaitForInstanceGroupString(clientSet.kubeDynamic, crdInstanceGroup.GetNamespace(), crdInstanceGroup.GetName(), workflowPath...)
 		Expect(err).NotTo(HaveOccurred())
+
+		// Workflow is created
+		wfCreation := testutil.WaitForWorkflowCreation(clientSet.kubeDynamic, workflowNamespace, workflowName)
+		Expect(wfCreation).Should(BeTrue())
 
 		// Nodes should be replaced within reasonable time
 		workflowUpgrade := testutil.WaitForNodesRotate(clientSet.kube, crdExpectedLabel)
