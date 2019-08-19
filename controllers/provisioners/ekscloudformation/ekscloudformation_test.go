@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
@@ -68,10 +69,22 @@ status:
   conditions: []
   storedVersions: []`
 
-var rollupSpec = `apiVersion: upgrademgr.orkaproj.io/v1alpha1
+var blankMocker = awsprovider.AwsWorker{
+	StackName: "test",
+	CfClient:  &stubCF{},
+	AsgClient: &stubASG{},
+	EksClient: &stubEKS{},
+}
+
+func init() {
+	flag.BoolVar(&loggingEnabled, "logging-enabled", false, "Enable Logging")
+}
+
+func getRollupSpec(name string) string {
+	var rollupSpec = fmt.Sprintf(`apiVersion: upgrademgr.orkaproj.io/v1alpha1
 kind: RollingUpgrade
 metadata:
-  name: rollup-nodes
+  name: %v
 spec:
   postDrainDelaySeconds: 90
   nodeIntervalSeconds: 300
@@ -84,10 +97,8 @@ spec:
   postTerminateScript: |
     echo "Hello, postTerminate!"
 status:
-  currentStatus: running`
-
-func init() {
-	flag.BoolVar(&loggingEnabled, "logging-enabled", false, "Enable Logging")
+  currentStatus: running`, name)
+	return rollupSpec
 }
 
 type EksCfUnitTest struct {
@@ -95,6 +106,7 @@ type EksCfUnitTest struct {
 	Provisioner           *EksCfInstanceGroupContext
 	InstanceGroup         *v1alpha1.InstanceGroup
 	StackExist            bool
+	StackUpdateNeeded     bool
 	AuthConfigMapExist    bool
 	LoadCRD               string
 	AuthConfigMapData     string
@@ -109,16 +121,18 @@ type EksCfUnitTest struct {
 
 type stubCF struct {
 	cloudformationiface.CloudFormationAPI
-	StackExist     bool
-	StackState     string
-	StackARN       string
-	ExistingARNs   []string
-	InstanceGroup  *v1alpha1.InstanceGroup
-	EksClusterName string
+	StackExist        bool
+	StackUpdateNeeded bool
+	StackState        string
+	StackARN          string
+	ExistingARNs      []string
+	InstanceGroup     *v1alpha1.InstanceGroup
+	EksClusterName    string
 }
 
 type stubASG struct {
 	autoscalingiface.AutoScalingAPI
+	ExistingGroups []*autoscaling.Group
 }
 
 type stubEKS struct {
@@ -137,6 +151,8 @@ type FakeIG struct {
 	UpgradeStrategyCRDStatusPath    string
 	UpgradeStrategyCRDStatusSuccess string
 	UpgradeStrategyCRDStatusFail    string
+	ConcurrencyPolicy               string
+	BootstrapArguments              string
 	IsDeleting                      bool
 }
 
@@ -221,6 +237,11 @@ func (s *stubCF) CreateStack(*cloudformation.CreateStackInput) (*cloudformation.
 }
 
 func (s *stubCF) UpdateStack(*cloudformation.UpdateStackInput) (*cloudformation.UpdateStackOutput, error) {
+	if !s.StackUpdateNeeded {
+		var err error
+		awsErr := awserr.New("ValidationError", "No updates are to be performed.", err)
+		return &cloudformation.UpdateStackOutput{StackId: aws.String("")}, awsErr
+	}
 	return &cloudformation.UpdateStackOutput{StackId: aws.String("")}, nil
 }
 
@@ -230,6 +251,9 @@ func (s *stubCF) DeleteStack(*cloudformation.DeleteStackInput) (*cloudformation.
 
 func (s *stubASG) DescribeAutoScalingGroups(*autoscaling.DescribeAutoScalingGroupsInput) (*autoscaling.DescribeAutoScalingGroupsOutput, error) {
 	var groups []*autoscaling.Group
+	for _, group := range s.ExistingGroups {
+		groups = append(groups, group)
+	}
 	output := &autoscaling.DescribeAutoScalingGroupsOutput{
 		AutoScalingGroups: groups,
 	}
@@ -341,6 +365,24 @@ func bootstrap(k kubernetes.Interface) {
 	createInitConfigMap(k)
 }
 
+func (ctx *EksCfInstanceGroupContext) fakeBootstrapState() {
+	discoveredState := &DiscoveredState{
+		InstanceGroups: DiscoveredInstanceGroups{
+			Items: []DiscoveredInstanceGroup{
+				{
+					ARN: "arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/discoveredARN",
+				},
+			},
+		},
+	}
+	ctx.SetDiscoveredState(discoveredState)
+	ctx.DefaultARNList = []string{
+		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/arn-1",
+		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/arn-2",
+	}
+
+}
+
 func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 	var deletionTimestamp metav1.Time
 
@@ -349,6 +391,9 @@ func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 	}
 	if f.Name == "" {
 		f.Name = "instancegroup-1"
+	}
+	if f.ConcurrencyPolicy == "" {
+		f.ConcurrencyPolicy = "forbid"
 	}
 	if f.Namespace == "" {
 		f.Namespace = "namespace-1"
@@ -373,10 +418,25 @@ func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 			DeletionTimestamp: &deletionTimestamp,
 		},
 		Spec: v1alpha1.InstanceGroupSpec{
+			Provisioner: "eks-cf",
+			EKSCFSpec: v1alpha1.EKSCFSpec{
+				MaxSize: 3,
+				MinSize: 1,
+				EKSCFConfiguration: v1alpha1.EKSCFConfiguration{
+					BootstrapArguments: f.BootstrapArguments,
+					Tags: []map[string]string{
+						{
+							"key":   "a-key",
+							"value": "a-value",
+						},
+					},
+				},
+			},
 			AwsUpgradeStrategy: v1alpha1.AwsUpgradeStrategy{
 				Type: f.UpgradeStrategyType,
 				CRDType: v1alpha1.CRDUpgradeStrategy{
 					Spec:                f.UpgradeStrategyCRDSpec,
+					ConcurrencyPolicy:   f.ConcurrencyPolicy,
 					CRDName:             f.UpgradeStrategyCRD,
 					StatusJSONPath:      f.UpgradeStrategyCRDStatusPath,
 					StatusSuccessString: f.UpgradeStrategyCRDStatusSuccess,
@@ -390,6 +450,23 @@ func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 	}
 
 	return instanceGroup
+}
+
+func getBasicContext(t *testing.T, awsMocker awsprovider.AwsWorker) EksCfInstanceGroupContext {
+	client := fake.NewSimpleClientset()
+	dynScheme := runtime.NewScheme()
+	dynClient := fakedynamic.NewSimpleDynamicClient(dynScheme)
+	ig := FakeIG{}
+	kube := common.KubernetesClientSet{
+		Kubernetes:  client,
+		KubeDynamic: dynClient,
+	}
+
+	ctx, err := New(ig.getInstanceGroup(), kube, awsMocker)
+	if err != nil {
+		t.Fail()
+	}
+	return ctx
 }
 
 func (u *EksCfUnitTest) Run(t *testing.T) {
@@ -443,12 +520,13 @@ func (u *EksCfUnitTest) Run(t *testing.T) {
 	aws := awsprovider.AwsWorker{
 		StackName: stackName,
 		CfClient: &stubCF{
-			EksClusterName: clusterName,
-			ExistingARNs:   u.ExistingARNs,
-			StackExist:     u.StackExist,
-			StackState:     u.StackState,
-			StackARN:       u.StackARN,
-			InstanceGroup:  u.InstanceGroup,
+			EksClusterName:    clusterName,
+			ExistingARNs:      u.ExistingARNs,
+			StackExist:        u.StackExist,
+			StackState:        u.StackState,
+			StackARN:          u.StackARN,
+			InstanceGroup:     u.InstanceGroup,
+			StackUpdateNeeded: u.StackUpdateNeeded,
 		},
 		AsgClient: &stubASG{},
 		EksClient: &stubEKS{
@@ -490,7 +568,7 @@ func (u *EksCfUnitTest) Run(t *testing.T) {
 	}
 
 	if u.LoadCRD == "rollingupgrade" {
-		CRDSpec, _ := common.ParseCustomResourceYaml(rollupSpec)
+		CRDSpec, _ := common.ParseCustomResourceYaml(getRollupSpec("rollup"))
 		apiVersionSplit := strings.Split(CRDSpec.GetAPIVersion(), "/")
 		CRDSchema := schema.GroupVersionResource{Group: apiVersionSplit[0], Version: apiVersionSplit[1], Resource: "rollingupgrade"}
 		rollupResult, _ = kube.KubeDynamic.Resource(CRDSchema).List(metav1.ListOptions{})
@@ -505,13 +583,16 @@ func (u *EksCfUnitTest) Run(t *testing.T) {
 }
 
 func TestStateDiscoveryInitUpdate(t *testing.T) {
-	ig := FakeIG{}
+	ig := FakeIG{
+		BootstrapArguments: "--node-labels kubernetes.io/role=node",
+	}
 	testCase := EksCfUnitTest{
-		Description:   "StateDiscovery - when a stack already exist (idle), state should be InitUpdate",
-		InstanceGroup: ig.getInstanceGroup(),
-		StackExist:    true,
-		StackState:    "CREATE_COMPLETE",
-		ExpectedState: v1alpha1.ReconcileInitUpdate,
+		Description:       "StateDiscovery - when a stack already exist (idle), state should be InitUpdate",
+		InstanceGroup:     ig.getInstanceGroup(),
+		StackExist:        true,
+		StackUpdateNeeded: true,
+		StackState:        "CREATE_COMPLETE",
+		ExpectedState:     v1alpha1.ReconcileInitUpdate,
 	}
 	testCase.Run(t)
 }
@@ -519,11 +600,12 @@ func TestStateDiscoveryInitUpdate(t *testing.T) {
 func TestStateDiscoveryReconcileModifying(t *testing.T) {
 	ig := FakeIG{}
 	testCase := EksCfUnitTest{
-		Description:   "StateDiscovery - when a stack already exist (busy), state should be ReconcileModifying",
-		InstanceGroup: ig.getInstanceGroup(),
-		StackExist:    true,
-		StackState:    "UPDATE_IN_PROGRESS",
-		ExpectedState: v1alpha1.ReconcileModifying,
+		Description:       "StateDiscovery - when a stack already exist (busy), state should be ReconcileModifying",
+		InstanceGroup:     ig.getInstanceGroup(),
+		StackExist:        true,
+		StackUpdateNeeded: true,
+		StackState:        "UPDATE_IN_PROGRESS",
+		ExpectedState:     v1alpha1.ReconcileModifying,
 	}
 	testCase.Run(t)
 }
@@ -544,11 +626,12 @@ func TestStateDiscoveryInitDeleting(t *testing.T) {
 		IsDeleting: true,
 	}
 	testCase := EksCfUnitTest{
-		Description:   "StateDiscovery - when a stack exist (idle), and resource is deleting state should be InitDelete",
-		InstanceGroup: ig.getInstanceGroup(),
-		StackExist:    true,
-		StackState:    "CREATE_COMPLETE",
-		ExpectedState: v1alpha1.ReconcileInitDelete,
+		Description:       "StateDiscovery - when a stack exist (idle), and resource is deleting state should be InitDelete",
+		InstanceGroup:     ig.getInstanceGroup(),
+		StackExist:        true,
+		StackUpdateNeeded: true,
+		StackState:        "CREATE_COMPLETE",
+		ExpectedState:     v1alpha1.ReconcileInitDelete,
 	}
 	testCase.Run(t)
 }
@@ -558,11 +641,12 @@ func TestStateDiscoveryReconcileDelete(t *testing.T) {
 		IsDeleting: true,
 	}
 	testCase := EksCfUnitTest{
-		Description:   "StateDiscovery - when a stack exist (busy), and resource is deleting state should be Deleting",
-		InstanceGroup: ig.getInstanceGroup(),
-		StackExist:    true,
-		StackState:    "DELETE_IN_PROGRESS",
-		ExpectedState: v1alpha1.ReconcileDeleting,
+		Description:       "StateDiscovery - when a stack exist (busy), and resource is deleting state should be Deleting",
+		InstanceGroup:     ig.getInstanceGroup(),
+		StackExist:        true,
+		StackUpdateNeeded: true,
+		StackState:        "DELETE_IN_PROGRESS",
+		ExpectedState:     v1alpha1.ReconcileDeleting,
 	}
 	testCase.Run(t)
 }
@@ -585,11 +669,12 @@ func TestStateDiscoveryDeletedExist(t *testing.T) {
 		IsDeleting: true,
 	}
 	testCase := EksCfUnitTest{
-		Description:   "StateDiscovery - when stack-state is finite deleted state should Deleted",
-		InstanceGroup: ig.getInstanceGroup(),
-		StackExist:    true,
-		StackState:    "DELETE_COMPLETE",
-		ExpectedState: v1alpha1.ReconcileDeleted,
+		Description:       "StateDiscovery - when stack-state is finite deleted state should Deleted",
+		InstanceGroup:     ig.getInstanceGroup(),
+		StackExist:        true,
+		StackUpdateNeeded: true,
+		StackState:        "DELETE_COMPLETE",
+		ExpectedState:     v1alpha1.ReconcileDeleted,
 	}
 	testCase.Run(t)
 }
@@ -597,11 +682,12 @@ func TestStateDiscoveryDeletedExist(t *testing.T) {
 func TestStateDiscoveryUpdateRecoverableError(t *testing.T) {
 	ig := FakeIG{}
 	testCase := EksCfUnitTest{
-		Description:   "StateDiscovery - when stack-state is update recoverable state should InitUpdate",
-		InstanceGroup: ig.getInstanceGroup(),
-		StackExist:    true,
-		StackState:    "UPDATE_ROLLBACK_COMPLETE",
-		ExpectedState: v1alpha1.ReconcileInitUpdate,
+		Description:       "StateDiscovery - when stack-state is update recoverable state should InitUpdate",
+		InstanceGroup:     ig.getInstanceGroup(),
+		StackExist:        true,
+		StackUpdateNeeded: true,
+		StackState:        "UPDATE_ROLLBACK_COMPLETE",
+		ExpectedState:     v1alpha1.ReconcileInitUpdate,
 	}
 	testCase.Run(t)
 }
@@ -609,11 +695,12 @@ func TestStateDiscoveryUpdateRecoverableError(t *testing.T) {
 func TestStateDiscoveryUnrecoverableError(t *testing.T) {
 	ig := FakeIG{}
 	testCase := EksCfUnitTest{
-		Description:   "StateDiscovery - when stack-state is unrecoverable state should Error",
-		InstanceGroup: ig.getInstanceGroup(),
-		StackExist:    true,
-		StackState:    "UPDATE_ROLLBACK_FAILED",
-		ExpectedState: v1alpha1.ReconcileErr,
+		Description:       "StateDiscovery - when stack-state is unrecoverable state should Error",
+		InstanceGroup:     ig.getInstanceGroup(),
+		StackExist:        true,
+		StackUpdateNeeded: true,
+		StackState:        "UPDATE_ROLLBACK_FAILED",
+		ExpectedState:     v1alpha1.ReconcileErr,
 	}
 	testCase.Run(t)
 }
@@ -623,11 +710,12 @@ func TestStateDiscoveryUnrecoverableErrorDelete(t *testing.T) {
 		IsDeleting: true,
 	}
 	testCase := EksCfUnitTest{
-		Description:   "StateDiscovery - when stack delete fails state should be Error",
-		InstanceGroup: ig.getInstanceGroup(),
-		StackExist:    true,
-		StackState:    "DELETE_FAILED",
-		ExpectedState: v1alpha1.ReconcileErr,
+		Description:       "StateDiscovery - when stack delete fails state should be Error",
+		InstanceGroup:     ig.getInstanceGroup(),
+		StackExist:        true,
+		StackUpdateNeeded: true,
+		StackState:        "DELETE_FAILED",
+		ExpectedState:     v1alpha1.ReconcileErr,
 	}
 	testCase.Run(t)
 }
@@ -638,6 +726,7 @@ func TestNodeBootstrappingCreateConfigMap(t *testing.T) {
 		Description:        "BootstrapNodes - when the auth configmap does not exist, it will be created",
 		InstanceGroup:      ig.getInstanceGroup(),
 		StackExist:         true,
+		StackUpdateNeeded:  true,
 		AuthConfigMapExist: false,
 		ExpectedState:      v1alpha1.ReconcileInitUpdate,
 	}
@@ -650,6 +739,7 @@ func TestNodeBootstrappingUpdateConfigMap(t *testing.T) {
 		Description:        "BootstrapNodes - when the auth configmap exist, ARN will be appended to it",
 		InstanceGroup:      ig.getInstanceGroup(),
 		StackExist:         true,
+		StackUpdateNeeded:  true,
 		StackARN:           "arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/groupfriendlyname",
 		AuthConfigMapExist: true,
 		ExpectedState:      v1alpha1.ReconcileInitUpdate,
@@ -663,6 +753,7 @@ func TestNodeBootstrappingUpdateConfigMapWithExistingMembers(t *testing.T) {
 		Description:        "BootstrapNodes - when the auth configmap exist, ARN will be appended to it",
 		InstanceGroup:      ig.getInstanceGroup(),
 		StackExist:         true,
+		StackUpdateNeeded:  true,
 		StackARN:           "arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/groupfriendlyname3",
 		ExistingARNs:       []string{"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/groupfriendlyname1", "arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/groupfriendlyname2"},
 		AuthConfigMapExist: true,
@@ -691,7 +782,7 @@ func TestCrdStrategyCRExist(t *testing.T) {
 	ig := FakeIG{
 		UpgradeStrategyType:             "crd",
 		UpgradeStrategyCRD:              "rollingupgrade",
-		UpgradeStrategyCRDSpec:          rollupSpec,
+		UpgradeStrategyCRDSpec:          getRollupSpec("rollup"),
 		UpgradeStrategyCRDStatusPath:    "status.currentStatus",
 		UpgradeStrategyCRDStatusSuccess: "success",
 	}
@@ -704,4 +795,155 @@ func TestCrdStrategyCRExist(t *testing.T) {
 		ExpectedCR:    1,
 	}
 	testCase.Run(t)
+}
+
+func TestCrdStrategyCRLongName(t *testing.T) {
+	ig := FakeIG{
+		UpgradeStrategyType:             "crd",
+		UpgradeStrategyCRD:              "rollingupgrade",
+		UpgradeStrategyCRDSpec:          getRollupSpec(strings.Repeat("a", 65)),
+		UpgradeStrategyCRDStatusPath:    "status.currentStatus",
+		UpgradeStrategyCRDStatusSuccess: "success",
+	}
+	testCase := EksCfUnitTest{
+		Description:   "CRDStrategy - rollup strategy can be submitted successfully",
+		LoadCRD:       "rollingupgrade",
+		InstanceGroup: ig.getInstanceGroup(),
+		StackExist:    false,
+		ExpectedState: v1alpha1.ReconcileInitCreate,
+		ExpectedCR:    1,
+	}
+	testCase.Run(t)
+}
+
+func TestGetActiveNodesARN(t *testing.T) {
+	ctx := getBasicContext(t, blankMocker)
+	ctx.fakeBootstrapState()
+
+	expectedActiveARNs := []string{
+		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/arn-1",
+		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/arn-2",
+		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/discoveredARN",
+	}
+	nodesArn := ctx.getActiveNodeArns()
+	if !reflect.DeepEqual(nodesArn, expectedActiveARNs) {
+		t.Fatalf("getActiveNodeArns returned: %v, expected: %v", nodesArn, expectedActiveARNs)
+	}
+}
+
+func TestUpdateAuthConfigMap(t *testing.T) {
+	ctx := getBasicContext(t, blankMocker)
+	ctx.fakeBootstrapState()
+	ctx.createEmptyNodesAuthConfigMap()
+	ctx.updateAuthConfigMap()
+	expectedActiveARNs := []string{
+		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/arn-1",
+		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/arn-2",
+		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/discoveredARN",
+	}
+	var expectedAuthMap string
+	for _, arn := range expectedActiveARNs {
+		expectedAuthMap += fmt.Sprintf("- rolearn: %v\n  username: system:node:{{EC2PrivateDNSName}}\n  groups:\n  - system:bootstrappers\n  - system:nodes\n", arn)
+	}
+	cm, err := ctx.KubernetesClient.Kubernetes.CoreV1().ConfigMaps("kube-system").Get("aws-auth", metav1.GetOptions{})
+	if err != nil {
+		t.Fatal("createEmptyNodesAuthConfigMap: config map not found")
+	}
+	if cm.Data["mapRoles"] != expectedAuthMap {
+		t.Fatalf("updateAuthConfigMap returned: %v, expected: %v", cm.Data["mapRoles"], expectedAuthMap)
+	}
+}
+
+func TestIsReadyPositive(t *testing.T) {
+	ctx := getBasicContext(t, blankMocker)
+	instanceGroup := ctx.GetInstanceGroup()
+	instanceGroup.SetState(v1alpha1.ReconcileModified)
+	if !ctx.IsReady() {
+		t.Fatal("TestIsReadyPositive: got false, expected: true")
+	}
+	instanceGroup.SetState(v1alpha1.ReconcileDeleted)
+	if !ctx.IsReady() {
+		t.Fatal("TestIsReadyPositive: got false, expected: true")
+	}
+}
+
+func TestIsReadyNegative(t *testing.T) {
+	ctx := getBasicContext(t, blankMocker)
+	instanceGroup := ctx.GetInstanceGroup()
+	instanceGroup.SetState(v1alpha1.ReconcileInit)
+	if ctx.IsReady() {
+		t.Fatal("TestIsReadyNegative: got true, expected: false")
+	}
+	instanceGroup.SetState(v1alpha1.ReconcileInitCreate)
+	if ctx.IsReady() {
+		t.Fatal("TestIsReadyNegative: got true, expected: false")
+	}
+}
+
+func TestIsUpgradeNeededPositive(t *testing.T) {
+	mocker := blankMocker
+	existingASGs := []*autoscaling.Group{
+		{
+			AutoScalingGroupName: aws.String("my-scaling-group"),
+			Instances: []*autoscaling.Instance{
+				{
+					LaunchConfigurationName: nil,
+					InstanceId:              aws.String("my-instance"),
+				},
+			},
+		},
+	}
+	mocker.AsgClient = &stubASG{
+		ExistingGroups: existingASGs,
+	}
+	ctx := getBasicContext(t, mocker)
+	discoveredState := &DiscoveredState{
+		SelfGroup: &DiscoveredInstanceGroup{ScalingGroupName: "my-scaling-group"},
+	}
+	ctx.SetDiscoveredState(discoveredState)
+	if !ctx.IsUpgradeNeeded() {
+		t.Fatal("TestIsUpgradeNeededPositive: got false, expected: true")
+	}
+}
+
+func TestIsUpgradeNeededNegative(t *testing.T) {
+	mocker := blankMocker
+	existingASGs := []*autoscaling.Group{
+		{
+			AutoScalingGroupName: aws.String("my-scaling-group"),
+			Instances: []*autoscaling.Instance{
+				{
+					LaunchConfigurationName: aws.String("correct-launch-configuration"),
+					InstanceId:              aws.String("my-instance"),
+				},
+			},
+		},
+	}
+	mocker.AsgClient = &stubASG{
+		ExistingGroups: existingASGs,
+	}
+	ctx := getBasicContext(t, mocker)
+	discoveredState := &DiscoveredState{
+		SelfGroup: &DiscoveredInstanceGroup{ScalingGroupName: "my-scaling-group"},
+	}
+	ctx.SetDiscoveredState(discoveredState)
+	if ctx.IsUpgradeNeeded() {
+		t.Fatal("TestIsUpgradeNeededPositive: got true, expected: false")
+	}
+}
+
+func TestStateSetter(t *testing.T) {
+	ctx := getBasicContext(t, blankMocker)
+	ctx.SetState(v1alpha1.ReconcileReady)
+	if ctx.InstanceGroup.Status.CurrentState != string(v1alpha1.ReconcileReady) {
+		t.Fatalf("TestStateSetter: got %v, expected: %v", ctx.InstanceGroup.Status.CurrentState, string(v1alpha1.ReconcileReady))
+	}
+}
+
+func TestStateGetter(t *testing.T) {
+	ctx := getBasicContext(t, blankMocker)
+	ctx.InstanceGroup.Status.CurrentState = string(v1alpha1.ReconcileReady)
+	if ctx.GetState() != v1alpha1.ReconcileReady {
+		t.Fatalf("TestStateGetter: got %v, expected: %v", string(ctx.GetState()), string(v1alpha1.ReconcileReady))
+	}
 }
