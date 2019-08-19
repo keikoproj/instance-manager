@@ -2,6 +2,8 @@
 [![Build Status](https://travis-ci.org/orkaproj/instance-manager.svg?branch=master)](https://travis-ci.org/orkaproj/instance-manager)
 [![codecov](https://codecov.io/gh/orkaproj/instance-manager/branch/master/graph/badge.svg)](https://codecov.io/gh/orkaproj/instance-manager)
 [![Go Report Card](https://goreportcard.com/badge/github.com/orkaproj/instance-manager)](https://goreportcard.com/report/github.com/orkaproj/instance-manager)
+[![slack](https://img.shields.io/badge/slack-join%20the%20conversation-ff69b4.svg)][SlackUrl]
+![version](https://img.shields.io/badge/version-0.3.0-blue.svg?cacheSeconds=2592000)
 > Create and manage instance groups with Kubernetes.
 
 instance-manager simplifies the creation of worker nodes from within a Kubernetes cluster, create `InstanceGroup` objects in your cluster and instance-manager will provision the actual machines and bootstrap them to the cluster.
@@ -114,3 +116,4 @@ Please see [DEVELOPER.md](.github/DEVELOPER.md).
 
 <!-- Markdown link -->
 [install]: https://github.com/orkaproj/instance-manager/blob/master/docs/README.md
+[SlackUrl]: https://orkaproj.slack.com/messages/instance-manager
