@@ -32,6 +32,7 @@ import (
 
 const (
 	OwnershipAnnotationKey   = "app.kubernetes.io/managed-by"
+	ScopeAnnotationKey       = "instancemgr.orkaproj.io/upgrade-scope"
 	OwnershipAnnotationValue = "instance-manager"
 	DefaultConcurrencyPolicy = "forbid"
 )
@@ -45,6 +46,8 @@ func (ctx *EksCfInstanceGroupContext) discoverCreatedResources(s schema.GroupVer
 		statusJSONPath        = strategyConfiguration.GetStatusJSONPath()
 		completedStatus       = strategyConfiguration.GetStatusSuccessString()
 		errorStatus           = strategyConfiguration.GetStatusFailureString()
+		selfGroup             = state.GetSelfGroup()
+		scopeAnnotationValue  = selfGroup.GetScalingGroupName()
 	)
 
 	resources, err := ctx.KubernetesClient.KubeDynamic.Resource(s).Namespace(namespace).List(metav1.ListOptions{})
@@ -53,7 +56,7 @@ func (ctx *EksCfInstanceGroupContext) discoverCreatedResources(s schema.GroupVer
 	}
 
 	for _, resource := range resources.Items {
-		if hasAnnotation(&resource, OwnershipAnnotationKey, OwnershipAnnotationValue) {
+		if hasAnnotation(&resource, OwnershipAnnotationKey, OwnershipAnnotationValue) && hasAnnotation(&resource, ScopeAnnotationKey, scopeAnnotationValue) {
 			state.AddOwnedResources(resource)
 		}
 	}
@@ -68,7 +71,7 @@ func (ctx *EksCfInstanceGroupContext) discoverCreatedResources(s schema.GroupVer
 		}
 		if val != completedStatus && val != errorStatus {
 			// if resource is not completed and not failed, it must be still active
-			log.Infof("found active owned resource: %v", resource.GetName())
+			log.Infof("found active owned resource in scope: %v", resource.GetName())
 			state.AddActiveOwnedResources(resource)
 		}
 	}
@@ -93,6 +96,7 @@ func (ctx *EksCfInstanceGroupContext) processCRDStrategy() error {
 		customResourceDefinitionName = strategyConfiguration.GetCRDName()
 		concurrencyPolicy            = strategyConfiguration.GetConcurrencyPolicy()
 		selfGroup                    = state.GetSelfGroup()
+		scopeAnnotationValue         = selfGroup.GetScalingGroupName()
 	)
 
 	if concurrencyPolicy == "" {
@@ -128,6 +132,7 @@ func (ctx *EksCfInstanceGroupContext) processCRDStrategy() error {
 	}
 
 	addAnnotation(customResource, OwnershipAnnotationKey, OwnershipAnnotationValue)
+	addAnnotation(customResource, ScopeAnnotationKey, scopeAnnotationValue)
 
 	API := customResource.GetAPIVersion()
 	s := strings.Split(API, "/")

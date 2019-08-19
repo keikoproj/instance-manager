@@ -199,3 +199,10 @@ func (d *DiscoveredInstanceGroup) GetLaunchConfigName() string {
 	}
 	return ""
 }
+
+func (d *DiscoveredInstanceGroup) GetScalingGroupName() string {
+	if d != nil {
+		return d.ScalingGroupName
+	}
+	return ""
+}
