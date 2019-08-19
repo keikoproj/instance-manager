@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
@@ -105,6 +106,7 @@ type EksCfUnitTest struct {
 	Provisioner           *EksCfInstanceGroupContext
 	InstanceGroup         *v1alpha1.InstanceGroup
 	StackExist            bool
+	StackUpdateNeeded     bool
 	AuthConfigMapExist    bool
 	LoadCRD               string
 	AuthConfigMapData     string
@@ -119,12 +121,13 @@ type EksCfUnitTest struct {
 
 type stubCF struct {
 	cloudformationiface.CloudFormationAPI
-	StackExist     bool
-	StackState     string
-	StackARN       string
-	ExistingARNs   []string
-	InstanceGroup  *v1alpha1.InstanceGroup
-	EksClusterName string
+	StackExist        bool
+	StackUpdateNeeded bool
+	StackState        string
+	StackARN          string
+	ExistingARNs      []string
+	InstanceGroup     *v1alpha1.InstanceGroup
+	EksClusterName    string
 }
 
 type stubASG struct {
@@ -234,6 +237,11 @@ func (s *stubCF) CreateStack(*cloudformation.CreateStackInput) (*cloudformation.
 }
 
 func (s *stubCF) UpdateStack(*cloudformation.UpdateStackInput) (*cloudformation.UpdateStackOutput, error) {
+	if !s.StackUpdateNeeded {
+		var err error
+		awsErr := awserr.New("ValidationError", "No updates are to be performed.", err)
+		return &cloudformation.UpdateStackOutput{StackId: aws.String("")}, awsErr
+	}
 	return &cloudformation.UpdateStackOutput{StackId: aws.String("")}, nil
 }
 
@@ -512,12 +520,13 @@ func (u *EksCfUnitTest) Run(t *testing.T) {
 	aws := awsprovider.AwsWorker{
 		StackName: stackName,
 		CfClient: &stubCF{
-			EksClusterName: clusterName,
-			ExistingARNs:   u.ExistingARNs,
-			StackExist:     u.StackExist,
-			StackState:     u.StackState,
-			StackARN:       u.StackARN,
-			InstanceGroup:  u.InstanceGroup,
+			EksClusterName:    clusterName,
+			ExistingARNs:      u.ExistingARNs,
+			StackExist:        u.StackExist,
+			StackState:        u.StackState,
+			StackARN:          u.StackARN,
+			InstanceGroup:     u.InstanceGroup,
+			StackUpdateNeeded: u.StackUpdateNeeded,
 		},
 		AsgClient: &stubASG{},
 		EksClient: &stubEKS{
@@ -578,11 +587,12 @@ func TestStateDiscoveryInitUpdate(t *testing.T) {
 		BootstrapArguments: "--node-labels kubernetes.io/role=node",
 	}
 	testCase := EksCfUnitTest{
-		Description:   "StateDiscovery - when a stack already exist (idle), state should be InitUpdate",
-		InstanceGroup: ig.getInstanceGroup(),
-		StackExist:    true,
-		StackState:    "CREATE_COMPLETE",
-		ExpectedState: v1alpha1.ReconcileInitUpdate,
+		Description:       "StateDiscovery - when a stack already exist (idle), state should be InitUpdate",
+		InstanceGroup:     ig.getInstanceGroup(),
+		StackExist:        true,
+		StackUpdateNeeded: true,
+		StackState:        "CREATE_COMPLETE",
+		ExpectedState:     v1alpha1.ReconcileInitUpdate,
 	}
 	testCase.Run(t)
 }
@@ -590,11 +600,12 @@ func TestStateDiscoveryInitUpdate(t *testing.T) {
 func TestStateDiscoveryReconcileModifying(t *testing.T) {
 	ig := FakeIG{}
 	testCase := EksCfUnitTest{
-		Description:   "StateDiscovery - when a stack already exist (busy), state should be ReconcileModifying",
-		InstanceGroup: ig.getInstanceGroup(),
-		StackExist:    true,
-		StackState:    "UPDATE_IN_PROGRESS",
-		ExpectedState: v1alpha1.ReconcileModifying,
+		Description:       "StateDiscovery - when a stack already exist (busy), state should be ReconcileModifying",
+		InstanceGroup:     ig.getInstanceGroup(),
+		StackExist:        true,
+		StackUpdateNeeded: true,
+		StackState:        "UPDATE_IN_PROGRESS",
+		ExpectedState:     v1alpha1.ReconcileModifying,
 	}
 	testCase.Run(t)
 }
@@ -615,11 +626,12 @@ func TestStateDiscoveryInitDeleting(t *testing.T) {
 		IsDeleting: true,
 	}
 	testCase := EksCfUnitTest{
-		Description:   "StateDiscovery - when a stack exist (idle), and resource is deleting state should be InitDelete",
-		InstanceGroup: ig.getInstanceGroup(),
-		StackExist:    true,
-		StackState:    "CREATE_COMPLETE",
-		ExpectedState: v1alpha1.ReconcileInitDelete,
+		Description:       "StateDiscovery - when a stack exist (idle), and resource is deleting state should be InitDelete",
+		InstanceGroup:     ig.getInstanceGroup(),
+		StackExist:        true,
+		StackUpdateNeeded: true,
+		StackState:        "CREATE_COMPLETE",
+		ExpectedState:     v1alpha1.ReconcileInitDelete,
 	}
 	testCase.Run(t)
 }
@@ -629,11 +641,12 @@ func TestStateDiscoveryReconcileDelete(t *testing.T) {
 		IsDeleting: true,
 	}
 	testCase := EksCfUnitTest{
-		Description:   "StateDiscovery - when a stack exist (busy), and resource is deleting state should be Deleting",
-		InstanceGroup: ig.getInstanceGroup(),
-		StackExist:    true,
-		StackState:    "DELETE_IN_PROGRESS",
-		ExpectedState: v1alpha1.ReconcileDeleting,
+		Description:       "StateDiscovery - when a stack exist (busy), and resource is deleting state should be Deleting",
+		InstanceGroup:     ig.getInstanceGroup(),
+		StackExist:        true,
+		StackUpdateNeeded: true,
+		StackState:        "DELETE_IN_PROGRESS",
+		ExpectedState:     v1alpha1.ReconcileDeleting,
 	}
 	testCase.Run(t)
 }
@@ -656,11 +669,12 @@ func TestStateDiscoveryDeletedExist(t *testing.T) {
 		IsDeleting: true,
 	}
 	testCase := EksCfUnitTest{
-		Description:   "StateDiscovery - when stack-state is finite deleted state should Deleted",
-		InstanceGroup: ig.getInstanceGroup(),
-		StackExist:    true,
-		StackState:    "DELETE_COMPLETE",
-		ExpectedState: v1alpha1.ReconcileDeleted,
+		Description:       "StateDiscovery - when stack-state is finite deleted state should Deleted",
+		InstanceGroup:     ig.getInstanceGroup(),
+		StackExist:        true,
+		StackUpdateNeeded: true,
+		StackState:        "DELETE_COMPLETE",
+		ExpectedState:     v1alpha1.ReconcileDeleted,
 	}
 	testCase.Run(t)
 }
@@ -668,11 +682,12 @@ func TestStateDiscoveryDeletedExist(t *testing.T) {
 func TestStateDiscoveryUpdateRecoverableError(t *testing.T) {
 	ig := FakeIG{}
 	testCase := EksCfUnitTest{
-		Description:   "StateDiscovery - when stack-state is update recoverable state should InitUpdate",
-		InstanceGroup: ig.getInstanceGroup(),
-		StackExist:    true,
-		StackState:    "UPDATE_ROLLBACK_COMPLETE",
-		ExpectedState: v1alpha1.ReconcileInitUpdate,
+		Description:       "StateDiscovery - when stack-state is update recoverable state should InitUpdate",
+		InstanceGroup:     ig.getInstanceGroup(),
+		StackExist:        true,
+		StackUpdateNeeded: true,
+		StackState:        "UPDATE_ROLLBACK_COMPLETE",
+		ExpectedState:     v1alpha1.ReconcileInitUpdate,
 	}
 	testCase.Run(t)
 }
@@ -680,11 +695,12 @@ func TestStateDiscoveryUpdateRecoverableError(t *testing.T) {
 func TestStateDiscoveryUnrecoverableError(t *testing.T) {
 	ig := FakeIG{}
 	testCase := EksCfUnitTest{
-		Description:   "StateDiscovery - when stack-state is unrecoverable state should Error",
-		InstanceGroup: ig.getInstanceGroup(),
-		StackExist:    true,
-		StackState:    "UPDATE_ROLLBACK_FAILED",
-		ExpectedState: v1alpha1.ReconcileErr,
+		Description:       "StateDiscovery - when stack-state is unrecoverable state should Error",
+		InstanceGroup:     ig.getInstanceGroup(),
+		StackExist:        true,
+		StackUpdateNeeded: true,
+		StackState:        "UPDATE_ROLLBACK_FAILED",
+		ExpectedState:     v1alpha1.ReconcileErr,
 	}
 	testCase.Run(t)
 }
@@ -694,11 +710,12 @@ func TestStateDiscoveryUnrecoverableErrorDelete(t *testing.T) {
 		IsDeleting: true,
 	}
 	testCase := EksCfUnitTest{
-		Description:   "StateDiscovery - when stack delete fails state should be Error",
-		InstanceGroup: ig.getInstanceGroup(),
-		StackExist:    true,
-		StackState:    "DELETE_FAILED",
-		ExpectedState: v1alpha1.ReconcileErr,
+		Description:       "StateDiscovery - when stack delete fails state should be Error",
+		InstanceGroup:     ig.getInstanceGroup(),
+		StackExist:        true,
+		StackUpdateNeeded: true,
+		StackState:        "DELETE_FAILED",
+		ExpectedState:     v1alpha1.ReconcileErr,
 	}
 	testCase.Run(t)
 }
@@ -709,6 +726,7 @@ func TestNodeBootstrappingCreateConfigMap(t *testing.T) {
 		Description:        "BootstrapNodes - when the auth configmap does not exist, it will be created",
 		InstanceGroup:      ig.getInstanceGroup(),
 		StackExist:         true,
+		StackUpdateNeeded:  true,
 		AuthConfigMapExist: false,
 		ExpectedState:      v1alpha1.ReconcileInitUpdate,
 	}
@@ -721,6 +739,7 @@ func TestNodeBootstrappingUpdateConfigMap(t *testing.T) {
 		Description:        "BootstrapNodes - when the auth configmap exist, ARN will be appended to it",
 		InstanceGroup:      ig.getInstanceGroup(),
 		StackExist:         true,
+		StackUpdateNeeded:  true,
 		StackARN:           "arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/groupfriendlyname",
 		AuthConfigMapExist: true,
 		ExpectedState:      v1alpha1.ReconcileInitUpdate,
@@ -734,6 +753,7 @@ func TestNodeBootstrappingUpdateConfigMapWithExistingMembers(t *testing.T) {
 		Description:        "BootstrapNodes - when the auth configmap exist, ARN will be appended to it",
 		InstanceGroup:      ig.getInstanceGroup(),
 		StackExist:         true,
+		StackUpdateNeeded:  true,
 		StackARN:           "arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/groupfriendlyname3",
 		ExistingARNs:       []string{"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/groupfriendlyname1", "arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/groupfriendlyname2"},
 		AuthConfigMapExist: true,
@@ -909,5 +929,21 @@ func TestIsUpgradeNeededNegative(t *testing.T) {
 	ctx.SetDiscoveredState(discoveredState)
 	if ctx.IsUpgradeNeeded() {
 		t.Fatal("TestIsUpgradeNeededPositive: got true, expected: false")
+	}
+}
+
+func TestStateSetter(t *testing.T) {
+	ctx := getBasicContext(t, blankMocker)
+	ctx.SetState(v1alpha1.ReconcileReady)
+	if ctx.InstanceGroup.Status.CurrentState != string(v1alpha1.ReconcileReady) {
+		t.Fatalf("TestStateSetter: got %v, expected: %v", ctx.InstanceGroup.Status.CurrentState, string(v1alpha1.ReconcileReady))
+	}
+}
+
+func TestStateGetter(t *testing.T) {
+	ctx := getBasicContext(t, blankMocker)
+	ctx.InstanceGroup.Status.CurrentState = string(v1alpha1.ReconcileReady)
+	if ctx.GetState() != v1alpha1.ReconcileReady {
+		t.Fatalf("TestStateGetter: got %v, expected: %v", string(ctx.GetState()), string(v1alpha1.ReconcileReady))
 	}
 }
