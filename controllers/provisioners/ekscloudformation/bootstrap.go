@@ -44,9 +44,26 @@ func (ctx *EksCfInstanceGroupContext) getActiveNodeArns() []string {
 	return arnList
 }
 
-func (ctx *EksCfInstanceGroupContext) updateAuthConfigMap() error {
+func (ctx *EksCfInstanceGroupContext) updateAuthConfigMap(existingAuthMap *corev1.ConfigMap) error {
 	arnList := ctx.getActiveNodeArns()
-	configList := []AwsAuthConfig{}
+
+	existingConfigurations := []AwsAuthConfig{}
+	newConfigurations := []AwsAuthConfig{}
+
+	err := yaml.Unmarshal([]byte(existingAuthMap.Data["mapRoles"]), &existingConfigurations)
+	if err != nil {
+		return err
+	}
+
+	for _, configuration := range existingConfigurations {
+		// if existing config is not part of discovered node ARNs, add it as is
+		if !common.ContainsString(arnList, configuration.RoleARN) {
+			log.Infof("found existing unmanaged role-map, will be retained: %+v", configuration)
+			newConfigurations = append(newConfigurations, configuration)
+		}
+	}
+
+	// add discovered arns as node arns
 	for _, arn := range arnList {
 		log.Infof("bootstrapping: %v\n", arn)
 		authConfig := AwsAuthConfig{
@@ -57,11 +74,11 @@ func (ctx *EksCfInstanceGroupContext) updateAuthConfigMap() error {
 				"system:nodes",
 			},
 		}
-		configList = append(configList, authConfig)
+		newConfigurations = append(newConfigurations, authConfig)
 	}
 
 	maproles := AwsAuthConfigMapRolesData{
-		MapRoles: configList,
+		MapRoles: newConfigurations,
 	}
 
 	d, err := yaml.Marshal(&maproles.MapRoles)
@@ -88,7 +105,7 @@ func (ctx *EksCfInstanceGroupContext) updateAuthConfigMap() error {
 
 }
 
-func (ctx *EksCfInstanceGroupContext) createEmptyNodesAuthConfigMap() error {
+func (ctx *EksCfInstanceGroupContext) createEmptyNodesAuthConfigMap() (*corev1.ConfigMap, error) {
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "kube-system",
@@ -96,6 +113,9 @@ func (ctx *EksCfInstanceGroupContext) createEmptyNodesAuthConfigMap() error {
 		},
 		Data: nil,
 	}
-	createConfigMap(ctx.KubernetesClient.Kubernetes, cm)
-	return nil
+	err := createConfigMap(ctx.KubernetesClient.Kubernetes, cm)
+	if err != nil {
+		return cm, err
+	}
+	return cm, nil
 }

@@ -25,6 +25,7 @@ import (
 	"github.com/orkaproj/instance-manager/controllers/common"
 	awsprovider "github.com/orkaproj/instance-manager/controllers/providers/aws"
 	"github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -339,14 +340,19 @@ func (ctx *EksCfInstanceGroupContext) CloudDiscovery() error {
 }
 
 func (ctx *EksCfInstanceGroupContext) BootstrapNodes() error {
-	_, err := getConfigMap(ctx.KubernetesClient.Kubernetes, "kube-system", "aws-auth", metav1.GetOptions{})
+	var authMap *corev1.ConfigMap
+	authMap, err := getConfigMap(ctx.KubernetesClient.Kubernetes, "kube-system", "aws-auth", metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			log.Infoln("auth configmap not found, creating it")
-			ctx.createEmptyNodesAuthConfigMap()
+			authMap, err = ctx.createEmptyNodesAuthConfigMap()
+			if err != nil {
+				return err
+			}
 		}
 	}
-	err = ctx.updateAuthConfigMap()
+
+	err = ctx.updateAuthConfigMap(authMap)
 	if err != nil {
 		log.Errorln("failed to update bootstrap config map")
 		return err

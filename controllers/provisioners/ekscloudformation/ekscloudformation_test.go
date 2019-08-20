@@ -113,6 +113,7 @@ type EksCfUnitTest struct {
 	StackState            string
 	StackARN              string
 	ExistingARNs          []string
+	ExistingUnmanagedARNs []string
 	VpcID                 string
 	ExpectedState         v1alpha1.ReconcileState
 	ExpectedCR            int
@@ -274,14 +275,46 @@ func createInitConfigMap(k kubernetes.Interface) {
 	createConfigMap(k, &cm)
 }
 
-func createAuthConfigMap(k kubernetes.Interface) {
-	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "kube-system",
-			Name:      "aws-auth",
-		},
-		Data: map[string]string{"mapRoles": "[]\n"},
+func createAuthConfigMap(k kubernetes.Interface, existingUnmanaged []string) {
+	var cm *corev1.ConfigMap
+	if len(existingUnmanaged) != 0 {
+		var configList []AwsAuthConfig
+		for _, arn := range existingUnmanaged {
+			authConfig := AwsAuthConfig{
+				RoleARN:  arn,
+				Username: "system:node:{{EC2PrivateDNSName}}",
+				Groups: []string{
+					"system:bootstrappers",
+					"system:nodes",
+				},
+			}
+			configList = append(configList, authConfig)
+		}
+		maproles := AwsAuthConfigMapRolesData{
+			MapRoles: configList,
+		}
+
+		d, _ := yaml.Marshal(&maproles.MapRoles)
+		data := map[string]string{
+			"mapRoles": string(d),
+		}
+		cm = &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "kube-system",
+				Name:      "aws-auth",
+			},
+			Data: data,
+		}
+	} else {
+		cm = &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "kube-system",
+				Name:      "aws-auth",
+			},
+			Data: map[string]string{"mapRoles": "[]\n"},
+		}
 	}
+
 	createConfigMap(k, cm)
 }
 
@@ -500,12 +533,17 @@ func (u *EksCfUnitTest) Run(t *testing.T) {
 	}
 
 	if u.AuthConfigMapExist {
-		createAuthConfigMap(client)
+		createAuthConfigMap(client, u.ExistingUnmanagedARNs)
 	}
 
 	if u.ExpectedAuthConfigMap == nil {
 		if u.StackExist {
 			fakeAuthMap.ARNList = append(fakeAuthMap.ARNList, u.StackARN)
+		}
+		if len(u.ExistingUnmanagedARNs) != 0 {
+			for _, arn := range u.ExistingUnmanagedARNs {
+				fakeAuthMap.ARNList = append(fakeAuthMap.ARNList, arn)
+			}
 		}
 		if len(u.ExistingARNs) != 0 {
 			for _, arn := range u.ExistingARNs {
@@ -762,6 +800,22 @@ func TestNodeBootstrappingUpdateConfigMapWithExistingMembers(t *testing.T) {
 	testCase.Run(t)
 }
 
+func TestNodeBootstrappingUpdateConfigMapWithExistingUnmanagedMembers(t *testing.T) {
+	ig := FakeIG{}
+	testCase := EksCfUnitTest{
+		Description:           "BootstrapNodes - when the auth configmap exist, ARN will be appended to it",
+		InstanceGroup:         ig.getInstanceGroup(),
+		StackExist:            true,
+		StackUpdateNeeded:     true,
+		StackARN:              "arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/groupfriendlyname3",
+		ExistingARNs:          []string{"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/groupfriendlyname2"},
+		ExistingUnmanagedARNs: []string{"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/groupfriendlyname1"},
+		AuthConfigMapExist:    true,
+		ExpectedState:         v1alpha1.ReconcileInitUpdate,
+	}
+	testCase.Run(t)
+}
+
 func TestNodeBootstrappingRemoveMembers(t *testing.T) {
 	ig := FakeIG{
 		IsDeleting: true,
@@ -834,8 +888,8 @@ func TestGetActiveNodesARN(t *testing.T) {
 func TestUpdateAuthConfigMap(t *testing.T) {
 	ctx := getBasicContext(t, blankMocker)
 	ctx.fakeBootstrapState()
-	ctx.createEmptyNodesAuthConfigMap()
-	ctx.updateAuthConfigMap()
+	cm, _ := ctx.createEmptyNodesAuthConfigMap()
+	ctx.updateAuthConfigMap(cm)
 	expectedActiveARNs := []string{
 		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/arn-1",
 		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/arn-2",
