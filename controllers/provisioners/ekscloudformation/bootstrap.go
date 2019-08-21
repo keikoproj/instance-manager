@@ -16,10 +16,9 @@ limitations under the License.
 package ekscloudformation
 
 import (
-	"sort"
+	"reflect"
 
 	"github.com/orkaproj/instance-manager/api/v1alpha1"
-	"github.com/orkaproj/instance-manager/controllers/common"
 
 	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
@@ -27,32 +26,41 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func (ctx *EksCfInstanceGroupContext) getActiveNodeArns() []string {
-	var arnList []string
+func getNodeRole(arn string) AwsAuthConfig {
+	return AwsAuthConfig{
+		RoleARN:  arn,
+		Username: "system:node:{{EC2PrivateDNSName}}",
+		Groups: []string{
+			"system:bootstrappers",
+			"system:nodes",
+		},
+	}
+}
+
+func (ctx *EksCfInstanceGroupContext) getDiscoveryAuthMap() AwsAuthConfigMapRolesData {
+	var authMap AwsAuthConfigMapRolesData
 	discovery := ctx.GetDiscoveredState()
 	instanceGroups := discovery.GetInstanceGroups()
 	// Append ARNs from discovered state
 	for _, instanceGroup := range instanceGroups.Items {
-		if !common.ContainsString(arnList, instanceGroup.ARN) && instanceGroup.ARN != "" {
-			arnList = append(arnList, instanceGroup.ARN)
-		}
+		config := getNodeRole(instanceGroup.ARN)
+		authMap.AddUnique(config)
 	}
 	// Append ARNs from controller config
 	for _, arn := range ctx.DefaultARNList {
-		if !common.ContainsString(arnList, arn) && arn != "" {
-			arnList = append(arnList, arn)
-		}
+		config := getNodeRole(arn)
+		authMap.AddUnique(config)
 	}
-	sort.Strings(arnList)
-	return arnList
+	return authMap
 }
 
-func (ctx *EksCfInstanceGroupContext) isRemovableARN(arn string) bool {
+func (ctx *EksCfInstanceGroupContext) isRemovableConfiguration(config AwsAuthConfig) bool {
 	discovery := ctx.GetDiscoveredState()
 	selfGroup := discovery.GetSelfGroup()
 	selfARN := selfGroup.GetARN()
+	removableRole := getNodeRole(selfARN)
 	if ctx.GetState() == v1alpha1.ReconcileInitDelete {
-		if arn == selfARN {
+		if reflect.DeepEqual(removableRole, config) {
 			return true
 		}
 	}
@@ -61,10 +69,10 @@ func (ctx *EksCfInstanceGroupContext) isRemovableARN(arn string) bool {
 
 func (ctx *EksCfInstanceGroupContext) updateAuthConfigMap() error {
 	var (
-		existingAuthMap        *corev1.ConfigMap
-		existingConfigurations []AwsAuthConfig
-		newConfigurations      []AwsAuthConfig
-		arnList                = ctx.getActiveNodeArns()
+		existingAuthMap          *corev1.ConfigMap
+		existingConfigurations   AwsAuthConfigMapRolesData
+		newConfigurations        AwsAuthConfigMapRolesData
+		discoveredConfigurations = ctx.getDiscoveryAuthMap()
 	)
 
 	existingAuthMap, err := getConfigMap(ctx.KubernetesClient.Kubernetes, "kube-system", "aws-auth", metav1.GetOptions{})
@@ -78,44 +86,28 @@ func (ctx *EksCfInstanceGroupContext) updateAuthConfigMap() error {
 		}
 	}
 
-	err = yaml.Unmarshal([]byte(existingAuthMap.Data["mapRoles"]), &existingConfigurations)
+	err = yaml.Unmarshal([]byte(existingAuthMap.Data["mapRoles"]), &existingConfigurations.MapRoles)
 	if err != nil {
 		return err
 	}
 
 	// add existing roles
-	for _, configuration := range existingConfigurations {
-		if ctx.isRemovableARN(configuration.RoleARN) {
-			break
-		}
-		if !common.ContainsString(arnList, configuration.RoleARN) {
-			log.Infof("found existing unmanaged role-map: %v", configuration.RoleARN)
-			newConfigurations = append(newConfigurations, configuration)
+	for _, configuration := range existingConfigurations.MapRoles {
+		if !ctx.isRemovableConfiguration(configuration) {
+			newConfigurations.AddUnique(configuration)
 		}
 	}
 
-	// add discovered arns as node arns
-	for _, arn := range arnList {
-		if ctx.isRemovableARN(arn) {
-			break
+	// add discovered node roles
+	for _, configuration := range discoveredConfigurations.MapRoles {
+		if !ctx.isRemovableConfiguration(configuration) {
+			newConfigurations.AddUnique(configuration)
 		}
-		log.Infof("bootstrapping: %v\n", arn)
-		authConfig := AwsAuthConfig{
-			RoleARN:  arn,
-			Username: "system:node:{{EC2PrivateDNSName}}",
-			Groups: []string{
-				"system:bootstrappers",
-				"system:nodes",
-			},
-		}
-		newConfigurations = append(newConfigurations, authConfig)
 	}
 
-	maproles := AwsAuthConfigMapRolesData{
-		MapRoles: newConfigurations,
-	}
+	log.Infof("bootstrapping: %+v\n", newConfigurations)
 
-	d, err := yaml.Marshal(&maproles.MapRoles)
+	d, err := yaml.Marshal(&newConfigurations.MapRoles)
 	if err != nil {
 		log.Errorf("error: %v", err)
 	}

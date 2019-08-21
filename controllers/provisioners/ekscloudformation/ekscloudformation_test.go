@@ -870,30 +870,15 @@ func TestCrdStrategyCRLongName(t *testing.T) {
 	testCase.Run(t)
 }
 
-func TestGetActiveNodesARN(t *testing.T) {
-	ctx := getBasicContext(t, blankMocker)
-	ctx.fakeBootstrapState()
-
-	expectedActiveARNs := []string{
-		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/arn-1",
-		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/arn-2",
-		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/discoveredARN",
-	}
-	nodesArn := ctx.getActiveNodeArns()
-	if !reflect.DeepEqual(nodesArn, expectedActiveARNs) {
-		t.Fatalf("getActiveNodeArns returned: %v, expected: %v", nodesArn, expectedActiveARNs)
-	}
-}
-
 func TestUpdateAuthConfigMap(t *testing.T) {
 	ctx := getBasicContext(t, blankMocker)
 	ctx.fakeBootstrapState()
 	ctx.createEmptyNodesAuthConfigMap()
 	ctx.updateAuthConfigMap()
 	expectedActiveARNs := []string{
+		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/discoveredARN",
 		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/arn-1",
 		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/arn-2",
-		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/discoveredARN",
 	}
 	var expectedAuthMap string
 	for _, arn := range expectedActiveARNs {
