@@ -42,6 +42,9 @@ func (m *AwsAuthConfigMapRolesData) AddUnique(config AwsAuthConfig) {
 			return
 		}
 	}
+	if config.RoleARN == "" || config.Username == "" || len(config.Groups) == 0 {
+		return
+	}
 	m.MapRoles = append(m.MapRoles, config)
 }
 
