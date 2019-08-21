@@ -888,8 +888,8 @@ func TestGetActiveNodesARN(t *testing.T) {
 func TestUpdateAuthConfigMap(t *testing.T) {
 	ctx := getBasicContext(t, blankMocker)
 	ctx.fakeBootstrapState()
-	cm, _ := ctx.createEmptyNodesAuthConfigMap()
-	ctx.updateAuthConfigMap(cm)
+	ctx.createEmptyNodesAuthConfigMap()
+	ctx.updateAuthConfigMap()
 	expectedActiveARNs := []string{
 		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/arn-1",
 		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/arn-2",

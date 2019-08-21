@@ -206,3 +206,10 @@ func (d *DiscoveredInstanceGroup) GetScalingGroupName() string {
 	}
 	return ""
 }
+
+func (d *DiscoveredInstanceGroup) GetARN() string {
+	if d != nil {
+		return d.ARN
+	}
+	return ""
+}

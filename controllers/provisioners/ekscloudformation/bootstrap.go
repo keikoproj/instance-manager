@@ -18,9 +18,12 @@ package ekscloudformation
 import (
 	"sort"
 
+	"github.com/orkaproj/instance-manager/api/v1alpha1"
 	"github.com/orkaproj/instance-manager/controllers/common"
+
 	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -30,13 +33,13 @@ func (ctx *EksCfInstanceGroupContext) getActiveNodeArns() []string {
 	instanceGroups := discovery.GetInstanceGroups()
 	// Append ARNs from discovered state
 	for _, instanceGroup := range instanceGroups.Items {
-		if !common.ContainsString(arnList, instanceGroup.ARN) {
+		if !common.ContainsString(arnList, instanceGroup.ARN) && instanceGroup.ARN != "" {
 			arnList = append(arnList, instanceGroup.ARN)
 		}
 	}
 	// Append ARNs from controller config
 	for _, arn := range ctx.DefaultARNList {
-		if !common.ContainsString(arnList, arn) {
+		if !common.ContainsString(arnList, arn) && arn != "" {
 			arnList = append(arnList, arn)
 		}
 	}
@@ -44,27 +47,58 @@ func (ctx *EksCfInstanceGroupContext) getActiveNodeArns() []string {
 	return arnList
 }
 
-func (ctx *EksCfInstanceGroupContext) updateAuthConfigMap(existingAuthMap *corev1.ConfigMap) error {
-	arnList := ctx.getActiveNodeArns()
+func (ctx *EksCfInstanceGroupContext) isRemovableARN(arn string) bool {
+	discovery := ctx.GetDiscoveredState()
+	selfGroup := discovery.GetSelfGroup()
+	selfARN := selfGroup.GetARN()
+	if ctx.GetState() == v1alpha1.ReconcileInitDelete {
+		if arn == selfARN {
+			return true
+		}
+	}
+	return false
+}
 
-	existingConfigurations := []AwsAuthConfig{}
-	newConfigurations := []AwsAuthConfig{}
+func (ctx *EksCfInstanceGroupContext) updateAuthConfigMap() error {
+	var (
+		existingAuthMap        *corev1.ConfigMap
+		existingConfigurations []AwsAuthConfig
+		newConfigurations      []AwsAuthConfig
+		arnList                = ctx.getActiveNodeArns()
+	)
 
-	err := yaml.Unmarshal([]byte(existingAuthMap.Data["mapRoles"]), &existingConfigurations)
+	existingAuthMap, err := getConfigMap(ctx.KubernetesClient.Kubernetes, "kube-system", "aws-auth", metav1.GetOptions{})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			log.Infoln("auth configmap not found, creating it")
+			existingAuthMap, err = ctx.createEmptyNodesAuthConfigMap()
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	err = yaml.Unmarshal([]byte(existingAuthMap.Data["mapRoles"]), &existingConfigurations)
 	if err != nil {
 		return err
 	}
 
+	// add existing roles
 	for _, configuration := range existingConfigurations {
-		// if existing config is not part of discovered node ARNs, add it as is
+		if ctx.isRemovableARN(configuration.RoleARN) {
+			break
+		}
 		if !common.ContainsString(arnList, configuration.RoleARN) {
-			log.Infof("found existing unmanaged role-map, will be retained: %+v", configuration)
+			log.Infof("found existing unmanaged role-map: %v", configuration.RoleARN)
 			newConfigurations = append(newConfigurations, configuration)
 		}
 	}
 
 	// add discovered arns as node arns
 	for _, arn := range arnList {
+		if ctx.isRemovableARN(arn) {
+			break
+		}
 		log.Infof("bootstrapping: %v\n", arn)
 		authConfig := AwsAuthConfig{
 			RoleARN:  arn,
