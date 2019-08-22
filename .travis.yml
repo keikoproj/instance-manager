@@ -36,7 +36,7 @@ jobs:
       if: type IN (push, pull_request)
       script:
       - go test -v -mod=vendor ./controllers/... -coverprofile coverage.txt
-      - bash <(curl -s https://codecov.io/bash)
+      - bash <(curl -s https://codecov.io/bash) -t $CODECOV_TOKEN
 
     - stage: publish-image
       if: type IN (push)
