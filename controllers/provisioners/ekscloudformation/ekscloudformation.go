@@ -253,7 +253,6 @@ func (ctx *EksCfInstanceGroupContext) discoverInstanceGroups() {
 
 	for _, stack := range stacks {
 		var group DiscoveredInstanceGroup
-		group.ClusterName = aws.StringValue(stack.StackName)
 		group.StackName = aws.StringValue(stack.StackName)
 
 		for _, tag := range stack.Tags {
