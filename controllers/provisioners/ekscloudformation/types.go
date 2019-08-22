@@ -203,6 +203,10 @@ type DiscoveredInstanceGroups struct {
 }
 
 func (groups *DiscoveredInstanceGroups) AddGroup(group DiscoveredInstanceGroup) []DiscoveredInstanceGroup {
+	if group.Name == "" || group.Namespace == "" || group.ClusterName == "" || group.StackName == "" ||
+		group.ARN == "" || group.ScalingGroupName == "" || group.LaunchConfigName == "" {
+		return groups.Items
+	}
 	groups.Items = append(groups.Items, group)
 	return groups.Items
 }

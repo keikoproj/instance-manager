@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/orkaproj/instance-manager/api/v1alpha1"
@@ -35,6 +37,11 @@ var (
 	outputLaunchConfiguration = "LaunchConfigName"
 	outputScalingGroupName    = "AsgName"
 	outputGroupARN            = "NodeInstanceRole"
+	groupVersionResource      = schema.GroupVersionResource{
+		Group:    "instancemgr.orkaproj.io",
+		Version:  "v1alpha1",
+		Resource: "instancegroups",
+	}
 )
 
 const (
@@ -276,6 +283,17 @@ func (ctx *EksCfInstanceGroupContext) discoverInstanceGroups() {
 				group.ScalingGroupName = value
 			}
 		}
+
+		if group.Namespace != "" && group.Name != "" {
+			groupDeleting, err := ctx.isResourceDeleting(groupVersionResource, group.Namespace, group.Name)
+			if err != nil {
+				log.Errorf("failed to determine whether %v/%v is being deleted: %v", group.Namespace, group.Name, err)
+			}
+			if groupDeleting {
+				group.IsClusterMember = false
+			}
+		}
+
 		if group.IsClusterMember {
 			groups.AddGroup(group)
 		}

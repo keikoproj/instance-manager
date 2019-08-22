@@ -252,8 +252,7 @@ ip-10-105-233-110.us-west-2.compute.internal   Ready    <none>   3m40s   v1.13.7
 
 #### Hybrid node groups
 
-In this scenario, node groups which were manually bootstrapped (above), and instance-manager managed instance groups can co-exist, however in order for bootstrapped node groups not to be affected when instance-manager modifies the aws-auth config map, the stack that created it must be tagged with `instancegroups.orkaproj.io/ClusterName: <EKS_CLUSTER_NAME>` and the stack must have an Output called `NodeInstanceRole` with the ARN if the node group IAM role, or you can also add such ARNs under `defaultArns` section of `controller.conf`.
-instance-manager will make sure to retain the ARN associated with this node group when modifying the aws-auth config map.
+In this scenario, node groups which were manually bootstrapped (as above), and instance-manager managed instance groups can co-exist, you can add such node group's ARNs under `defaultArns` section of `controller.conf` if you want instance-manager to make sure it's added, however manual entries to aws-auth config map will not be modified/stripped out.
 
 ### Deploy instance-manager
 
