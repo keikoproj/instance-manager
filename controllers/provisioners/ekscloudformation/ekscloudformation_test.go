@@ -201,6 +201,7 @@ func (s *stubCF) DescribeStacks(input *cloudformation.DescribeStacksInput) (*clo
 				ResourceName:  instanceGroupName,
 				StackState:    s.StackState,
 				StackARN:      arn,
+				StackName:     "stack-name",
 			}
 			existingStack := createFakeStack(fakeStackInput)
 			existingStacks = append(existingStacks, existingStack)
@@ -215,6 +216,7 @@ func (s *stubCF) DescribeStacks(input *cloudformation.DescribeStacksInput) (*clo
 			ResourceName:  s.InstanceGroup.ObjectMeta.Name,
 			StackState:    s.StackState,
 			StackARN:      s.StackARN,
+			StackName:     "stack-name",
 		}
 		fakeStack = createFakeStack(fakeStackInput)
 		output.Stacks = append(output.Stacks, fakeStack)
@@ -331,9 +333,6 @@ func createFakeStack(f FakeStack) *cloudformation.Stack {
 		},
 		{
 			"instancegroups.orkaproj.io/Namespace": f.NamespaceName,
-		},
-		{
-			"EKS_GROUP_ARN": f.StackARN,
 		},
 	}
 
