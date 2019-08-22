@@ -19,14 +19,15 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/orkaproj/instance-manager/api/v1alpha1"
 	"github.com/orkaproj/instance-manager/controllers/common"
 	awsprovider "github.com/orkaproj/instance-manager/controllers/providers/aws"
 	"github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var (
@@ -37,6 +38,11 @@ var (
 	outputLaunchConfiguration = "LaunchConfigName"
 	outputScalingGroupName    = "AsgName"
 	outputGroupARN            = "NodeInstanceRole"
+	groupVersionResource      = schema.GroupVersionResource{
+		Group:    "instancemgr.orkaproj.io",
+		Version:  "v1alpha1",
+		Resource: "instancegroups",
+	}
 )
 
 const (
@@ -135,6 +141,12 @@ func (ctx *EksCfInstanceGroupContext) UpgradeNodes() error {
 func (ctx *EksCfInstanceGroupContext) Delete() error {
 	var err error
 	instanceGroup := ctx.GetInstanceGroup()
+
+	err = ctx.updateAuthConfigMap()
+	if err != nil {
+		log.Errorf("failed to remove role from aws-auth configmap: %v", err)
+		return err
+	}
 
 	err = ctx.AwsWorker.DeleteCloudformationStack()
 	if err != nil {
@@ -242,7 +254,6 @@ func (ctx *EksCfInstanceGroupContext) discoverInstanceGroups() {
 
 	for _, stack := range stacks {
 		var group DiscoveredInstanceGroup
-		group.ClusterName = aws.StringValue(stack.StackName)
 		group.StackName = aws.StringValue(stack.StackName)
 
 		for _, tag := range stack.Tags {
@@ -272,6 +283,23 @@ func (ctx *EksCfInstanceGroupContext) discoverInstanceGroups() {
 				group.ScalingGroupName = value
 			}
 		}
+
+		if group.Namespace != "" && group.Name != "" {
+			var groupDeleting bool
+			var groupDeleted bool
+			groupDeleting, err := ctx.isResourceDeleting(groupVersionResource, group.Namespace, group.Name)
+			if err != nil {
+				if errors.IsNotFound(err) {
+					groupDeleted = true
+				} else {
+					log.Errorf("failed to determine whether %v/%v is being deleted: %v", group.Namespace, group.Name, err)
+				}
+			}
+			if groupDeleting || groupDeleted {
+				group.IsClusterMember = false
+			}
+		}
+
 		if group.IsClusterMember {
 			groups.AddGroup(group)
 		}
@@ -339,14 +367,7 @@ func (ctx *EksCfInstanceGroupContext) CloudDiscovery() error {
 }
 
 func (ctx *EksCfInstanceGroupContext) BootstrapNodes() error {
-	_, err := getConfigMap(ctx.KubernetesClient.Kubernetes, "kube-system", "aws-auth", metav1.GetOptions{})
-	if err != nil {
-		if errors.IsNotFound(err) {
-			log.Infoln("auth configmap not found, creating it")
-			ctx.createEmptyNodesAuthConfigMap()
-		}
-	}
-	err = ctx.updateAuthConfigMap()
+	err := ctx.updateAuthConfigMap()
 	if err != nil {
 		log.Errorln("failed to update bootstrap config map")
 		return err

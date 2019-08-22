@@ -16,55 +16,98 @@ limitations under the License.
 package ekscloudformation
 
 import (
-	"sort"
+	"reflect"
 
-	"github.com/orkaproj/instance-manager/controllers/common"
+	"github.com/orkaproj/instance-manager/api/v1alpha1"
+
 	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func (ctx *EksCfInstanceGroupContext) getActiveNodeArns() []string {
-	var arnList []string
+func getNodeRole(arn string) AwsAuthConfig {
+	return AwsAuthConfig{
+		RoleARN:  arn,
+		Username: "system:node:{{EC2PrivateDNSName}}",
+		Groups: []string{
+			"system:bootstrappers",
+			"system:nodes",
+		},
+	}
+}
+
+func (ctx *EksCfInstanceGroupContext) getDiscoveryAuthMap() AwsAuthConfigMapRolesData {
+	var authMap AwsAuthConfigMapRolesData
 	discovery := ctx.GetDiscoveredState()
 	instanceGroups := discovery.GetInstanceGroups()
 	// Append ARNs from discovered state
 	for _, instanceGroup := range instanceGroups.Items {
-		if !common.ContainsString(arnList, instanceGroup.ARN) {
-			arnList = append(arnList, instanceGroup.ARN)
-		}
+		config := getNodeRole(instanceGroup.ARN)
+		authMap.AddUnique(config)
 	}
 	// Append ARNs from controller config
 	for _, arn := range ctx.DefaultARNList {
-		if !common.ContainsString(arnList, arn) {
-			arnList = append(arnList, arn)
+		config := getNodeRole(arn)
+		authMap.AddUnique(config)
+	}
+	return authMap
+}
+
+func (ctx *EksCfInstanceGroupContext) isRemovableConfiguration(config AwsAuthConfig) bool {
+	discovery := ctx.GetDiscoveredState()
+	selfGroup := discovery.GetSelfGroup()
+	selfARN := selfGroup.GetARN()
+	removableRole := getNodeRole(selfARN)
+	if ctx.GetState() == v1alpha1.ReconcileInitDelete {
+		if reflect.DeepEqual(removableRole, config) {
+			return true
 		}
 	}
-	sort.Strings(arnList)
-	return arnList
+	return false
 }
 
 func (ctx *EksCfInstanceGroupContext) updateAuthConfigMap() error {
-	arnList := ctx.getActiveNodeArns()
-	configList := []AwsAuthConfig{}
-	for _, arn := range arnList {
-		log.Infof("bootstrapping: %v\n", arn)
-		authConfig := AwsAuthConfig{
-			RoleARN:  arn,
-			Username: "system:node:{{EC2PrivateDNSName}}",
-			Groups: []string{
-				"system:bootstrappers",
-				"system:nodes",
-			},
+	var (
+		existingAuthMap          *corev1.ConfigMap
+		existingConfigurations   AwsAuthConfigMapRolesData
+		newConfigurations        AwsAuthConfigMapRolesData
+		discoveredConfigurations = ctx.getDiscoveryAuthMap()
+	)
+
+	existingAuthMap, err := getConfigMap(ctx.KubernetesClient.Kubernetes, "kube-system", "aws-auth", metav1.GetOptions{})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			log.Infoln("auth configmap not found, creating it")
+			existingAuthMap, err = ctx.createEmptyNodesAuthConfigMap()
+			if err != nil {
+				return err
+			}
 		}
-		configList = append(configList, authConfig)
 	}
 
-	maproles := AwsAuthConfigMapRolesData{
-		MapRoles: configList,
+	err = yaml.Unmarshal([]byte(existingAuthMap.Data["mapRoles"]), &existingConfigurations.MapRoles)
+	if err != nil {
+		return err
 	}
 
-	d, err := yaml.Marshal(&maproles.MapRoles)
+	// add existing roles
+	for _, configuration := range existingConfigurations.MapRoles {
+		if !ctx.isRemovableConfiguration(configuration) {
+			newConfigurations.AddUnique(configuration)
+		}
+	}
+
+	// add discovered node roles
+	for _, configuration := range discoveredConfigurations.MapRoles {
+		if !ctx.isRemovableConfiguration(configuration) {
+			newConfigurations.AddUnique(configuration)
+		}
+	}
+
+	log.Infof("bootstrapping: %+v\n", newConfigurations)
+
+	d, err := yaml.Marshal(&newConfigurations.MapRoles)
 	if err != nil {
 		log.Errorf("error: %v", err)
 	}
@@ -88,7 +131,7 @@ func (ctx *EksCfInstanceGroupContext) updateAuthConfigMap() error {
 
 }
 
-func (ctx *EksCfInstanceGroupContext) createEmptyNodesAuthConfigMap() error {
+func (ctx *EksCfInstanceGroupContext) createEmptyNodesAuthConfigMap() (*corev1.ConfigMap, error) {
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "kube-system",
@@ -96,6 +139,9 @@ func (ctx *EksCfInstanceGroupContext) createEmptyNodesAuthConfigMap() error {
 		},
 		Data: nil,
 	}
-	createConfigMap(ctx.KubernetesClient.Kubernetes, cm)
-	return nil
+	err := createConfigMap(ctx.KubernetesClient.Kubernetes, cm)
+	if err != nil {
+		return cm, err
+	}
+	return cm, nil
 }

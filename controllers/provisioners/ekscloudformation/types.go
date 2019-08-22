@@ -16,6 +16,8 @@ limitations under the License.
 package ekscloudformation
 
 import (
+	"reflect"
+
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/orkaproj/instance-manager/api/v1alpha1"
@@ -32,6 +34,18 @@ type AwsAuthConfig struct {
 
 type AwsAuthConfigMapRolesData struct {
 	MapRoles []AwsAuthConfig `yaml:"mapRoles"`
+}
+
+func (m *AwsAuthConfigMapRolesData) AddUnique(config AwsAuthConfig) {
+	for _, existingConf := range m.MapRoles {
+		if reflect.DeepEqual(existingConf, config) {
+			return
+		}
+	}
+	if config.RoleARN == "" || config.Username == "" || len(config.Groups) == 0 {
+		return
+	}
+	m.MapRoles = append(m.MapRoles, config)
 }
 
 // EksCfInstanceGroupContext defines the main type of an EKS Cloudformation provisioner
@@ -178,6 +192,10 @@ type DiscoveredInstanceGroups struct {
 }
 
 func (groups *DiscoveredInstanceGroups) AddGroup(group DiscoveredInstanceGroup) []DiscoveredInstanceGroup {
+	if group.Name == "" || group.Namespace == "" || group.ClusterName == "" || group.StackName == "" ||
+		group.ARN == "" || group.ScalingGroupName == "" || group.LaunchConfigName == "" {
+		return groups.Items
+	}
 	groups.Items = append(groups.Items, group)
 	return groups.Items
 }
@@ -203,6 +221,13 @@ func (d *DiscoveredInstanceGroup) GetLaunchConfigName() string {
 func (d *DiscoveredInstanceGroup) GetScalingGroupName() string {
 	if d != nil {
 		return d.ScalingGroupName
+	}
+	return ""
+}
+
+func (d *DiscoveredInstanceGroup) GetARN() string {
+	if d != nil {
+		return d.ARN
 	}
 	return ""
 }

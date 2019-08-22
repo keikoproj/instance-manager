@@ -8,6 +8,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -32,6 +33,18 @@ func createConfigMap(k kubernetes.Interface, cmData *corev1.ConfigMap) error {
 		}
 	}
 	return nil
+}
+
+func (ctx *EksCfInstanceGroupContext) isResourceDeleting(s schema.GroupVersionResource, namespace, name string) (bool, error) {
+	obj, err := ctx.KubernetesClient.KubeDynamic.Resource(s).Namespace(namespace).Get(name, metav1.GetOptions{})
+	if err != nil {
+		return false, err
+	}
+	deletionTimestamp := obj.GetDeletionTimestamp()
+	if !deletionTimestamp.IsZero() {
+		return true, nil
+	}
+	return false, nil
 }
 
 func updateConfigMap(k kubernetes.Interface, cmData *corev1.ConfigMap) error {
