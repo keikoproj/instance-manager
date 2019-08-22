@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -284,11 +285,17 @@ func (ctx *EksCfInstanceGroupContext) discoverInstanceGroups() {
 		}
 
 		if group.Namespace != "" && group.Name != "" {
+			var groupDeleting bool
+			var groupDeleted bool
 			groupDeleting, err := ctx.isResourceDeleting(groupVersionResource, group.Namespace, group.Name)
 			if err != nil {
-				log.Errorf("failed to determine whether %v/%v is being deleted: %v", group.Namespace, group.Name, err)
+				if errors.IsNotFound(err) {
+					groupDeleted = true
+				} else {
+					log.Errorf("failed to determine whether %v/%v is being deleted: %v", group.Namespace, group.Name, err)
+				}
 			}
-			if groupDeleting {
+			if groupDeleting || groupDeleted {
 				group.IsClusterMember = false
 			}
 		}
