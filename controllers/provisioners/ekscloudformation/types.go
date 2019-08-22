@@ -48,17 +48,6 @@ func (m *AwsAuthConfigMapRolesData) AddUnique(config AwsAuthConfig) {
 	m.MapRoles = append(m.MapRoles, config)
 }
 
-func (m *AwsAuthConfigMapRolesData) Remove(config AwsAuthConfig) {
-	for i := len(m.MapRoles) - 1; i >= 0; i-- {
-		role := m.MapRoles[i]
-
-		if reflect.DeepEqual(role, config) {
-			m.MapRoles = append(m.MapRoles[:i],
-				m.MapRoles[i+1:]...)
-		}
-	}
-}
-
 // EksCfInstanceGroupContext defines the main type of an EKS Cloudformation provisioner
 type EksCfInstanceGroupContext struct {
 	InstanceGroup    *v1alpha1.InstanceGroup
