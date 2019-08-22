@@ -531,27 +531,6 @@ func (u *EksCfUnitTest) Run(t *testing.T) {
 		u.StackARN = "arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/groupfriendlyname"
 	}
 
-	if u.AuthConfigMapExist {
-		createAuthConfigMap(client, u.ExistingUnmanagedARNs)
-	}
-
-	if u.ExpectedAuthConfigMap == nil {
-		if u.StackExist {
-			fakeAuthMap.ARNList = append(fakeAuthMap.ARNList, u.StackARN)
-		}
-		if len(u.ExistingUnmanagedARNs) != 0 {
-			for _, arn := range u.ExistingUnmanagedARNs {
-				fakeAuthMap.ARNList = append(fakeAuthMap.ARNList, arn)
-			}
-		}
-		if len(u.ExistingARNs) != 0 {
-			for _, arn := range u.ExistingARNs {
-				fakeAuthMap.ARNList = append(fakeAuthMap.ARNList, arn)
-			}
-		}
-		sort.Strings(fakeAuthMap.ARNList)
-		u.ExpectedAuthConfigMap = createFakeAuthConfigMap(fakeAuthMap, client)
-	}
 	clusterName := "EKS-Test"
 	stackName := fmt.Sprintf("%v-%v-%v", clusterName, u.InstanceGroup.ObjectMeta.GetNamespace(), u.InstanceGroup.ObjectMeta.GetName())
 	aws := awsprovider.AwsWorker{
@@ -572,13 +551,59 @@ func (u *EksCfUnitTest) Run(t *testing.T) {
 	}
 	bootstrap(client)
 
+	obj, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(u.InstanceGroup)
+	unstructuredInstanceGroup := &unstructured.Unstructured{
+		Object: obj,
+	}
+	kube.KubeDynamic.Resource(groupVersionResource).Namespace(u.InstanceGroup.GetNamespace()).Create(unstructuredInstanceGroup, metav1.CreateOptions{})
+
 	provisioner, err := New(u.InstanceGroup, kube, aws)
 	if err != nil {
 		t.Fail()
 	}
 	u.Provisioner = &provisioner
+
 	u.Provisioner.CloudDiscovery()
 	u.Provisioner.StateDiscovery()
+
+	if u.ExpectedAuthConfigMap == nil {
+		deletionTs := u.InstanceGroup.GetDeletionTimestamp()
+		if u.StackExist && deletionTs.IsZero() {
+			fakeAuthMap.ARNList = append(fakeAuthMap.ARNList, u.StackARN)
+		}
+		if len(u.ExistingUnmanagedARNs) != 0 {
+			for _, arn := range u.ExistingUnmanagedARNs {
+				fakeAuthMap.ARNList = append(fakeAuthMap.ARNList, arn)
+			}
+		}
+		if len(u.ExistingARNs) != 0 {
+			instanceGroups := u.Provisioner.DiscoveredState.GetInstanceGroups()
+			for i, arn := range u.ExistingARNs {
+				fakeAuthMap.ARNList = append(fakeAuthMap.ARNList, arn)
+				g := DiscoveredInstanceGroup{
+					Name:             fmt.Sprintf("instance-group-%v", i),
+					Namespace:        fmt.Sprintf("namespace-%v", i),
+					ClusterName:      "eks-cluster",
+					StackName:        fmt.Sprintf("stack-%v", i),
+					ARN:              arn,
+					LaunchConfigName: fmt.Sprintf("launchconfig-%v", i),
+					ScalingGroupName: fmt.Sprintf("scalinggroup-%v", i),
+					IsClusterMember:  true,
+				}
+				instanceGroups.AddGroup(g)
+			}
+		}
+		sort.Strings(fakeAuthMap.ARNList)
+		u.ExpectedAuthConfigMap = createFakeAuthConfigMap(fakeAuthMap, client)
+	}
+
+	if u.AuthConfigMapExist {
+		for _, arn := range u.ExistingUnmanagedARNs {
+			fakeAuthMap.ARNList = append(fakeAuthMap.ARNList, arn)
+		}
+		cm := createFakeAuthConfigMap(fakeAuthMap, client)
+		createConfigMap(client, cm)
+	}
 
 	if u.ExpectedState != u.InstanceGroup.GetState() {
 		t.Fatalf("DiscoveredState, expected:\n %#v, \ngot:\n %#v", u.ExpectedState, u.InstanceGroup.GetState())
