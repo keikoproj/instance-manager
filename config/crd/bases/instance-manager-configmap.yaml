@@ -175,6 +175,8 @@ data:
           - Key: !Sub 'kubernetes.io/cluster/${ClusterName}'
             Value: 'owned'
             PropagateAtLaunch: 'true'
+          - Key: KubernetesCluster
+            Value: !Ref ClusterName
         {{$strategy := .Spec.AwsUpgradeStrategy.Type | ToLower}}
         {{if (eq $strategy "rollingupdate")}}
         UpdatePolicy:
