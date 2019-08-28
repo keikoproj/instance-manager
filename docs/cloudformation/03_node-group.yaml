@@ -191,7 +191,7 @@ Resources:
         - Key: KubernetesCluster
           Value: !Ref ClusterName
           PropagateAtLaunch: true
-        - Key: instancegroups.orkaproj.io/InstanceGroup
+        - Key: instancegroups.keikoproj.io/InstanceGroup
           Value: !Ref NodeGroupName
           PropagateAtLaunch: true
     UpdatePolicy:

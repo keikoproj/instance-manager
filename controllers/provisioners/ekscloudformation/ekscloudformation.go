@@ -24,22 +24,22 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
-	"github.com/orkaproj/instance-manager/api/v1alpha1"
-	"github.com/orkaproj/instance-manager/controllers/common"
-	awsprovider "github.com/orkaproj/instance-manager/controllers/providers/aws"
+	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/controllers/common"
+	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	"github.com/sirupsen/logrus"
 )
 
 var (
 	log                       = logrus.New()
-	tagClusterName            = "instancegroups.orkaproj.io/ClusterName"
-	tagInstanceGroupName      = "instancegroups.orkaproj.io/InstanceGroup"
-	tagClusterNamespace       = "instancegroups.orkaproj.io/Namespace"
+	tagClusterName            = "instancegroups.keikoproj.io/ClusterName"
+	tagInstanceGroupName      = "instancegroups.keikoproj.io/InstanceGroup"
+	tagClusterNamespace       = "instancegroups.keikoproj.io/Namespace"
 	outputLaunchConfiguration = "LaunchConfigName"
 	outputScalingGroupName    = "AsgName"
 	outputGroupARN            = "NodeInstanceRole"
 	groupVersionResource      = schema.GroupVersionResource{
-		Group:    "instancemgr.orkaproj.io",
+		Group:    "instancemgr.keikoproj.io",
 		Version:  "v1alpha1",
 		Resource: "instancegroups",
 	}

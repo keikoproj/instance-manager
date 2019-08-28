@@ -27,8 +27,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/reporters"
 	. "github.com/onsi/gomega"
-	awsprovider "github.com/orkaproj/instance-manager/controllers/providers/aws"
-	"github.com/orkaproj/instance-manager/test-bdd/testutil"
+	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
+	"github.com/keikoproj/instance-manager/test-bdd/testutil"
 	"github.com/sirupsen/logrus"
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/dynamic"
@@ -46,7 +46,7 @@ type ClientSet struct {
 const (
 	TemplateRolling     = "./templates/instance-group.yaml"
 	TemplateCRDStrategy = "./templates/instance-group-crd.yaml"
-	CRDManifest         = "../config/crd/bases/instancemgr.orkaproj.io_instancegroups.yaml"
+	CRDManifest         = "../config/crd/bases/instancemgr.keikoproj.io_instancegroups.yaml"
 )
 
 var (

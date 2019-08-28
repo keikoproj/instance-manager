@@ -18,7 +18,7 @@ package ekscloudformation
 import (
 	"reflect"
 
-	"github.com/orkaproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/api/v1alpha1"
 
 	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"

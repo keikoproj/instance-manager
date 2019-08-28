@@ -212,7 +212,7 @@ aws cloudformation create-stack \
 --stack-name ${NODE_GROUP_STACK_NAME} \
 --template-body file://cloudformation/03_node-group.yaml \
 --capabilities CAPABILITY_NAMED_IAM \
---tags Key=instancegroups.orkaproj.io/ClusterName,Value=${EKS_CLUSTER_NAME} \
+--tags Key=instancegroups.keikoproj.io/ClusterName,Value=${EKS_CLUSTER_NAME} \
 --parameters ParameterKey=VpcId,ParameterValue=${VPC_ID} \
 ParameterKey=NodeGroupName,ParameterValue=${NODE_GROUP_NAME} \
 ParameterKey=ClusterControlPlaneSecurityGroup,ParameterValue=${EKS_SECURITY_GROUP_ID} \
@@ -271,7 +271,7 @@ Create the resources described in [04_instance-manager.yaml](04_instance-manager
 ```bash
 kubectl create -f ./04_instance-manager.yaml
 namespace/instance-manager created
-customresourcedefinition.apiextensions.k8s.io/instancegroups.instancemgr.orkaproj.io created
+customresourcedefinition.apiextensions.k8s.io/instancegroups.instancemgr.keikoproj.io created
 serviceaccount/instance-manager created
 clusterrole.rbac.authorization.k8s.io/instance-manager created
 clusterrolebinding.rbac.authorization.k8s.io/instance-manager created
@@ -310,7 +310,7 @@ This spec will provision a 3/6 node instance-group of type m3.medium
 
 ```bash
 cat <<EOF | kubectl create -f -
-apiVersion: instancemgr.orkaproj.io/v1alpha1
+apiVersion: instancemgr.keikoproj.io/v1alpha1
 kind: InstanceGroup
 metadata:
   name: hello-world
@@ -392,7 +392,7 @@ First, delete the instance group:
 
 ```bash
 kubectl delete instancegroup hello-world
-instancegroup.instancemgr.orkaproj.io "hello-world" deleted
+instancegroup.instancemgr.keikoproj.io "hello-world" deleted
 
 # This will hang until finalizer is removed
 # Finalizer makes sure the cloudformation template is deleted before the kubernetes resource is deleted.

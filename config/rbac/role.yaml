@@ -31,7 +31,7 @@ rules:
   - patch
   - delete
 - apiGroups:
-  - instancemgr.orkaproj.io
+  - instancemgr.keikoproj.io
   resources:
   - instancegroups
   verbs:
@@ -43,7 +43,7 @@ rules:
   - patch
   - delete
 - apiGroups:
-  - instancemgr.orkaproj.io
+  - instancemgr.keikoproj.io
   resources:
   - instancegroups/status
   verbs:

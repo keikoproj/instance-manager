@@ -20,10 +20,10 @@ import (
 	"os"
 	runt "runtime"
 
-	instancemgrv1alpha1 "github.com/orkaproj/instance-manager/api/v1alpha1"
+	instancemgrv1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/orkaproj/instance-manager/controllers"
+	"github.com/keikoproj/instance-manager/controllers"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"

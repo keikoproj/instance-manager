@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/orkaproj/instance-manager/controllers/common"
+	"github.com/keikoproj/instance-manager/controllers/common"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -43,7 +43,7 @@ type TemplateArguments struct {
 }
 
 var instanceGroupSchema = schema.GroupVersionResource{
-	Group:    "instancemgr.orkaproj.io",
+	Group:    "instancemgr.keikoproj.io",
 	Version:  "v1alpha1",
 	Resource: "instancegroups",
 }

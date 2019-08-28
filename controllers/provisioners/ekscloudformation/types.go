@@ -20,9 +20,9 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
-	"github.com/orkaproj/instance-manager/api/v1alpha1"
-	"github.com/orkaproj/instance-manager/controllers/common"
-	"github.com/orkaproj/instance-manager/controllers/providers/aws"
+	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/controllers/common"
+	"github.com/keikoproj/instance-manager/controllers/providers/aws"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

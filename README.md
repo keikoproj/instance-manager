@@ -1,7 +1,7 @@
 # instance-manager
-[![Build Status](https://travis-ci.org/orkaproj/instance-manager.svg?branch=master)](https://travis-ci.org/orkaproj/instance-manager)
-[![codecov](https://codecov.io/gh/orkaproj/instance-manager/branch/master/graph/badge.svg)](https://codecov.io/gh/orkaproj/instance-manager)
-[![Go Report Card](https://goreportcard.com/badge/github.com/orkaproj/instance-manager)](https://goreportcard.com/report/github.com/orkaproj/instance-manager)
+[![Build Status](https://travis-ci.org/keikoproj/instance-manager.svg?branch=master)](https://travis-ci.org/keikoproj/instance-manager)
+[![codecov](https://codecov.io/gh/keikoproj/instance-manager/branch/master/graph/badge.svg)](https://codecov.io/gh/keikoproj/instance-manager)
+[![Go Report Card](https://goreportcard.com/badge/github.com/keikoproj/instance-manager)](https://goreportcard.com/report/github.com/keikoproj/instance-manager)
 [![slack](https://img.shields.io/badge/slack-join%20the%20conversation-ff69b4.svg)][SlackUrl]
 ![version](https://img.shields.io/badge/version-0.3.1-blue.svg?cacheSeconds=2592000)
 > Create and manage instance groups with Kubernetes.
@@ -22,7 +22,7 @@ You must first have atleast one instance group that was manually created, in ord
 
 ```sh
 kubectl create namespace instance-manager
-kubectl apply -n instance-manager -f https://raw.githubusercontent.com/orkaproj/instance-manager/master/docs/04_instance-manager.yaml
+kubectl apply -n instance-manager -f https://raw.githubusercontent.com/keikoproj/instance-manager/master/docs/04_instance-manager.yaml
 ```
 
 _For more examples and usage, please refer to the [Installation Reference Walkthrough][install]._
@@ -42,7 +42,7 @@ To create an instance group, submit an InstanceGroup spec to the controller.
 ### Sample spec
 
 ```yaml
-apiVersion: instancemgr.orkaproj.io/v1alpha1
+apiVersion: instancemgr.keikoproj.io/v1alpha1
 kind: InstanceGroup
 metadata:
   name: hello-world
@@ -84,7 +84,7 @@ spec:
 
 ```sh
 $ kubectl create -f instance_group.yaml
-instancegroup.instancemgr.orkaproj.io/hello-world created
+instancegroup.instancemgr.keikoproj.io/hello-world created
 
 $ kubectl get instancegroups
 NAME          STATE                MIN   MAX   GROUP NAME   PROVISIONER   AGE
@@ -115,5 +115,5 @@ Please see [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 Please see [DEVELOPER.md](.github/DEVELOPER.md).
 
 <!-- Markdown link -->
-[install]: https://github.com/orkaproj/instance-manager/blob/master/docs/README.md
-[SlackUrl]: https://orkaproj.slack.com/messages/instance-manager
+[install]: https://github.com/keikoproj/instance-manager/blob/master/docs/README.md
+[SlackUrl]: https://keikoproj.slack.com/messages/instance-manager

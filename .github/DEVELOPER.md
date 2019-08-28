@@ -53,9 +53,9 @@ Using the `Makefile` you can run basic unit tests.
 ```bash
 $ make test
 
-?       github.com/orkaproj/instance-manager/controllers    [no test files]
-?       github.com/orkaproj/instance-manager/controllers/common [no test files]
-?       github.com/orkaproj/instance-manager/controllers/providers/aws  [no test files]
+?       github.com/keikoproj/instance-manager/controllers    [no test files]
+?       github.com/keikoproj/instance-manager/controllers/common [no test files]
+?       github.com/keikoproj/instance-manager/controllers/providers/aws  [no test files]
 === RUN   TestStateDiscoveryInitUpdate
 --- PASS: TestStateDiscoveryInitUpdate (0.00s)
 === RUN   TestStateDiscoveryReconcileModifying
@@ -88,7 +88,7 @@ $ make test
 --- PASS: TestCrdStrategyCRExist (0.00s)
 PASS
 coverage: 72.6% of statements
-ok      github.com/orkaproj/instance-manager/controllers/provisioners/ekscloudformation 5.352s  coverage: 72.6% of statements
+ok      github.com/keikoproj/instance-manager/controllers/provisioners/ekscloudformation 5.352s  coverage: 72.6% of statements
 ```
 
 You can use `make vtest` to run test with verbose logging, you can also run `make coverage` to generate a coverage report.
@@ -125,5 +125,5 @@ Ran 4 of 4 Specs in 635.904 seconds
 SUCCESS! -- 4 Passed | 0 Failed | 0 Pending | 0 Skipped
 --- PASS: TestE2e (635.90s)
 PASS
-ok      github.com/orkaproj/instance-manager/test-bdd   636.198s
+ok      github.com/keikoproj/instance-manager/test-bdd   636.198s
 ```

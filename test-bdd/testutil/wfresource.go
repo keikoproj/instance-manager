@@ -32,7 +32,7 @@ var statusKey = "currentStatus"
 var resourceName = "rollingupgrades"
 
 var workflowSchema = schema.GroupVersionResource{
-	Group:    "upgrademgr.orkaproj.io",
+	Group:    "upgrademgr.keikoproj.io",
 	Version:  "v1alpha1",
 	Resource: resourceName,
 }

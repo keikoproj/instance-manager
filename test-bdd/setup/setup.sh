@@ -253,7 +253,7 @@ function deploy_instance_manager()
 {
     echo "deploying instance-manager..."
     kubectl apply -f ${TEMPLATE_PATH}/04_instance-manager.yaml
-    kubectl set image deployment/instance-manager instance-manager=orkaproj/instance-manager:${INSTANCEMGR_TAG}
+    kubectl set image deployment/instance-manager instance-manager=keikoproj/instance-manager:${INSTANCEMGR_TAG}
 }
 
 function deploy_upgrademgr()
@@ -389,7 +389,7 @@ function create_nodegroup()
         --stack-name ${NODE_GROUP_STACK_NAME} \
         --template-body file://$TEMPLATE_PATH/cloudformation/03_node-group.yaml \
         --capabilities CAPABILITY_NAMED_IAM \
-        --tags Key=instancegroups.orkaproj.io/ClusterName,Value=${EKS_CLUSTER_NAME} \
+        --tags Key=instancegroups.keikoproj.io/ClusterName,Value=${EKS_CLUSTER_NAME} \
         --parameters ParameterKey=VpcId,ParameterValue=${VPC_ID} \
         ParameterKey=NodeGroupName,ParameterValue=${NODE_GROUP_NAME} \
         ParameterKey=ClusterControlPlaneSecurityGroup,ParameterValue=${EKS_SECURITY_GROUP_ID} \
