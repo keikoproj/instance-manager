@@ -22,8 +22,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/orkaproj/instance-manager/api/v1alpha1"
-	"github.com/orkaproj/instance-manager/controllers/common"
+	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/controllers/common"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -32,7 +32,7 @@ import (
 
 const (
 	OwnershipAnnotationKey   = "app.kubernetes.io/managed-by"
-	ScopeAnnotationKey       = "instancemgr.orkaproj.io/upgrade-scope"
+	ScopeAnnotationKey       = "instancemgr.keikoproj.io/upgrade-scope"
 	OwnershipAnnotationValue = "instance-manager"
 	DefaultConcurrencyPolicy = "forbid"
 )

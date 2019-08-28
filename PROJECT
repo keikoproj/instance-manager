@@ -1,5 +1,5 @@
 version: "2"
-domain: orkaproj.io
+domain: keikoproj.io
 repo: _/tmp/instancemanager
 resources:
 - group: instancemgr

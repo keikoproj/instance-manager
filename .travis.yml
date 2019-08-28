@@ -42,7 +42,7 @@ jobs:
       if: type IN (push)
       script:
       - echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
-      - if [ $TRAVIS_EVENT_TYPE = push ]; then export IMG=orkaproj/instance-manager:$TRAVIS_BRANCH; fi
+      - if [ $TRAVIS_EVENT_TYPE = push ]; then export IMG=keikoproj/instance-manager:$TRAVIS_BRANCH; fi
       - make docker-build
       - make docker-push
 

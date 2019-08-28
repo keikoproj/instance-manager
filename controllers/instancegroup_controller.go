@@ -31,10 +31,10 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	v1alpha "github.com/orkaproj/instance-manager/api/v1alpha1"
-	"github.com/orkaproj/instance-manager/controllers/common"
-	"github.com/orkaproj/instance-manager/controllers/providers/aws"
-	"github.com/orkaproj/instance-manager/controllers/provisioners/ekscloudformation"
+	v1alpha "github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/controllers/common"
+	"github.com/keikoproj/instance-manager/controllers/providers/aws"
+	"github.com/keikoproj/instance-manager/controllers/provisioners/ekscloudformation"
 	"k8s.io/apimachinery/pkg/api/errors"
 )
 
@@ -245,8 +245,8 @@ func (r *InstanceGroupReconciler) ReconcileEKSCF(instanceGroup *v1alpha.Instance
 
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=instancemgr.orkaproj.io,resources=instancegroups,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=instancemgr.orkaproj.io,resources=instancegroups/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=instancemgr.keikoproj.io,resources=instancegroups,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=instancemgr.keikoproj.io,resources=instancegroups/status,verbs=get;update;patch
 
 func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	_ = context.Background()
@@ -279,7 +279,7 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	log.Infof("resource provisioner: %v", strings.ToLower(ig.Spec.Provisioner))
 
 	// Add Finalizer if not present, and set the initial state
-	finalizerName := fmt.Sprintf("finalizers.%v.instancegroups.orkaproj.io", ig.Spec.Provisioner)
+	finalizerName := fmt.Sprintf("finalizers.%v.instancegroups.keikoproj.io", ig.Spec.Provisioner)
 	r.SetFinalizer(ig, finalizerName)
 
 	switch strings.ToLower(ig.Spec.Provisioner) {

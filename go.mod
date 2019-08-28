@@ -1,4 +1,4 @@
-module github.com/orkaproj/instance-manager
+module github.com/keikoproj/instance-manager
 
 go 1.12
 

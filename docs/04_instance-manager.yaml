@@ -8,7 +8,7 @@ apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
-  name: instancegroups.instancemgr.orkaproj.io
+  name: instancegroups.instancemgr.keikoproj.io
 spec:
   additionalPrinterColumns:
   - JSONPath: .status.currentState
@@ -39,7 +39,7 @@ spec:
     description: time passed since instancegroup creation
     name: Age
     type: date
-  group: instancemgr.orkaproj.io
+  group: instancemgr.keikoproj.io
   names:
     kind: InstanceGroup
     plural: instancegroups
@@ -546,7 +546,7 @@ rules:
 # This is only needed for if you are using one of these projects for CRD Strategy, you may replaces this with a different RBAC
 - apiGroups:
   - argoproj.io
-  - upgrademgr.orkaproj.io
+  - upgrademgr.keikoproj.io
   resources:
   - workflows
   - rollingupgrades
@@ -558,7 +558,7 @@ rules:
   - update
   - patch
   - delete
-# This is only needed for if you are using one of these projects for CRD Strategy, you may replaces this with a different RBAC 
+# This is only needed for if you are using one of these projects for CRD Strategy, you may replaces this with a different RBAC
 # ... >
 - apiGroups:
   - ""
@@ -585,7 +585,7 @@ rules:
   - patch
   - delete
 - apiGroups:
-  - instancemgr.orkaproj.io
+  - instancemgr.keikoproj.io
   resources:
   - instancegroups
   verbs:
@@ -597,7 +597,7 @@ rules:
   - patch
   - delete
 - apiGroups:
-  - instancemgr.orkaproj.io
+  - instancemgr.keikoproj.io
   resources:
   - instancegroups/status
   verbs:
@@ -861,7 +861,7 @@ spec:
         app: instance-manager
     spec:
       containers:
-      - image: orkaproj/instance-manager:latest
+      - image: keikoproj/instance-manager:latest
         imagePullPolicy: Always
         name: instance-manager
         resources:

@@ -35,9 +35,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
-	"github.com/orkaproj/instance-manager/api/v1alpha1"
-	"github.com/orkaproj/instance-manager/controllers/common"
-	awsprovider "github.com/orkaproj/instance-manager/controllers/providers/aws"
+	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/controllers/common"
+	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,9 +54,9 @@ var loggingEnabled bool
 var rollupCrd = `apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
-  name: rollingupgrade.upgrademgr.orkaproj.io
+  name: rollingupgrade.upgrademgr.keikoproj.io
 spec:
-  group: upgrademgr.orkaproj.io
+  group: upgrademgr.keikoproj.io
   names:
     kind: RollingUpgrade
     plural: rollups
@@ -81,7 +81,7 @@ func init() {
 }
 
 func getRollupSpec(name string) string {
-	var rollupSpec = fmt.Sprintf(`apiVersion: upgrademgr.orkaproj.io/v1alpha1
+	var rollupSpec = fmt.Sprintf(`apiVersion: upgrademgr.keikoproj.io/v1alpha1
 kind: RollingUpgrade
 metadata:
   name: %v
@@ -326,13 +326,13 @@ func createFakeStack(f FakeStack) *cloudformation.Stack {
 
 	f.StackTags = []map[string]string{
 		{
-			"instancegroups.orkaproj.io/ClusterName": f.ClusterName,
+			"instancegroups.keikoproj.io/ClusterName": f.ClusterName,
 		},
 		{
-			"instancegroups.orkaproj.io/InstanceGroup": f.ResourceName,
+			"instancegroups.keikoproj.io/InstanceGroup": f.ResourceName,
 		},
 		{
-			"instancegroups.orkaproj.io/Namespace": f.NamespaceName,
+			"instancegroups.keikoproj.io/Namespace": f.NamespaceName,
 		},
 	}
 

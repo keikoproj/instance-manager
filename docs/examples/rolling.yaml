@@ -1,4 +1,4 @@
-apiVersion: instancemgr.orkaproj.io/v1alpha1
+apiVersion: instancemgr.keikoproj.io/v1alpha1
 kind: InstanceGroup
 metadata:
   name: hello-world
