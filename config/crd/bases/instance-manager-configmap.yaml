@@ -177,6 +177,7 @@ data:
             PropagateAtLaunch: 'true'
           - Key: KubernetesCluster
             Value: !Ref ClusterName
+            PropagateAtLaunch: 'true'
         {{$strategy := .Spec.AwsUpgradeStrategy.Type | ToLower}}
         {{if (eq $strategy "rollingupdate")}}
         UpdatePolicy:
