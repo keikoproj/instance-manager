@@ -925,7 +925,7 @@ func TestSpotInstancesRecommendationEnable(t *testing.T) {
 		getSpotSuggestionEvent("3", "my-asg", "0.006", true, time.Now().Add(time.Minute*time.Duration(5))),
 	}
 	testCase := EksCfUnitTest{
-		Description:       "Spot Instances - should take latest event's recommendation",
+		Description:       "Spot Instances - should take latest event's recommendation (enable)",
 		LoadCRD:           "rollingupgrade",
 		InstanceGroup:     instanceGroup,
 		StackExist:        true,
@@ -954,7 +954,7 @@ func TestSpotInstancesRecommendationDisable(t *testing.T) {
 		getSpotSuggestionEvent("2", "my-asg", "0.007", true, time.Now().Add(time.Minute*time.Duration(5))),
 	}
 	testCase := EksCfUnitTest{
-		Description:       "Spot Instances - should take latest event's recommendation",
+		Description:       "Spot Instances - should take latest event's recommendation (disable)",
 		LoadCRD:           "rollingupgrade",
 		InstanceGroup:     instanceGroup,
 		StackExist:        true,
@@ -979,7 +979,7 @@ func TestSpotInstancesManual(t *testing.T) {
 	instanceGroup.Status.ActiveScalingGroupName = "my-asg"
 	instanceGroup.Spec.EKSCFSpec.EKSCFConfiguration.SpotPrice = "0.005"
 	testCase := EksCfUnitTest{
-		Description:       "Spot Instances - should take latest event's recommendation",
+		Description:       "Spot Instances - should take user input from custom resource",
 		LoadCRD:           "rollingupgrade",
 		InstanceGroup:     instanceGroup,
 		StackExist:        true,
