@@ -386,6 +386,22 @@ There might be cases where you would want to implement custom behavior as part o
 
 In [this](./examples/crd-argo.yaml) example, we submit an [argo](https://github.com/argoproj/argo) workflow as a response to an upgrade events.
 
+#### Using spot instances
+
+You can switch to spot instances in two ways:
+
+- Manually set the `spec.eks-cf.configuration.spotPrice` to a spot price value, the downside is that if price becomes invalid (due to price changes) and instaces gets pulled, you may end up with no instances until you modify the price again.
+
+- Use a spot recommendation controller such as `minion-manager`, instance-manager will look at events with the following message format:
+
+```text
+{"apiVersion":"v1alpha1","spotPrice":"0.0067", "useSpot": true}
+```
+
+In addition, the event `involvedObject.name`, must be the name of the autoscaling group to switch, and the event `.reason` must be `SpotRecommendationGiven`.
+
+When recommendations are not available (no events for an hour / recommendation controller is down), instance-group will switch back to on-demand.
+
 ### Clean up
 
 First, delete the instance group:

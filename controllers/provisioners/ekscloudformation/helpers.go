@@ -1,10 +1,15 @@
 package ekscloudformation
 
 import (
+	"bytes"
 	"fmt"
+	"html/template"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/controllers/common"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -17,7 +22,6 @@ func createConfigMap(k kubernetes.Interface, cmData *corev1.ConfigMap) error {
 	if err != nil {
 		return err
 	}
-
 	for {
 		fieldSelector := fmt.Sprintf("metadata.name=%v", cmData.Name)
 		configMaps, err := k.CoreV1().ConfigMaps(cmData.Namespace).List(metav1.ListOptions{FieldSelector: fieldSelector})
@@ -93,4 +97,43 @@ func getUnstructuredPath(u *unstructured.Unstructured, jsonPath string) (string,
 		return "", err
 	}
 	return value, nil
+}
+
+func (ctx *EksCfInstanceGroupContext) reloadCloudformationConfiguration() error {
+	template, err := LoadCloudformationConfiguration(ctx.GetInstanceGroup(), ctx.TemplatePath)
+	if err != nil {
+		return err
+	}
+	ctx.AwsWorker.TemplateBody = template
+	return nil
+}
+
+func LoadCloudformationConfiguration(ig *v1alpha1.InstanceGroup, path string) (string, error) {
+	var renderBuffer bytes.Buffer
+
+	funcMap := template.FuncMap{
+		"ToLower": strings.ToLower,
+	}
+
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		log.Errorf("controller cloudformation template file not found: %v", err)
+		return "", err
+	}
+
+	rawTemplate, err := common.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+
+	template, err := template.New("InstanceGroup").Funcs(funcMap).Parse(string(rawTemplate))
+	if err != nil {
+		return "", err
+	}
+
+	err = template.Execute(&renderBuffer, ig)
+	if err != nil {
+		return "", err
+	}
+
+	return renderBuffer.String(), nil
 }

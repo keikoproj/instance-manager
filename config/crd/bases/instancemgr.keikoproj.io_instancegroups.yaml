@@ -31,6 +31,10 @@ spec:
     description: instance group upgrade strategy
     name: Strategy
     type: string
+  - JSONPath: .status.lifecycle
+    description: instance group lifecycle spot/normal
+    name: Lifecycle
+    type: string
   - JSONPath: .metadata.creationTimestamp
     description: time passed since instancegroup creation
     name: Age
@@ -435,6 +439,8 @@ spec:
                       items:
                         type: string
                       type: array
+                    spotPrice:
+                      type: string
                     subnets:
                       items:
                         type: string
@@ -506,10 +512,16 @@ spec:
               type: integer
             currentState:
               type: string
+            lifecycle:
+              type: string
             nodesInstanceRoleArn:
               type: string
             strategyResourceName:
               type: string
+            usingSpotRecommendation:
+              type: boolean
+          required:
+          - usingSpotRecommendation
           type: object
       required:
       - metadata

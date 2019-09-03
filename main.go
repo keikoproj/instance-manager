@@ -21,10 +21,10 @@ import (
 	runt "runtime"
 
 	instancemgrv1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/keikoproj/instance-manager/controllers"
-
+	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
+	log "github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -42,6 +42,7 @@ const controllerVersion = "instancemgr-0.3.2"
 func init() {
 
 	instancemgrv1alpha1.AddToScheme(scheme)
+	corev1.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -58,18 +59,27 @@ func main() {
 	})
 	printVersion()
 
-	var metricsAddr string
-	var enableLeaderElection bool
-	var controllerConfPath string
-	var controllerTemplatePath string
+	var (
+		metricsAddr            string
+		enableLeaderElection   bool
+		controllerConfPath     string
+		controllerTemplatePath string
+		region                 string
+		err                    error
+	)
+
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&controllerConfPath, "controller-config", "/etc/config/controller.conf", "The controller config file")
 	flag.StringVar(&controllerTemplatePath, "controller-template", "/etc/config/cloudformation.template", "The controller template file")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	flag.Parse()
-
 	ctrl.SetLogger(zap.Logger(true))
+
+	region, err = awsprovider.GetRegion()
+	if err != nil {
+		log.Fatalf("failed to detect region: %v", err)
+	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
@@ -86,6 +96,7 @@ func main() {
 		Log:                    ctrl.Log.WithName("controllers").WithName("InstanceGroup"),
 		ControllerConfPath:     controllerConfPath,
 		ControllerTemplatePath: controllerTemplatePath,
+		ScalingGroups:          awsprovider.GetAwsAsgClient(region),
 	}).SetupWithManager(mgr)
 	if err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "InstanceGroup")

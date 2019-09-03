@@ -105,7 +105,7 @@ func (ctx *EksCfInstanceGroupContext) updateAuthConfigMap() error {
 		}
 	}
 
-	log.Infof("bootstrapping: %+v\n", newConfigurations)
+	log.Debugf("bootstrapping: %+v\n", newConfigurations)
 
 	d, err := yaml.Marshal(&newConfigurations.MapRoles)
 	if err != nil {

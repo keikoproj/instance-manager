@@ -32,9 +32,9 @@ import (
 
 var (
 	log                       = logrus.New()
-	tagClusterName            = "instancegroups.keikoproj.io/ClusterName"
-	tagInstanceGroupName      = "instancegroups.keikoproj.io/InstanceGroup"
-	tagClusterNamespace       = "instancegroups.keikoproj.io/Namespace"
+	TagClusterName            = "instancegroups.keikoproj.io/ClusterName"
+	TagInstanceGroupName      = "instancegroups.keikoproj.io/InstanceGroup"
+	TagClusterNamespace       = "instancegroups.keikoproj.io/Namespace"
 	outputLaunchConfiguration = "LaunchConfigName"
 	outputScalingGroupName    = "AsgName"
 	outputGroupARN            = "NodeInstanceRole"
@@ -92,7 +92,7 @@ func (ctx *EksCfInstanceGroupContext) Create() error {
 		return err
 	}
 	instanceGroup.SetState(v1alpha1.ReconcileModifying)
-	ctx.CloudDiscovery()
+	ctx.reloadDiscoveryCache()
 	return nil
 }
 
@@ -114,7 +114,7 @@ func (ctx *EksCfInstanceGroupContext) Update() error {
 			instanceGroup.SetState(v1alpha1.ReconcileModified)
 		}
 	}
-	ctx.CloudDiscovery()
+	ctx.reloadDiscoveryCache()
 	return nil
 }
 
@@ -154,7 +154,7 @@ func (ctx *EksCfInstanceGroupContext) Delete() error {
 		return err
 	}
 	instanceGroup.SetState(v1alpha1.ReconcileDeleting)
-	ctx.CloudDiscovery()
+	ctx.reloadDiscoveryCache()
 	return nil
 }
 
@@ -255,19 +255,18 @@ func (ctx *EksCfInstanceGroupContext) discoverInstanceGroups() {
 	for _, stack := range stacks {
 		var group DiscoveredInstanceGroup
 		group.StackName = aws.StringValue(stack.StackName)
-
 		for _, tag := range stack.Tags {
 			key := aws.StringValue(tag.Key)
 			value := aws.StringValue(tag.Value)
 			switch key {
-			case tagClusterName:
+			case TagClusterName:
 				group.ClusterName = value
 				if value == specConfig.GetClusterName() {
 					group.IsClusterMember = true
 				}
-			case tagClusterNamespace:
+			case TagClusterNamespace:
 				group.Namespace = value
-			case tagInstanceGroupName:
+			case TagInstanceGroupName:
 				group.Name = value
 			}
 		}
@@ -311,10 +310,66 @@ func (ctx *EksCfInstanceGroupContext) discoverInstanceGroups() {
 }
 
 func (ctx *EksCfInstanceGroupContext) CloudDiscovery() error {
+	err := ctx.reloadDiscoveryCache()
+	if err != nil {
+		return err
+	}
+	ctx.discoverSpotPrice()
+	return nil
+
+}
+
+func (ctx *EksCfInstanceGroupContext) BootstrapNodes() error {
+	err := ctx.updateAuthConfigMap()
+	if err != nil {
+		log.Errorln("failed to update bootstrap config map")
+		return err
+	}
+	return nil
+}
+
+func (ctx *EksCfInstanceGroupContext) parseTags() {
+	var tags map[string]string
+	var cloudformationTags []*cloudformation.Tag
+
+	instanceGroup := ctx.GetInstanceGroup()
+	spec := &instanceGroup.Spec
+	meta := &instanceGroup.ObjectMeta
+	provisionerConfig := &spec.EKSCFSpec
+	specConfig := &provisionerConfig.EKSCFConfiguration
+
+	tags = map[string]string{
+		TagClusterName:       specConfig.GetClusterName(),
+		TagInstanceGroupName: meta.GetName(),
+		TagClusterNamespace:  meta.GetNamespace(),
+	}
+
+	for _, tagSet := range specConfig.GetTags() {
+		var resourceTagKey, resourceTagValue string
+		for k, v := range tagSet {
+			if strings.ToLower(k) == "key" {
+				resourceTagKey = v
+			} else if strings.ToLower(k) == "value" {
+				resourceTagValue = v
+			}
+		}
+		tags[resourceTagKey] = resourceTagValue
+	}
+
+	for k, v := range tags {
+		tag := &cloudformation.Tag{
+			Key:   aws.String(k),
+			Value: aws.String(v),
+		}
+		cloudformationTags = append(cloudformationTags, tag)
+	}
+	ctx.AwsWorker.StackTags = cloudformationTags
+}
+
+func (ctx *EksCfInstanceGroupContext) reloadDiscoveryCache() error {
 	discovery := &DiscoveredState{}
 	instanceGroup := ctx.GetInstanceGroup()
 	status := &instanceGroup.Status
-
 	stacksOutput, err := ctx.AwsWorker.DescribeCloudformationStacks()
 	if err != nil {
 		log.Errorf("failed to DescribeStacks: %v", err)
@@ -340,11 +395,25 @@ func (ctx *EksCfInstanceGroupContext) CloudDiscovery() error {
 	ctx.discoverInstanceGroups()
 	discoveredInstanceGroups := discovery.GetInstanceGroups()
 
+	status.SetLifecycle("normal")
 	for _, group := range discoveredInstanceGroups.Items {
 		if group.StackName == ctx.AwsWorker.StackName {
 			status.SetActiveLaunchConfigurationName(group.LaunchConfigName)
 			status.SetActiveScalingGroupName(group.ScalingGroupName)
 			status.SetNodesArn(group.ARN)
+		}
+	}
+
+	for _, launchConfig := range launchConfigOutput.LaunchConfigurations {
+		launchConfigName := aws.StringValue(launchConfig.LaunchConfigurationName)
+		launchSpotPrice := aws.StringValue(launchConfig.SpotPrice)
+		knownLaunchConfig := status.GetActiveLaunchConfigurationName()
+		if knownLaunchConfig == launchConfigName {
+			if launchSpotPrice != "" {
+				status.SetLifecycle("spot")
+			} else {
+				status.SetLifecycle("normal")
+			}
 		}
 	}
 
@@ -362,55 +431,7 @@ func (ctx *EksCfInstanceGroupContext) CloudDiscovery() error {
 			log.Infof("stack state: %v", *stack.StackStatus)
 		}
 	}
-
 	return nil
-}
-
-func (ctx *EksCfInstanceGroupContext) BootstrapNodes() error {
-	err := ctx.updateAuthConfigMap()
-	if err != nil {
-		log.Errorln("failed to update bootstrap config map")
-		return err
-	}
-	return nil
-}
-
-func (ctx *EksCfInstanceGroupContext) parseTags() {
-	var tags map[string]string
-	var cloudformationTags []*cloudformation.Tag
-
-	instanceGroup := ctx.GetInstanceGroup()
-	spec := &instanceGroup.Spec
-	meta := &instanceGroup.ObjectMeta
-	provisionerConfig := &spec.EKSCFSpec
-	specConfig := &provisionerConfig.EKSCFConfiguration
-
-	tags = map[string]string{
-		tagClusterName:       specConfig.GetClusterName(),
-		tagInstanceGroupName: meta.GetName(),
-		tagClusterNamespace:  meta.GetNamespace(),
-	}
-
-	for _, tagSet := range specConfig.GetTags() {
-		var resourceTagKey, resourceTagValue string
-		for k, v := range tagSet {
-			if strings.ToLower(k) == "key" {
-				resourceTagKey = v
-			} else if strings.ToLower(k) == "value" {
-				resourceTagValue = v
-			}
-		}
-		tags[resourceTagKey] = resourceTagValue
-	}
-
-	for k, v := range tags {
-		tag := &cloudformation.Tag{
-			Key:   aws.String(k),
-			Value: aws.String(v),
-		}
-		cloudformationTags = append(cloudformationTags, tag)
-	}
-	ctx.AwsWorker.StackTags = cloudformationTags
 }
 
 func (ctx *EksCfInstanceGroupContext) processParameters() error {

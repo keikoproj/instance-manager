@@ -114,9 +114,11 @@ type EksCfUnitTest struct {
 	StackARN              string
 	ExistingARNs          []string
 	ExistingUnmanagedARNs []string
+	ExistingEvents        []*corev1.Event
 	VpcID                 string
 	ExpectedState         v1alpha1.ReconcileState
 	ExpectedCR            int
+	ExpectedSpotPrice     string
 	ExpectedAuthConfigMap *corev1.ConfigMap
 }
 
@@ -159,6 +161,7 @@ type FakeIG struct {
 
 type FakeStack struct {
 	StackName     string
+	AsgName       string
 	ClusterName   string
 	ResourceName  string
 	NamespaceName string
@@ -202,6 +205,7 @@ func (s *stubCF) DescribeStacks(input *cloudformation.DescribeStacksInput) (*clo
 				StackState:    s.StackState,
 				StackARN:      arn,
 				StackName:     "stack-name",
+				AsgName:       "my-asg",
 			}
 			existingStack := createFakeStack(fakeStackInput)
 			existingStacks = append(existingStacks, existingStack)
@@ -217,6 +221,7 @@ func (s *stubCF) DescribeStacks(input *cloudformation.DescribeStacksInput) (*clo
 			StackState:    s.StackState,
 			StackARN:      s.StackARN,
 			StackName:     "stack-name",
+			AsgName:       "my-asg",
 		}
 		fakeStack = createFakeStack(fakeStackInput)
 		output.Stacks = append(output.Stacks, fakeStack)
@@ -351,7 +356,7 @@ func createFakeStack(f FakeStack) *cloudformation.Stack {
 			"LaunchConfigName": f.StackARN,
 		},
 		{
-			"AsgName": f.StackName,
+			"AsgName": f.AsgName,
 		},
 	}
 
@@ -484,6 +489,24 @@ func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 	return instanceGroup
 }
 
+func getSpotSuggestionEvent(id, scalingGroup, price string, useSpot bool, ts time.Time) *corev1.Event {
+	message := fmt.Sprintf(`{"apiVersion":"v1alpha1","spotPrice":"%v", "useSpot": %t}`, price, useSpot)
+	event := &corev1.Event{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: fmt.Sprintf("spot-manager-%v.000000000000000", id),
+		},
+		LastTimestamp: metav1.Time{Time: ts},
+		Reason:        "SpotRecommendationGiven",
+		Message:       message,
+		Type:          "Normal",
+		InvolvedObject: corev1.ObjectReference{
+			Namespace: "kube-system",
+			Name:      scalingGroup,
+		},
+	}
+	return event
+}
+
 func getBasicContext(t *testing.T, awsMocker awsprovider.AwsWorker) EksCfInstanceGroupContext {
 	client := fake.NewSimpleClientset()
 	dynScheme := runtime.NewScheme()
@@ -563,6 +586,12 @@ func (u *EksCfUnitTest) Run(t *testing.T) {
 	}
 	u.Provisioner = &provisioner
 
+	if len(u.ExistingEvents) != 0 {
+		for _, event := range u.ExistingEvents {
+			kube.Kubernetes.CoreV1().Events("kube-system").Create(event)
+		}
+	}
+
 	u.Provisioner.CloudDiscovery()
 	u.Provisioner.StateDiscovery()
 
@@ -641,6 +670,11 @@ func (u *EksCfUnitTest) Run(t *testing.T) {
 
 	if !reflect.DeepEqual(cm, u.ExpectedAuthConfigMap) {
 		t.Fatalf("BootstrapNodes, expected:\n %#v, \ngot:\n %#v", u.ExpectedAuthConfigMap.Data, cm.Data)
+	}
+
+	spotPrice := u.Provisioner.InstanceGroup.Spec.EKSCFSpec.EKSCFConfiguration.SpotPrice
+	if spotPrice != u.ExpectedSpotPrice {
+		t.Fatalf("SpotPrice, expected:\n %#v, \ngot:\n %#v", u.ExpectedSpotPrice, spotPrice)
 	}
 }
 
@@ -871,6 +905,88 @@ func TestCrdStrategyCRExist(t *testing.T) {
 		StackExist:    false,
 		ExpectedState: v1alpha1.ReconcileInitCreate,
 		ExpectedCR:    1,
+	}
+	testCase.Run(t)
+}
+
+func TestSpotInstancesRecommendationEnable(t *testing.T) {
+	ig := FakeIG{
+		UpgradeStrategyType:             "crd",
+		UpgradeStrategyCRD:              "rollingupgrade",
+		UpgradeStrategyCRDSpec:          getRollupSpec("rollup"),
+		UpgradeStrategyCRDStatusPath:    "status.currentStatus",
+		UpgradeStrategyCRDStatusSuccess: "success",
+	}
+	instanceGroup := ig.getInstanceGroup()
+	instanceGroup.Status.ActiveScalingGroupName = "my-asg"
+	events := []*corev1.Event{
+		getSpotSuggestionEvent("1", "my-asg", "0.005", true, time.Now()),
+		getSpotSuggestionEvent("2", "my-asg", "0.007", true, time.Now().Add(time.Minute*time.Duration(3))),
+		getSpotSuggestionEvent("3", "my-asg", "0.006", true, time.Now().Add(time.Minute*time.Duration(5))),
+	}
+	testCase := EksCfUnitTest{
+		Description:       "Spot Instances - should take latest event's recommendation",
+		LoadCRD:           "rollingupgrade",
+		InstanceGroup:     instanceGroup,
+		StackExist:        true,
+		StackUpdateNeeded: true,
+		ExistingEvents:    events,
+		ExpectedSpotPrice: "0.006",
+		ExpectedState:     v1alpha1.ReconcileInitUpdate,
+		ExpectedCR:        1,
+	}
+	testCase.Run(t)
+}
+
+func TestSpotInstancesRecommendationDisable(t *testing.T) {
+	ig := FakeIG{
+		UpgradeStrategyType:             "crd",
+		UpgradeStrategyCRD:              "rollingupgrade",
+		UpgradeStrategyCRDSpec:          getRollupSpec("rollup"),
+		UpgradeStrategyCRDStatusPath:    "status.currentStatus",
+		UpgradeStrategyCRDStatusSuccess: "success",
+	}
+	instanceGroup := ig.getInstanceGroup()
+	instanceGroup.Status.ActiveScalingGroupName = "my-asg"
+	events := []*corev1.Event{
+		getSpotSuggestionEvent("1", "my-asg", "0.005", true, time.Now()),
+		getSpotSuggestionEvent("3", "my-asg", "0.006", false, time.Now().Add(time.Minute*time.Duration(6))),
+		getSpotSuggestionEvent("2", "my-asg", "0.007", true, time.Now().Add(time.Minute*time.Duration(5))),
+	}
+	testCase := EksCfUnitTest{
+		Description:       "Spot Instances - should take latest event's recommendation",
+		LoadCRD:           "rollingupgrade",
+		InstanceGroup:     instanceGroup,
+		StackExist:        true,
+		StackUpdateNeeded: true,
+		ExistingEvents:    events,
+		ExpectedSpotPrice: "",
+		ExpectedState:     v1alpha1.ReconcileInitUpdate,
+		ExpectedCR:        1,
+	}
+	testCase.Run(t)
+}
+
+func TestSpotInstancesManual(t *testing.T) {
+	ig := FakeIG{
+		UpgradeStrategyType:             "crd",
+		UpgradeStrategyCRD:              "rollingupgrade",
+		UpgradeStrategyCRDSpec:          getRollupSpec("rollup"),
+		UpgradeStrategyCRDStatusPath:    "status.currentStatus",
+		UpgradeStrategyCRDStatusSuccess: "success",
+	}
+	instanceGroup := ig.getInstanceGroup()
+	instanceGroup.Status.ActiveScalingGroupName = "my-asg"
+	instanceGroup.Spec.EKSCFSpec.EKSCFConfiguration.SpotPrice = "0.005"
+	testCase := EksCfUnitTest{
+		Description:       "Spot Instances - should take latest event's recommendation",
+		LoadCRD:           "rollingupgrade",
+		InstanceGroup:     instanceGroup,
+		StackExist:        true,
+		StackUpdateNeeded: true,
+		ExpectedSpotPrice: "0.005",
+		ExpectedState:     v1alpha1.ReconcileInitUpdate,
+		ExpectedCR:        1,
 	}
 	testCase.Run(t)
 }

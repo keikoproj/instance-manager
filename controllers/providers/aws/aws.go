@@ -16,6 +16,7 @@ limitations under the License.
 package aws
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -181,6 +182,36 @@ func (w *AwsWorker) DetectScalingGroupDrift(scalingGroupName string) (bool, erro
 		}
 	}
 	return false, nil
+}
+
+func GetScalingGroupTagsByName(name string, client autoscalingiface.AutoScalingAPI) ([]*autoscaling.TagDescription, error) {
+	tags := []*autoscaling.TagDescription{}
+	input := &autoscaling.DescribeAutoScalingGroupsInput{
+		AutoScalingGroupNames: aws.StringSlice([]string{name}),
+	}
+	out, err := client.DescribeAutoScalingGroups(input)
+	if err != nil {
+		return tags, err
+	}
+	tags = out.AutoScalingGroups[0].Tags
+
+	if len(tags) < 1 {
+		err := errors.New("could not find scaling group")
+		return tags, err
+	}
+
+	return tags, nil
+}
+
+func GetTagValueByKey(tags []*autoscaling.TagDescription, key string) string {
+	for _, tag := range tags {
+		k := aws.StringValue(tag.Key)
+		v := aws.StringValue(tag.Value)
+		if key == k {
+			return v
+		}
+	}
+	return ""
 }
 
 func GetRegion() (string, error) {

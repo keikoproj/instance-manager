@@ -24,11 +24,11 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
+	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
+	"github.com/keikoproj/instance-manager/test-bdd/testutil"
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/reporters"
 	. "github.com/onsi/gomega"
-	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
-	"github.com/keikoproj/instance-manager/test-bdd/testutil"
 	"github.com/sirupsen/logrus"
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/dynamic"
