@@ -395,7 +395,6 @@ func (ctx *EksCfInstanceGroupContext) reloadDiscoveryCache() error {
 	ctx.discoverInstanceGroups()
 	discoveredInstanceGroups := discovery.GetInstanceGroups()
 
-	status.SetLifecycle("normal")
 	for _, group := range discoveredInstanceGroups.Items {
 		if group.StackName == ctx.AwsWorker.StackName {
 			status.SetActiveLaunchConfigurationName(group.LaunchConfigName)
