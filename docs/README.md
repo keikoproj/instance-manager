@@ -390,11 +390,11 @@ In [this](./examples/crd-argo.yaml) example, we submit an [argo](https://github.
 
 You can switch to spot instances in two ways:
 
-- Manually set the `spec.eks-cf.configuration.spotPrice` to a spot price value, the downside is that if price becomes invalid (due to price changes) and instaces gets pulled, you may end up with no instances until you modify the price again.
+- Manually set the `spec.eks-cf.configuration.spotPrice` to a spot price value, the downside is that if price becomes invalid (due to price changes) and instances gets pulled, you may end up with no instances until you modify the price again.
 
 - Use a spot recommendation controller such as `minion-manager`, instance-manager will look at events with the following message format:
 
-```text
+```json
 {"apiVersion":"v1alpha1","spotPrice":"0.0067", "useSpot": true}
 ```
 
