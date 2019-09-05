@@ -48,15 +48,14 @@ func (ctx *EksCfInstanceGroupContext) discoverSpotPrice() {
 
 	// if no recommendations found
 	if reflect.DeepEqual(*recommendation, SpotRecommendation{}) {
-		// if it was using a recommendation before, set to false and reset price
+		// if it was using a recommendation before, set to false and leave price manually set
 		if status.GetUsingSpotRecommendation() {
 			status.SetUsingSpotRecommendation(false)
-			specConfig.SetSpotPrice("")
 		} else {
 			// if spotPrice is set without recommendation in custom resource
 			if specConfig.GetSpotPrice() != "" {
 				// keep custom resource provided value
-				log.Warnf("using manually set spot-price '%v', use a recommendations controller or risk losing all instances", specConfig.GetSpotPrice())
+				log.Warnf("using spot-price '%v' without recommendations, use a recommendations controller or risk losing all instances", specConfig.GetSpotPrice())
 			}
 		}
 		return

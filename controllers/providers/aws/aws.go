@@ -193,13 +193,12 @@ func GetScalingGroupTagsByName(name string, client autoscalingiface.AutoScalingA
 	if err != nil {
 		return tags, err
 	}
-	tags = out.AutoScalingGroups[0].Tags
 
-	if len(tags) < 1 {
+	if len(out.AutoScalingGroups) < 1 {
 		err := errors.New("could not find scaling group")
 		return tags, err
 	}
-
+	tags = out.AutoScalingGroups[0].Tags
 	return tags, nil
 }
 
