@@ -400,7 +400,7 @@ You can switch to spot instances in two ways:
 
 In addition, the event `involvedObject.name`, must be the name of the autoscaling group to switch, and the event `.reason` must be `SpotRecommendationGiven`.
 
-When recommendations are not available (no events for an hour / recommendation controller is down), instance-group will switch back to on-demand.
+When recommendations are not available (no events for an hour / recommendation controller is down), instance-group will retain the last provided configuration, until a human either changes back to on-demand (by setting `spotPrice: ""`) or until recommendation events are found again.
 
 ### Clean up
 
