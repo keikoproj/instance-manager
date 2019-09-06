@@ -273,11 +273,12 @@ func (w *AwsWorker) DeriveEksVpcID(clusterName string) (string, error) {
 }
 
 type CloudformationReconcileState struct {
-	OngoingState           bool
-	FiniteState            bool
-	FiniteDeleted          bool
-	UpdateRecoverableError bool
-	UnrecoverableError     bool
+	OngoingState             bool
+	FiniteState              bool
+	FiniteDeleted            bool
+	UpdateRecoverableError   bool
+	UnrecoverableError       bool
+	UnrecoverableDeleteError bool
 }
 
 var OngoingState = CloudformationReconcileState{OngoingState: true}
@@ -285,6 +286,7 @@ var FiniteState = CloudformationReconcileState{FiniteState: true}
 var FiniteDeleted = CloudformationReconcileState{FiniteDeleted: true}
 var UpdateRecoverableError = CloudformationReconcileState{UpdateRecoverableError: true}
 var UnrecoverableError = CloudformationReconcileState{UnrecoverableError: true}
+var UnrecoverableDeleteError = CloudformationReconcileState{UnrecoverableDeleteError: true}
 
 func IsStackInConditionState(key string, condition string) bool {
 	conditionStates := map[string]CloudformationReconcileState{
@@ -301,7 +303,7 @@ func IsStackInConditionState(key string, condition string) bool {
 		"UPDATE_ROLLBACK_COMPLETE":                     UpdateRecoverableError,
 		"UPDATE_ROLLBACK_FAILED":                       UnrecoverableError,
 		"CREATE_FAILED":                                UnrecoverableError,
-		"DELETE_FAILED":                                UnrecoverableError,
+		"DELETE_FAILED":                                UnrecoverableDeleteError,
 		"ROLLBACK_COMPLETE":                            UnrecoverableError,
 	}
 	state := conditionStates[key]
@@ -317,6 +319,8 @@ func IsStackInConditionState(key string, condition string) bool {
 		return state.UpdateRecoverableError
 	case "UnrecoverableError":
 		return state.UnrecoverableError
+	case "UnrecoverableDeleteError":
+		return state.UnrecoverableDeleteError
 	default:
 		return false
 	}
