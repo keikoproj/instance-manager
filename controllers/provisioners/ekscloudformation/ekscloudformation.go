@@ -220,17 +220,17 @@ func (ctx *EksCfInstanceGroupContext) StateDiscovery() {
 			// resource is being deleted
 			if provisioned {
 				if awsprovider.IsStackInConditionState(stackStatus, OngoingStateString) {
-					// stack is in an ongoing state
+					// deleting stack is in an ongoing state
 					instanceGroup.SetState(v1alpha1.ReconcileDeleting)
 				} else if awsprovider.IsStackInConditionState(stackStatus, FiniteStateString) {
-					// stack is in a finite state
+					// deleting stack is in a finite state
 					instanceGroup.SetState(v1alpha1.ReconcileInitDelete)
 				} else if awsprovider.IsStackInConditionState(stackStatus, FiniteDeletedString) {
-					// stack is in a finite-deleted state
+					// deleting stack is in a finite-deleted state
 					instanceGroup.SetState(v1alpha1.ReconcileDeleted)
 				} else if awsprovider.IsStackInConditionState(stackStatus, UnrecoverableErrorString) {
-					// stack is in unrecoverable error state
-					instanceGroup.SetState(v1alpha1.ReconcileErr)
+					// deleting stack is in unrecoverable error state - allow it to delete
+					instanceGroup.SetState(v1alpha1.ReconcileInitDelete)
 				}
 			} else {
 				// Stack does not exist
