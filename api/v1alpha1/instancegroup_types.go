@@ -51,6 +51,7 @@ const (
 // +kubebuilder:printcolumn:name="Group Name",type="string",JSONPath=".status.activeScalingGroupName",description="instancegroup created scalinggroup name"
 // +kubebuilder:printcolumn:name="Provisioner",type="string",JSONPath=".spec.provisioner",description="instance group provisioner"
 // +kubebuilder:printcolumn:name="Strategy",type="string",JSONPath=".spec.strategy.type",description="instance group upgrade strategy"
+// +kubebuilder:printcolumn:name="Lifecycle",type="string",JSONPath=".status.lifecycle",description="instance group lifecycle spot/normal"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="time passed since instancegroup creation"
 type InstanceGroup struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -106,6 +107,7 @@ type EKSCFConfiguration struct {
 	VolSize            int32               `json:"volSize,omitempty"`
 	Subnets            []string            `json:"subnets,omitempty"`
 	BootstrapArguments string              `json:"bootstrapArguments,omitempty"`
+	SpotPrice          string              `json:"spotPrice,omitempty"`
 	Tags               []map[string]string `json:"tags,omitempty"`
 }
 
@@ -118,6 +120,8 @@ type InstanceGroupStatus struct {
 	ActiveScalingGroupName        string `json:"activeScalingGroupName,omitempty"`
 	NodesArn                      string `json:"nodesInstanceRoleArn,omitempty"`
 	StrategyResourceName          string `json:"strategyResourceName,omitempty"`
+	UsingSpotRecommendation       bool   `json:"usingSpotRecommendation"`
+	Lifecycle                     string `json:"lifecycle,omitempty"`
 }
 
 func (s *AwsUpgradeStrategy) GetCRDType() CRDUpgradeStrategy {
@@ -224,6 +228,22 @@ func (status *InstanceGroupStatus) SetCurrentMax(max int) {
 	status.CurrentMax = max
 }
 
+func (status *InstanceGroupStatus) GetUsingSpotRecommendation() bool {
+	return status.UsingSpotRecommendation
+}
+
+func (status *InstanceGroupStatus) SetUsingSpotRecommendation(condition bool) {
+	status.UsingSpotRecommendation = condition
+}
+
+func (status *InstanceGroupStatus) GetLifecycle() string {
+	return status.Lifecycle
+}
+
+func (status *InstanceGroupStatus) SetLifecycle(phase string) {
+	status.Lifecycle = phase
+}
+
 func (strategy *AwsUpgradeStrategy) GetType() string {
 	return strategy.Type
 }
@@ -254,6 +274,14 @@ func (conf *EKSCFConfiguration) GetKeyName() string {
 
 func (conf *EKSCFConfiguration) SetKeyName(keypairName string) {
 	conf.KeyPairName = keypairName
+}
+
+func (conf *EKSCFConfiguration) SetSpotPrice(price string) {
+	conf.SpotPrice = price
+}
+
+func (conf *EKSCFConfiguration) GetSpotPrice() string {
+	return conf.SpotPrice
 }
 
 func (conf *EKSCFConfiguration) GetImage() string {

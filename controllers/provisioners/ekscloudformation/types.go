@@ -17,6 +17,7 @@ package ekscloudformation
 
 import (
 	"reflect"
+	"time"
 
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
@@ -54,6 +55,7 @@ type EksCfInstanceGroupContext struct {
 	KubernetesClient common.KubernetesClientSet
 	AwsWorker        aws.AwsWorker
 	DiscoveredState  *DiscoveredState
+	TemplatePath     string
 	StackExists      bool
 	InstanceArn      string
 	ControllerRegion string
@@ -230,4 +232,25 @@ func (d *DiscoveredInstanceGroup) GetARN() string {
 		return d.ARN
 	}
 	return ""
+}
+
+type SpotRecommendation struct {
+	APIVersion string `yaml:"apiVersion"`
+	SpotPrice  string `yaml:"spotPrice"`
+	UseSpot    bool   `yaml:"useSpot"`
+	EventTime  time.Time
+}
+
+type SpotReccomendations []SpotRecommendation
+
+func (p SpotReccomendations) Len() int {
+	return len(p)
+}
+
+func (p SpotReccomendations) Less(i, j int) bool {
+	return p[i].EventTime.Before(p[j].EventTime)
+}
+
+func (p SpotReccomendations) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
 }

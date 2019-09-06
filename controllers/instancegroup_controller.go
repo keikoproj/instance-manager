@@ -16,31 +16,35 @@ limitations under the License.
 package controllers
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"html/template"
 	"os"
 	"strings"
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
-
+	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
 	"github.com/go-logr/logr"
-	log "github.com/sirupsen/logrus"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	v1alpha "github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/keikoproj/instance-manager/controllers/providers/aws"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/ekscloudformation"
+	log "github.com/sirupsen/logrus"
+	yaml "gopkg.in/yaml.v2"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	runtime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 // InstanceGroupReconciler reconciles an InstanceGroup object
 type InstanceGroupReconciler struct {
 	client.Client
+	ScalingGroups          autoscalingiface.AutoScalingAPI
 	Log                    logr.Logger
 	ControllerConfPath     string
 	ControllerTemplatePath string
@@ -201,7 +205,7 @@ func (r *InstanceGroupReconciler) ReconcileEKSCF(instanceGroup *v1alpha.Instance
 		return err
 	}
 
-	template, err := r.loadCloudformationConfiguration(instanceGroup)
+	template, err := ekscloudformation.LoadCloudformationConfiguration(instanceGroup, r.ControllerTemplatePath)
 	if err != nil {
 		log.Errorf("failed to load cloudformation configuration: %v", err)
 		return err
@@ -222,6 +226,7 @@ func (r *InstanceGroupReconciler) ReconcileEKSCF(instanceGroup *v1alpha.Instance
 
 	ctx.ControllerRegion = awsRegion
 	ctx.DefaultARNList = defaultARNList
+	ctx.TemplatePath = r.ControllerTemplatePath
 
 	// Init State is set when handling reconcile
 	// Reconcile Handler
@@ -310,37 +315,10 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha.InstanceGroup{}).
+		Watches(&source.Kind{Type: &corev1.Event{}}, &handler.EnqueueRequestsFromMapFunc{
+			ToRequests: handler.ToRequestsFunc(r.spotEventReconciler),
+		}).
 		Complete(r)
-}
-
-func (r *InstanceGroupReconciler) loadCloudformationConfiguration(ig *v1alpha.InstanceGroup) (string, error) {
-	var renderBuffer bytes.Buffer
-
-	funcMap := template.FuncMap{
-		"ToLower": strings.ToLower,
-	}
-
-	if _, err := os.Stat(r.ControllerTemplatePath); os.IsNotExist(err) {
-		log.Errorf("controller cloudformation template file not found: %v", err)
-		return "", err
-	}
-
-	rawTemplate, err := common.ReadFile(r.ControllerTemplatePath)
-	if err != nil {
-		return "", err
-	}
-
-	template, err := template.New("InstanceGroup").Funcs(funcMap).Parse(string(rawTemplate))
-	if err != nil {
-		return "", err
-	}
-
-	err = template.Execute(&renderBuffer, ig)
-	if err != nil {
-		return "", err
-	}
-
-	return renderBuffer.String(), nil
 }
 
 func (r *InstanceGroupReconciler) loadControllerConfiguration(ig *v1alpha.InstanceGroup) ([]string, error) {
@@ -376,4 +354,46 @@ func (r *InstanceGroupReconciler) loadControllerConfiguration(ig *v1alpha.Instan
 	}
 
 	return defaultARNs, nil
+}
+
+func (r *InstanceGroupReconciler) spotEventReconciler(obj handler.MapObject) []ctrl.Request {
+	unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj.Object)
+	if err != nil {
+		return nil
+	}
+
+	reason, exists, err := unstructured.NestedString(unstructuredObj, "reason")
+	if !exists || err != nil {
+		return nil
+	}
+	if reason != ekscloudformation.SpotRecommendationReason {
+		return nil
+	}
+
+	ctrl.Log.Info(fmt.Sprintf("spot recommendation %v/%v", obj.Meta.GetNamespace(), obj.Meta.GetName()))
+
+	involvedObjectName, exists, err := unstructured.NestedString(unstructuredObj, "involvedObject", "name")
+	if err != nil || !exists {
+		log.Warnf("failed to process event '%v': %v", obj.Meta.GetName(), err)
+		return nil
+	}
+
+	tags, err := aws.GetScalingGroupTagsByName(involvedObjectName, r.ScalingGroups)
+	if err != nil {
+		log.Warnf("failed to process event '%v': could not find scaling group", obj.Meta.GetName())
+		return nil
+	}
+	instanceGroup := types.NamespacedName{}
+	instanceGroup.Name = aws.GetTagValueByKey(tags, ekscloudformation.TagInstanceGroupName)
+	instanceGroup.Namespace = aws.GetTagValueByKey(tags, ekscloudformation.TagClusterNamespace)
+	if instanceGroup.Name == "" || instanceGroup.Namespace == "" {
+		log.Warnf("failed to process event '%v': could not derive instancegroup", obj.Meta.GetName())
+		return nil
+	}
+
+	return []ctrl.Request{
+		{
+			NamespacedName: instanceGroup,
+		},
+	}
 }

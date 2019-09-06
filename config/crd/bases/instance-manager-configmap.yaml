@@ -193,6 +193,10 @@ data:
           ImageId: !Ref NodeImageId
           InstanceType: !Ref NodeInstanceType
           KeyName: !Ref KeyName
+          {{$spotPrice := .Spec.EKSCFSpec.EKSCFConfiguration.SpotPrice}}
+          {{if (ne $spotPrice "")}}
+          SpotPrice: {{$spotPrice}}
+          {{end}}
           SecurityGroups: !Ref NodeSecurityGroups
           BlockDeviceMappings:
             - DeviceName: /dev/xvda
