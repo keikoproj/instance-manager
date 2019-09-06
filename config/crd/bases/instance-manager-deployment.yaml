@@ -21,7 +21,7 @@ spec:
         app: instance-manager
     spec:
       containers:
-      - image: instance-manager:latest
+      - image: keikoproj/instance-manager:latest
         imagePullPolicy: Always
         name: instance-manager
         resources:
