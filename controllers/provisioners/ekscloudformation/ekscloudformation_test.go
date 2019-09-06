@@ -282,47 +282,47 @@ func createInitConfigMap(k kubernetes.Interface) {
 	createConfigMap(k, &cm)
 }
 
-func createAuthConfigMap(k kubernetes.Interface, existingUnmanaged []string) {
-	var cm *corev1.ConfigMap
-	if len(existingUnmanaged) != 0 {
-		var configList []AwsAuthConfig
-		for _, arn := range existingUnmanaged {
-			authConfig := AwsAuthConfig{
-				RoleARN:  arn,
-				Username: "system:node:{{EC2PrivateDNSName}}",
-				Groups: []string{
-					"system:bootstrappers",
-					"system:nodes",
-				},
-			}
-			configList = append(configList, authConfig)
-		}
-		maproles := AwsAuthConfigMapRolesData{
-			MapRoles: configList,
-		}
+func getFakeAuthConfigMap(f FakeAuthConfigMap, k kubernetes.Interface, exists bool) *corev1.ConfigMap {
+	var data = make(map[string]string, len(f.ARNList))
+	data["mapUsers"] = "[]\n"
 
-		d, _ := yaml.Marshal(&maproles.MapRoles)
-		data := map[string]string{
-			"mapRoles": string(d),
-		}
-		cm = &corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "kube-system",
-				Name:      "aws-auth",
-			},
-			Data: data,
-		}
-	} else {
-		cm = &corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "kube-system",
-				Name:      "aws-auth",
-			},
-			Data: map[string]string{"mapRoles": "[]\n"},
+	m := make(map[string]bool)
+	for _, item := range f.ARNList {
+		if _, ok := m[item]; ok {
+			continue
+		} else {
+			m[item] = true
 		}
 	}
 
-	createConfigMap(k, cm)
+	var result []string
+	for item, _ := range m {
+		result = append(result, item)
+	}
+	f.ARNList = result
+	sort.Strings(f.ARNList)
+
+	if len(f.ARNList) != 0 {
+		for _, arn := range f.ARNList {
+			mapRole := fmt.Sprintf("- rolearn: %v\n  username: system:node:{{EC2PrivateDNSName}}\n  groups:\n  - system:bootstrappers\n  - system:nodes\n", arn)
+			data["mapRoles"] += mapRole
+		}
+	} else {
+		data["mapRoles"] = "[]\n"
+	}
+
+	if !exists {
+		data = nil
+	}
+
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "kube-system",
+			Name:      "aws-auth",
+		},
+		Data: data,
+	}
+	return cm
 }
 
 func createFakeStack(f FakeStack) *cloudformation.Stack {
@@ -374,25 +374,6 @@ func createFakeStack(f FakeStack) *cloudformation.Stack {
 		Outputs:     outputs,
 	}
 	return output
-}
-
-func createFakeAuthConfigMap(f FakeAuthConfigMap, k kubernetes.Interface) *corev1.ConfigMap {
-	var mapRoles string
-	if len(f.ARNList) == 0 {
-		mapRoles = "[]\n"
-	}
-	for _, arn := range f.ARNList {
-		mapRole := fmt.Sprintf("- rolearn: %v\n  username: system:node:{{EC2PrivateDNSName}}\n  groups:\n  - system:bootstrappers\n  - system:nodes\n", arn)
-		mapRoles += mapRole
-	}
-	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "kube-system",
-			Name:      "aws-auth",
-		},
-		Data: map[string]string{"mapRoles": mapRoles},
-	}
-	return cm
 }
 
 func bootstrap(k kubernetes.Interface) {
@@ -623,14 +604,17 @@ func (u *EksCfUnitTest) Run(t *testing.T) {
 			}
 		}
 		sort.Strings(fakeAuthMap.ARNList)
-		u.ExpectedAuthConfigMap = createFakeAuthConfigMap(fakeAuthMap, client)
+		u.ExpectedAuthConfigMap = getFakeAuthConfigMap(fakeAuthMap, client, true)
 	}
 
 	if u.AuthConfigMapExist {
 		for _, arn := range u.ExistingUnmanagedARNs {
 			fakeAuthMap.ARNList = append(fakeAuthMap.ARNList, arn)
 		}
-		cm := createFakeAuthConfigMap(fakeAuthMap, client)
+		cm := getFakeAuthConfigMap(fakeAuthMap, client, true)
+		createConfigMap(client, cm)
+	} else {
+		cm := getFakeAuthConfigMap(fakeAuthMap, client, false)
 		createConfigMap(client, cm)
 	}
 
@@ -709,10 +693,11 @@ func TestStateDiscoveryReconcileModifying(t *testing.T) {
 func TestStateDiscoveryReconcileInitCreate(t *testing.T) {
 	ig := FakeIG{}
 	testCase := EksCfUnitTest{
-		Description:   "StateDiscovery - when a stack does not exist, state should be ReconcileInitCreate",
-		InstanceGroup: ig.getInstanceGroup(),
-		StackExist:    false,
-		ExpectedState: v1alpha1.ReconcileInitCreate,
+		Description:        "StateDiscovery - when a stack does not exist, state should be ReconcileInitCreate",
+		InstanceGroup:      ig.getInstanceGroup(),
+		StackExist:         false,
+		AuthConfigMapExist: true,
+		ExpectedState:      v1alpha1.ReconcileInitCreate,
 	}
 	testCase.Run(t)
 }
@@ -722,12 +707,13 @@ func TestStateDiscoveryInitDeleting(t *testing.T) {
 		IsDeleting: true,
 	}
 	testCase := EksCfUnitTest{
-		Description:       "StateDiscovery - when a stack exist (idle), and resource is deleting state should be InitDelete",
-		InstanceGroup:     ig.getInstanceGroup(),
-		StackExist:        true,
-		StackUpdateNeeded: true,
-		StackState:        "CREATE_COMPLETE",
-		ExpectedState:     v1alpha1.ReconcileInitDelete,
+		Description:        "StateDiscovery - when a stack exist (idle), and resource is deleting state should be InitDelete",
+		InstanceGroup:      ig.getInstanceGroup(),
+		StackExist:         true,
+		StackUpdateNeeded:  true,
+		AuthConfigMapExist: true,
+		StackState:         "CREATE_COMPLETE",
+		ExpectedState:      v1alpha1.ReconcileInitDelete,
 	}
 	testCase.Run(t)
 }
@@ -737,12 +723,13 @@ func TestStateDiscoveryReconcileDelete(t *testing.T) {
 		IsDeleting: true,
 	}
 	testCase := EksCfUnitTest{
-		Description:       "StateDiscovery - when a stack exist (busy), and resource is deleting state should be Deleting",
-		InstanceGroup:     ig.getInstanceGroup(),
-		StackExist:        true,
-		StackUpdateNeeded: true,
-		StackState:        "DELETE_IN_PROGRESS",
-		ExpectedState:     v1alpha1.ReconcileDeleting,
+		Description:        "StateDiscovery - when a stack exist (busy), and resource is deleting state should be Deleting",
+		InstanceGroup:      ig.getInstanceGroup(),
+		StackExist:         true,
+		StackUpdateNeeded:  true,
+		AuthConfigMapExist: true,
+		StackState:         "DELETE_IN_PROGRESS",
+		ExpectedState:      v1alpha1.ReconcileDeleting,
 	}
 	testCase.Run(t)
 }
@@ -752,10 +739,11 @@ func TestStateDiscoveryDeleted(t *testing.T) {
 		IsDeleting: true,
 	}
 	testCase := EksCfUnitTest{
-		Description:   "StateDiscovery - when both stack does not exist, and resource is deleting state should be Deleted",
-		InstanceGroup: ig.getInstanceGroup(),
-		StackExist:    false,
-		ExpectedState: v1alpha1.ReconcileDeleted,
+		Description:        "StateDiscovery - when both stack does not exist, and resource is deleting state should be Deleted",
+		InstanceGroup:      ig.getInstanceGroup(),
+		StackExist:         false,
+		AuthConfigMapExist: true,
+		ExpectedState:      v1alpha1.ReconcileDeleted,
 	}
 	testCase.Run(t)
 }
@@ -765,12 +753,13 @@ func TestStateDiscoveryDeletedExist(t *testing.T) {
 		IsDeleting: true,
 	}
 	testCase := EksCfUnitTest{
-		Description:       "StateDiscovery - when stack-state is finite deleted state should Deleted",
-		InstanceGroup:     ig.getInstanceGroup(),
-		StackExist:        true,
-		StackUpdateNeeded: true,
-		StackState:        "DELETE_COMPLETE",
-		ExpectedState:     v1alpha1.ReconcileDeleted,
+		Description:        "StateDiscovery - when stack-state is finite deleted state should Deleted",
+		InstanceGroup:      ig.getInstanceGroup(),
+		StackExist:         true,
+		StackUpdateNeeded:  true,
+		AuthConfigMapExist: true,
+		StackState:         "DELETE_COMPLETE",
+		ExpectedState:      v1alpha1.ReconcileDeleted,
 	}
 	testCase.Run(t)
 }
@@ -806,12 +795,13 @@ func TestStateDiscoveryUnrecoverableErrorDelete(t *testing.T) {
 		IsDeleting: true,
 	}
 	testCase := EksCfUnitTest{
-		Description:       "StateDiscovery - when stack delete fails state should be Error",
-		InstanceGroup:     ig.getInstanceGroup(),
-		StackExist:        true,
-		StackUpdateNeeded: true,
-		StackState:        "DELETE_FAILED",
-		ExpectedState:     v1alpha1.ReconcileErr,
+		Description:        "StateDiscovery - when stack delete fails state should be Error",
+		InstanceGroup:      ig.getInstanceGroup(),
+		StackExist:         true,
+		StackUpdateNeeded:  true,
+		AuthConfigMapExist: true,
+		StackState:         "DELETE_FAILED",
+		ExpectedState:      v1alpha1.ReconcileErr,
 	}
 	testCase.Run(t)
 }
@@ -899,12 +889,13 @@ func TestCrdStrategyCRExist(t *testing.T) {
 		UpgradeStrategyCRDStatusSuccess: "success",
 	}
 	testCase := EksCfUnitTest{
-		Description:   "CRDStrategy - rollup strategy can be submitted successfully",
-		LoadCRD:       "rollingupgrade",
-		InstanceGroup: ig.getInstanceGroup(),
-		StackExist:    false,
-		ExpectedState: v1alpha1.ReconcileInitCreate,
-		ExpectedCR:    1,
+		Description:        "CRDStrategy - rollup strategy can be submitted successfully",
+		LoadCRD:            "rollingupgrade",
+		InstanceGroup:      ig.getInstanceGroup(),
+		StackExist:         false,
+		AuthConfigMapExist: true,
+		ExpectedState:      v1alpha1.ReconcileInitCreate,
+		ExpectedCR:         1,
 	}
 	testCase.Run(t)
 }
@@ -1000,12 +991,13 @@ func TestCrdStrategyCRLongName(t *testing.T) {
 		UpgradeStrategyCRDStatusSuccess: "success",
 	}
 	testCase := EksCfUnitTest{
-		Description:   "CRDStrategy - rollup strategy can be submitted successfully",
-		LoadCRD:       "rollingupgrade",
-		InstanceGroup: ig.getInstanceGroup(),
-		StackExist:    false,
-		ExpectedState: v1alpha1.ReconcileInitCreate,
-		ExpectedCR:    1,
+		Description:        "CRDStrategy - rollup strategy can be submitted successfully",
+		LoadCRD:            "rollingupgrade",
+		InstanceGroup:      ig.getInstanceGroup(),
+		StackExist:         false,
+		AuthConfigMapExist: true,
+		ExpectedState:      v1alpha1.ReconcileInitCreate,
+		ExpectedCR:         1,
 	}
 	testCase.Run(t)
 }
@@ -1013,7 +1005,6 @@ func TestCrdStrategyCRLongName(t *testing.T) {
 func TestUpdateAuthConfigMap(t *testing.T) {
 	ctx := getBasicContext(t, blankMocker)
 	ctx.fakeBootstrapState()
-	ctx.createEmptyNodesAuthConfigMap()
 	ctx.updateAuthConfigMap()
 	expectedActiveARNs := []string{
 		"arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/discoveredARN",
