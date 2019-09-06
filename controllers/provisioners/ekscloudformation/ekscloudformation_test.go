@@ -816,6 +816,21 @@ func TestStateDiscoveryUnrecoverableErrorDelete(t *testing.T) {
 	testCase.Run(t)
 }
 
+func TestStateDiscoveryRecoverableErrorDelete(t *testing.T) {
+	ig := FakeIG{
+		IsDeleting: true,
+	}
+	testCase := EksCfUnitTest{
+		Description:       "StateDiscovery - when stack in err state, allow deletes",
+		InstanceGroup:     ig.getInstanceGroup(),
+		StackExist:        true,
+		StackUpdateNeeded: true,
+		StackState:        "UPDATE_ROLLBACK_COMPLETE",
+		ExpectedState:     v1alpha1.ReconcileInitDelete,
+	}
+	testCase.Run(t)
+}
+
 func TestStateDiscoveryUnrecoverableErrorDeleteFailure(t *testing.T) {
 	ig := FakeIG{
 		IsDeleting: true,
