@@ -51,14 +51,6 @@ func (ctx *EksCfInstanceGroupContext) isResourceDeleting(s schema.GroupVersionRe
 	return false, nil
 }
 
-func updateConfigMap(k kubernetes.Interface, cmData *corev1.ConfigMap) error {
-	_, err := k.CoreV1().ConfigMaps(cmData.Namespace).Update(cmData)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func getConfigMap(k kubernetes.Interface, namespace string, name string, options metav1.GetOptions) (*corev1.ConfigMap, error) {
 	cm, err := k.CoreV1().ConfigMaps(namespace).Get(name, options)
 	if err != nil {

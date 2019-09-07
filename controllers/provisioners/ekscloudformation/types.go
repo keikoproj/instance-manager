@@ -16,7 +16,6 @@ limitations under the License.
 package ekscloudformation
 
 import (
-	"reflect"
 	"time"
 
 	"github.com/aws/aws-sdk-go/service/autoscaling"
@@ -26,28 +25,6 @@ import (
 	"github.com/keikoproj/instance-manager/controllers/providers/aws"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
-
-type AwsAuthConfig struct {
-	RoleARN  string   `yaml:"rolearn"`
-	Username string   `yaml:"username"`
-	Groups   []string `yaml:"groups"`
-}
-
-type AwsAuthConfigMapRolesData struct {
-	MapRoles []AwsAuthConfig `yaml:"mapRoles"`
-}
-
-func (m *AwsAuthConfigMapRolesData) AddUnique(config AwsAuthConfig) {
-	for _, existingConf := range m.MapRoles {
-		if reflect.DeepEqual(existingConf, config) {
-			return
-		}
-	}
-	if config.RoleARN == "" || config.Username == "" || len(config.Groups) == 0 {
-		return
-	}
-	m.MapRoles = append(m.MapRoles, config)
-}
 
 // EksCfInstanceGroupContext defines the main type of an EKS Cloudformation provisioner
 type EksCfInstanceGroupContext struct {

@@ -16,18 +16,17 @@ limitations under the License.
 package ekscloudformation
 
 import (
-	"reflect"
-
+	awsauth "github.com/keikoproj/aws-auth/pkg/mapper"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 
-	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func getNodeRole(arn string) AwsAuthConfig {
-	return AwsAuthConfig{
+func getNodeUpsert(arn string) *awsauth.UpsertArguments {
+	return &awsauth.UpsertArguments{
+		MapRoles: true,
 		RoleARN:  arn,
 		Username: "system:node:{{EC2PrivateDNSName}}",
 		Groups: []string{
@@ -37,111 +36,67 @@ func getNodeRole(arn string) AwsAuthConfig {
 	}
 }
 
-func (ctx *EksCfInstanceGroupContext) getDiscoveryAuthMap() AwsAuthConfigMapRolesData {
-	var authMap AwsAuthConfigMapRolesData
-	discovery := ctx.GetDiscoveredState()
-	instanceGroups := discovery.GetInstanceGroups()
-	// Append ARNs from discovered state
-	for _, instanceGroup := range instanceGroups.Items {
-		config := getNodeRole(instanceGroup.ARN)
-		authMap.AddUnique(config)
+func getNodeRemove(arn string) *awsauth.RemoveArguments {
+	return &awsauth.RemoveArguments{
+		MapRoles: true,
+		RoleARN:  arn,
+		Username: "system:node:{{EC2PrivateDNSName}}",
+		Groups: []string{
+			"system:bootstrappers",
+			"system:nodes",
+		},
 	}
-	// Append ARNs from controller config
-	for _, arn := range ctx.DefaultARNList {
-		config := getNodeRole(arn)
-		authMap.AddUnique(config)
-	}
-	return authMap
-}
-
-func (ctx *EksCfInstanceGroupContext) isRemovableConfiguration(config AwsAuthConfig) bool {
-	discovery := ctx.GetDiscoveredState()
-	selfGroup := discovery.GetSelfGroup()
-	selfARN := selfGroup.GetARN()
-	removableRole := getNodeRole(selfARN)
-	if ctx.GetState() == v1alpha1.ReconcileInitDelete {
-		if reflect.DeepEqual(removableRole, config) {
-			return true
-		}
-	}
-	return false
 }
 
 func (ctx *EksCfInstanceGroupContext) updateAuthConfigMap() error {
 	var (
-		existingAuthMap          *corev1.ConfigMap
-		existingConfigurations   AwsAuthConfigMapRolesData
-		newConfigurations        AwsAuthConfigMapRolesData
-		discoveredConfigurations = ctx.getDiscoveryAuthMap()
+		discovery      = ctx.GetDiscoveredState()
+		instanceGroups = discovery.GetInstanceGroups()
+		selfARN        = discovery.GetSelfGroup().GetARN()
 	)
 
-	existingAuthMap, err := getConfigMap(ctx.KubernetesClient.Kubernetes, "kube-system", "aws-auth", metav1.GetOptions{})
+	// create aws-auth config map if it doesnt already exist
+	_, err := getConfigMap(ctx.KubernetesClient.Kubernetes, "kube-system", "aws-auth", metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			log.Infoln("auth configmap not found, creating it")
-			existingAuthMap, err = ctx.createEmptyNodesAuthConfigMap()
+			cm := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "kube-system",
+					Name:      "aws-auth",
+				},
+				Data: nil,
+			}
+			err := createConfigMap(ctx.KubernetesClient.Kubernetes, cm)
 			if err != nil {
 				return err
 			}
 		}
 	}
 
-	err = yaml.Unmarshal([]byte(existingAuthMap.Data["mapRoles"]), &existingConfigurations.MapRoles)
-	if err != nil {
-		return err
-	}
+	authMap := awsauth.New(ctx.KubernetesClient.Kubernetes, false)
 
-	// add existing roles
-	for _, configuration := range existingConfigurations.MapRoles {
-		if !ctx.isRemovableConfiguration(configuration) {
-			newConfigurations.AddUnique(configuration)
+	// Upsert ARNs from discovered state
+	for _, instanceGroup := range instanceGroups.Items {
+		err = authMap.Upsert(getNodeUpsert(instanceGroup.ARN))
+		if err != nil {
+			return err
+		}
+	}
+	// Upsert ARNs from controller config
+	for _, arn := range ctx.DefaultARNList {
+		err = authMap.Upsert(getNodeUpsert(arn))
+		if err != nil {
+			return err
+		}
+	}
+	// Remove selfARN in case of deletion event
+	if ctx.GetState() == v1alpha1.ReconcileInitDelete {
+		err = authMap.Remove(getNodeRemove(selfARN))
+		if err != nil {
+			return err
 		}
 	}
 
-	// add discovered node roles
-	for _, configuration := range discoveredConfigurations.MapRoles {
-		if !ctx.isRemovableConfiguration(configuration) {
-			newConfigurations.AddUnique(configuration)
-		}
-	}
-
-	log.Debugf("bootstrapping: %+v\n", newConfigurations)
-
-	d, err := yaml.Marshal(&newConfigurations.MapRoles)
-	if err != nil {
-		log.Errorf("error: %v", err)
-	}
-	data := map[string]string{
-		"mapRoles": string(d),
-	}
-
-	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "kube-system",
-			Name:      "aws-auth",
-		},
-		Data: data,
-	}
-
-	err = updateConfigMap(ctx.KubernetesClient.Kubernetes, cm)
-	if err != nil {
-		log.Errorf("error: %v", err)
-	}
 	return nil
-
-}
-
-func (ctx *EksCfInstanceGroupContext) createEmptyNodesAuthConfigMap() (*corev1.ConfigMap, error) {
-	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "kube-system",
-			Name:      "aws-auth",
-		},
-		Data: nil,
-	}
-	err := createConfigMap(ctx.KubernetesClient.Kubernetes, cm)
-	if err != nil {
-		return cm, err
-	}
-	return cm, nil
 }
