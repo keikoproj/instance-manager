@@ -604,7 +604,7 @@ func (u *EksCfUnitTest) Run(t *testing.T) {
 			}
 		}
 		sort.Strings(fakeAuthMap.ARNList)
-		u.ExpectedAuthConfigMap = getFakeAuthConfigMap(fakeAuthMap, client, true)
+		u.ExpectedAuthConfigMap = getFakeAuthConfigMap(fakeAuthMap, client, u.AuthConfigMapExist)
 	}
 
 	if u.AuthConfigMapExist {
@@ -667,12 +667,13 @@ func TestStateDiscoveryInitUpdate(t *testing.T) {
 		BootstrapArguments: "--node-labels kubernetes.io/role=node",
 	}
 	testCase := EksCfUnitTest{
-		Description:       "StateDiscovery - when a stack already exist (idle), state should be InitUpdate",
-		InstanceGroup:     ig.getInstanceGroup(),
-		StackExist:        true,
-		StackUpdateNeeded: true,
-		StackState:        "CREATE_COMPLETE",
-		ExpectedState:     v1alpha1.ReconcileInitUpdate,
+		Description:        "StateDiscovery - when a stack already exist (idle), state should be InitUpdate",
+		InstanceGroup:      ig.getInstanceGroup(),
+		StackExist:         true,
+		StackUpdateNeeded:  true,
+		AuthConfigMapExist: true,
+		StackState:         "CREATE_COMPLETE",
+		ExpectedState:      v1alpha1.ReconcileInitUpdate,
 	}
 	testCase.Run(t)
 }
@@ -680,12 +681,13 @@ func TestStateDiscoveryInitUpdate(t *testing.T) {
 func TestStateDiscoveryReconcileModifying(t *testing.T) {
 	ig := FakeIG{}
 	testCase := EksCfUnitTest{
-		Description:       "StateDiscovery - when a stack already exist (busy), state should be ReconcileModifying",
-		InstanceGroup:     ig.getInstanceGroup(),
-		StackExist:        true,
-		StackUpdateNeeded: true,
-		StackState:        "UPDATE_IN_PROGRESS",
-		ExpectedState:     v1alpha1.ReconcileModifying,
+		Description:        "StateDiscovery - when a stack already exist (busy), state should be ReconcileModifying",
+		InstanceGroup:      ig.getInstanceGroup(),
+		StackExist:         true,
+		StackUpdateNeeded:  true,
+		AuthConfigMapExist: true,
+		StackState:         "UPDATE_IN_PROGRESS",
+		ExpectedState:      v1alpha1.ReconcileModifying,
 	}
 	testCase.Run(t)
 }
@@ -767,12 +769,13 @@ func TestStateDiscoveryDeletedExist(t *testing.T) {
 func TestStateDiscoveryUpdateRecoverableError(t *testing.T) {
 	ig := FakeIG{}
 	testCase := EksCfUnitTest{
-		Description:       "StateDiscovery - when stack-state is update recoverable state should InitUpdate",
-		InstanceGroup:     ig.getInstanceGroup(),
-		StackExist:        true,
-		StackUpdateNeeded: true,
-		StackState:        "UPDATE_ROLLBACK_COMPLETE",
-		ExpectedState:     v1alpha1.ReconcileInitUpdate,
+		Description:        "StateDiscovery - when stack-state is update recoverable state should InitUpdate",
+		InstanceGroup:      ig.getInstanceGroup(),
+		StackExist:         true,
+		StackUpdateNeeded:  true,
+		AuthConfigMapExist: true,
+		StackState:         "UPDATE_ROLLBACK_COMPLETE",
+		ExpectedState:      v1alpha1.ReconcileInitUpdate,
 	}
 	testCase.Run(t)
 }
@@ -780,12 +783,13 @@ func TestStateDiscoveryUpdateRecoverableError(t *testing.T) {
 func TestStateDiscoveryUnrecoverableError(t *testing.T) {
 	ig := FakeIG{}
 	testCase := EksCfUnitTest{
-		Description:       "StateDiscovery - when stack-state is unrecoverable state should Error",
-		InstanceGroup:     ig.getInstanceGroup(),
-		StackExist:        true,
-		StackUpdateNeeded: true,
-		StackState:        "UPDATE_ROLLBACK_FAILED",
-		ExpectedState:     v1alpha1.ReconcileErr,
+		Description:        "StateDiscovery - when stack-state is unrecoverable state should Error",
+		InstanceGroup:      ig.getInstanceGroup(),
+		StackExist:         true,
+		StackUpdateNeeded:  true,
+		AuthConfigMapExist: true,
+		StackState:         "UPDATE_ROLLBACK_FAILED",
+		ExpectedState:      v1alpha1.ReconcileErr,
 	}
 	testCase.Run(t)
 }
@@ -810,12 +814,13 @@ func TestStateDiscoveryRecoverableErrorDelete(t *testing.T) {
 		IsDeleting: true,
 	}
 	testCase := EksCfUnitTest{
-		Description:       "StateDiscovery - when stack in err state, allow deletes",
-		InstanceGroup:     ig.getInstanceGroup(),
-		StackExist:        true,
-		StackUpdateNeeded: true,
-		StackState:        "UPDATE_ROLLBACK_COMPLETE",
-		ExpectedState:     v1alpha1.ReconcileInitDelete,
+		Description:        "StateDiscovery - when stack in err state, allow deletes",
+		InstanceGroup:      ig.getInstanceGroup(),
+		StackExist:         true,
+		StackUpdateNeeded:  true,
+		AuthConfigMapExist: true,
+		StackState:         "UPDATE_ROLLBACK_COMPLETE",
+		ExpectedState:      v1alpha1.ReconcileInitDelete,
 	}
 	testCase.Run(t)
 }
@@ -825,25 +830,37 @@ func TestStateDiscoveryUnrecoverableErrorDeleteFailure(t *testing.T) {
 		IsDeleting: true,
 	}
 	testCase := EksCfUnitTest{
-		Description:       "StateDiscovery - when stack delete fails state should be Error",
-		InstanceGroup:     ig.getInstanceGroup(),
-		StackExist:        true,
-		StackUpdateNeeded: true,
-		StackState:        "DELETE_FAILED",
-		ExpectedState:     v1alpha1.ReconcileErr,
+		Description:        "StateDiscovery - when stack delete fails state should be Error",
+		InstanceGroup:      ig.getInstanceGroup(),
+		StackExist:         true,
+		StackUpdateNeeded:  true,
+		AuthConfigMapExist: true,
+		StackState:         "DELETE_FAILED",
+		ExpectedState:      v1alpha1.ReconcileErr,
 	}
 	testCase.Run(t)
 }
 
 func TestNodeBootstrappingCreateConfigMap(t *testing.T) {
 	ig := FakeIG{}
+	selfARN := "arn:aws:autoscaling:region:account-id:autoScalingGroup:groupid:autoScalingGroupName/groupfriendlyname"
 	testCase := EksCfUnitTest{
 		Description:        "BootstrapNodes - when the auth configmap does not exist, it will be created",
 		InstanceGroup:      ig.getInstanceGroup(),
 		StackExist:         true,
 		StackUpdateNeeded:  true,
 		AuthConfigMapExist: false,
-		ExpectedState:      v1alpha1.ReconcileInitUpdate,
+		ExpectedAuthConfigMap: &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "aws-auth",
+				Namespace: "kube-system",
+			},
+			Data: map[string]string{
+				"mapRoles": fmt.Sprintf("- rolearn: %v\n  username: system:node:{{EC2PrivateDNSName}}\n  groups:\n  - system:bootstrappers\n  - system:nodes\n", selfARN),
+				"mapUsers": "[]\n",
+			},
+		},
+		ExpectedState: v1alpha1.ReconcileInitUpdate,
 	}
 	testCase.Run(t)
 }
@@ -945,15 +962,16 @@ func TestSpotInstancesRecommendationEnable(t *testing.T) {
 		getSpotSuggestionEvent("3", "my-asg", "0.006", true, time.Now().Add(time.Minute*time.Duration(5))),
 	}
 	testCase := EksCfUnitTest{
-		Description:       "Spot Instances - should take latest event's recommendation (enable)",
-		LoadCRD:           "rollingupgrade",
-		InstanceGroup:     instanceGroup,
-		StackExist:        true,
-		StackUpdateNeeded: true,
-		ExistingEvents:    events,
-		ExpectedSpotPrice: "0.006",
-		ExpectedState:     v1alpha1.ReconcileInitUpdate,
-		ExpectedCR:        1,
+		Description:        "Spot Instances - should take latest event's recommendation (enable)",
+		LoadCRD:            "rollingupgrade",
+		InstanceGroup:      instanceGroup,
+		StackExist:         true,
+		StackUpdateNeeded:  true,
+		AuthConfigMapExist: true,
+		ExistingEvents:     events,
+		ExpectedSpotPrice:  "0.006",
+		ExpectedState:      v1alpha1.ReconcileInitUpdate,
+		ExpectedCR:         1,
 	}
 	testCase.Run(t)
 }
@@ -974,15 +992,16 @@ func TestSpotInstancesRecommendationDisable(t *testing.T) {
 		getSpotSuggestionEvent("2", "my-asg", "0.007", true, time.Now().Add(time.Minute*time.Duration(5))),
 	}
 	testCase := EksCfUnitTest{
-		Description:       "Spot Instances - should take latest event's recommendation (disable)",
-		LoadCRD:           "rollingupgrade",
-		InstanceGroup:     instanceGroup,
-		StackExist:        true,
-		StackUpdateNeeded: true,
-		ExistingEvents:    events,
-		ExpectedSpotPrice: "",
-		ExpectedState:     v1alpha1.ReconcileInitUpdate,
-		ExpectedCR:        1,
+		Description:        "Spot Instances - should take latest event's recommendation (disable)",
+		LoadCRD:            "rollingupgrade",
+		InstanceGroup:      instanceGroup,
+		StackExist:         true,
+		StackUpdateNeeded:  true,
+		AuthConfigMapExist: true,
+		ExistingEvents:     events,
+		ExpectedSpotPrice:  "",
+		ExpectedState:      v1alpha1.ReconcileInitUpdate,
+		ExpectedCR:         1,
 	}
 	testCase.Run(t)
 }
@@ -999,14 +1018,15 @@ func TestSpotInstancesManual(t *testing.T) {
 	instanceGroup.Status.ActiveScalingGroupName = "my-asg"
 	instanceGroup.Spec.EKSCFSpec.EKSCFConfiguration.SpotPrice = "0.005"
 	testCase := EksCfUnitTest{
-		Description:       "Spot Instances - should take user input from custom resource",
-		LoadCRD:           "rollingupgrade",
-		InstanceGroup:     instanceGroup,
-		StackExist:        true,
-		StackUpdateNeeded: true,
-		ExpectedSpotPrice: "0.005",
-		ExpectedState:     v1alpha1.ReconcileInitUpdate,
-		ExpectedCR:        1,
+		Description:        "Spot Instances - should take user input from custom resource",
+		LoadCRD:            "rollingupgrade",
+		InstanceGroup:      instanceGroup,
+		StackExist:         true,
+		StackUpdateNeeded:  true,
+		AuthConfigMapExist: true,
+		ExpectedSpotPrice:  "0.005",
+		ExpectedState:      v1alpha1.ReconcileInitUpdate,
+		ExpectedCR:         1,
 	}
 	testCase.Run(t)
 }
