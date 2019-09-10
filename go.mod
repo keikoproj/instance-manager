@@ -6,7 +6,7 @@ require (
 	github.com/aws/aws-sdk-go v1.20.19
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v0.1.0
-	github.com/keikoproj/aws-auth v0.0.0-20190903203752-40f0a783a042
+	github.com/keikoproj/aws-auth v0.0.0-20190910182258-c705a9d52f92
 	github.com/onsi/ginkgo v1.8.0
 	github.com/onsi/gomega v1.6.0
 	github.com/pkg/errors v0.8.1
