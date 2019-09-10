@@ -85,7 +85,7 @@ github.com/imdario/mergo
 github.com/jmespath/go-jmespath
 # github.com/json-iterator/go v1.1.7
 github.com/json-iterator/go
-# github.com/keikoproj/aws-auth v0.0.0-20190903203752-40f0a783a042
+# github.com/keikoproj/aws-auth v0.0.0-20190910182258-c705a9d52f92
 github.com/keikoproj/aws-auth/pkg/mapper
 # github.com/konsorten/go-windows-terminal-sequences v1.0.1
 github.com/konsorten/go-windows-terminal-sequences
