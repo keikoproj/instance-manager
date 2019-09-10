@@ -78,6 +78,32 @@ func (ctx *EksCfInstanceGroupContext) discoverCreatedResources(s schema.GroupVer
 	return nil
 }
 
+func (ctx *EksCfInstanceGroupContext) processRollingStrategy() {
+
+	var (
+		instanceGroup         = ctx.GetInstanceGroup()
+		spec                  = &instanceGroup.Spec
+		strategyConfiguration = spec.AwsUpgradeStrategy.GetRollingUpgradeStrategy()
+		maxBatch              = strategyConfiguration.GetMaxBatch()
+		minInService          = strategyConfiguration.GetMinInstancesInService()
+		minSuccessfulPercent  = strategyConfiguration.GetMinSuccessfulInstancesPercent()
+		pauseTime             = strategyConfiguration.GetPauseTime()
+	)
+
+	if maxBatch == 0 {
+		strategyConfiguration.SetMaxBatch(1)
+	}
+	if minInService == 0 {
+		strategyConfiguration.SetMinInstancesInService(1)
+	}
+	if minSuccessfulPercent == 0 {
+		strategyConfiguration.SetMinSuccessfulInstancesPercent(100)
+	}
+	if pauseTime == "" {
+		strategyConfiguration.SetPauseTime("PT5M")
+	}
+}
+
 func (ctx *EksCfInstanceGroupContext) processCRDStrategy() error {
 
 	var (

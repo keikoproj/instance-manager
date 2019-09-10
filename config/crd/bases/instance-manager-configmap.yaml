@@ -182,8 +182,17 @@ data:
         {{if (eq $strategy "rollingupdate")}}
         UpdatePolicy:
           AutoScalingRollingUpdate:
-            MinInstancesInService: '1'
-            MaxBatchSize: '1'
+            MinInstancesInService: {{.Spec.AwsUpgradeStrategy.RollingUpgradeType.MinInstancesInService}}
+            MaxBatchSize: {{.Spec.AwsUpgradeStrategy.RollingUpgradeType.MaxBatchSize}}
+            WaitOnResourceSignals: {{.Spec.AwsUpgradeStrategy.RollingUpgradeType.WaitOnResourceSignals}}
+            {{if (ne .Spec.AwsUpgradeStrategy.RollingUpgradeType.MinSuccessfulInstancesPercent 0)}}
+            MinSuccessfulInstancesPercent: {{.Spec.AwsUpgradeStrategy.RollingUpgradeType.MinSuccessfulInstancesPercent}}{{end}}
+            PauseTime: {{.Spec.AwsUpgradeStrategy.RollingUpgradeType.PauseTime}}
+            {{ $processes := len .Spec.AwsUpgradeStrategy.RollingUpgradeType.SuspendProcesses }}{{if (ne $processes 0)}}
+            SuspendProcesses:
+              {{range .Spec.AwsUpgradeStrategy.RollingUpgradeType.SuspendProcesses}}- {{.}}
+              {{end}}
+            {{end}}
         {{end}}
       NodeLaunchConfig:
         Type: AWS::AutoScaling::LaunchConfiguration
