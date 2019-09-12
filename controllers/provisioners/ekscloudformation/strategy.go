@@ -78,20 +78,18 @@ func (ctx *EksCfInstanceGroupContext) discoverCreatedResources(s schema.GroupVer
 	return nil
 }
 
-func (ctx *EksCfInstanceGroupContext) processRollingStrategy() {
-
+func (ctx *EksCfInstanceGroupContext) setRollingStrategyConfigurationDefaults() {
 	var (
 		instanceGroup         = ctx.GetInstanceGroup()
-		spec                  = &instanceGroup.Spec
-		strategyConfiguration = spec.AwsUpgradeStrategy.GetRollingUpgradeStrategy()
-		maxBatch              = strategyConfiguration.GetMaxBatch()
+		strategyConfiguration = &instanceGroup.Spec.AwsUpgradeStrategy.RollingUpgradeType
+		maxBatchSize          = strategyConfiguration.GetMaxBatchSize()
 		minInService          = strategyConfiguration.GetMinInstancesInService()
 		minSuccessfulPercent  = strategyConfiguration.GetMinSuccessfulInstancesPercent()
 		pauseTime             = strategyConfiguration.GetPauseTime()
 	)
 
-	if maxBatch == 0 {
-		strategyConfiguration.SetMaxBatch(1)
+	if maxBatchSize == 0 {
+		strategyConfiguration.SetMaxBatchSize(1)
 	}
 	if minInService == 0 {
 		strategyConfiguration.SetMinInstancesInService(1)
@@ -102,6 +100,7 @@ func (ctx *EksCfInstanceGroupContext) processRollingStrategy() {
 	if pauseTime == "" {
 		strategyConfiguration.SetPauseTime("PT5M")
 	}
+	ctx.reloadCloudformationConfiguration()
 }
 
 func (ctx *EksCfInstanceGroupContext) processCRDStrategy() error {

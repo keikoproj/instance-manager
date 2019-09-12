@@ -71,13 +71,13 @@ type InstanceGroupList struct {
 
 // AwsUpgradeStrategy defines the upgrade strategy of an AWS Instance Group
 type AwsUpgradeStrategy struct {
-	Type        string                 `json:"type"`
-	CRDType     CRDUpgradeStrategy     `json:"crd,omitempty"`
-	RollingType RollingUpgradeStrategy `json:"rollingUpdate,omitempty"`
+	Type               string                 `json:"type"`
+	CRDType            CRDUpgradeStrategy     `json:"crd,omitempty"`
+	RollingUpgradeType RollingUpgradeStrategy `json:"rollingUpdate,omitempty"`
 }
 
 type RollingUpgradeStrategy struct {
-	MaxBatch                      int      `json:"maxBatch,omitempty"`
+	MaxBatchSize                  int      `json:"maxBatchSize,omitempty"`
 	MinInstancesInService         int      `json:"minInstancesInService,omitempty"`
 	MinSuccessfulInstancesPercent int      `json:"minSuccessfulInstancesPercent,omitempty"`
 	PauseTime                     string   `json:"pauseTime,omitempty"`
@@ -85,12 +85,12 @@ type RollingUpgradeStrategy struct {
 	WaitOnResourceSignals         bool     `json:"waitOnResourceSignals,omitempty"`
 }
 
-func (s *RollingUpgradeStrategy) GetMaxBatch() int {
-	return s.MaxBatch
+func (s *RollingUpgradeStrategy) GetMaxBatchSize() int {
+	return s.MaxBatchSize
 }
 
-func (s *RollingUpgradeStrategy) SetMaxBatch(value int) {
-	s.MaxBatch = value
+func (s *RollingUpgradeStrategy) SetMaxBatchSize(value int) {
+	s.MaxBatchSize = value
 }
 
 func (s *RollingUpgradeStrategy) GetMinInstancesInService() int {
@@ -189,7 +189,7 @@ type InstanceGroupStatus struct {
 }
 
 func (s *AwsUpgradeStrategy) GetRollingUpgradeStrategy() RollingUpgradeStrategy {
-	return s.RollingType
+	return s.RollingUpgradeType
 }
 
 func (s *AwsUpgradeStrategy) GetCRDType() CRDUpgradeStrategy {

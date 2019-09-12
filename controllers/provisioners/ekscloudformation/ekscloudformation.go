@@ -132,8 +132,6 @@ func (ctx *EksCfInstanceGroupContext) UpgradeNodes() error {
 		}
 	case "rollingupdate":
 		log.Infof("upgrade strategy is set to '%v', will use cloudformation to rotate nodes", upgradeStrategy.GetType())
-		ctx.processRollingStrategy()
-		ctx.reloadCloudformationConfiguration()
 	default:
 		err := fmt.Errorf("'%v' is not an implemented upgrade type, will not process upgrade", upgradeStrategy.GetType())
 		return err
@@ -324,8 +322,8 @@ func (ctx *EksCfInstanceGroupContext) CloudDiscovery() error {
 		return err
 	}
 	ctx.discoverSpotPrice()
+	ctx.setRollingStrategyConfigurationDefaults()
 	return nil
-
 }
 
 func (ctx *EksCfInstanceGroupContext) BootstrapNodes() error {
