@@ -9,6 +9,11 @@ spec:
   provisioner: eks-cf
   strategy:
     type: rollingUpdate
+    rollingUpdate:
+      maxBatchSize: 1
+      minInstancesInService: 1
+      minSuccessfulInstancesPercent: 100
+      pauseTime: PT2M
   eks-cf:
     maxSize: 6
     minSize: 3

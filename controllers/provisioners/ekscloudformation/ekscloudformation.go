@@ -322,8 +322,8 @@ func (ctx *EksCfInstanceGroupContext) CloudDiscovery() error {
 		return err
 	}
 	ctx.discoverSpotPrice()
+	ctx.setRollingStrategyConfigurationDefaults()
 	return nil
-
 }
 
 func (ctx *EksCfInstanceGroupContext) BootstrapNodes() error {

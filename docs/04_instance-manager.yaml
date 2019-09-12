@@ -494,6 +494,23 @@ spec:
                     statusSuccessString:
                       type: string
                   type: object
+                rollingUpdate:
+                  properties:
+                    maxBatchSize:
+                      type: integer
+                    minInstancesInService:
+                      type: integer
+                    minSuccessfulInstancesPercent:
+                      type: integer
+                    pauseTime:
+                      type: string
+                    suspendProcesses:
+                      items:
+                        type: string
+                      type: array
+                    waitOnResourceSignals:
+                      type: boolean
+                  type: object
                 type:
                   type: string
               required:
@@ -572,6 +589,15 @@ rules:
   - delete
 # This is only needed for if you are using one of these projects for CRD Strategy, you may replaces this with a different RBAC
 # ... >
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - get
+  - list
+  - watch
+  - create
 - apiGroups:
   - ""
   resources:
@@ -814,8 +840,17 @@ data:
         {{if (eq $strategy "rollingupdate")}}
         UpdatePolicy:
           AutoScalingRollingUpdate:
-            MinInstancesInService: '1'
-            MaxBatchSize: '1'
+            MinInstancesInService: {{.Spec.AwsUpgradeStrategy.RollingUpgradeType.MinInstancesInService}}
+            MaxBatchSize: {{.Spec.AwsUpgradeStrategy.RollingUpgradeType.MaxBatchSize}}
+            WaitOnResourceSignals: {{.Spec.AwsUpgradeStrategy.RollingUpgradeType.WaitOnResourceSignals}}
+            {{if (ne .Spec.AwsUpgradeStrategy.RollingUpgradeType.MinSuccessfulInstancesPercent 0)}}
+            MinSuccessfulInstancesPercent: {{.Spec.AwsUpgradeStrategy.RollingUpgradeType.MinSuccessfulInstancesPercent}}{{end}}
+            PauseTime: {{.Spec.AwsUpgradeStrategy.RollingUpgradeType.PauseTime}}
+            {{ $processes := len .Spec.AwsUpgradeStrategy.RollingUpgradeType.SuspendProcesses }}{{if (ne $processes 0)}}
+            SuspendProcesses:
+              {{range .Spec.AwsUpgradeStrategy.RollingUpgradeType.SuspendProcesses}}- {{.}}
+              {{end}}
+            {{end}}
         {{end}}
       NodeLaunchConfig:
         Type: AWS::AutoScaling::LaunchConfiguration

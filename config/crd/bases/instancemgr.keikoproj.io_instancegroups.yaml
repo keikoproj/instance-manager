@@ -490,6 +490,23 @@ spec:
                     statusSuccessString:
                       type: string
                   type: object
+                rollingUpdate:
+                  properties:
+                    maxBatchSize:
+                      type: integer
+                    minInstancesInService:
+                      type: integer
+                    minSuccessfulInstancesPercent:
+                      type: integer
+                    pauseTime:
+                      type: string
+                    suspendProcesses:
+                      items:
+                        type: string
+                      type: array
+                    waitOnResourceSignals:
+                      type: boolean
+                  type: object
                 type:
                   type: string
               required:

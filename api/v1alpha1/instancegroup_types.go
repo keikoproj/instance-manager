@@ -71,8 +71,72 @@ type InstanceGroupList struct {
 
 // AwsUpgradeStrategy defines the upgrade strategy of an AWS Instance Group
 type AwsUpgradeStrategy struct {
-	Type    string             `json:"type"`
-	CRDType CRDUpgradeStrategy `json:"crd,omitempty"`
+	Type               string                 `json:"type"`
+	CRDType            CRDUpgradeStrategy     `json:"crd,omitempty"`
+	RollingUpgradeType RollingUpgradeStrategy `json:"rollingUpdate,omitempty"`
+}
+
+type RollingUpgradeStrategy struct {
+	MaxBatchSize                  int      `json:"maxBatchSize,omitempty"`
+	MinInstancesInService         int      `json:"minInstancesInService,omitempty"`
+	MinSuccessfulInstancesPercent int      `json:"minSuccessfulInstancesPercent,omitempty"`
+	PauseTime                     string   `json:"pauseTime,omitempty"`
+	SuspendProcesses              []string `json:"suspendProcesses,omitempty"`
+	WaitOnResourceSignals         bool     `json:"waitOnResourceSignals,omitempty"`
+}
+
+func (s *RollingUpgradeStrategy) GetMaxBatchSize() int {
+	return s.MaxBatchSize
+}
+
+func (s *RollingUpgradeStrategy) SetMaxBatchSize(value int) {
+	s.MaxBatchSize = value
+}
+
+func (s *RollingUpgradeStrategy) GetMinInstancesInService() int {
+	return s.MinInstancesInService
+}
+
+func (s *RollingUpgradeStrategy) SetMinInstancesInService(value int) {
+	s.MinInstancesInService = value
+}
+
+func (s *RollingUpgradeStrategy) GetMinSuccessfulInstancesPercent() int {
+	return s.MinSuccessfulInstancesPercent
+}
+
+func (s *RollingUpgradeStrategy) SetMinSuccessfulInstancesPercent(value int) {
+	s.MinSuccessfulInstancesPercent = value
+}
+
+func (s *RollingUpgradeStrategy) GetPauseTime() string {
+	return s.PauseTime
+}
+
+func (s *RollingUpgradeStrategy) SetPauseTime(pauseTime string) {
+	s.PauseTime = pauseTime
+}
+
+func (s *RollingUpgradeStrategy) GetWaitOnResourceSignals() bool {
+	return s.WaitOnResourceSignals
+}
+
+func (s *RollingUpgradeStrategy) SetWaitOnResourceSignals(wait bool) {
+	s.WaitOnResourceSignals = wait
+}
+
+func (s *RollingUpgradeStrategy) GetSuspendProcesses() []string {
+	if s.SuspendProcesses == nil {
+		s.SuspendProcesses = make([]string, 0)
+	}
+	return s.SuspendProcesses
+}
+
+func (s *RollingUpgradeStrategy) SetSuspendProcesses(processes []string) {
+	if s.SuspendProcesses == nil {
+		s.SuspendProcesses = make([]string, 0)
+	}
+	s.SuspendProcesses = processes
 }
 
 type CRDUpgradeStrategy struct {
@@ -122,6 +186,10 @@ type InstanceGroupStatus struct {
 	StrategyResourceName          string `json:"strategyResourceName,omitempty"`
 	UsingSpotRecommendation       bool   `json:"usingSpotRecommendation"`
 	Lifecycle                     string `json:"lifecycle,omitempty"`
+}
+
+func (s *AwsUpgradeStrategy) GetRollingUpgradeStrategy() RollingUpgradeStrategy {
+	return s.RollingUpgradeType
 }
 
 func (s *AwsUpgradeStrategy) GetCRDType() CRDUpgradeStrategy {
