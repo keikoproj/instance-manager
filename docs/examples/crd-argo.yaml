@@ -10,7 +10,7 @@ spec:
       crdName: workflows
       statusJSONPath: .status.phase
       statusSuccessString: Succeeded
-      statusErrorString: Failed
+      statusFailureString: Failed
       concurrencyPolicy: Forbid
       spec: |
         apiVersion: argoproj.io/v1alpha1
