@@ -102,21 +102,11 @@ func (ctx *EksCfInstanceGroupContext) reloadCloudformationConfiguration() error 
 	return nil
 }
 
-func LoadControllerConfiguration(ig *v1alpha1.InstanceGroup, configPath string) (EksCfDefaultConfiguration, error) {
+func LoadControllerConfiguration(ig *v1alpha1.InstanceGroup, controllerConfig []byte) (EksCfDefaultConfiguration, error) {
 	var defaultConfig EksCfDefaultConfiguration
 	var specConfig = &ig.Spec.EKSCFSpec.EKSCFConfiguration
 
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		log.Errorf("controller config file not found: %v", err)
-		return defaultConfig, err
-	}
-
-	controllerConfig, err := common.ReadFile(configPath)
-	if err != nil {
-		return defaultConfig, err
-	}
-
-	err = yaml.Unmarshal(controllerConfig, &defaultConfig)
+	err := yaml.Unmarshal(controllerConfig, &defaultConfig)
 	if err != nil {
 		return defaultConfig, err
 	}

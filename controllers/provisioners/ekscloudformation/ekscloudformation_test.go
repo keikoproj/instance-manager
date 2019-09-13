@@ -1166,3 +1166,39 @@ func TestStateGetter(t *testing.T) {
 		t.Fatalf("TestStateGetter: got %v, expected: %v", string(ctx.GetState()), string(v1alpha1.ReconcileReady))
 	}
 }
+
+func Test_ControllerConfigLoader(t *testing.T) {
+	ctx := getBasicContext(t, blankMocker)
+	payload := []byte(`
+stackNamePrefix: myOrg
+defaultSubnets:
+- subnet-12345678
+defaultClusterName: myEksCluster
+defaultArns:
+- MyARN`)
+	ig := ctx.GetInstanceGroup()
+	config, err := LoadControllerConfiguration(ig, payload)
+	if err != nil {
+		t.Fatal("Test_ControllerConfigLoader expected error not to have occured")
+	}
+
+	if config.StackNamePrefix != "myOrg" {
+		t.Fatalf("Test_ControllerConfigLoader: got %v, expected: myOrg", config.StackNamePrefix)
+	}
+
+	if config.EksClusterName != "myEksCluster" {
+		t.Fatalf("Test_ControllerConfigLoader: got %v, expected: myEksCluster", config.EksClusterName)
+	}
+
+	if ig.GetClusterName() == "myEksCluster" {
+		t.Fatalf("Test_ControllerConfigLoader: got %v, expected: myEksCluster", ig.GetClusterName())
+	}
+
+	if !reflect.DeepEqual(config.DefaultSubnets, []string{"subnet-12345678"}) {
+		t.Fatalf("Test_ControllerConfigLoader: got %v, expected: %v", config.DefaultSubnets, []string{"subnet-12345678"})
+	}
+
+	if !reflect.DeepEqual(ig.Spec.EKSCFSpec.EKSCFConfiguration.Subnets, []string{"subnet-12345678"}) {
+		t.Fatalf("Test_ControllerConfigLoader: got %v, expected: %v", ig.Spec.EKSCFSpec.EKSCFConfiguration.Subnets, []string{"subnet-12345678"})
+	}
+}

@@ -18,6 +18,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -197,7 +198,17 @@ func (r *InstanceGroupReconciler) ReconcileEKSCF(instanceGroup *v1alpha.Instance
 		KubeDynamic: dynClient,
 	}
 
-	defaultConfiguration, err := ekscloudformation.LoadControllerConfiguration(instanceGroup, r.ControllerConfPath)
+	if _, err := os.Stat(r.ControllerConfPath); os.IsNotExist(err) {
+		log.Errorf("controller config file not found: %v", err)
+		return err
+	}
+
+	controllerConfig, err := common.ReadFile(r.ControllerConfPath)
+	if err != nil {
+		return err
+	}
+
+	defaultConfiguration, err := ekscloudformation.LoadControllerConfiguration(instanceGroup, controllerConfig)
 	if err != nil {
 		log.Errorf("failed to load controller configuration: %v", err)
 		return err
