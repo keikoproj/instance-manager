@@ -41,9 +41,10 @@ type EksCfInstanceGroupContext struct {
 }
 
 type EksCfDefaultConfiguration struct {
-	DefaultSubnets []string `yaml:"defaultSubnets,omitempty"`
-	EksClusterName string   `yaml:"defaultClusterName,omitempty"`
-	DefaultARNs    []string `yaml:"defaultArns,omitempty"`
+	StackNamePrefix string   `yaml:"stackNamePrefix,omitempty"`
+	DefaultSubnets  []string `yaml:"defaultSubnets,omitempty"`
+	EksClusterName  string   `yaml:"defaultClusterName,omitempty"`
+	DefaultARNs     []string `yaml:"defaultArns,omitempty"`
 }
 
 func (ctx *EksCfInstanceGroupContext) GetInstanceGroup() *v1alpha1.InstanceGroup {

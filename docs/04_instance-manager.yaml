@@ -537,6 +537,8 @@ spec:
               type: string
             nodesInstanceRoleArn:
               type: string
+            stackName:
+              type: string
             strategyResourceName:
               type: string
             usingSpotRecommendation:

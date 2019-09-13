@@ -18,7 +18,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -29,7 +28,6 @@ import (
 	"github.com/keikoproj/instance-manager/controllers/providers/aws"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/ekscloudformation"
 	log "github.com/sirupsen/logrus"
-	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -199,7 +197,7 @@ func (r *InstanceGroupReconciler) ReconcileEKSCF(instanceGroup *v1alpha.Instance
 		KubeDynamic: dynClient,
 	}
 
-	defaultARNList, err := r.loadControllerConfiguration(instanceGroup)
+	defaultConfiguration, err := ekscloudformation.LoadControllerConfiguration(instanceGroup, r.ControllerConfPath)
 	if err != nil {
 		log.Errorf("failed to load controller configuration: %v", err)
 		return err
@@ -211,11 +209,23 @@ func (r *InstanceGroupReconciler) ReconcileEKSCF(instanceGroup *v1alpha.Instance
 		return err
 	}
 
+	var stackName string
+	if defaultConfiguration.StackNamePrefix != "" {
+		stackName = fmt.Sprintf("%v-%v-%v", defaultConfiguration.StackNamePrefix, specConfig.GetClusterName(), instanceGroup.GetName())
+	} else {
+		stackName = fmt.Sprintf("%v-%v", specConfig.GetClusterName(), instanceGroup.GetName())
+	}
+
+	// set the stack name if it is unset
+	if instanceGroup.Status.GetStackName() == "" {
+		instanceGroup.Status.SetStackName(stackName)
+	}
+
 	awsWorker := aws.AwsWorker{
 		CfClient:     aws.GetAwsCloudformationClient(awsRegion),
 		AsgClient:    aws.GetAwsAsgClient(awsRegion),
 		EksClient:    aws.GetAwsEksClient(awsRegion),
-		StackName:    fmt.Sprintf("%v-%v-%v", specConfig.GetClusterName(), instanceGroup.GetNamespace(), instanceGroup.GetName()),
+		StackName:    instanceGroup.Status.GetStackName(),
 		TemplateBody: template,
 	}
 
@@ -225,7 +235,10 @@ func (r *InstanceGroupReconciler) ReconcileEKSCF(instanceGroup *v1alpha.Instance
 	}
 
 	ctx.ControllerRegion = awsRegion
-	ctx.DefaultARNList = defaultARNList
+	if len(defaultConfiguration.DefaultARNs) != 0 {
+		ctx.DefaultARNList = defaultConfiguration.DefaultARNs
+	}
+
 	ctx.TemplatePath = r.ControllerTemplatePath
 
 	// Init State is set when handling reconcile
@@ -320,41 +333,6 @@ func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			ToRequests: handler.ToRequestsFunc(r.spotEventReconciler),
 		}).
 		Complete(r)
-}
-
-func (r *InstanceGroupReconciler) loadControllerConfiguration(ig *v1alpha.InstanceGroup) ([]string, error) {
-	var defaultConfig ekscloudformation.EksCfDefaultConfiguration
-	var specConfig = &ig.Spec.EKSCFSpec.EKSCFConfiguration
-	var defaultARNs []string
-
-	if _, err := os.Stat(r.ControllerConfPath); os.IsNotExist(err) {
-		log.Errorf("controller config file not found: %v", err)
-		return nil, err
-	}
-
-	controllerConfig, err := common.ReadFile(r.ControllerConfPath)
-	if err != nil {
-		return nil, err
-	}
-
-	err = yaml.Unmarshal(controllerConfig, &defaultConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(defaultConfig.DefaultSubnets) != 0 {
-		specConfig.SetSubnets(defaultConfig.DefaultSubnets)
-	}
-
-	if defaultConfig.EksClusterName != "" {
-		specConfig.SetClusterName(defaultConfig.EksClusterName)
-	}
-
-	if len(defaultConfig.DefaultARNs) != 0 {
-		defaultARNs = defaultConfig.DefaultARNs
-	}
-
-	return defaultARNs, nil
 }
 
 func (r *InstanceGroupReconciler) spotEventReconciler(obj handler.MapObject) []ctrl.Request {
