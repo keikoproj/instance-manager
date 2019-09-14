@@ -177,6 +177,7 @@ type EKSCFConfiguration struct {
 
 // InstanceGroupStatus defines the schema of resource Status
 type InstanceGroupStatus struct {
+	StackName                     string `json:"stackName,omitempty"`
 	CurrentState                  string `json:"currentState,omitempty"`
 	CurrentMin                    int    `json:"currentMin,omitempty"`
 	CurrentMax                    int    `json:"currentMax,omitempty"`
@@ -254,6 +255,14 @@ func (status *InstanceGroupStatus) GetActiveLaunchConfigurationName() string {
 
 func (status *InstanceGroupStatus) SetActiveLaunchConfigurationName(name string) {
 	status.ActiveLaunchConfigurationName = name
+}
+
+func (status *InstanceGroupStatus) GetStackName() string {
+	return status.StackName
+}
+
+func (status *InstanceGroupStatus) SetStackName(name string) {
+	status.StackName = name
 }
 
 func (status *InstanceGroupStatus) GetActiveScalingGroupName() string {

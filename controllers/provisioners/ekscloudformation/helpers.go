@@ -10,6 +10,7 @@ import (
 
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
+	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -96,8 +97,29 @@ func (ctx *EksCfInstanceGroupContext) reloadCloudformationConfiguration() error 
 	if err != nil {
 		return err
 	}
+
 	ctx.AwsWorker.TemplateBody = template
 	return nil
+}
+
+func LoadControllerConfiguration(ig *v1alpha1.InstanceGroup, controllerConfig []byte) (EksCfDefaultConfiguration, error) {
+	var defaultConfig EksCfDefaultConfiguration
+	var specConfig = &ig.Spec.EKSCFSpec.EKSCFConfiguration
+
+	err := yaml.Unmarshal(controllerConfig, &defaultConfig)
+	if err != nil {
+		return defaultConfig, err
+	}
+
+	if len(defaultConfig.DefaultSubnets) != 0 {
+		specConfig.SetSubnets(defaultConfig.DefaultSubnets)
+	}
+
+	if defaultConfig.EksClusterName != "" {
+		specConfig.SetClusterName(defaultConfig.EksClusterName)
+	}
+
+	return defaultConfig, nil
 }
 
 func LoadCloudformationConfiguration(ig *v1alpha1.InstanceGroup, path string) (string, error) {

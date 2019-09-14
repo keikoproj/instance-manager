@@ -13,7 +13,7 @@ spec:
       crdName: rollingupgrades
       statusJSONPath: .status.currentStatus
       statusSuccessString: completed
-      statusErrorString: error
+      statusFailureString: error
       spec: |
         apiVersion: upgrademgr.keikoproj.io/v1alpha1
         kind: RollingUpgrade
