@@ -173,7 +173,7 @@ type EKSCFConfiguration struct {
 	BootstrapArguments string              `json:"bootstrapArguments,omitempty"`
 	SpotPrice          string              `json:"spotPrice,omitempty"`
 	Tags               []map[string]string `json:"tags,omitempty"`
-	MetricsCollection  []string			   `json:"metricsCollection,omitempty"`
+	MetricsCollection  []string            `json:"metricsCollection,omitempty"`
 }
 
 //// MetricsCollection defines the schema for AWS::AutoScaling::AutoScalingGroup MetricsCollection
