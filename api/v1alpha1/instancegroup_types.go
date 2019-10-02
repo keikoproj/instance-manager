@@ -176,10 +176,10 @@ type EKSCFConfiguration struct {
 	MetricsCollection  []string            `json:"metricsCollection,omitempty"`
 }
 
-//// MetricsCollection defines the schema for AWS::AutoScaling::AutoScalingGroup MetricsCollection
+// MetricsCollection defines the schema for AWS::AutoScaling::AutoScalingGroup MetricsCollection
 //type MetricsCollection struct {
-//	Metrics			   []string				`json:"metrics"`
-//	Granularity 	   string				`json:"granularity,omitempty"`
+//	Metrics			   []string            `json:"metrics"`
+//	Granularity 	   string              `json:"granularity,omitempty"`
 //}
 
 // InstanceGroupStatus defines the schema of resource Status
