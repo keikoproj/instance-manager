@@ -30,3 +30,4 @@ spec:
       tags:
         - key: mykey
           value: myvalue
+      metricsCollection: {{ .NodeAutoScalingGroupMetrics }}

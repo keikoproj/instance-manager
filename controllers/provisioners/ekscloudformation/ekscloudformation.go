@@ -474,6 +474,7 @@ func (ctx *EksCfInstanceGroupContext) processParameters() error {
 		"BootstrapArguments":          bootstrapArgs,
 		"NodeGroupName":               ctx.AwsWorker.StackName,
 		"VpcId":                       ctx.VpcID,
+		"NodeAutoScalingGroupMetrics": common.ConcatonateList(strings.Title(fmt.Sprint(specConfig.GetMetricsCollection())), ","),
 	}
 
 	var parameters []*cloudformation.Parameter

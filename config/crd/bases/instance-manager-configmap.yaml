@@ -108,6 +108,9 @@ data:
       Subnets:
         Description: The subnets where workers can be created.
         Type: List<AWS::EC2::Subnet::Id>
+      NodeAutoScalingGroupMetrics:
+        Description: The Metrics that an Amazon EC2 ASG sends to Amazon CloudWatch.
+        Type: List<String>
     Metadata:
       AWS::CloudFormation::Interface:
         ParameterGroups:
@@ -129,6 +132,7 @@ data:
               - NodeVolumeSize
               - KeyName
               - BootstrapArguments
+              - NodeAutoScalingGroupMetrics
           -
             Label:
               default: "Worker Network Configuration"
@@ -178,6 +182,10 @@ data:
           - Key: KubernetesCluster
             Value: !Ref ClusterName
             PropagateAtLaunch: 'true'
+          MetricsCollection:
+            Metrics:
+              !Ref NodeAutoScalingGroupMetrics
+            Granularity: "1Minute"
         {{$strategy := .Spec.AwsUpgradeStrategy.Type | ToLower}}
         {{if (eq $strategy "rollingupdate")}}
         UpdatePolicy:

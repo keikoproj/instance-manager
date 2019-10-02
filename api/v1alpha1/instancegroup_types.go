@@ -173,7 +173,14 @@ type EKSCFConfiguration struct {
 	BootstrapArguments string              `json:"bootstrapArguments,omitempty"`
 	SpotPrice          string              `json:"spotPrice,omitempty"`
 	Tags               []map[string]string `json:"tags,omitempty"`
+	MetricsCollection  []string			   `json:"metricsCollection,omitempty"`
 }
+
+//// MetricsCollection defines the schema for AWS::AutoScaling::AutoScalingGroup MetricsCollection
+//type MetricsCollection struct {
+//	Metrics			   []string				`json:"metrics"`
+//	Granularity 	   string				`json:"granularity,omitempty"`
+//}
 
 // InstanceGroupStatus defines the schema of resource Status
 type InstanceGroupStatus struct {
@@ -423,6 +430,14 @@ func (conf *EKSCFConfiguration) GetTags() []map[string]string {
 
 func (conf *EKSCFConfiguration) SetTags(tags []map[string]string) {
 	conf.Tags = tags
+}
+
+func (conf *EKSCFConfiguration) GetMetricsCollection() []string {
+	return conf.MetricsCollection
+}
+
+func (conf *EKSCFConfiguration) SetMetricsCollection(metricsCollection []string) {
+	conf.MetricsCollection = metricsCollection
 }
 
 func (ig *InstanceGroup) GetState() ReconcileState {
