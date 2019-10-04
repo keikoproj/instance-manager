@@ -29,7 +29,7 @@ Make sure the context you are in is correct and that you scaled down the actual 
 
 1. You need to create 2 files for controller config and cfn and copy the data section from #config/crd/bases/instance-manager-configmap.yaml respectively
 2. Make sure you have AWS Credentials and region exported so that your local instance-manager controller can execute a cloud formation template
-3. Update the run section with the file locations (for example like below)
+3. Update the run section in Makefile with the file locations (for example like below)
 ```bash
 # Run against the configured Kubernetes cluster in ~/.kube/config
 run: generate fmt vet

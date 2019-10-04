@@ -496,15 +496,15 @@ func getManagedPolicyARNs(pNames []string) string {
 	//First add the DEFAULT required policies to the list passed by user as part of custom resource
 	var managedPolicyARNs []string
 	requiredPolicies := []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}
-
+	policyPrefix := "arn:aws:iam::aws:policy/"
 	for _, name := range requiredPolicies {
-		managedPolicyARNs = append(managedPolicyARNs, fmt.Sprintf("arn:aws:iam::aws:policy/%s", name))
+		managedPolicyARNs = append(managedPolicyARNs, fmt.Sprintf("%s%s", policyPrefix, name))
 	}
 	// Add the user supplied policy names if any
 	if len(pNames) != 0 {
 		for _, name := range pNames {
 			// Trim the prefix arn:aws:iam::aws:policy/ if user supplied entire ARN instead of just name
-			managedPolicyARNs = append(managedPolicyARNs, fmt.Sprintf("arn:aws:iam::aws:policy/%s", strings.TrimPrefix(name, "arn:aws:iam::aws:policy/")))
+			managedPolicyARNs = append(managedPolicyARNs, fmt.Sprintf("%s%s", policyPrefix, strings.TrimPrefix(name, policyPrefix)))
 		}
 	}
 
