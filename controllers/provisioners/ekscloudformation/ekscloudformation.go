@@ -54,10 +54,6 @@ const (
 	UnrecoverableDeleteErrorString = "UnrecoverableDeleteError"
 )
 
-const (
-	reqPolicies = "AmazonEKSWorkerNodePolicy,AmazonEKS_CNI_Policy,AmazonEC2ContainerRegistryReadOnly"
-)
-
 // New constructs a new instance group provisioner of EKS Cloudformation type
 func New(instanceGroup *v1alpha1.InstanceGroup, k common.KubernetesClientSet, w awsprovider.AwsWorker) (EksCfInstanceGroupContext, error) {
 	log.SetFormatter(&logrus.TextFormatter{
@@ -478,7 +474,7 @@ func (ctx *EksCfInstanceGroupContext) processParameters() error {
 		"BootstrapArguments":          bootstrapArgs,
 		"NodeGroupName":               ctx.AwsWorker.StackName,
 		"VpcId":                       ctx.VpcID,
-		"ManagedPolicyARNs":           GetManagedPolicyARNs(specConfig.ManagedPolicies),
+		"ManagedPolicyARNs":           getManagedPolicyARNs(specConfig.ManagedPolicies),
 	}
 
 	var parameters []*cloudformation.Parameter
@@ -494,21 +490,23 @@ func (ctx *EksCfInstanceGroupContext) processParameters() error {
 	return nil
 }
 
-//GetManagedPolicyARNs constructs managed policy arns
-func GetManagedPolicyARNs(pNames []string) string {
+//getManagedPolicyARNs constructs managed policy arns
+func getManagedPolicyARNs(pNames []string) string {
 	//This is for Managed Policy ARN list.
 	//First add the DEFAULT required policies to the list passed by user as part of custom resource
-	var iamManagedPolicyARNs []string
-	names := strings.Split(reqPolicies, ",")
-	for _, name := range names {
-		iamManagedPolicyARNs = append(iamManagedPolicyARNs, fmt.Sprintf("arn:aws:iam::aws:policy/%s", name))
+	var managedPolicyARNs []string
+	requiredPolicies := []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}
+
+	for _, name := range requiredPolicies {
+		managedPolicyARNs = append(managedPolicyARNs, fmt.Sprintf("arn:aws:iam::aws:policy/%s", name))
 	}
 	// Add the user supplied policy names if any
 	if len(pNames) != 0 {
 		for _, name := range pNames {
-			iamManagedPolicyARNs = append(iamManagedPolicyARNs, fmt.Sprintf("arn:aws:iam::aws:policy/%s", name))
+			// Trim the prefix arn:aws:iam::aws:policy/ if user supplied entire ARN instead of just name
+			managedPolicyARNs = append(managedPolicyARNs, fmt.Sprintf("arn:aws:iam::aws:policy/%s", strings.TrimPrefix(name, "arn:aws:iam::aws:policy/")))
 		}
 	}
 
-	return common.ConcatonateList(iamManagedPolicyARNs, ",")
+	return common.ConcatonateList(managedPolicyARNs, ",")
 }

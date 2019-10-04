@@ -1226,10 +1226,15 @@ func TestGetManagedPolicyARNs(t *testing.T) {
 			input:    []string{"My-Managed-Policy-1", "My-Managed-Policy-2", "My-Managed-Policy-3"},
 			expected: "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy,arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy,arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly,arn:aws:iam::aws:policy/My-Managed-Policy-1,arn:aws:iam::aws:policy/My-Managed-Policy-2,arn:aws:iam::aws:policy/My-Managed-Policy-3",
 		},
+		{
+			testCase: "custom resource creation with managed policy arn instead of name",
+			input:    []string{"arn:aws:iam::aws:policy/My-Managed-Policy-1"},
+			expected: "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy,arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy,arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly,arn:aws:iam::aws:policy/My-Managed-Policy-1",
+		},
 	}
 
 	for _, tc := range tt {
-		resp := GetManagedPolicyARNs(tc.input)
+		resp := getManagedPolicyARNs(tc.input)
 		if !reflect.DeepEqual(resp, tc.expected) {
 			t.Fatalf("Test Case [%s] Failed Expected [%s] Got [%s]\n", tc.testCase, tc.expected, resp)
 		}

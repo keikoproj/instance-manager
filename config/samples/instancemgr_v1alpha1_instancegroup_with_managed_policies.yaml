@@ -1,23 +1,33 @@
 apiVersion: instancemgr.keikoproj.io/v1alpha1
 kind: InstanceGroup
 metadata:
-  labels:
-    controller-tools.k8s.io: "1.0"
-  name: hello-world
+  name: naveen-test-with-iam-managed-policies
 spec:
+  eks-cf:
+    configuration:
+      clusterName: eks-kdev2-k8s
+      image: ami-015288619490c53cd
+      instanceType: m5.large
+      keyPairName: eks-kdev2-k8s-keypair
+      managedPolicies:
+        - AmazonDocDBFullAccess
+        - AmazonCloudDirectoryFullAccess
+      securityGroups:
+        - sg-08453b229abb4bf
+        - sg-029965312626144
+        - sg-0f68186cedee6d7
+      subnets:
+        - subnet-0e8277599681557
+        - subnet-0ad16fed12136f1
+        - subnet-08b86b32e34cf87
+      tags:
+        - key: k8s.io/cluster-autoscaler/enabled
+          value: "true"
+        - key: kubernetes.io/cluster/eks-kdev2-k8s
+          value: owned
+      volSize: 80
+    maxSize: 2
+    minSize: 1
   provisioner: eks-cf
   strategy:
-      type: rollingUpdate
-  eks-cf:
-    maxSize: 3
-    minSize: 1
-    configuration:
-      keyPairName: mykey
-      image: ami-0923e4b35a30a5f53
-      instanceType: m5.large
-      volSize: 20
-      securityGroups:
-      - sg-0de3bb02a40b915e6
-      tags:
-        - key: mykey
-          value: myvalue
+    type: rollingUpdate
