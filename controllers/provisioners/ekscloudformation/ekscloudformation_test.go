@@ -1204,3 +1204,39 @@ defaultArns:
 		t.Fatalf("Test_ControllerConfigLoader: got %v, expected: %v", specConfig.GetSubnets(), expectedConfig.DefaultSubnets)
 	}
 }
+
+func TestGetManagedPolicyARNs(t *testing.T) {
+	tt := []struct {
+		testCase string
+		input    []string
+		expected string
+	}{
+		{
+			testCase: "custom resource creation with no managed policies",
+			input:    []string{},
+			expected: "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy,arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy,arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+		},
+		{
+			testCase: "custom resource creation with 1 managed policies",
+			input:    []string{"AWSDynamoDBFullAccess"},
+			expected: "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy,arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy,arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly,arn:aws:iam::aws:policy/AWSDynamoDBFullAccess",
+		},
+		{
+			testCase: "custom resource creation with multiple managed policies",
+			input:    []string{"My-Managed-Policy-1", "My-Managed-Policy-2", "My-Managed-Policy-3"},
+			expected: "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy,arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy,arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly,arn:aws:iam::aws:policy/My-Managed-Policy-1,arn:aws:iam::aws:policy/My-Managed-Policy-2,arn:aws:iam::aws:policy/My-Managed-Policy-3",
+		},
+		{
+			testCase: "custom resource creation with managed policy arn instead of name",
+			input:    []string{"arn:aws:iam::aws:policy/My-Managed-Policy-1"},
+			expected: "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy,arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy,arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly,arn:aws:iam::aws:policy/My-Managed-Policy-1",
+		},
+	}
+
+	for _, tc := range tt {
+		resp := getManagedPolicyARNs(tc.input)
+		if !reflect.DeepEqual(resp, tc.expected) {
+			t.Fatalf("Test Case [%s] Failed Expected [%s] Got [%s]\n", tc.testCase, tc.expected, resp)
+		}
+	}
+}

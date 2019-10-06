@@ -173,6 +173,7 @@ type EKSCFConfiguration struct {
 	BootstrapArguments string              `json:"bootstrapArguments,omitempty"`
 	SpotPrice          string              `json:"spotPrice,omitempty"`
 	Tags               []map[string]string `json:"tags,omitempty"`
+	ManagedPolicies    []string            `json:"managedPolicies,omitempty"`
 }
 
 // InstanceGroupStatus defines the schema of resource Status
