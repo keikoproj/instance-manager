@@ -476,7 +476,6 @@ func (ctx *EksCfInstanceGroupContext) processParameters() error {
 		"VpcId":                       ctx.VpcID,
 		"ManagedPolicyARNs":           getManagedPolicyARNs(specConfig.ManagedPolicies),
 		"NodeAutoScalingGroupMetrics": getNodeAutoScalingGroupMetrics(specConfig.GetMetricsCollection()),
-
 	}
 
 	var parameters []*cloudformation.Parameter

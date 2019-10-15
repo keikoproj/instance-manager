@@ -772,6 +772,9 @@ data:
       Subnets:
         Description: The subnets where workers can be created.
         Type: List<AWS::EC2::Subnet::Id>
+      ManagedPolicyARNs:
+        Description: List of Managed IAM Policy ARNs to be attached to instance groups
+        Type: List<String>
     Metadata:
       AWS::CloudFormation::Interface:
         ParameterGroups:
@@ -793,6 +796,7 @@ data:
               - NodeVolumeSize
               - KeyName
               - BootstrapArguments
+              - ManagedPolicyARNs
           -
             Label:
               default: "Worker Network Configuration"
@@ -819,10 +823,7 @@ data:
               Action:
               - sts:AssumeRole
           Path: "/"
-          ManagedPolicyArns:
-            - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
-            - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
-            - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+          ManagedPolicyArns: !Ref ManagedPolicyARNs
       NodeGroup:
         Type: AWS::AutoScaling::AutoScalingGroup
         Properties:
