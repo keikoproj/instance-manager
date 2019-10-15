@@ -183,6 +183,7 @@ data:
           - Key: KubernetesCluster
             Value: !Ref ClusterName
             PropagateAtLaunch: 'true'
+          {{if .Spec.EKSCFSpec.EKSCFConfiguration.MetricsCollection}}
           MetricsCollection:
           {{$metrics := index .Spec.EKSCFSpec.EKSCFConfiguration.MetricsCollection 0}}
           {{if (eq $metrics "all")}}
@@ -191,6 +192,7 @@ data:
           - Metrics:
               !Ref NodeAutoScalingGroupMetrics
             Granularity: "1Minute"
+          {{end}}
           {{end}}
         {{$strategy := .Spec.AwsUpgradeStrategy.Type | ToLower}}
         {{if (eq $strategy "rollingupdate")}}
