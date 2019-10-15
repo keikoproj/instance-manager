@@ -1265,7 +1265,7 @@ func TestGetNodeAutoScalingGroupMetrics(t *testing.T) {
 	}
 
 	for _, tc := range tt {
-		resp := getManagedPolicyARNs(tc.input)
+		resp := getNodeAutoScalingGroupMetrics(tc.input)
 		if !reflect.DeepEqual(resp, tc.expected) {
 			t.Fatalf("Test Case [%s] Failed Expected [%s] Got [%s]\n", tc.testCase, tc.expected, resp)
 		}

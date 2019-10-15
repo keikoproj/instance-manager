@@ -513,7 +513,7 @@ func getManagedPolicyARNs(pNames []string) string {
 }
 
 func getNodeAutoScalingGroupMetrics(metrics []string) string {
-	if len(metrics) == 1 && metrics[0] == "all" {
+	if len(metrics) == 0 || len(metrics) == 1 && metrics[0] == "all" {
 		return ""
 	}
 	var resp []string
