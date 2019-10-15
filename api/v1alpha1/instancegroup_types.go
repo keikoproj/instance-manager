@@ -174,6 +174,7 @@ type EKSCFConfiguration struct {
 	SpotPrice          string              `json:"spotPrice,omitempty"`
 	Tags               []map[string]string `json:"tags,omitempty"`
 	ManagedPolicies    []string            `json:"managedPolicies,omitempty"`
+	MetricsCollection  []string            `json:"metricsCollection,omitempty"`
 }
 
 // InstanceGroupStatus defines the schema of resource Status
