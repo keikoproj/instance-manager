@@ -512,12 +512,12 @@ func getManagedPolicyARNs(pNames []string) string {
 	return common.ConcatonateList(managedPolicyARNs, ",")
 }
 
-func getNodeAutoScalingGroupMetrics(metrics []string ) string{
+func getNodeAutoScalingGroupMetrics(metrics []string) string {
 	if len(metrics) == 1 && metrics[0] == "all" {
 		return ""
 	}
 	var resp []string
-	for _,metric := range metrics {
+	for _, metric := range metrics {
 		resp = append(resp, strings.Title(metric))
 	}
 	return common.ConcatonateList(resp, ",")
