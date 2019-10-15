@@ -108,6 +108,9 @@ data:
       Subnets:
         Description: The subnets where workers can be created.
         Type: List<AWS::EC2::Subnet::Id>
+      ManagedPolicyARNs:
+        Description: List of Managed IAM Policy ARNs to be attached to instance groups
+        Type: List<String>
       NodeAutoScalingGroupMetrics:
         Description: The Metrics that an Amazon EC2 ASG sends to Amazon CloudWatch.
         Type: List<String>
@@ -132,6 +135,7 @@ data:
               - NodeVolumeSize
               - KeyName
               - BootstrapArguments
+              - ManagedPolicyARNs
               - NodeAutoScalingGroupMetrics
           -
             Label:
@@ -159,10 +163,7 @@ data:
               Action:
               - sts:AssumeRole
           Path: "/"
-          ManagedPolicyArns:
-            - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
-            - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
-            - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+          ManagedPolicyArns: !Ref ManagedPolicyARNs
       NodeGroup:
         Type: AWS::AutoScaling::AutoScalingGroup
         Properties:
@@ -183,9 +184,14 @@ data:
             Value: !Ref ClusterName
             PropagateAtLaunch: 'true'
           MetricsCollection:
-            Metrics:
+          {{$metrics := index .Spec.EKSCFSpec.EKSCFConfiguration.MetricsCollection 0}}
+          {{if (eq $metrics "all")}}
+          - Granularity: "1Minute"
+          {{else}}
+          - Metrics:
               !Ref NodeAutoScalingGroupMetrics
             Granularity: "1Minute"
+          {{end}}
         {{$strategy := .Spec.AwsUpgradeStrategy.Type | ToLower}}
         {{if (eq $strategy "rollingupdate")}}
         UpdatePolicy:

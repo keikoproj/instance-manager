@@ -27,11 +27,16 @@ create
 Using the `Makefile` you can use `make run` to run instance-manager locally on your machine, and it will try to reconcile InstanceGroups in the cluster.
 Make sure the context you are in is correct and that you scaled down the actual instance-manager controller pod.
 
+1. You need to create 2 files for controller config and cfn and copy the data section from #config/crd/bases/instance-manager-configmap.yaml respectively
+2. Make sure you have AWS Credentials and region exported so that your local instance-manager controller can execute a cloud formation template
+
+
 ### Example
 
 ```bash
 $ kubectl scale deployment instance-manager --replicas 0
 deployment.extensions/instance-manager scaled
+
 
 $ make run
 /Users/eibissror/go/bin/controller-gen object:headerFile=./hack/boilerplate.go.txt paths=./api/...

@@ -435,6 +435,10 @@ spec:
                       type: string
                     keyPairName:
                       type: string
+                    managedPolicies:
+                      items:
+                        type: string
+                      type: array
                     securityGroups:
                       items:
                         type: string

@@ -173,14 +173,8 @@ type EKSCFConfiguration struct {
 	BootstrapArguments string              `json:"bootstrapArguments,omitempty"`
 	SpotPrice          string              `json:"spotPrice,omitempty"`
 	Tags               []map[string]string `json:"tags,omitempty"`
-	MetricsCollection  []string            `json:"metricsCollection,omitempty"`
+	ManagedPolicies    []string            `json:"managedPolicies,omitempty"`
 }
-
-// MetricsCollection defines the schema for AWS::AutoScaling::AutoScalingGroup MetricsCollection
-//type MetricsCollection struct {
-//	Metrics			   []string            `json:"metrics"`
-//	Granularity 	   string              `json:"granularity,omitempty"`
-//}
 
 // InstanceGroupStatus defines the schema of resource Status
 type InstanceGroupStatus struct {

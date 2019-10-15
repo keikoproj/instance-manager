@@ -474,7 +474,9 @@ func (ctx *EksCfInstanceGroupContext) processParameters() error {
 		"BootstrapArguments":          bootstrapArgs,
 		"NodeGroupName":               ctx.AwsWorker.StackName,
 		"VpcId":                       ctx.VpcID,
-		"NodeAutoScalingGroupMetrics": common.ConcatonateList(strings.Title(fmt.Sprint(specConfig.GetMetricsCollection())), ","),
+		"ManagedPolicyARNs":           getManagedPolicyARNs(specConfig.ManagedPolicies),
+		"NodeAutoScalingGroupMetrics": getNodeAutoScalingGroupMetrics(specConfig.GetMetricsCollection()),
+
 	}
 
 	var parameters []*cloudformation.Parameter
@@ -488,4 +490,36 @@ func (ctx *EksCfInstanceGroupContext) processParameters() error {
 	ctx.AwsWorker.StackParameters = parameters
 	ctx.parseTags()
 	return nil
+}
+
+//getManagedPolicyARNs constructs managed policy arns
+func getManagedPolicyARNs(pNames []string) string {
+	//This is for Managed Policy ARN list.
+	//First add the DEFAULT required policies to the list passed by user as part of custom resource
+	var managedPolicyARNs []string
+	requiredPolicies := []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}
+	policyPrefix := "arn:aws:iam::aws:policy/"
+	for _, name := range requiredPolicies {
+		managedPolicyARNs = append(managedPolicyARNs, fmt.Sprintf("%s%s", policyPrefix, name))
+	}
+	// Add the user supplied policy names if any
+	if len(pNames) != 0 {
+		for _, name := range pNames {
+			// Trim the prefix arn:aws:iam::aws:policy/ if user supplied entire ARN instead of just name
+			managedPolicyARNs = append(managedPolicyARNs, fmt.Sprintf("%s%s", policyPrefix, strings.TrimPrefix(name, policyPrefix)))
+		}
+	}
+
+	return common.ConcatonateList(managedPolicyARNs, ",")
+}
+
+func getNodeAutoScalingGroupMetrics(metrics []string ) string{
+	if len(metrics) == 1 && metrics[0] == "all" {
+		return ""
+	}
+	var resp []string
+	for _,metric := range metrics {
+		resp = append(resp, strings.Title(metric))
+	}
+	return common.ConcatonateList(resp, ",")
 }
