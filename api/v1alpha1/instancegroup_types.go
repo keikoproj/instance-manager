@@ -426,6 +426,14 @@ func (conf *EKSCFConfiguration) SetTags(tags []map[string]string) {
 	conf.Tags = tags
 }
 
+func (conf *EKSCFConfiguration) GetMetricsCollection() []string {
+	return conf.MetricsCollection
+}
+
+func (conf *EKSCFConfiguration) SetMetricsCollection(metricsCollection []string) {
+	conf.MetricsCollection = metricsCollection
+}
+
 func (ig *InstanceGroup) GetState() ReconcileState {
 	return ReconcileState(ig.Status.CurrentState)
 }
