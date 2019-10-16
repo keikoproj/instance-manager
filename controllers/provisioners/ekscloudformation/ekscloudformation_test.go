@@ -1240,3 +1240,35 @@ func TestGetManagedPolicyARNs(t *testing.T) {
 		}
 	}
 }
+
+func TestGetNodeAutoScalingGroupMetrics(t *testing.T) {
+	tt := []struct {
+		testCase string
+		input    []string
+		expected string
+	}{
+		{
+			testCase: "NodeGroup with no metrics collection",
+			input:    []string{},
+			expected: "",
+		},
+		{
+			testCase: "NodeGroup metricsCollection with few metrics",
+			input:    []string{"groupMinSize", "groupMaxSize"},
+			expected: "GroupMinSize,GroupMaxSize",
+		},
+		{
+			testCase: "NodeGroup metricsCollection with all",
+			input:    []string{"all"},
+			expected: "",
+		},
+	}
+
+	for _, tc := range tt {
+		resp := getNodeAutoScalingGroupMetrics(tc.input)
+		if !reflect.DeepEqual(resp, tc.expected) {
+			t.Fatalf("Test Case [%s] Failed Expected [%s] Got [%s]\n", tc.testCase, tc.expected, resp)
+		}
+	}
+}
+

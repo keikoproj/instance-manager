@@ -111,6 +111,9 @@ data:
       ManagedPolicyARNs:
         Description: List of Managed IAM Policy ARNs to be attached to instance groups
         Type: List<String>
+      NodeAutoScalingGroupMetrics:
+        Description: The Metrics that an Amazon EC2 ASG sends to Amazon CloudWatch.
+        Type: List<String>
     Metadata:
       AWS::CloudFormation::Interface:
         ParameterGroups:
@@ -133,6 +136,7 @@ data:
               - KeyName
               - BootstrapArguments
               - ManagedPolicyARNs
+              - NodeAutoScalingGroupMetrics
           -
             Label:
               default: "Worker Network Configuration"
@@ -179,6 +183,17 @@ data:
           - Key: KubernetesCluster
             Value: !Ref ClusterName
             PropagateAtLaunch: 'true'
+          {{if .Spec.EKSCFSpec.EKSCFConfiguration.MetricsCollection}}
+          MetricsCollection:
+          {{$metrics := index .Spec.EKSCFSpec.EKSCFConfiguration.MetricsCollection 0}}
+          {{if (eq $metrics "all")}}
+          - Granularity: "1Minute"
+          {{else}}
+          - Metrics:
+              !Ref NodeAutoScalingGroupMetrics
+            Granularity: "1Minute"
+          {{end}}
+          {{end}}
         {{$strategy := .Spec.AwsUpgradeStrategy.Type | ToLower}}
         {{if (eq $strategy "rollingupdate")}}
         UpdatePolicy:

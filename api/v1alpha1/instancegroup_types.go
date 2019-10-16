@@ -174,6 +174,7 @@ type EKSCFConfiguration struct {
 	SpotPrice          string              `json:"spotPrice,omitempty"`
 	Tags               []map[string]string `json:"tags,omitempty"`
 	ManagedPolicies    []string            `json:"managedPolicies,omitempty"`
+	MetricsCollection  []string            `json:"metricsCollection,omitempty"`
 }
 
 // InstanceGroupStatus defines the schema of resource Status
@@ -424,6 +425,14 @@ func (conf *EKSCFConfiguration) GetTags() []map[string]string {
 
 func (conf *EKSCFConfiguration) SetTags(tags []map[string]string) {
 	conf.Tags = tags
+}
+
+func (conf *EKSCFConfiguration) GetMetricsCollection() []string {
+	return conf.MetricsCollection
+}
+
+func (conf *EKSCFConfiguration) SetMetricsCollection(metricsCollection []string) {
+	conf.MetricsCollection = metricsCollection
 }
 
 func (ig *InstanceGroup) GetState() ReconcileState {
