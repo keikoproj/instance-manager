@@ -1248,17 +1248,17 @@ func TestGetNodeAutoScalingGroupMetrics(t *testing.T) {
 		expected string
 	}{
 		{
-			testCase: "node group with no metrics collection",
+			testCase: "NodeGroup with no metrics collection",
 			input:    []string{},
 			expected: "",
 		},
 		{
-			testCase: "custom resource creation with few metrics",
+			testCase: "NodeGroup metricsCollection with few metrics",
 			input:    []string{"groupMinSize", "groupMaxSize"},
 			expected: "GroupMinSize,GroupMaxSize",
 		},
 		{
-			testCase: "custom resource creation with all metrics",
+			testCase: "NodeGroup metricsCollection with all",
 			input:    []string{"all"},
 			expected: "",
 		},
