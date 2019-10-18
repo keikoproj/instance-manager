@@ -1272,3 +1272,14 @@ func TestGetNodeAutoScalingGroupMetrics(t *testing.T) {
 	}
 }
 
+func TestParseCustomResourceYaml(t *testing.T) {
+	empty, err := common.ParseCustomResourceYaml("")
+	if (len(empty.Object) > 0)  {
+		t.Fatal("Object should be empty")
+		t.Fail();
+
+	}
+	if err != nil {
+		t.Fatal("Empty YAML string produces error")
+	}
+}
