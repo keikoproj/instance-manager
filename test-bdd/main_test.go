@@ -76,8 +76,6 @@ func TestE2e(t *testing.T) {
 	RunSpecsWithDefaultAndCustomReporters(t, "InstanceGroup Type Suite", []Reporter{junitReporter})
 }
 
-
-
 func newClientSet() ClientSet {
 	var clientSet ClientSet
 	flag.Parse()
