@@ -4,3 +4,4 @@ test-bdd/*.xml
 bin
 bin/*
 .DS_Store
+*.idea
