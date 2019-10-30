@@ -1274,9 +1274,9 @@ func TestGetNodeAutoScalingGroupMetrics(t *testing.T) {
 
 func TestParseCustomResourceYamlEmptyString(t *testing.T) {
 	empty, err := common.ParseCustomResourceYaml("")
-	if (len(empty.Object) > 0)  {
-		t.Fatalf("Expected ParseCustomResourceYaml to return Unstructured whose Unstructured.object is of length: 0 but" +
-			" instead object is of length %d", len(empty.Object));
+	if len(empty.Object) > 0 {
+		t.Fatalf("Expected ParseCustomResourceYaml to return Unstructured whose Unstructured.object is of length: 0 but"+
+			" instead object is of length %d", len(empty.Object))
 	}
 	if err != nil {
 		t.Fatal("Empty YAML string produces error")
