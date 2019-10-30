@@ -439,6 +439,10 @@ spec:
                       items:
                         type: string
                       type: array
+                    metricsCollection:
+                      items:
+                        type: string
+                      type: array
                     securityGroups:
                       items:
                         type: string
