@@ -88,6 +88,10 @@ func (ctx *EksCfInstanceGroupContext) setRollingStrategyConfigurationDefaults() 
 		pauseTime             = strategyConfiguration.GetPauseTime()
 	)
 
+	if strings.ToLower(instanceGroup.Spec.AwsUpgradeStrategy.Type) != "rollingupdate" {
+		return
+	}
+
 	if maxBatchSize == 0 {
 		strategyConfiguration.SetMaxBatchSize(1)
 	}
