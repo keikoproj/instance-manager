@@ -176,7 +176,7 @@ func (ctx *EksCfInstanceGroupContext) IsUpgradeNeeded() bool {
 	selfGroup := discovery.GetSelfGroup()
 	drifted, err := ctx.AwsWorker.DetectScalingGroupDrift(selfGroup.ScalingGroupName)
 	if err != nil {
-		log.Errorln("failed to detect if upgrade is needed")
+		log.Errorf("failed to detect if upgrade is needed: %v", err)
 		return false
 	}
 	if drifted {
@@ -491,10 +491,10 @@ func (ctx *EksCfInstanceGroupContext) processParameters() error {
 	return nil
 }
 
-//getManagedPolicyARNs constructs managed policy arns
+// getManagedPolicyARNs constructs managed policy arns
 func getManagedPolicyARNs(pNames []string) string {
-	//This is for Managed Policy ARN list.
-	//First add the DEFAULT required policies to the list passed by user as part of custom resource
+	// This is for Managed Policy ARN list.
+	// First add the DEFAULT required policies to the list passed by user as part of custom resource
 	var managedPolicyARNs []string
 	requiredPolicies := []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}
 	policyPrefix := "arn:aws:iam::aws:policy/"
