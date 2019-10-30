@@ -176,7 +176,7 @@ func (ctx *EksCfInstanceGroupContext) IsUpgradeNeeded() bool {
 	selfGroup := discovery.GetSelfGroup()
 	drifted, err := ctx.AwsWorker.DetectScalingGroupDrift(selfGroup.ScalingGroupName)
 	if err != nil {
-		log.Errorln("failed to detect if upgrade is needed")
+		log.Errorf("failed to detect if upgrade is needed: %v", err)
 		return false
 	}
 	if drifted {
