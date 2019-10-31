@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [v0.4.0-alpha] - 2019-10-30
+
+### Added
+
+- Basic spot-instance support (#36, #41)
+- Additional options for rollingUpdate (#44)
+- CFN stack prefixes (#46)
+- Managed policy support (#55)
+- MetricsCollection support (#57)
+
+### Changed
+
+- Switch to aws-auth library (#40, #43)
+- Improve reconcile of error states (#42)
+
+### Fixed
+
+- Fix rollingUpdate defaults (#59)
+
 ## [v0.3.2-alpha] - 2019-08-28
 
 ### Changed
