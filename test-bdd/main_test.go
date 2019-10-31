@@ -108,7 +108,7 @@ func newClientSet() ClientSet {
 }
 
 func getStackName(o *unstructured.Unstructured) string {
-	return fmt.Sprintf("%v-%v-%v", *EKSClusterName, o.GetNamespace(), o.GetName())
+	return fmt.Sprintf("%v-%v", *EKSClusterName, o.GetName())
 }
 
 var _ = Describe("instance-manager is installed", func() {
