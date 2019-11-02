@@ -28,6 +28,7 @@ import (
 	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	"github.com/sirupsen/logrus"
+	"regexp"
 )
 
 var (
@@ -504,8 +505,14 @@ func getManagedPolicyARNs(pNames []string) string {
 	// Add the user supplied policy names if any
 	if len(pNames) != 0 {
 		for _, name := range pNames {
-			// Trim the prefix arn:aws:iam::aws:policy/ if user supplied entire ARN instead of just name
-			managedPolicyARNs = append(managedPolicyARNs, fmt.Sprintf("%s%s", policyPrefix, strings.TrimPrefix(name, policyPrefix)))
+			// Append to list directly if user supplied entire ARN of policy
+			// Notes some customized policies may have prefix like 'arn:aws:iam::{account_number}:policy/' instead of 'arn:aws:iam::aws:policy/'
+			match, _ := regexp.MatchString("^arn:aws:iam::(aws|\\d{12}):policy/", name)
+			if match {
+				managedPolicyARNs = append(managedPolicyARNs, name)
+			} else {
+				managedPolicyARNs = append(managedPolicyARNs, fmt.Sprintf("%s%s", policyPrefix, name))
+			}
 		}
 	}
 
