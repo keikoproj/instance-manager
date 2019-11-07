@@ -173,6 +173,7 @@ type EKSCFConfiguration struct {
 	BootstrapArguments string              `json:"bootstrapArguments,omitempty"`
 	SpotPrice          string              `json:"spotPrice,omitempty"`
 	Tags               []map[string]string `json:"tags,omitempty"`
+	ExistingRoleName   string              `json:"roleName,omitempty"`
 	ManagedPolicies    []string            `json:"managedPolicies,omitempty"`
 	MetricsCollection  []string            `json:"metricsCollection,omitempty"`
 }
@@ -419,6 +420,13 @@ func (conf *EKSCFConfiguration) SetBootstrapArgs(args string) {
 	conf.BootstrapArguments = args
 }
 
+func (conf *EKSCFConfiguration) GetRoleName() string {
+	return conf.ExistingRoleName
+}
+
+func (conf *EKSCFConfiguration) SetRoleName(role string) {
+	conf.ExistingRoleName = role
+}
 func (conf *EKSCFConfiguration) GetTags() []map[string]string {
 	return conf.Tags
 }

@@ -114,6 +114,10 @@ data:
       NodeAutoScalingGroupMetrics:
         Description: The Metrics that an Amazon EC2 ASG sends to Amazon CloudWatch.
         Type: List<String>
+      ExistingRoleName:
+        Description: Optional - an existing iam role name to use for bootstrapping
+        Type: String
+        Default: ""
     Metadata:
       AWS::CloudFormation::Interface:
         ParameterGroups:
@@ -144,12 +148,8 @@ data:
               - VpcId
               - Subnets
     Resources:
-      NodeInstanceProfile:
-        Type: AWS::IAM::InstanceProfile
-        Properties:
-          Path: "/"
-          Roles:
-          - !Ref NodeInstanceRole
+
+      {{if not .Spec.EKSCFSpec.EKSCFConfiguration.ExistingRoleName}}
       NodeInstanceRole:
         Type: AWS::IAM::Role
         Properties:
@@ -164,6 +164,14 @@ data:
               - sts:AssumeRole
           Path: "/"
           ManagedPolicyArns: !Ref ManagedPolicyARNs
+      NodeInstanceProfile:
+        Type: AWS::IAM::InstanceProfile
+        Properties:
+          Path: "/"
+          Roles:
+          - !Ref NodeInstanceRole
+      {{end}}
+
       NodeGroup:
         Type: AWS::AutoScaling::AutoScalingGroup
         Properties:
@@ -214,7 +222,11 @@ data:
         Type: AWS::AutoScaling::LaunchConfiguration
         Properties:
           AssociatePublicIpAddress: 'false'
+          {{if not .Spec.EKSCFSpec.EKSCFConfiguration.ExistingRoleName}}
           IamInstanceProfile: !Ref NodeInstanceProfile
+          {{else}}
+          IamInstanceProfile: !Ref ExistingRoleName
+          {{end}}
           ImageId: !Ref NodeImageId
           InstanceType: !Ref NodeInstanceType
           KeyName: !Ref KeyName
@@ -242,7 +254,16 @@ data:
     Outputs:
       NodeInstanceRole:
         Description: The node instance role
+        {{if not .Spec.EKSCFSpec.EKSCFConfiguration.ExistingRoleName}}
         Value: !GetAtt NodeInstanceRole.Arn
+        {{else}}
+        Value: !Join
+          - ''
+          - - 'arn:aws:iam::'
+            - !Ref 'AWS::AccountId'
+            - ":role/"
+            - !Ref ExistingRoleName
+        {{end}}
       AsgName:
         Description: The ASG name
         Value: !Ref NodeGroup

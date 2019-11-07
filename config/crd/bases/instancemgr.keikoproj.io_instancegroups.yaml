@@ -443,6 +443,8 @@ spec:
                       items:
                         type: string
                       type: array
+                    roleName:
+                      type: string
                     securityGroups:
                       items:
                         type: string
