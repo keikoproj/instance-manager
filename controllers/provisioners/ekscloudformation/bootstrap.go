@@ -78,6 +78,9 @@ func (ctx *EksCfInstanceGroupContext) updateAuthConfigMap() error {
 
 	// Upsert ARNs from discovered state
 	for _, instanceGroup := range instanceGroups.Items {
+		if instanceGroup.ARN == "" {
+			continue
+		}
 		err = authMap.Upsert(getNodeUpsert(instanceGroup.ARN))
 		if err != nil {
 			return err
@@ -85,13 +88,16 @@ func (ctx *EksCfInstanceGroupContext) updateAuthConfigMap() error {
 	}
 	// Upsert ARNs from controller config
 	for _, arn := range ctx.DefaultARNList {
+		if arn == "" {
+			continue
+		}
 		err = authMap.Upsert(getNodeUpsert(arn))
 		if err != nil {
 			return err
 		}
 	}
 	// Remove selfARN in case of deletion event
-	if ctx.GetState() == v1alpha1.ReconcileInitDelete {
+	if ctx.GetState() == v1alpha1.ReconcileInitDelete && selfARN != "" {
 		err = authMap.Remove(getNodeRemove(selfARN))
 		if err != nil {
 			return err
