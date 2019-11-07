@@ -1231,6 +1231,11 @@ func TestGetManagedPolicyARNs(t *testing.T) {
 			input:    []string{"arn:aws:iam::aws:policy/My-Managed-Policy-1"},
 			expected: "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy,arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy,arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly,arn:aws:iam::aws:policy/My-Managed-Policy-1",
 		},
+		{
+			testCase: "custom resource creation with managed policy arn with account number",
+			input:    []string{"arn:aws:iam::123456789012:policy/My-Managed-Policy-3"},
+			expected: "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy,arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy,arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly,arn:aws:iam::123456789012:policy/My-Managed-Policy-3",
+		},
 	}
 
 	for _, tc := range tt {
