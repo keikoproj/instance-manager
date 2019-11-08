@@ -1205,6 +1205,36 @@ defaultArns:
 	}
 }
 
+func TestGetExistingRoleName(t *testing.T) {
+	tt := []struct {
+		testCase string
+		input    string
+		expected string
+	}{
+		{
+			testCase: "custom resource creation with no/empty role",
+			input:    "",
+			expected: "",
+		},
+		{
+			testCase: "custom resource creation with an existing role with prefix",
+			input:    "arn:aws:iam::0123456789123:role/some-role",
+			expected: "some-role",
+		},
+		{
+			testCase: "custom resource creation with an existing role without prefix",
+			input:    "some-role",
+			expected: "some-role",
+		},
+	}
+
+	for _, tc := range tt {
+		resp := getExistingRoleName(tc.input)
+		if !reflect.DeepEqual(resp, tc.expected) {
+			t.Fatalf("Test Case [%s] Failed Expected [%s] Got [%s]\n", tc.testCase, tc.expected, resp)
+		}
+	}
+}
 func TestGetManagedPolicyARNs(t *testing.T) {
 	tt := []struct {
 		testCase string

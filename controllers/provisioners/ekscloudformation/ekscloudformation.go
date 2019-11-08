@@ -155,6 +155,7 @@ func (ctx *EksCfInstanceGroupContext) Delete() error {
 		log.Errorf("failed to submit DeleteStack: %v", err)
 		return err
 	}
+
 	instanceGroup.SetState(v1alpha1.ReconcileDeleting)
 	ctx.reloadDiscoveryCache()
 	return nil
@@ -477,6 +478,7 @@ func (ctx *EksCfInstanceGroupContext) processParameters() error {
 		"VpcId":                       ctx.VpcID,
 		"ManagedPolicyARNs":           getManagedPolicyARNs(specConfig.ManagedPolicies),
 		"NodeAutoScalingGroupMetrics": getNodeAutoScalingGroupMetrics(specConfig.GetMetricsCollection()),
+		"ExistingRoleName":            getExistingRoleName(specConfig.GetRoleName()),
 	}
 
 	var parameters []*cloudformation.Parameter
@@ -490,6 +492,24 @@ func (ctx *EksCfInstanceGroupContext) processParameters() error {
 	ctx.AwsWorker.StackParameters = parameters
 	ctx.parseTags()
 	return nil
+}
+
+func getExistingRoleName(role string) string {
+	var (
+		rolePrefix       = ":role/"
+		existingRoleName string
+	)
+
+	if role == "" {
+		return role
+	} else if strings.Contains(role, rolePrefix) {
+		trim := strings.Split(role, rolePrefix)
+		existingRoleName = trim[1]
+	} else {
+		existingRoleName = role
+	}
+
+	return existingRoleName
 }
 
 // getManagedPolicyARNs constructs managed policy arns
