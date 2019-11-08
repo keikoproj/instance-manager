@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [v0.4.1-alpha] - 2019-11-07
+
+### Added
+
+- Existing IAM role support (#62)
+
+### Fixed
+
+- Managed policy prefix including account id (#61)
+
 ## [v0.4.0-alpha] - 2019-10-30
 
 ### Added
