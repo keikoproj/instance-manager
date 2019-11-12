@@ -426,7 +426,7 @@ func (conf *EKSCFConfiguration) GetRoleName() string {
 }
 
 func (conf *EKSCFConfiguration) SetRoleName(role string) {
-	conf.ExistingInstanceProfileName = role
+	conf.ExistingRoleName = role
 }
 
 func (conf *EKSCFConfiguration) GetInstanceProfileName() string {
