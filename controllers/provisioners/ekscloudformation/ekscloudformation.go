@@ -22,13 +22,14 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"regexp"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	"github.com/sirupsen/logrus"
-	"regexp"
 )
 
 var (
@@ -463,6 +464,8 @@ func (ctx *EksCfInstanceGroupContext) processParameters() error {
 		specConfig.SetVolSize(32)
 	}
 
+	existingRole, existingProfile := getExistingIAM(specConfig.GetRoleName(), specConfig.GetInstanceProfileName())
+
 	rawParameters := map[string]string{
 		"KeyName":                     specConfig.GetKeyName(),
 		"NodeImageId":                 specConfig.GetImage(),
@@ -478,7 +481,8 @@ func (ctx *EksCfInstanceGroupContext) processParameters() error {
 		"VpcId":                       ctx.VpcID,
 		"ManagedPolicyARNs":           getManagedPolicyARNs(specConfig.ManagedPolicies),
 		"NodeAutoScalingGroupMetrics": getNodeAutoScalingGroupMetrics(specConfig.GetMetricsCollection()),
-		"ExistingRoleName":            getExistingRoleName(specConfig.GetRoleName()),
+		"ExistingRoleName":            existingRole,
+		"ExistingInstanceProfileName": existingProfile,
 	}
 
 	var parameters []*cloudformation.Parameter
@@ -494,14 +498,15 @@ func (ctx *EksCfInstanceGroupContext) processParameters() error {
 	return nil
 }
 
-func getExistingRoleName(role string) string {
+func getExistingIAM(role, profile string) (string, string) {
 	var (
-		rolePrefix       = ":role/"
-		existingRoleName string
+		rolePrefix                                    = ":role/"
+		instanceProfilePrefix                         = ":instance-profile/"
+		existingRoleName, existingInstanceProfileName string
 	)
 
 	if role == "" {
-		return role
+		return role, profile
 	} else if strings.Contains(role, rolePrefix) {
 		trim := strings.Split(role, rolePrefix)
 		existingRoleName = trim[1]
@@ -509,7 +514,17 @@ func getExistingRoleName(role string) string {
 		existingRoleName = role
 	}
 
-	return existingRoleName
+	if profile == "" {
+		// use role name if profile not provided
+		existingInstanceProfileName = role
+	} else if strings.Contains(profile, instanceProfilePrefix) {
+		trim := strings.Split(profile, instanceProfilePrefix)
+		existingInstanceProfileName = trim[1]
+	} else {
+		existingInstanceProfileName = profile
+	}
+
+	return existingRoleName, existingInstanceProfileName
 }
 
 // getManagedPolicyARNs constructs managed policy arns

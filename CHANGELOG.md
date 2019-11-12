@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [v0.4.2-alpha] - 2019-12-07
+
+### Fixed
+
+- Support scenarios where existing IAM role is different than existing instance profile (#64)
+
 ## [v0.4.1-alpha] - 2019-11-07
 
 ### Added

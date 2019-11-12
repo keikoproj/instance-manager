@@ -118,6 +118,10 @@ data:
         Description: Optional - an existing iam role name to use for bootstrapping
         Type: String
         Default: ""
+      ExistingInstanceProfileName:
+        Description: Optional - an existing iam instance profile name to use for bootstrapping
+        Type: String
+        Default: ""
     Metadata:
       AWS::CloudFormation::Interface:
         ParameterGroups:
@@ -225,7 +229,7 @@ data:
           {{if not .Spec.EKSCFSpec.EKSCFConfiguration.ExistingRoleName}}
           IamInstanceProfile: !Ref NodeInstanceProfile
           {{else}}
-          IamInstanceProfile: !Ref ExistingRoleName
+          IamInstanceProfile: !Ref ExistingInstanceProfileName
           {{end}}
           ImageId: !Ref NodeImageId
           InstanceType: !Ref NodeInstanceType

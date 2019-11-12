@@ -163,19 +163,20 @@ type EKSCFSpec struct {
 
 // EKSCFConfiguration defines the context of an AWS Instance Group using EKSCF
 type EKSCFConfiguration struct {
-	EksClusterName     string              `json:"clusterName,omitempty"`
-	KeyPairName        string              `json:"keyPairName"`
-	Image              string              `json:"image"`
-	InstanceType       string              `json:"instanceType"`
-	NodeSecurityGroups []string            `json:"securityGroups"`
-	VolSize            int32               `json:"volSize,omitempty"`
-	Subnets            []string            `json:"subnets,omitempty"`
-	BootstrapArguments string              `json:"bootstrapArguments,omitempty"`
-	SpotPrice          string              `json:"spotPrice,omitempty"`
-	Tags               []map[string]string `json:"tags,omitempty"`
-	ExistingRoleName   string              `json:"roleName,omitempty"`
-	ManagedPolicies    []string            `json:"managedPolicies,omitempty"`
-	MetricsCollection  []string            `json:"metricsCollection,omitempty"`
+	EksClusterName              string              `json:"clusterName,omitempty"`
+	KeyPairName                 string              `json:"keyPairName"`
+	Image                       string              `json:"image"`
+	InstanceType                string              `json:"instanceType"`
+	NodeSecurityGroups          []string            `json:"securityGroups"`
+	VolSize                     int32               `json:"volSize,omitempty"`
+	Subnets                     []string            `json:"subnets,omitempty"`
+	BootstrapArguments          string              `json:"bootstrapArguments,omitempty"`
+	SpotPrice                   string              `json:"spotPrice,omitempty"`
+	Tags                        []map[string]string `json:"tags,omitempty"`
+	ExistingRoleName            string              `json:"roleName,omitempty"`
+	ExistingInstanceProfileName string              `json:"instanceProfileName,omitempty"`
+	ManagedPolicies             []string            `json:"managedPolicies,omitempty"`
+	MetricsCollection           []string            `json:"metricsCollection,omitempty"`
 }
 
 // InstanceGroupStatus defines the schema of resource Status
@@ -188,7 +189,7 @@ type InstanceGroupStatus struct {
 	ActiveScalingGroupName        string `json:"activeScalingGroupName,omitempty"`
 	NodesArn                      string `json:"nodesInstanceRoleArn,omitempty"`
 	StrategyResourceName          string `json:"strategyResourceName,omitempty"`
-	UsingSpotRecommendation       bool   `json:"usingSpotRecommendation"`
+	UsingSpotRecommendation       bool   `json:"usingSpotRecommendation,omitempty"`
 	Lifecycle                     string `json:"lifecycle,omitempty"`
 }
 
@@ -425,8 +426,17 @@ func (conf *EKSCFConfiguration) GetRoleName() string {
 }
 
 func (conf *EKSCFConfiguration) SetRoleName(role string) {
-	conf.ExistingRoleName = role
+	conf.ExistingInstanceProfileName = role
 }
+
+func (conf *EKSCFConfiguration) GetInstanceProfileName() string {
+	return conf.ExistingInstanceProfileName
+}
+
+func (conf *EKSCFConfiguration) SetInstanceProfileName(profile string) {
+	conf.ExistingInstanceProfileName = profile
+}
+
 func (conf *EKSCFConfiguration) GetTags() []map[string]string {
 	return conf.Tags
 }
