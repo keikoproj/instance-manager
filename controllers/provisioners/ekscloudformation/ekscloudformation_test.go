@@ -1205,33 +1205,58 @@ defaultArns:
 	}
 }
 
-func TestGetExistingRoleName(t *testing.T) {
+func TestGetExistingIAM(t *testing.T) {
 	tt := []struct {
-		testCase string
-		input    string
-		expected string
+		testCase        string
+		inputRole       string
+		inputProfile    string
+		expectedRole    string
+		expectedProfile string
 	}{
 		{
-			testCase: "custom resource creation with no/empty role",
-			input:    "",
-			expected: "",
+			testCase:        "custom resource creation with no/empty role",
+			inputRole:       "",
+			inputProfile:    "",
+			expectedRole:    "",
+			expectedProfile: "",
 		},
 		{
-			testCase: "custom resource creation with an existing role with prefix",
-			input:    "arn:aws:iam::0123456789123:role/some-role",
-			expected: "some-role",
+			testCase:        "custom resource creation with profile only",
+			inputRole:       "",
+			inputProfile:    "arn:aws:iam::0123456789123:instance-profile/some-profile",
+			expectedRole:    "",
+			expectedProfile: "",
 		},
 		{
-			testCase: "custom resource creation with an existing role without prefix",
-			input:    "some-role",
-			expected: "some-role",
+			testCase:        "custom resource creation with an existing role with prefix",
+			inputRole:       "arn:aws:iam::0123456789123:role/some-role",
+			inputProfile:    "",
+			expectedRole:    "some-role",
+			expectedProfile: "some-role",
+		},
+		{
+			testCase:        "custom resource creation with an existing role with prefix",
+			inputRole:       "arn:aws:iam::0123456789123:role/some-role",
+			inputProfile:    "arn:aws:iam::0123456789123:instance-profile/some-profile",
+			expectedRole:    "some-role",
+			expectedProfile: "some-profile",
+		},
+		{
+			testCase:        "custom resource creation with an existing role without prefix",
+			inputRole:       "some-role",
+			inputProfile:    "some-profile",
+			expectedRole:    "some-role",
+			expectedProfile: "some-profile",
 		},
 	}
 
 	for _, tc := range tt {
-		resp := getExistingRoleName(tc.input)
-		if !reflect.DeepEqual(resp, tc.expected) {
-			t.Fatalf("Test Case [%s] Failed Expected [%s] Got [%s]\n", tc.testCase, tc.expected, resp)
+		respRole, respProfile := getExistingIAM(tc.inputRole, tc.inputProfile)
+		if !reflect.DeepEqual(respRole, tc.expectedRole) {
+			t.Fatalf("Test Case [%s] Failed Expected Role [%s] Got [%s]\n", tc.testCase, tc.expectedRole, respRole)
+		}
+		if !reflect.DeepEqual(respProfile, tc.expectedProfile) {
+			t.Fatalf("Test Case [%s] Failed Expected Profile [%s] Got [%s]\n", tc.testCase, tc.expectedProfile, respProfile)
 		}
 	}
 }

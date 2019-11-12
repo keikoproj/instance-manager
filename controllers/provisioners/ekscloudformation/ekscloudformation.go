@@ -506,7 +506,7 @@ func getExistingIAM(role, profile string) (string, string) {
 	)
 
 	if role == "" {
-		return role, profile
+		return "", ""
 	} else if strings.Contains(role, rolePrefix) {
 		trim := strings.Split(role, rolePrefix)
 		existingRoleName = trim[1]
@@ -516,7 +516,7 @@ func getExistingIAM(role, profile string) (string, string) {
 
 	if profile == "" {
 		// use role name if profile not provided
-		existingInstanceProfileName = role
+		existingInstanceProfileName = existingRoleName
 	} else if strings.Contains(profile, instanceProfilePrefix) {
 		trim := strings.Split(profile, instanceProfilePrefix)
 		existingInstanceProfileName = trim[1]
