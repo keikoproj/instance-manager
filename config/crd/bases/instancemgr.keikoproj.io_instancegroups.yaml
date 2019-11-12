@@ -431,6 +431,8 @@ spec:
                       type: string
                     image:
                       type: string
+                    instanceProfileName:
+                      type: string
                     instanceType:
                       type: string
                     keyPairName:
@@ -549,8 +551,6 @@ spec:
               type: string
             usingSpotRecommendation:
               type: boolean
-          required:
-          - usingSpotRecommendation
           type: object
       required:
       - metadata
