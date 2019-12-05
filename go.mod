@@ -3,7 +3,7 @@ module github.com/keikoproj/instance-manager
 go 1.12
 
 require (
-	github.com/aws/aws-sdk-go v1.20.19
+	github.com/aws/aws-sdk-go v1.25.48
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v0.1.0
 	github.com/keikoproj/aws-auth v0.0.0-20190910182258-c705a9d52f92
