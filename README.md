@@ -112,11 +112,11 @@ spec:
     - namespace1:
       labels:
         key1: "value1"
-	     key2: "value2"
+	key2: "value2"
     - namespace2:
       labels:
         key1: "value1"
-	     key2: "value2"
+	key2: "value2"
     tags:
       key1: "value1"
       key2: "value2"
