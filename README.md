@@ -36,10 +36,12 @@ _For more examples and usage, please refer to the [Installation Reference Walkth
 | eks-cf | provision nodes on EKS using cloudformation | ✅ |
 | eks-tf | provision nodes on EKS using terraform | ⚠️🔜 |
 | ec2-kops | provision nodes on AWS using Kops | ⚠️🔜 |
+| eks-fargate | provision a cluster to run pods on fargate|⚠️🔜|
 
 To create an instance group, submit an InstanceGroup spec to the controller.
 
-### Sample spec
+### Sample Specs (by provisioner)
+#### *eks-cf* provisioner
 
 ```yaml
 apiVersion: instancemgr.keikoproj.io/v1alpha1
@@ -78,6 +80,51 @@ spec:
       tags:
         - key: mykey
           value: myvalue
+```
+#### *eks-tf* provisioner
+Coming soon
+
+#### *ec2-kops* provisioner 
+Coming soon
+
+#### *eks-fargate* provisioner
+
+```yaml
+apiVersion: instancemgr.keikoproj.io/v1alpha1
+kind: InstanceGroup
+metadata:
+  name: hello-world
+spec:
+  # provision for EKS using Fargate
+  provisioner: eks-fargate
+  # provisioner configuration
+  eks-fargate:
+    fargateProfileName: "my-unique-profile-name"
+    clusterName: "the-cluster-for-my-pods"
+    podExecutionRoleArn: "arn:aws:iam::123456789012:role/MyPodRole"
+    subnets:
+    - subnet-1a2b3c4d
+    - subnet-4d3c2b1a
+    - subnet-0w9x8y7z
+    # Unique, case-sensitive identifier that you provide to ensure the idempotency of the request
+    clientRequestToken: ""
+    selectors:
+    - namespace1:
+      labels:
+        key1: "value1"
+	     key2: "value2"
+    - namespace2:
+      labels:
+        key1: "value1"
+	     key2: "value2"
+    tags:
+      key1: "value1"
+      key2: "value2"
+
+
+
+
+
 ```
 
 ### Submit & Verify
