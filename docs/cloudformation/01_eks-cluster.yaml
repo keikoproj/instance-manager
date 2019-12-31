@@ -27,7 +27,8 @@ Parameters:
       - '1.11'
       - '1.12'
       - '1.13'
-    Default: '1.13'
+      - '1.14'
+    Default: '1.14'
 Resources:
   Cluster:
     Type: 'AWS::EKS::Cluster'

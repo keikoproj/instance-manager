@@ -174,6 +174,20 @@ func (r *InstanceGroupReconciler) SetFinalizer(instanceGroup *v1alpha.InstanceGr
 	}
 }
 
+func (r *InstanceGroupReconciler) ReconcileEKSFargate(instanceGroup *v1alpha.InstanceGroup, finalizerName string) error {
+	if !instanceGroup.ObjectMeta.DeletionTimestamp.IsZero() {
+		instanceGroup.SetState(v1alpha.ReconcileDeleted)
+	} else {
+		instanceGroup.SetState(v1alpha.ReconcileReady)
+	}
+	r.Finalize(instanceGroup, finalizerName)
+	err := r.Update(context.Background(), instanceGroup)
+	if err != nil {
+		log.Infof("Update failed: %v", err)
+	}
+	return nil
+}
+
 func (r *InstanceGroupReconciler) ReconcileEKSCF(instanceGroup *v1alpha.InstanceGroup, finalizerName string) error {
 	log.Infof("upgrade strategy: %v", strings.ToLower(instanceGroup.Spec.AwsUpgradeStrategy.Type))
 	var specConfig = &instanceGroup.Spec.EKSCFSpec.EKSCFConfiguration
@@ -309,11 +323,11 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	log.Infof("resource provisioner: %v", strings.ToLower(ig.Spec.Provisioner))
 
 	// Add Finalizer if not present, and set the initial state
+	// Provisioner EKS-Cloudformation Reconciler
 	finalizerName := fmt.Sprintf("finalizers.%v.instancegroups.keikoproj.io", ig.Spec.Provisioner)
 	r.SetFinalizer(ig, finalizerName)
 
 	switch strings.ToLower(ig.Spec.Provisioner) {
-	// Provisioner EKS-Cloudformation Reconciler
 	case "eks-cf":
 		err := r.ReconcileEKSCF(ig, finalizerName)
 		if err != nil {
@@ -331,6 +345,17 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 			log.Infoln("reconcile completed with requeue")
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
+	case "eks-fargate":
+		//Some Silly logic to get and end to end loop working
+		currentState := ig.GetState()
+		log.Infof("eks-fargate current state: %v\n", currentState)
+
+		err := r.ReconcileEKSFargate(ig, finalizerName)
+		if err != nil {
+			log.Errorln(err)
+		}
+
+		return ctrl.Result{}, nil
 	default:
 		log.Errorln("provisioner not implemented")
 		return ctrl.Result{}, fmt.Errorf("provisioner '%v' not implemented", ig.Spec.Provisioner)

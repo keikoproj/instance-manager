@@ -89,6 +89,20 @@ Coming soon
 
 #### *eks-fargate* provisioner
 
+The purpose of this provisioner is to enable instance groups with AWS Fargate management. 
+
+By associating EKS clusters with a Fargate Profile, pods can be identified for execution through profile selectors. If a to-be-scheduled pod matches any of the selectors in the Fargate Profile, then that pod is scheduled on Fargate. 
+
+An EKS cluster can have multiple Fargate Profiles. If a pod matches multiple Fargate Profiles, Amazon EKS picks one of the matches at random.  
+
+EKS supports clusters with both local worker nodes and Fargate management.  If a pod is scheduled and matches a Fargate selector then Fargate manages the pod.  Otherwise the pod is scheduled on a worker node.  Clusters can be defined without any worker nodes (0) and completely rely upon Fargate for scheduling and running pods. 
+
+More on [Fargate](https://docs.aws.amazon.com/eks/latest/userguide/fargate.html).
+
+The provisioner will manage (create and delete) Fargate Profiles on any EKS cluster (within the account) regardless of whether the cluster was created via CloudFormation, the AWS CLI or the AWS API. 
+
+Below is an example specification for the **eks-fargate** provisioner
+
 ```yaml
 apiVersion: instancemgr.keikoproj.io/v1alpha1
 kind: InstanceGroup
@@ -106,8 +120,6 @@ spec:
     - subnet-1a2b3c4d
     - subnet-4d3c2b1a
     - subnet-0w9x8y7z
-    # Unique, case-sensitive identifier that you provide to ensure the idempotency of the request
-    clientRequestToken: ""
     selectors:
     - namespace1:
       labels:
@@ -121,11 +133,40 @@ spec:
       key1: "value1"
       key2: "value2"
 
+```
+Read more about the [Fargate Profile](https://docs.aws.amazon.com/eks/latest/userguide/fargate-profile.html).
 
+If the above `podExecutionRoleArn` parameter is not specified, the provisioner will create a simple, limited role and policy that enables the pod to start but not access any AWS resources.  
 
-
+```yaml
+Type: 'AWS::IAM::Role'
+Properties:
+  AssumeRolePolicyDocument:
+    Version: 2012-10-17
+    Statement:
+      - Effect: "Allow"
+        Principal:
+          Service: "eks-fargate-pods.amazonaws.com"
+        Action: "sts:AssumeRole"
+  ManagedPolicyArns:
+  - "arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy"
+  Path: /
+# Policies:
+#   - PolicyName: root
+#     PolicyDocument:
+#       Version: 2012-10-17
+#       Statement:
+#         - Effect: Allow
+#           Action: '*'
+#           Resource: '*'
 
 ```
+Most likely an execution role with access to addtional AWS resources will be required.  In this case, the above IAM role can be used as the basis to create a new, custom role. Uncomment the remaining lines in the above role to add custom policies, create the new role (via the AWS CLI or console) and then rerun the **eks-fargate** provisoner.  Specify the custom role ARN as the `podExecutionRoleArn` parameter value. 
+
+The **eks-fargate** provisioner does not have any unique state.  Using the AWS API, the provisoner will access the requested/targeted EKS cluster and Fargate Profile.  In addition to any AWS errors that occur, error status codes will be logged and returned on a request to:
+
+- Create a profile under an existing name.
+- Delete a non-existing profile.
 
 ### Submit & Verify
 

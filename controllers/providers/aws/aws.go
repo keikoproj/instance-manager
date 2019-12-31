@@ -325,3 +325,6 @@ func IsStackInConditionState(key string, condition string) bool {
 		return false
 	}
 }
+func CreateFargateProfile() error {
+	return nil
+}

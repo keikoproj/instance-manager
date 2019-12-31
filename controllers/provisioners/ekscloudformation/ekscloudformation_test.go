@@ -437,7 +437,7 @@ func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 		},
 		Spec: v1alpha1.InstanceGroupSpec{
 			Provisioner: "eks-cf",
-			EKSCFSpec: v1alpha1.EKSCFSpec{
+			EKSCFSpec: &v1alpha1.EKSCFSpec{
 				MaxSize: 3,
 				MinSize: 1,
 				EKSCFConfiguration: v1alpha1.EKSCFConfiguration{

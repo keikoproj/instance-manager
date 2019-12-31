@@ -4,6 +4,7 @@ kind: Namespace
 metadata:
   name: instance-manager
 ---
+---
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
@@ -487,6 +488,43 @@ spec:
               - minSize
               - configuration
               type: object
+            eks-fargate:
+              properties:
+                clusterName:
+                  type: string
+                fargateProfileName:
+                  type: string
+                podExecutionRoleArn:
+                  type: string
+                selectors:
+                  items:
+                    properties:
+                      labels:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      namespace:
+                        type: string
+                    required:
+                    - namespace
+                    - labels
+                    type: object
+                  type: array
+                subnets:
+                  items:
+                    type: string
+                  type: array
+                tags:
+                  items:
+                    additionalProperties:
+                      type: string
+                    type: object
+                  type: array
+              required:
+              - fargateProfileName
+              - clusterName
+              - subnets
+              type: object
             provisioner:
               type: string
             strategy:
@@ -530,7 +568,6 @@ spec:
               type: object
           required:
           - provisioner
-          - eks-cf
           - strategy
           type: object
         status:
@@ -969,7 +1006,8 @@ spec:
         app: instance-manager
     spec:
       containers:
-      - image: keikoproj/instance-manager:master
+      # image: keikoproj/instance-manager:master
+      - image: givt002/instance-manager:latest
         imagePullPolicy: Always
         name: instance-manager
         resources:

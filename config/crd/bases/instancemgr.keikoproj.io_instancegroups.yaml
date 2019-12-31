@@ -483,6 +483,45 @@ spec:
               - minSize
               - configuration
               type: object
+            eks-fargate:
+              properties:
+                clusterName:
+                  type: string
+                fargateProfileName:
+                  type: string
+                podExecutionRoleArn:
+                  type: string
+                selectors:
+                  items:
+                    properties:
+                      labels:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      namespace:
+                        type: string
+                    required:
+                    - namespace
+                    - labels
+                    type: object
+                  type: array
+                subnets:
+                  items:
+                    type: string
+                  type: array
+                tags:
+                  items:
+                    additionalProperties:
+                      type: string
+                    type: object
+                  type: array
+              required:
+              - fargateProfileName
+              - clusterName
+              - podExecutionRoleArn
+              - subnets
+              - selectors
+              type: object
             provisioner:
               type: string
             strategy:
@@ -526,7 +565,6 @@ spec:
               type: object
           required:
           - provisioner
-          - eks-cf
           - strategy
           type: object
         status:

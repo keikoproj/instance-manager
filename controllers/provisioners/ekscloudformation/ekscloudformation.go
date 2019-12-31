@@ -257,7 +257,7 @@ func (ctx *EksCfInstanceGroupContext) discoverInstanceGroups() {
 	}
 	instanceGroup := ctx.GetInstanceGroup()
 	spec := &instanceGroup.Spec
-	provisionerConfig := &spec.EKSCFSpec
+	provisionerConfig := spec.EKSCFSpec
 	specConfig := &provisionerConfig.EKSCFConfiguration
 	state := ctx.GetDiscoveredState()
 	stacks := state.GetCloudformationStacks()
@@ -345,7 +345,7 @@ func (ctx *EksCfInstanceGroupContext) parseTags() {
 	instanceGroup := ctx.GetInstanceGroup()
 	spec := &instanceGroup.Spec
 	meta := &instanceGroup.ObjectMeta
-	provisionerConfig := &spec.EKSCFSpec
+	provisionerConfig := spec.EKSCFSpec
 	specConfig := &provisionerConfig.EKSCFConfiguration
 
 	tags = map[string]string{
@@ -447,7 +447,7 @@ func (ctx *EksCfInstanceGroupContext) processParameters() error {
 	instanceGroup := ctx.GetInstanceGroup()
 	spec := &instanceGroup.Spec
 	meta := &instanceGroup.ObjectMeta
-	provisionerConfig := &spec.EKSCFSpec
+	provisionerConfig := spec.EKSCFSpec
 	specConfig := &provisionerConfig.EKSCFConfiguration
 
 	roleLabel := fmt.Sprintf("node-role.kubernetes.io/%v=\"\"", meta.GetName())
