@@ -474,8 +474,8 @@ func (ctx *EksCfInstanceGroupContext) processParameters() error {
 		"NodeVolumeSize":              fmt.Sprint(specConfig.GetVolSize()),
 		"NodeAutoScalingGroupMinSize": fmt.Sprint(provisionerConfig.GetMinSize()),
 		"NodeAutoScalingGroupMaxSize": fmt.Sprint(provisionerConfig.GetMaxSize()),
-		"NodeSecurityGroups":          common.ConcatonateList(specConfig.GetSecurityGroups(), ","),
-		"Subnets":                     common.ConcatonateList(specConfig.GetSubnets(), ","),
+		"NodeSecurityGroups":          common.ConcatenateList(specConfig.GetSecurityGroups(), ","),
+		"Subnets":                     common.ConcatenateList(specConfig.GetSubnets(), ","),
 		"BootstrapArguments":          bootstrapArgs,
 		"NodeGroupName":               ctx.AwsWorker.StackName,
 		"VpcId":                       ctx.VpcID,
@@ -551,7 +551,7 @@ func getManagedPolicyARNs(pNames []string) string {
 		}
 	}
 
-	return common.ConcatonateList(managedPolicyARNs, ",")
+	return common.ConcatenateList(managedPolicyARNs, ",")
 }
 
 func getNodeAutoScalingGroupMetrics(metrics []string) string {
@@ -562,5 +562,5 @@ func getNodeAutoScalingGroupMetrics(metrics []string) string {
 	for _, metric := range metrics {
 		resp = append(resp, strings.Title(metric))
 	}
-	return common.ConcatonateList(resp, ",")
+	return common.ConcatenateList(resp, ",")
 }

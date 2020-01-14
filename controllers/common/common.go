@@ -67,8 +67,8 @@ func RemoveString(slice []string, s string) (result []string) {
 	return
 }
 
-// ConcatonateList joins lists to strings delimited with `delimiter`
-func ConcatonateList(list []string, delimiter string) string {
+// ConcatenateList joins lists to strings delimited with `delimiter`
+func ConcatenateList(list []string, delimiter string) string {
 	return strings.Trim(strings.Join(strings.Fields(fmt.Sprint(list)), delimiter), "[]")
 }
 
