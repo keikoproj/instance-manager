@@ -71,9 +71,6 @@ func RemoveString(slice []string, s string) (result []string) {
 func ConcatenateList(list []string, delimiter string) string {
 	return strings.Trim(strings.Join(strings.Fields(fmt.Sprint(list)), delimiter), "[]")
 }
-func ConcatonateList(list []string, delimiter string) string {
-	return ConcatenateList(list, delimiter)
-}
 
 func ReadFile(path string) ([]byte, error) {
 	f, err := ioutil.ReadFile(path)
