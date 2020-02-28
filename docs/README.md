@@ -53,7 +53,7 @@ EKS_ROLE_ARN=$(aws cloudformation describe-stacks \
 # control plane security group
 aws cloudformation create-stack \
 --stack-name ${EKS_SECURITY_GROUP_STACK_NAME} \
---template-body file://cloudformation/00_eks-cluster-security-group.yaml \
+--template-body file://docs/cloudformation/00_eks-cluster-security-group.yaml \
 --parameters ParameterKey=VpcId,ParameterValue=${VPC_ID}
 
 aws cloudformation wait stack-create-complete --stack-name ${EKS_SECURITY_GROUP_STACK_NAME}
@@ -84,7 +84,7 @@ export EKS_CLUSTER_SUBNETS='subnet-000000001\,subnet-000000002\,subnet-000000003
 # eks control plane (this one takes a while!)
 aws cloudformation create-stack \
 --stack-name ${EKS_CONTROL_PLANE_STACK_NAME} \
---template-body file://cloudformation/01_eks-cluster.yaml \
+--template-body file://docs/cloudformation/01_eks-cluster.yaml \
 --parameters ParameterKey=ClusterName,ParameterValue=${EKS_CLUSTER_NAME} \
 ParameterKey=ServiceRoleArn,ParameterValue=${EKS_ROLE_ARN} \
 ParameterKey=SecurityGroupIds,ParameterValue=${EKS_SECURITY_GROUP_ID} \
@@ -163,7 +163,7 @@ aws ec2 create-key-pair --key-name ${KEYPAIR_NAME} --query 'KeyMaterial' \
 aws cloudformation create-stack \
 --stack-name ${NODE_GROUP_SERVICE_ROLE_STACK_NAME} \
 --capabilities CAPABILITY_IAM \
---template-body file://cloudformation/02_node-group-service-role.yaml
+--template-body file://docs/cloudformation/02_node-group-service-role.yaml
 
 aws cloudformation wait stack-create-complete --stack-name ${NODE_GROUP_SERVICE_ROLE_STACK_NAME}
 
@@ -182,7 +182,7 @@ NODE_GROUP_ROLE_NAME=$(aws cloudformation describe-stacks \
 # node security group
 aws cloudformation create-stack \
 --stack-name ${NODE_SECURITY_GROUP_STACK_NAME} \
---template-body file://cloudformation/02_node-group-security-group.yaml \
+--template-body file://docs/cloudformation/02_node-group-security-group.yaml \
 --parameters ParameterKey=ClusterName,ParameterValue=${EKS_CLUSTER_NAME} \
 ParameterKey=VpcId,ParameterValue=${VPC_ID} \
 ParameterKey=ClusterControlPlaneSecurityGroup,ParameterValue=${EKS_SECURITY_GROUP_ID}
@@ -210,7 +210,7 @@ To create a basic node group manually, refer to the documentation provided by AW
 # node group (creates 3 x t3.medium nodes)
 aws cloudformation create-stack \
 --stack-name ${NODE_GROUP_STACK_NAME} \
---template-body file://cloudformation/03_node-group.yaml \
+--template-body file://docs/cloudformation/03_node-group.yaml \
 --capabilities CAPABILITY_NAMED_IAM \
 --tags Key=instancegroups.keikoproj.io/ClusterName,Value=${EKS_CLUSTER_NAME} \
 --parameters ParameterKey=VpcId,ParameterValue=${VPC_ID} \
@@ -269,7 +269,7 @@ Create the resources described in [04_instance-manager.yaml](04_instance-manager
 - Deployment: instance-manager controller
 
 ```bash
-kubectl create -f ./04_instance-manager.yaml
+kubectl create -f ./docs/04_instance-manager.yaml
 namespace/instance-manager created
 customresourcedefinition.apiextensions.k8s.io/instancegroups.instancemgr.keikoproj.io created
 serviceaccount/instance-manager created
@@ -370,7 +370,7 @@ ip-10-105-234-167.us-west-2.compute.internal   Ready    hello-world   8m59s   v1
 Try upgrading the node group to a new AMI by changing the InstanceGroup resource. instance-manager considers any event where the launch configuration of the node group changes, an upgrade.
 
 ```bash
-cat <<EOF kubectl patch instancegroup hello-world --patch -
+cat <<EOF | kubectl patch instancegroup hello-world --patch -
 spec:
   eks-cf:
     configuration:
