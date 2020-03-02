@@ -460,6 +460,7 @@ func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 					StatusSuccessString: f.UpgradeStrategyCRDStatusSuccess,
 					StatusFailureString: f.UpgradeStrategyCRDStatusFail,
 				},
+				RollingUpgradeType: &v1alpha1.RollingUpgradeStrategy{},
 			},
 		},
 		Status: v1alpha1.InstanceGroupStatus{
@@ -488,7 +489,7 @@ func getSpotSuggestionEvent(id, scalingGroup, price string, useSpot bool, ts tim
 	return event
 }
 
-func getBasicContext(t *testing.T, awsMocker awsprovider.AwsWorker) EksCfInstanceGroupContext {
+func getBasicContext(t *testing.T, awsMocker awsprovider.AwsWorker) *EksCfInstanceGroupContext {
 	client := fake.NewSimpleClientset()
 	dynScheme := runtime.NewScheme()
 	dynClient := fakedynamic.NewSimpleDynamicClient(dynScheme)
@@ -565,7 +566,7 @@ func (u *EksCfUnitTest) Run(t *testing.T) {
 	if err != nil {
 		t.Fail()
 	}
-	u.Provisioner = &provisioner
+	u.Provisioner = provisioner
 
 	if len(u.ExistingEvents) != 0 {
 		for _, event := range u.ExistingEvents {

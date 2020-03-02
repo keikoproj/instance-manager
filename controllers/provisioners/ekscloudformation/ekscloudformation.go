@@ -57,7 +57,7 @@ const (
 )
 
 // New constructs a new instance group provisioner of EKS Cloudformation type
-func New(instanceGroup *v1alpha1.InstanceGroup, k common.KubernetesClientSet, w awsprovider.AwsWorker) (EksCfInstanceGroupContext, error) {
+func New(instanceGroup *v1alpha1.InstanceGroup, k common.KubernetesClientSet, w awsprovider.AwsWorker) (*EksCfInstanceGroupContext, error) {
 	log.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp: true,
 	})
@@ -65,10 +65,10 @@ func New(instanceGroup *v1alpha1.InstanceGroup, k common.KubernetesClientSet, w 
 
 	vpcID, err := w.DeriveEksVpcID(specConfig.GetClusterName())
 	if err != nil {
-		return EksCfInstanceGroupContext{}, err
+		return &EksCfInstanceGroupContext{}, err
 	}
 
-	ctx := EksCfInstanceGroupContext{
+	ctx := &EksCfInstanceGroupContext{
 		InstanceGroup:    instanceGroup,
 		KubernetesClient: k,
 		AwsWorker:        w,
@@ -80,7 +80,7 @@ func New(instanceGroup *v1alpha1.InstanceGroup, k common.KubernetesClientSet, w 
 	err = ctx.processParameters()
 	if err != nil {
 		log.Errorf("failed to parse cloudformation parameters: %v", err)
-		return EksCfInstanceGroupContext{}, err
+		return &EksCfInstanceGroupContext{}, err
 	}
 
 	return ctx, nil

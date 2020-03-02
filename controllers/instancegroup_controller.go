@@ -322,7 +322,7 @@ func (r *InstanceGroupReconciler) ReconcileEKSCF(instanceGroup *v1alpha.Instance
 
 	// Init State is set when handling reconcile
 	// Reconcile Handler
-	err = HandleReconcileRequest(&ctx)
+	err = HandleReconcileRequest(ctx)
 	if err != nil {
 		ctx.SetState(v1alpha.ReconcileErr)
 		r.Update(context.Background(), ctx.GetInstanceGroup())
