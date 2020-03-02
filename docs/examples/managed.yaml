@@ -11,7 +11,7 @@ spec:
   eks-managed:
     configuration:
       nodeRole: arn:aws:iam::32333344450:role/basic-eks-role
-      clusterName: instancemgr-dev
+      clusterName: my-eks-cluster
       amiType: AL2_x86_64
       instanceType: m3.medium
       keyPairName: MyKeyPair

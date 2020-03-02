@@ -34,6 +34,7 @@ _For more examples and usage, please refer to the [Installation Reference Walkth
 | Provisioner | Description | Supported?
 | :--- | :--- | :---: |
 | eks-cf | provision nodes on EKS using cloudformation | ✅ |
+| eks-managed | provision managed node groups for EKS | ✅ |
 | eks-tf | provision nodes on EKS using terraform | ⚠️🔜 |
 | ec2-kops | provision nodes on AWS using Kops | ⚠️🔜 |
 
