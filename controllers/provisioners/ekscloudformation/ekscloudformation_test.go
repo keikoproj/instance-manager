@@ -437,10 +437,10 @@ func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 		},
 		Spec: v1alpha1.InstanceGroupSpec{
 			Provisioner: "eks-cf",
-			EKSCFSpec: v1alpha1.EKSCFSpec{
+			EKSCFSpec: &v1alpha1.EKSCFSpec{
 				MaxSize: 3,
 				MinSize: 1,
-				EKSCFConfiguration: v1alpha1.EKSCFConfiguration{
+				EKSCFConfiguration: &v1alpha1.EKSCFConfiguration{
 					BootstrapArguments: f.BootstrapArguments,
 					Tags: []map[string]string{
 						{
@@ -452,7 +452,7 @@ func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 			},
 			AwsUpgradeStrategy: v1alpha1.AwsUpgradeStrategy{
 				Type: f.UpgradeStrategyType,
-				CRDType: v1alpha1.CRDUpgradeStrategy{
+				CRDType: &v1alpha1.CRDUpgradeStrategy{
 					Spec:                f.UpgradeStrategyCRDSpec,
 					ConcurrencyPolicy:   f.ConcurrencyPolicy,
 					CRDName:             f.UpgradeStrategyCRD,
@@ -1179,7 +1179,7 @@ defaultArns:
 - MyARN-1
 - MyARN-2`)
 	ig := ctx.GetInstanceGroup()
-	specConfig := &ig.Spec.EKSCFSpec.EKSCFConfiguration
+	specConfig := ig.Spec.EKSCFSpec.EKSCFConfiguration
 	config, err := LoadControllerConfiguration(ig, payload)
 	if err != nil {
 		t.Fatal("Test_ControllerConfigLoader expected error not to have occured")

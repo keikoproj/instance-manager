@@ -28,6 +28,7 @@ import (
 	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/keikoproj/instance-manager/controllers/providers/aws"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/ekscloudformation"
+	"github.com/keikoproj/instance-manager/controllers/provisioners/eksmanaged"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -174,9 +175,76 @@ func (r *InstanceGroupReconciler) SetFinalizer(instanceGroup *v1alpha.InstanceGr
 	}
 }
 
+func (r *InstanceGroupReconciler) ReconcileEKSManaged(instanceGroup *v1alpha.InstanceGroup, finalizerName string) error {
+	log.Infof("upgrade strategy: %v", strings.ToLower(instanceGroup.Spec.AwsUpgradeStrategy.Type))
+
+	client, err := common.GetKubernetesClient()
+	if err != nil {
+		return err
+	}
+
+	dynClient, err := common.GetKubernetesDynamicClient()
+	if err != nil {
+		return err
+	}
+
+	awsRegion, err := aws.GetRegion()
+	if err != nil {
+		return err
+	}
+
+	kube := common.KubernetesClientSet{
+		Kubernetes:  client,
+		KubeDynamic: dynClient,
+	}
+
+	if _, err := os.Stat(r.ControllerConfPath); os.IsNotExist(err) {
+		log.Errorf("controller config file not found: %v", err)
+		return err
+	}
+
+	controllerConfig, err := common.ReadFile(r.ControllerConfPath)
+	if err != nil {
+		return err
+	}
+
+	_, err = eksmanaged.LoadControllerConfiguration(instanceGroup, controllerConfig)
+	if err != nil {
+		log.Errorf("failed to load controller configuration: %v", err)
+		return err
+	}
+
+	awsWorker := aws.AwsWorker{
+		AsgClient: aws.GetAwsAsgClient(awsRegion),
+		EksClient: aws.GetAwsEksClient(awsRegion),
+	}
+
+	ctx, err := eksmanaged.New(instanceGroup, kube, awsWorker)
+	if err != nil {
+		return fmt.Errorf("failed to create a new eksmanaged provisioner: %v", err)
+	}
+	ctx.ControllerRegion = awsRegion
+
+	err = HandleReconcileRequest(&ctx)
+	if err != nil {
+		ctx.SetState(v1alpha.ReconcileErr)
+		r.Update(context.Background(), ctx.GetInstanceGroup())
+		return err
+	}
+	// Remove finalizer if deleted
+	r.Finalize(instanceGroup, finalizerName)
+
+	// Update resource with changes
+	err = r.Update(context.Background(), ctx.GetInstanceGroup())
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (r *InstanceGroupReconciler) ReconcileEKSCF(instanceGroup *v1alpha.InstanceGroup, finalizerName string) error {
 	log.Infof("upgrade strategy: %v", strings.ToLower(instanceGroup.Spec.AwsUpgradeStrategy.Type))
-	var specConfig = &instanceGroup.Spec.EKSCFSpec.EKSCFConfiguration
+	var specConfig = instanceGroup.Spec.EKSCFSpec.EKSCFConfiguration
 
 	client, err := common.GetKubernetesClient()
 	if err != nil {
@@ -314,12 +382,27 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 
 	switch strings.ToLower(ig.Spec.Provisioner) {
 	// Provisioner EKS-Cloudformation Reconciler
+	case "eks-managed":
+		err := r.ReconcileEKSManaged(ig, finalizerName)
+		if err != nil {
+			log.Errorln(err)
+		}
+		currentState := ig.GetState()
+		if currentState == v1alpha.ReconcileErr {
+			log.Errorln("reconcile failed")
+			return ctrl.Result{}, nil
+		} else if currentState == v1alpha.ReconcileDeleted || currentState == v1alpha.ReconcileReady {
+			log.Infoln("reconcile completed")
+			return ctrl.Result{}, nil
+		} else {
+			log.Infoln("reconcile completed with requeue")
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+		}
 	case "eks-cf":
 		err := r.ReconcileEKSCF(ig, finalizerName)
 		if err != nil {
 			log.Errorln(err)
 		}
-
 		currentState := ig.GetState()
 		if currentState == v1alpha.ReconcileErr {
 			log.Errorln("reconcile failed")

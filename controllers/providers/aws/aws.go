@@ -41,6 +41,137 @@ type AwsWorker struct {
 	StackName       string
 	StackTags       []*cloudformation.Tag
 	StackParameters []*cloudformation.Parameter
+	Parameters      map[string]interface{}
+}
+
+func (w *AwsWorker) GetNodeGroupStatus() (error, string) {
+	var (
+		nodeGroupStatus string
+	)
+	input := &eks.DescribeNodegroupInput{
+		ClusterName:   aws.String(w.Parameters["ClusterName"].(string)),
+		NodegroupName: aws.String(w.Parameters["NodegroupName"].(string)),
+	}
+	output, err := w.EksClient.DescribeNodegroup(input)
+	if err != nil {
+		return err, nodeGroupStatus
+	}
+	nodeGroupStatus = aws.StringValue(output.Nodegroup.Status)
+
+	return nil, nodeGroupStatus
+}
+
+func (w *AwsWorker) IsNodeGroupExist() bool {
+	input := &eks.DescribeNodegroupInput{
+		ClusterName:   aws.String(w.Parameters["ClusterName"].(string)),
+		NodegroupName: aws.String(w.Parameters["NodegroupName"].(string)),
+	}
+	_, err := w.EksClient.DescribeNodegroup(input)
+	if err != nil {
+		if awsErr, ok := err.(awserr.Error); ok {
+			if awsErr.Code() == eks.ErrCodeResourceNotFoundException {
+				return false
+			}
+		}
+		log.Errorln(err)
+		return false
+	}
+
+	return true
+}
+
+func (w *AwsWorker) GetSelfNodeGroup() (error, *eks.Nodegroup) {
+	input := &eks.DescribeNodegroupInput{
+		ClusterName:   aws.String(w.Parameters["ClusterName"].(string)),
+		NodegroupName: aws.String(w.Parameters["NodegroupName"].(string)),
+	}
+	output, err := w.EksClient.DescribeNodegroup(input)
+	if err != nil {
+		return err, &eks.Nodegroup{}
+	}
+	return nil, output.Nodegroup
+}
+
+func (w *AwsWorker) DeleteManagedNodeGroup() error {
+	input := &eks.DeleteNodegroupInput{
+		ClusterName:   aws.String(w.Parameters["ClusterName"].(string)),
+		NodegroupName: aws.String(w.Parameters["NodegroupName"].(string)),
+	}
+	_, err := w.EksClient.DeleteNodegroup(input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) UpdateManagedNodeGroup(currentDesired int64) error {
+	input := &eks.UpdateNodegroupConfigInput{
+		ClusterName:   aws.String(w.Parameters["ClusterName"].(string)),
+		NodegroupName: aws.String(w.Parameters["NodegroupName"].(string)),
+		ScalingConfig: &eks.NodegroupScalingConfig{
+			MaxSize:     aws.Int64(w.Parameters["MaxSize"].(int64)),
+			MinSize:     aws.Int64(w.Parameters["MinSize"].(int64)),
+			DesiredSize: aws.Int64(currentDesired),
+		},
+		Labels: &eks.UpdateLabelsPayload{
+			AddOrUpdateLabels: aws.StringMap(w.Parameters["Labels"].(map[string]string)),
+		},
+	}
+	_, err := w.EksClient.UpdateNodegroupConfig(input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) CreateManagedNodeGroup() error {
+	input := &eks.CreateNodegroupInput{
+		AmiType:        aws.String(w.Parameters["AmiType"].(string)),
+		ClusterName:    aws.String(w.Parameters["ClusterName"].(string)),
+		DiskSize:       aws.Int64(w.Parameters["DiskSize"].(int64)),
+		InstanceTypes:  aws.StringSlice(w.Parameters["InstanceTypes"].([]string)),
+		Labels:         aws.StringMap(w.Parameters["Labels"].(map[string]string)),
+		NodeRole:       aws.String(w.Parameters["NodeRole"].(string)),
+		NodegroupName:  aws.String(w.Parameters["NodegroupName"].(string)),
+		ReleaseVersion: aws.String(w.Parameters["ReleaseVersion"].(string)),
+		RemoteAccess: &eks.RemoteAccessConfig{
+			Ec2SshKey:            aws.String(w.Parameters["Ec2SshKey"].(string)),
+			SourceSecurityGroups: aws.StringSlice(w.Parameters["SourceSecurityGroups"].([]string)),
+		},
+		ScalingConfig: &eks.NodegroupScalingConfig{
+			MaxSize:     aws.Int64(w.Parameters["MaxSize"].(int64)),
+			MinSize:     aws.Int64(w.Parameters["MinSize"].(int64)),
+			DesiredSize: aws.Int64(w.Parameters["MinSize"].(int64)),
+		},
+		Subnets: aws.StringSlice(w.Parameters["Subnets"].([]string)),
+		Tags:    aws.StringMap(w.compactTags(w.Parameters["Tags"].([]map[string]string))),
+		Version: aws.String(w.Parameters["Version"].(string)),
+	}
+
+	_, err := w.EksClient.CreateNodegroup(input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) compactTags(tags []map[string]string) map[string]string {
+	compacted := make(map[string]string)
+	for _, tagSet := range tags {
+		var (
+			key   string
+			value string
+		)
+		for t, v := range tagSet {
+			if t == "key" {
+				key = v
+			} else if t == "value" {
+				value = v
+			}
+		}
+		compacted[key] = value
+	}
+	return compacted
 }
 
 func (w *AwsWorker) CreateCloudformationStack() error {
@@ -287,6 +418,44 @@ var FiniteDeleted = CloudformationReconcileState{FiniteDeleted: true}
 var UpdateRecoverableError = CloudformationReconcileState{UpdateRecoverableError: true}
 var UnrecoverableError = CloudformationReconcileState{UnrecoverableError: true}
 var UnrecoverableDeleteError = CloudformationReconcileState{UnrecoverableDeleteError: true}
+
+type ManagedNodeGroupReconcileState struct {
+	OngoingState             bool
+	FiniteState              bool
+	UnrecoverableError       bool
+	UnrecoverableDeleteError bool
+}
+
+var ManagedNodeGroupOngoingState = ManagedNodeGroupReconcileState{OngoingState: true}
+var ManagedNodeGroupFiniteState = ManagedNodeGroupReconcileState{FiniteState: true}
+var ManagedNodeGroupUnrecoverableError = ManagedNodeGroupReconcileState{UnrecoverableError: true}
+var ManagedNodeGroupUnrecoverableDeleteError = ManagedNodeGroupReconcileState{UnrecoverableDeleteError: true}
+
+func IsNodeGroupInConditionState(key string, condition string) bool {
+	conditionStates := map[string]ManagedNodeGroupReconcileState{
+		"CREATING":      ManagedNodeGroupOngoingState,
+		"UPDATING":      ManagedNodeGroupOngoingState,
+		"DELETING":      ManagedNodeGroupOngoingState,
+		"ACTIVE":        ManagedNodeGroupFiniteState,
+		"DEGRADED":      ManagedNodeGroupFiniteState,
+		"CREATE_FAILED": ManagedNodeGroupUnrecoverableError,
+		"DELETE_FAILED": ManagedNodeGroupUnrecoverableDeleteError,
+	}
+	state := conditionStates[key]
+
+	switch condition {
+	case "OngoingState":
+		return state.OngoingState
+	case "FiniteState":
+		return state.FiniteState
+	case "UnrecoverableError":
+		return state.UnrecoverableError
+	case "UnrecoverableDeleteError":
+		return state.UnrecoverableDeleteError
+	default:
+		return false
+	}
+}
 
 func IsStackInConditionState(key string, condition string) bool {
 	conditionStates := map[string]CloudformationReconcileState{

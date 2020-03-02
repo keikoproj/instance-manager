@@ -71,9 +71,9 @@ type InstanceGroupList struct {
 
 // AwsUpgradeStrategy defines the upgrade strategy of an AWS Instance Group
 type AwsUpgradeStrategy struct {
-	Type               string                 `json:"type"`
-	CRDType            CRDUpgradeStrategy     `json:"crd,omitempty"`
-	RollingUpgradeType RollingUpgradeStrategy `json:"rollingUpdate,omitempty"`
+	Type               string                  `json:"type"`
+	CRDType            *CRDUpgradeStrategy     `json:"crd,omitempty"`
+	RollingUpgradeType *RollingUpgradeStrategy `json:"rollingUpdate,omitempty"`
 }
 
 type RollingUpgradeStrategy struct {
@@ -151,23 +151,45 @@ type CRDUpgradeStrategy struct {
 // InstanceGroupSpec defines the schema of resource Spec
 type InstanceGroupSpec struct {
 	Provisioner        string             `json:"provisioner"`
-	EKSCFSpec          EKSCFSpec          `json:"eks-cf"`
+	EKSCFSpec          *EKSCFSpec         `json:"eks-cf,omitempty"`
+	EKSManagedSpec     *EKSManagedSpec    `json:"eks-managed,omitempty"`
 	AwsUpgradeStrategy AwsUpgradeStrategy `json:"strategy"`
 }
 
+type EKSManagedSpec struct {
+	MaxSize                 int64                   `json:"maxSize"`
+	MinSize                 int64                   `json:"minSize"`
+	EKSManagedConfiguration EKSManagedConfiguration `json:"configuration"`
+}
+
 type EKSCFSpec struct {
-	MaxSize            int32              `json:"maxSize"`
-	MinSize            int32              `json:"minSize"`
-	EKSCFConfiguration EKSCFConfiguration `json:"configuration"`
+	MaxSize            int32               `json:"maxSize,omitempty"`
+	MinSize            int32               `json:"minSize,omitempty"`
+	EKSCFConfiguration *EKSCFConfiguration `json:"configuration,omitempty"`
+}
+
+type EKSManagedConfiguration struct {
+	EksClusterName     string              `json:"clusterName,omitempty"`
+	VolSize            int64               `json:"volSize,omitempty"`
+	InstanceType       string              `json:"instanceType,omitempty"`
+	NodeLabels         map[string]string   `json:"nodeLabels,omitempty"`
+	NodeRole           string              `json:"nodeRole,omitempty"`
+	NodeSecurityGroups []string            `json:"securityGroups,omitempty"`
+	KeyPairName        string              `json:"keyPairName,omitempty"`
+	Tags               []map[string]string `json:"tags,omitempty"`
+	Subnets            []string            `json:"subnets,omitempty"`
+	AmiType            string              `json:"amiType,omitempty"`
+	ReleaseVersion     string              `json:"releaseVersion,omitempty"`
+	Version            string              `json:"version,omitempty"`
 }
 
 // EKSCFConfiguration defines the context of an AWS Instance Group using EKSCF
 type EKSCFConfiguration struct {
 	EksClusterName              string              `json:"clusterName,omitempty"`
-	KeyPairName                 string              `json:"keyPairName"`
-	Image                       string              `json:"image"`
-	InstanceType                string              `json:"instanceType"`
-	NodeSecurityGroups          []string            `json:"securityGroups"`
+	KeyPairName                 string              `json:"keyPairName,omitempty"`
+	Image                       string              `json:"image,omitempty"`
+	InstanceType                string              `json:"instanceType,omitempty"`
+	NodeSecurityGroups          []string            `json:"securityGroups,omitempty"`
 	VolSize                     int32               `json:"volSize,omitempty"`
 	Subnets                     []string            `json:"subnets,omitempty"`
 	BootstrapArguments          string              `json:"bootstrapArguments,omitempty"`
@@ -193,15 +215,35 @@ type InstanceGroupStatus struct {
 	Lifecycle                     string `json:"lifecycle,omitempty"`
 }
 
-func (s *AwsUpgradeStrategy) GetRollingUpgradeStrategy() RollingUpgradeStrategy {
+func (conf *EKSManagedConfiguration) SetSubnets(subnets []string)  { conf.Subnets = subnets }
+func (conf *EKSManagedConfiguration) SetClusterName(name string)   { conf.EksClusterName = name }
+func (conf *EKSManagedConfiguration) GetLabels() map[string]string { return conf.NodeLabels }
+
+func (ig *InstanceGroup) GetEKSManagedConfiguration() *EKSManagedConfiguration {
+	return &ig.Spec.EKSManagedSpec.EKSManagedConfiguration
+}
+
+func (ig *InstanceGroup) GetEKSManagedSpec() *EKSManagedSpec {
+	return ig.Spec.EKSManagedSpec
+}
+
+func (spec *EKSManagedSpec) GetMaxSize() int64 {
+	return spec.MaxSize
+}
+
+func (spec *EKSManagedSpec) GetMinSize() int64 {
+	return spec.MinSize
+}
+
+func (s *AwsUpgradeStrategy) GetRollingUpgradeStrategy() *RollingUpgradeStrategy {
 	return s.RollingUpgradeType
 }
 
-func (s *AwsUpgradeStrategy) GetCRDType() CRDUpgradeStrategy {
+func (s *AwsUpgradeStrategy) GetCRDType() *CRDUpgradeStrategy {
 	return s.CRDType
 }
 
-func (s *AwsUpgradeStrategy) SetCRDType(crd CRDUpgradeStrategy) {
+func (s *AwsUpgradeStrategy) SetCRDType(crd *CRDUpgradeStrategy) {
 	s.CRDType = crd
 }
 

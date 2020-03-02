@@ -81,7 +81,7 @@ func (ctx *EksCfInstanceGroupContext) discoverCreatedResources(s schema.GroupVer
 func (ctx *EksCfInstanceGroupContext) setRollingStrategyConfigurationDefaults() {
 	var (
 		instanceGroup         = ctx.GetInstanceGroup()
-		strategyConfiguration = &instanceGroup.Spec.AwsUpgradeStrategy.RollingUpgradeType
+		strategyConfiguration = instanceGroup.Spec.AwsUpgradeStrategy.RollingUpgradeType
 		maxBatchSize          = strategyConfiguration.GetMaxBatchSize()
 		minInService          = strategyConfiguration.GetMinInstancesInService()
 		minSuccessfulPercent  = strategyConfiguration.GetMinSuccessfulInstancesPercent()

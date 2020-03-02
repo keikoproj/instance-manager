@@ -61,7 +61,7 @@ func New(instanceGroup *v1alpha1.InstanceGroup, k common.KubernetesClientSet, w 
 	log.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp: true,
 	})
-	var specConfig = &instanceGroup.Spec.EKSCFSpec.EKSCFConfiguration
+	var specConfig = instanceGroup.Spec.EKSCFSpec.EKSCFConfiguration
 
 	vpcID, err := w.DeriveEksVpcID(specConfig.GetClusterName())
 	if err != nil {
@@ -257,8 +257,8 @@ func (ctx *EksCfInstanceGroupContext) discoverInstanceGroups() {
 	}
 	instanceGroup := ctx.GetInstanceGroup()
 	spec := &instanceGroup.Spec
-	provisionerConfig := &spec.EKSCFSpec
-	specConfig := &provisionerConfig.EKSCFConfiguration
+	provisionerConfig := spec.EKSCFSpec
+	specConfig := provisionerConfig.EKSCFConfiguration
 	state := ctx.GetDiscoveredState()
 	stacks := state.GetCloudformationStacks()
 
@@ -345,8 +345,8 @@ func (ctx *EksCfInstanceGroupContext) parseTags() {
 	instanceGroup := ctx.GetInstanceGroup()
 	spec := &instanceGroup.Spec
 	meta := &instanceGroup.ObjectMeta
-	provisionerConfig := &spec.EKSCFSpec
-	specConfig := &provisionerConfig.EKSCFConfiguration
+	provisionerConfig := spec.EKSCFSpec
+	specConfig := provisionerConfig.EKSCFConfiguration
 
 	tags = map[string]string{
 		TagClusterName:       specConfig.GetClusterName(),
@@ -447,8 +447,8 @@ func (ctx *EksCfInstanceGroupContext) processParameters() error {
 	instanceGroup := ctx.GetInstanceGroup()
 	spec := &instanceGroup.Spec
 	meta := &instanceGroup.ObjectMeta
-	provisionerConfig := &spec.EKSCFSpec
-	specConfig := &provisionerConfig.EKSCFConfiguration
+	provisionerConfig := spec.EKSCFSpec
+	specConfig := provisionerConfig.EKSCFConfiguration
 
 	roleLabel := fmt.Sprintf("node-role.kubernetes.io/%v=\"\"", meta.GetName())
 	kubeletArgs := fmt.Sprintf("--node-labels=%v", roleLabel)
