@@ -215,12 +215,12 @@ func (ctx *EksManagedInstanceGroupContext) IsReady() bool {
 	return false
 }
 
-func New(instanceGroup *v1alpha1.InstanceGroup, k common.KubernetesClientSet, w awsprovider.AwsWorker) (EksManagedInstanceGroupContext, error) {
+func New(instanceGroup *v1alpha1.InstanceGroup, k common.KubernetesClientSet, w awsprovider.AwsWorker) (*EksManagedInstanceGroupContext, error) {
 	log.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp: true,
 	})
 
-	ctx := EksManagedInstanceGroupContext{
+	ctx := &EksManagedInstanceGroupContext{
 		InstanceGroup:    instanceGroup,
 		KubernetesClient: k,
 		AwsWorker:        w,

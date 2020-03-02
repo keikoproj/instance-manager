@@ -225,7 +225,7 @@ func (r *InstanceGroupReconciler) ReconcileEKSManaged(instanceGroup *v1alpha.Ins
 	}
 	ctx.ControllerRegion = awsRegion
 
-	err = HandleReconcileRequest(&ctx)
+	err = HandleReconcileRequest(ctx)
 	if err != nil {
 		ctx.SetState(v1alpha.ReconcileErr)
 		r.Update(context.Background(), ctx.GetInstanceGroup())
