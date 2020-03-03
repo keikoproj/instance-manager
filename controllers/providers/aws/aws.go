@@ -42,6 +42,12 @@ type AwsWorker struct {
 	StackTags       []*cloudformation.Tag
 	StackParameters []*cloudformation.Parameter
 }
+type AwsFargateWorker struct {
+	ClusterName  *string
+	ProfileName  *string
+	ExecutionArn *string
+	Selectors    []*eks.FargateProfileSelector
+}
 
 func (w *AwsWorker) CreateCloudformationStack() error {
 	capabilities := []*string{
@@ -325,6 +331,57 @@ func IsStackInConditionState(key string, condition string) bool {
 		return false
 	}
 }
-func CreateFargateProfile() error {
-	return nil
+func (w *AwsFargateWorker) Create() error {
+	input := &eks.CreateFargateProfileInput{
+		ClusterName:         w.ClusterName,
+		FargateProfileName:  w.ProfileName,
+		PodExecutionRoleArn: w.ExecutionArn,
+		Selectors:           w.Selectors,
+	}
+	region, err := GetRegion()
+	if err != nil {
+		log.Errorf("Failed to get AWS Region: %v\n", err)
+		return err
+	}
+	svc := GetAwsEksClient(region)
+	_, err = svc.CreateFargateProfile(input)
+	if err != nil {
+		log.Errorf("Failed to create fargate cluster : %v\n", err)
+	}
+	return err
+}
+func (w *AwsFargateWorker) Delete() error {
+	input := &eks.DeleteFargateProfileInput{
+		ClusterName:        w.ClusterName,
+		FargateProfileName: w.ProfileName,
+	}
+	region, err := GetRegion()
+	if err != nil {
+		log.Errorf("Failed to get AWS Region: %v\n", err)
+		return err
+	}
+	svc := GetAwsEksClient(region)
+	_, err = svc.DeleteFargateProfile(input)
+	if err != nil {
+		log.Errorf("Failed to delete fargate cluster: %v\n", err)
+	}
+	return err
+}
+func (w *AwsFargateWorker) Describe() (*eks.FargateProfile, error) {
+	input := &eks.DescribeFargateProfileInput{
+		ClusterName:        w.ClusterName,
+		FargateProfileName: w.ProfileName,
+	}
+	region, err := GetRegion()
+	if err != nil {
+		log.Errorf("Failed to get AWS Region: %v\n", err)
+		return nil, err
+	}
+	svc := GetAwsEksClient(region)
+	output, err := svc.DescribeFargateProfile(input)
+	if err != nil {
+		log.Errorf("Failed to describe fargate cluster: %v\n", err)
+		return nil, err
+	}
+	return output.FargateProfile, nil
 }

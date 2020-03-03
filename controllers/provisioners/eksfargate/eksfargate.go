@@ -17,90 +17,113 @@ package eksfargate
 
 import (
 	//	"github.com/aws/aws-sdk-go/aws"
-	"github.com/keikoproj/instance-manager/api/v1alpha1"
-	"github.com/keikoproj/instance-manager/controllers/common"
+	"github.com/aws/aws-sdk-go/service/eks"
+	v1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
-var (
-	log = logrus.New()
-)
+func New(instanceGroup *v1alpha1.InstanceGroup) (*EksFargateInstanceGroupContext, error) {
+	ctx := EksFargateInstanceGroupContext{
+		InstanceGroup: instanceGroup,
+	}
+	return &ctx, nil
+}
 
-// New constructs a new instance group provisioner of EKS Cloudformation type
-func New(instanceGroup *v1alpha1.InstanceGroup, k common.KubernetesClientSet, w awsprovider.AwsWorker) (EksFargateInstanceGroupContext, error) {
-	log.SetFormatter(&logrus.TextFormatter{
+func createFargateSelectors(selectors []*v1alpha1.EKSFargateSelectors) []*eks.FargateProfileSelector {
+	var eksSelectors []*eks.FargateProfileSelector
+	for _, selector := range selectors {
+		m := make(map[string]*string)
+		for k, v := range selector.Labels {
+			m[k] = &v
+		}
+		eksSelectors = append(eksSelectors, &eks.FargateProfileSelector{Namespace: selector.Namespace, Labels: m})
+	}
+	return eksSelectors
+}
+
+func (ctx *EksFargateInstanceGroupContext) HandleRequest() error {
+	log.SetFormatter(&log.TextFormatter{
 		FullTimestamp: true,
 	})
-	var specConfig = &instanceGroup.Spec.EKSCFSpec.EKSCFConfiguration
-
-	vpcID, err := w.DeriveEksVpcID(specConfig.GetClusterName())
-	if err != nil {
-		return EksFargateInstanceGroupContext{}, err
+	spec := ctx.GetInstanceGroup().Spec.EKSFargateSpec
+	worker := awsprovider.AwsFargateWorker{
+		ClusterName:  spec.GetClusterName(),
+		ProfileName:  spec.GetProfileName(),
+		ExecutionArn: spec.GetPodExecutionRoleArn(),
+		Selectors:    createFargateSelectors(spec.GetSelectors()),
 	}
 
-	ctx := EksFargateInstanceGroupContext{
-		InstanceGroup:    instanceGroup,
-		KubernetesClient: k,
-		VpcID:            vpcID,
+	ig := ctx.GetInstanceGroup()
+	log.Infof("Fargate state: %s", ig.GetState())
+	log.Infof("Fargate DeletionTimestamp: %v \n", ig.ObjectMeta.DeletionTimestamp)
+
+	fargateProfile, fargateErr := worker.Describe()
+	if fargateErr != nil {
+		log.Infof("Fargate cluster: %s and profile: %s not found\n", *worker.ClusterName, *worker.ProfileName)
+	} else {
+		log.Infof("Fargate cluster: %s and profile: %s has status %s\n", *worker.ClusterName, *worker.ProfileName, *fargateProfile.Status)
+	}
+	// first call
+	if ig.GetState() == "" {
+		var err error = nil
+		// cluster and profile do not exist
+		if fargateErr != nil {
+			//Not a delete
+			if ig.ObjectMeta.DeletionTimestamp.IsZero() {
+				ig.SetState(v1alpha1.ReconcileInit)
+			} else {
+				ig.SetState(v1alpha1.ReconcileErr)
+			}
+		} else {
+			ig.SetState(v1alpha1.ReconcileErr)
+		}
+		return err
 	}
 
-	instanceGroup.SetState(v1alpha1.ReconcileInit)
-
-	err = ctx.processParameters()
-	if err != nil {
-		log.Errorf("failed to parse cloudformation parameters: %v", err)
-		return EksFargateInstanceGroupContext{}, err
+	if ig.GetState() == v1alpha1.ReconcileInitCreate {
+		var err error = nil
+		if *fargateProfile.Status == "ACTIVE" {
+			ig.SetState(v1alpha1.ReconcileReady)
+		}
+		return err
+	}
+	if ig.GetState() == v1alpha1.ReconcileDeleting {
+		var err error = nil
+		if fargateErr != nil {
+			ig.SetState(v1alpha1.ReconcileDeleted)
+		}
+		return err
+	}
+	if ig.GetState() == v1alpha1.ReconcileInit {
+		var err error = nil
+		// Create request
+		if ig.ObjectMeta.DeletionTimestamp.IsZero() {
+			// profile does not exist
+			log.Infof("Fargate creating cluster: %s and profile: %s \n", *worker.ClusterName, *worker.ProfileName)
+			err = worker.Create()
+			if err != nil {
+				ig.SetState(v1alpha1.ReconcileErr)
+			} else {
+				ig.SetState(v1alpha1.ReconcileInitCreate)
+			}
+		}
+		return err
 	}
 
-	return ctx, nil
-}
-
-func (ctx *EksFargateInstanceGroupContext) Create() error {
-	return nil
-}
-
-func (ctx *EksFargateInstanceGroupContext) Update() error {
-	return nil
-}
-
-func (ctx *EksFargateInstanceGroupContext) UpgradeNodes() error {
-	return nil
-}
-
-func (ctx *EksFargateInstanceGroupContext) Delete() error {
-	return nil
-}
-
-func (ctx *EksFargateInstanceGroupContext) IsProvisioned() bool {
-	return false
-}
-
-func (ctx *EksFargateInstanceGroupContext) IsReady() bool {
-	return false
-}
-
-func (ctx *EksFargateInstanceGroupContext) IsUpgradeNeeded() bool {
-	return false
-}
-
-func (ctx *EksFargateInstanceGroupContext) StateDiscovery() {
-}
-
-func (ctx *EksFargateInstanceGroupContext) discoverInstanceGroups() {
-}
-
-func (ctx *EksFargateInstanceGroupContext) CloudDiscovery() error {
-	return nil
-}
-
-func (ctx *EksFargateInstanceGroupContext) BootstrapNodes() error {
-	return nil
-}
-
-func (ctx *EksFargateInstanceGroupContext) processParameters() error {
-	//instanceGroup := ctx.GetInstanceGroup()
-	//spec := &instanceGroup.Spec
+	if ig.GetState() == v1alpha1.ReconcileReady {
+		var err error = nil
+		// Delete request
+		if !ig.ObjectMeta.DeletionTimestamp.IsZero() {
+			err = worker.Delete()
+			if err != nil {
+				ig.SetState(v1alpha1.ReconcileErr)
+			} else {
+				ig.SetState(v1alpha1.ReconcileDeleting)
+			}
+		}
+		return err
+	}
 
 	return nil
 }

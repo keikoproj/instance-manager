@@ -17,15 +17,21 @@ package eksfargate
 
 import (
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
-	"github.com/keikoproj/instance-manager/controllers/common"
 )
 
 // EksCfInstanceGroupContext defines the main type of an EKS Cloudformation provisioner
 type EksFargateInstanceGroupContext struct {
-	InstanceGroup    *v1alpha1.InstanceGroup
-	KubernetesClient common.KubernetesClientSet
-	ControllerRegion string
-	VpcID            string
+	InstanceGroup *v1alpha1.InstanceGroup
+}
+
+type EksFargateCreateContext struct {
+	ClusterName  *string
+	ProfileName  *string
+	ExecutionArn *string
+}
+type EksFargateDeleteContext struct {
+	ClusterName *string
+	ProfileName *string
 }
 
 func (ctx *EksFargateInstanceGroupContext) GetInstanceGroup() *v1alpha1.InstanceGroup {
@@ -33,4 +39,35 @@ func (ctx *EksFargateInstanceGroupContext) GetInstanceGroup() *v1alpha1.Instance
 		return ctx.InstanceGroup
 	}
 	return &v1alpha1.InstanceGroup{}
+}
+
+func (ctx *EksFargateCreateContext) SetClusterName(name *string) {
+	ctx.ClusterName = name
+}
+func (ctx *EksFargateCreateContext) SetProfileName(name *string) {
+	ctx.ProfileName = name
+}
+func (ctx *EksFargateCreateContext) SetExecutionArn(arn *string) {
+	ctx.ExecutionArn = arn
+}
+func (ctx *EksFargateCreateContext) GetClusterName() *string {
+	return ctx.ClusterName
+}
+func (ctx *EksFargateCreateContext) GetProfileName() *string {
+	return ctx.ProfileName
+}
+func (ctx *EksFargateCreateContext) GetExecutionArn() *string {
+	return ctx.ExecutionArn
+}
+func (ctx *EksFargateDeleteContext) SetClusterName(name *string) {
+	ctx.ClusterName = name
+}
+func (ctx *EksFargateDeleteContext) SetProfileName(name *string) {
+	ctx.ProfileName = name
+}
+func (ctx *EksFargateDeleteContext) GetClusterName() *string {
+	return ctx.ClusterName
+}
+func (ctx *EksFargateDeleteContext) GetProfileName() *string {
+	return ctx.ProfileName
 }

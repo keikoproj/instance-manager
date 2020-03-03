@@ -28,6 +28,7 @@ import (
 	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/keikoproj/instance-manager/controllers/providers/aws"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/ekscloudformation"
+	"github.com/keikoproj/instance-manager/controllers/provisioners/eksfargate"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -175,16 +176,18 @@ func (r *InstanceGroupReconciler) SetFinalizer(instanceGroup *v1alpha.InstanceGr
 }
 
 func (r *InstanceGroupReconciler) ReconcileEKSFargate(instanceGroup *v1alpha.InstanceGroup, finalizerName string) error {
-	if !instanceGroup.ObjectMeta.DeletionTimestamp.IsZero() {
-		instanceGroup.SetState(v1alpha.ReconcileDeleted)
-	} else {
-		instanceGroup.SetState(v1alpha.ReconcileReady)
+	ctx, err := eksfargate.New(instanceGroup)
+	if err != nil {
+		log.Errorf("Allocation of EKSFargate context failed: %v\n", err)
+		return err
 	}
+	err = ctx.HandleRequest()
 	r.Finalize(instanceGroup, finalizerName)
-	err := r.Update(context.Background(), instanceGroup)
+	err = r.Update(context.Background(), instanceGroup)
 	if err != nil {
 		log.Infof("Update failed: %v", err)
 	}
+
 	return nil
 }
 
@@ -354,8 +357,13 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		if err != nil {
 			log.Errorln(err)
 		}
+		log.Infof("eks-fargate leaving state: %v\n", ig.GetState())
+		if ig.GetState() == v1alpha.ReconcileInitCreate || ig.GetState() == v1alpha.ReconcileDeleting {
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+		} else {
+			return ctrl.Result{}, nil
+		}
 
-		return ctrl.Result{}, nil
 	default:
 		log.Errorln("provisioner not implemented")
 		return ctrl.Result{}, fmt.Errorf("provisioner '%v' not implemented", ig.Spec.Provisioner)

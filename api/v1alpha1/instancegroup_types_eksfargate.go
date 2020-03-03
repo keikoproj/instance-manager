@@ -16,49 +16,57 @@ limitations under the License.
 package v1alpha1
 
 type EKSFargateSpec struct {
-	ProfileName         string                `json:"fargateProfileName"`
-	ClusterName         string                `json:"clusterName"`
-	PodExecutionRoleArn string                `json:"podExecutionRoleArn,omitempty"`
-	Subnets             []string              `json:"subnets"`
-	EKSFargateSelectors []EKSFargateSelectors `json:"selectors,omitempty"`
-	Tags                []map[string]string   `json:"tags,omitempty"`
+	ProfileName         *string                `json:"fargateProfileName"`
+	ClusterName         *string                `json:"clusterName"`
+	PodExecutionRoleArn *string                `json:"podExecutionRoleArn,omitempty"`
+	Subnets             []*string              `json:"subnets"`
+	Selectors           []*EKSFargateSelectors `json:"selectors,omitempty"`
+	Tags                []map[string]string    `json:"tags,omitempty"`
 }
 
 type EKSFargateSelectors struct {
-	Namespace string            `json:"namespace"`
+	Namespace *string           `json:"namespace"`
 	Labels    map[string]string `json:"labels"`
 }
 
-func (spec *EKSFargateSpec) GetProfileName() string {
+func (spec *EKSFargateSpec) GetProfileName() *string {
 	return spec.ProfileName
 }
 
-func (spec *EKSFargateSpec) SetProfileName(name string) {
+func (spec *EKSFargateSpec) SetProfileName(name *string) {
 	spec.ProfileName = name
 }
 
-func (spec *EKSFargateSpec) GetClusterName() string {
+func (spec *EKSFargateSpec) GetClusterName() *string {
 	return spec.ClusterName
 }
 
-func (spec *EKSFargateSpec) SetClusterName(name string) {
+func (spec *EKSFargateSpec) SetClusterName(name *string) {
 	spec.ClusterName = name
 }
 
-func (spec *EKSFargateSpec) GetPodExecutionRoleArn() string {
+func (spec *EKSFargateSpec) GetPodExecutionRoleArn() *string {
 	return spec.PodExecutionRoleArn
 }
 
-func (spec *EKSFargateSpec) SetPodExecutionRoleArn(arn string) {
+func (spec *EKSFargateSpec) SetPodExecutionRoleArn(arn *string) {
 	spec.PodExecutionRoleArn = arn
 }
 
-func (spec *EKSFargateSpec) GetSubnets() []string {
+func (spec *EKSFargateSpec) GetSubnets() []*string {
 	return spec.Subnets
 }
 
-func (spec *EKSFargateSpec) SetSubnets(subnets []string) {
+func (spec *EKSFargateSpec) SetSubnets(subnets []*string) {
 	spec.Subnets = subnets
+}
+
+func (spec *EKSFargateSpec) GetSelectors() []*EKSFargateSelectors {
+	return spec.Selectors
+}
+
+func (spec *EKSFargateSpec) SetSelectors(selectors []*EKSFargateSelectors) {
+	spec.Selectors = selectors
 }
 
 func (spec *EKSFargateSpec) GetTags() []map[string]string {
