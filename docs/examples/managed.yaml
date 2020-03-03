@@ -21,7 +21,7 @@ spec:
       - subnet-12345789
       - subnet-12345555
       - subnet-33322222
-      labels:
+      nodeLabels:
         foo: bar
       tags:
       - key: foo

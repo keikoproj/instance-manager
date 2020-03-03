@@ -560,7 +560,7 @@ func (u *EksCfUnitTest) Run(t *testing.T) {
 	unstructuredInstanceGroup := &unstructured.Unstructured{
 		Object: obj,
 	}
-	kube.KubeDynamic.Resource(groupVersionResource).Namespace(u.InstanceGroup.GetNamespace()).Create(unstructuredInstanceGroup, metav1.CreateOptions{})
+	kube.KubeDynamic.Resource(v1alpha1.GroupVersionResource).Namespace(u.InstanceGroup.GetNamespace()).Create(unstructuredInstanceGroup, metav1.CreateOptions{})
 
 	provisioner, err := New(u.InstanceGroup, kube, aws)
 	if err != nil {

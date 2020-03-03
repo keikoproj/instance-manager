@@ -21,6 +21,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 type ReconcileState string
@@ -40,6 +41,14 @@ const (
 	// End States
 	ReconcileReady ReconcileState = "Ready"
 	ReconcileErr   ReconcileState = "Error"
+)
+
+var (
+	GroupVersionResource = schema.GroupVersionResource{
+		Group:    "instancemgr.keikoproj.io",
+		Version:  "v1alpha1",
+		Resource: "instancegroups",
+	}
 )
 
 // InstanceGroup is the Schema for the instancegroups API
@@ -157,9 +166,9 @@ type InstanceGroupSpec struct {
 }
 
 type EKSManagedSpec struct {
-	MaxSize                 int64                   `json:"maxSize"`
-	MinSize                 int64                   `json:"minSize"`
-	EKSManagedConfiguration EKSManagedConfiguration `json:"configuration"`
+	MaxSize                 int64                    `json:"maxSize"`
+	MinSize                 int64                    `json:"minSize"`
+	EKSManagedConfiguration *EKSManagedConfiguration `json:"configuration"`
 }
 
 type EKSCFSpec struct {
@@ -220,7 +229,7 @@ func (conf *EKSManagedConfiguration) SetClusterName(name string)   { conf.EksClu
 func (conf *EKSManagedConfiguration) GetLabels() map[string]string { return conf.NodeLabels }
 
 func (ig *InstanceGroup) GetEKSManagedConfiguration() *EKSManagedConfiguration {
-	return &ig.Spec.EKSManagedSpec.EKSManagedConfiguration
+	return ig.Spec.EKSManagedSpec.EKSManagedConfiguration
 }
 
 func (ig *InstanceGroup) GetEKSManagedSpec() *EKSManagedSpec {

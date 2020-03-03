@@ -20,7 +20,6 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"regexp"
 
@@ -40,11 +39,6 @@ var (
 	outputLaunchConfiguration = "LaunchConfigName"
 	outputScalingGroupName    = "AsgName"
 	outputGroupARN            = "NodeInstanceRole"
-	groupVersionResource      = schema.GroupVersionResource{
-		Group:    "instancemgr.keikoproj.io",
-		Version:  "v1alpha1",
-		Resource: "instancegroups",
-	}
 )
 
 const (
@@ -296,7 +290,7 @@ func (ctx *EksCfInstanceGroupContext) discoverInstanceGroups() {
 		if group.Namespace != "" && group.Name != "" {
 			var groupDeleting bool
 			var groupDeleted bool
-			groupDeleting, err := ctx.isResourceDeleting(groupVersionResource, group.Namespace, group.Name)
+			groupDeleting, err := ctx.isResourceDeleting(v1alpha1.GroupVersionResource, group.Namespace, group.Name)
 			if err != nil {
 				if errors.IsNotFound(err) {
 					groupDeleted = true

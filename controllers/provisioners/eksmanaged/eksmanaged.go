@@ -43,7 +43,6 @@ var (
 
 func (ctx *EksManagedInstanceGroupContext) CloudDiscovery() error {
 	var (
-		// instanceGroup = ctx.GetInstanceGroup()
 		provisioned     = ctx.AwsWorker.IsNodeGroupExist()
 		discoveredState = ctx.GetDiscoveredState()
 		instanceGroup   = ctx.GetInstanceGroup()
@@ -163,6 +162,7 @@ func (ctx *EksManagedInstanceGroupContext) isUpdateNeeded() bool {
 func (ctx *EksManagedInstanceGroupContext) Update() error {
 	var (
 		instanceGroup  = ctx.GetInstanceGroup()
+		nodeLabels     = instanceGroup.Spec.EKSManagedSpec.EKSManagedConfiguration.NodeLabels
 		selfNodeGroup  = ctx.DiscoveredState.GetSelfNodeGroup()
 		currentDesired = aws.Int64Value(selfNodeGroup.ScalingConfig.DesiredSize)
 		requestedMin   = instanceGroup.Spec.EKSManagedSpec.MinSize
@@ -172,8 +172,10 @@ func (ctx *EksManagedInstanceGroupContext) Update() error {
 		currentDesired = requestedMin
 	}
 
+	labels := ctx.AwsWorker.GetLabelsUpdatePayload(aws.StringValueMap(selfNodeGroup.Labels), nodeLabels)
+
 	if ctx.isUpdateNeeded() {
-		err := ctx.AwsWorker.UpdateManagedNodeGroup(currentDesired)
+		err := ctx.AwsWorker.UpdateManagedNodeGroup(currentDesired, labels)
 		if err != nil {
 			return err
 		}
@@ -261,7 +263,7 @@ func (ctx *EksManagedInstanceGroupContext) processParameters() {
 func LoadControllerConfiguration(ig *v1alpha1.InstanceGroup, controllerConfig []byte) (EksManagedDefaultConfiguration, error) {
 	var (
 		defaultConfig EksManagedDefaultConfiguration
-		specConfig    = &ig.Spec.EKSManagedSpec.EKSManagedConfiguration
+		specConfig    = ig.Spec.EKSManagedSpec.EKSManagedConfiguration
 	)
 
 	err := yaml.Unmarshal(controllerConfig, &defaultConfig)

@@ -104,7 +104,39 @@ func (w *AwsWorker) DeleteManagedNodeGroup() error {
 	return nil
 }
 
-func (w *AwsWorker) UpdateManagedNodeGroup(currentDesired int64) error {
+func (w *AwsWorker) GetLabelsUpdatePayload(existing, new map[string]string) *eks.UpdateLabelsPayload {
+
+	var (
+		removeLabels    = make([]string, 0)
+		addUpdateLabels = make(map[string]string)
+	)
+
+	for k, v := range new {
+		// handle new labels
+		if _, ok := existing[k]; !ok {
+			addUpdateLabels[k] = v
+		}
+
+		// handle label value updates
+		if val, ok := existing[k]; ok && val != v {
+			addUpdateLabels[k] = v
+		}
+	}
+
+	for k, _ := range existing {
+		// handle removals
+		if _, ok := new[k]; !ok {
+			removeLabels = append(removeLabels, k)
+		}
+	}
+
+	return &eks.UpdateLabelsPayload{
+		AddOrUpdateLabels: aws.StringMap(addUpdateLabels),
+		RemoveLabels:      aws.StringSlice(removeLabels),
+	}
+}
+
+func (w *AwsWorker) UpdateManagedNodeGroup(currentDesired int64, labelsPayload *eks.UpdateLabelsPayload) error {
 	input := &eks.UpdateNodegroupConfigInput{
 		ClusterName:   aws.String(w.Parameters["ClusterName"].(string)),
 		NodegroupName: aws.String(w.Parameters["NodegroupName"].(string)),
@@ -113,9 +145,7 @@ func (w *AwsWorker) UpdateManagedNodeGroup(currentDesired int64) error {
 			MinSize:     aws.Int64(w.Parameters["MinSize"].(int64)),
 			DesiredSize: aws.Int64(currentDesired),
 		},
-		Labels: &eks.UpdateLabelsPayload{
-			AddOrUpdateLabels: aws.StringMap(w.Parameters["Labels"].(map[string]string)),
-		},
+		Labels: labelsPayload,
 	}
 	_, err := w.EksClient.UpdateNodegroupConfig(input)
 	if err != nil {
