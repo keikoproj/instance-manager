@@ -42,14 +42,6 @@ const (
 	ReconcileErr   ReconcileState = "Error"
 )
 
-// InstanceGroupSpec defines the schema of resource Spec
-type InstanceGroupSpec struct {
-	Provisioner        string             `json:"provisioner"`
-	EKSCFSpec          *EKSCFSpec         `json:"eks-cf,omitempty"`
-	EKSFargateSpec     *EKSFargateSpec    `json:"eks-fargate,omitempty"`
-	AwsUpgradeStrategy AwsUpgradeStrategy `json:"strategy"`
-}
-
 // InstanceGroup is the Schema for the instancegroups API
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:path=instancegroups,scope=Namespaced,shortName=ig
@@ -67,6 +59,14 @@ type InstanceGroup struct {
 
 	Spec   InstanceGroupSpec   `json:"spec"`
 	Status InstanceGroupStatus `json:"status,omitempty"`
+}
+
+// InstanceGroupSpec defines the schema of resource Spec
+type InstanceGroupSpec struct {
+	Provisioner        string             `json:"provisioner"`
+	EKSCFSpec          *EKSCFSpec         `json:"eks-cf,omitempty"`
+	EKSFargateSpec     *EKSFargateSpec    `json:"eks-fargate,omitempty"`
+	AwsUpgradeStrategy AwsUpgradeStrategy `json:"strategy"`
 }
 
 // InstanceGroupList contains a list of InstanceGroup
