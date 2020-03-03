@@ -22,11 +22,13 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
+	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,6 +41,7 @@ type EksManagedUnitTest struct {
 	Provisioner   *EksManagedInstanceGroupContext
 	InstanceGroup *v1alpha1.InstanceGroup
 	GroupExist    bool
+	NodeGroup     *eks.Nodegroup
 	UpdateNeeded  bool
 	VpcID         string
 	ExpectedState v1alpha1.ReconcileState
@@ -54,17 +57,32 @@ type FakeIG struct {
 
 type stubEKS struct {
 	eksiface.EKSAPI
-	VpcID string
+	NodeGroup       *eks.Nodegroup
+	NodeGroupExists bool
 }
 
 func (s *stubEKS) DescribeNodegroup(input *eks.DescribeNodegroupInput) (*eks.DescribeNodegroupOutput, error) {
 	output := &eks.DescribeNodegroupOutput{
-		Cluster: &eks.Cluster{
-			ResourcesVpcConfig: &eks.VpcConfigResponse{
-				VpcId: aws.String(s.VpcID),
-			},
-		},
+		Nodegroup: s.NodeGroup,
 	}
+	if !s.NodeGroupExists {
+		return output, awserr.New(eks.ErrCodeResourceNotFoundException, "not found", errors.New("notFound"))
+	}
+	return output, nil
+}
+
+func (s *stubEKS) CreateNodegroup(input *eks.CreateNodegroupInput) (*eks.CreateNodegroupOutput, error) {
+	output := &eks.CreateNodegroupOutput{}
+	return output, nil
+}
+
+func (s *stubEKS) UpdateNodegroupConfig(input *eks.UpdateNodegroupConfigInput) (*eks.UpdateNodegroupConfigOutput, error) {
+	output := &eks.UpdateNodegroupConfigOutput{}
+	return output, nil
+}
+
+func (s *stubEKS) DeleteNodegroup(input *eks.DeleteNodegroupInput) (*eks.DeleteNodegroupOutput, error) {
+	output := &eks.DeleteNodegroupOutput{}
 	return output, nil
 }
 
@@ -72,6 +90,23 @@ var loggingEnabled bool
 
 func init() {
 	flag.BoolVar(&loggingEnabled, "logging-enabled", false, "Enable Logging")
+}
+
+func getNodeGroup(state string) *eks.Nodegroup {
+	return &eks.Nodegroup{
+		Status: aws.String(state),
+		Resources: &eks.NodegroupResources{
+			AutoScalingGroups: []*eks.AutoScalingGroup{
+				&eks.AutoScalingGroup{
+					Name: aws.String("some-asg"),
+				},
+			},
+		},
+		ScalingConfig: &eks.NodegroupScalingConfig{
+			MinSize: aws.Int64(3),
+			MaxSize: aws.Int64(6),
+		},
+	}
 }
 
 func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
@@ -158,7 +193,8 @@ func (u *EksManagedUnitTest) Run(t *testing.T) {
 
 	aws := awsprovider.AwsWorker{
 		EksClient: &stubEKS{
-			VpcID: u.VpcID,
+			NodeGroupExists: u.GroupExist,
+			NodeGroup:       u.NodeGroup,
 		},
 	}
 
@@ -205,11 +241,104 @@ func (u *EksManagedUnitTest) Run(t *testing.T) {
 func TestStateDiscoveryInitUpdate(t *testing.T) {
 	ig := FakeIG{}
 	testCase := EksManagedUnitTest{
-		Description:   "StateDiscovery - when a stack already exist (idle), state should be InitUpdate",
+		Description:   "StateDiscovery - when a nodegroup already exist (active), state should be InitUpdate",
 		InstanceGroup: ig.getInstanceGroup(),
-		GroupExist:    true,
+		NodeGroup:     getNodeGroup("ACTIVE"),
 		UpdateNeeded:  true,
+		GroupExist:    true,
 		ExpectedState: v1alpha1.ReconcileInitUpdate,
+	}
+	testCase.Run(t)
+}
+
+func TestStateDiscoveryModifying(t *testing.T) {
+	ig := FakeIG{}
+	testCase := EksManagedUnitTest{
+		Description:   "StateDiscovery - when a nodegroup already exist (updating), state should be ReconcileModifying",
+		InstanceGroup: ig.getInstanceGroup(),
+		NodeGroup:     getNodeGroup("UPDATING"),
+		UpdateNeeded:  true,
+		GroupExist:    true,
+		ExpectedState: v1alpha1.ReconcileModifying,
+	}
+	testCase.Run(t)
+}
+
+func TestStateDiscoveryFailed(t *testing.T) {
+	ig := FakeIG{}
+	testCase := EksManagedUnitTest{
+		Description:   "StateDiscovery - when a nodegroup already exist (failed), state should be ReconcileErr",
+		InstanceGroup: ig.getInstanceGroup(),
+		NodeGroup:     getNodeGroup("CREATE_FAILED"),
+		UpdateNeeded:  true,
+		GroupExist:    true,
+		ExpectedState: v1alpha1.ReconcileErr,
+	}
+	testCase.Run(t)
+}
+
+func TestStateDiscoveryCreate(t *testing.T) {
+	ig := FakeIG{}
+	testCase := EksManagedUnitTest{
+		Description:   "StateDiscovery - when a nodegroup does not exist, state should be InitCreate",
+		InstanceGroup: ig.getInstanceGroup(),
+		GroupExist:    false,
+		ExpectedState: v1alpha1.ReconcileInitCreate,
+	}
+	testCase.Run(t)
+}
+
+func TestStateDiscoveryDeleting(t *testing.T) {
+	ig := FakeIG{
+		IsDeleting: true,
+	}
+	testCase := EksManagedUnitTest{
+		Description:   "StateDiscovery - when a nodegroup already exists (DELETING), state should be Deleting",
+		InstanceGroup: ig.getInstanceGroup(),
+		NodeGroup:     getNodeGroup("DELETING"),
+		GroupExist:    true,
+		ExpectedState: v1alpha1.ReconcileDeleting,
+	}
+	testCase.Run(t)
+}
+
+func TestStateDiscoveryInitDelete(t *testing.T) {
+	ig := FakeIG{
+		IsDeleting: true,
+	}
+	testCase := EksManagedUnitTest{
+		Description:   "StateDiscovery - when a nodegroup already exists (ACTIVE), state should be InitDelete",
+		InstanceGroup: ig.getInstanceGroup(),
+		NodeGroup:     getNodeGroup("ACTIVE"),
+		GroupExist:    true,
+		ExpectedState: v1alpha1.ReconcileInitDelete,
+	}
+	testCase.Run(t)
+}
+
+func TestStateDiscoveryDeleteFail(t *testing.T) {
+	ig := FakeIG{
+		IsDeleting: true,
+	}
+	testCase := EksManagedUnitTest{
+		Description:   "StateDiscovery - when a nodegroup already exists (DELETE_FAILED), state should be ReconcileErr",
+		InstanceGroup: ig.getInstanceGroup(),
+		NodeGroup:     getNodeGroup("DELETE_FAILED"),
+		GroupExist:    true,
+		ExpectedState: v1alpha1.ReconcileErr,
+	}
+	testCase.Run(t)
+}
+
+func TestStateDiscoveryDeleted(t *testing.T) {
+	ig := FakeIG{
+		IsDeleting: true,
+	}
+	testCase := EksManagedUnitTest{
+		Description:   "StateDiscovery - when a nodegroup does not exist, state should be Deleted",
+		InstanceGroup: ig.getInstanceGroup(),
+		GroupExist:    false,
+		ExpectedState: v1alpha1.ReconcileDeleted,
 	}
 	testCase.Run(t)
 }

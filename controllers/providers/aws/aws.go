@@ -44,23 +44,6 @@ type AwsWorker struct {
 	Parameters      map[string]interface{}
 }
 
-func (w *AwsWorker) GetNodeGroupStatus() (error, string) {
-	var (
-		nodeGroupStatus string
-	)
-	input := &eks.DescribeNodegroupInput{
-		ClusterName:   aws.String(w.Parameters["ClusterName"].(string)),
-		NodegroupName: aws.String(w.Parameters["NodegroupName"].(string)),
-	}
-	output, err := w.EksClient.DescribeNodegroup(input)
-	if err != nil {
-		return err, nodeGroupStatus
-	}
-	nodeGroupStatus = aws.StringValue(output.Nodegroup.Status)
-
-	return nil, nodeGroupStatus
-}
-
 func (w *AwsWorker) IsNodeGroupExist() bool {
 	input := &eks.DescribeNodegroupInput{
 		ClusterName:   aws.String(w.Parameters["ClusterName"].(string)),
