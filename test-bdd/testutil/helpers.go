@@ -125,3 +125,13 @@ func ParseInstanceGroupYaml(relativePath string, args *TemplateArguments) (*unst
 	}
 	return ig, nil
 }
+
+func DeleteEmpty(s []string) []string {
+	var r []string
+	for _, str := range s {
+		if str != "" {
+			r = append(r, str)
+		}
+	}
+	return r
+}

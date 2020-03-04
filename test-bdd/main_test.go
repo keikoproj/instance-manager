@@ -181,6 +181,9 @@ func (t *FunctionalTest) iOperateOnResource(operation, resource string) error {
 }
 
 func (t *FunctionalTest) iUpdateResourceWithField(resource, key, value string) error {
+	var (
+		keySlice = testutil.DeleteEmpty(strings.Split(key, "."))
+	)
 	resourcePath := filepath.Join("templates", resource)
 	args := testutil.NewTemplateArguments()
 
@@ -197,7 +200,7 @@ func (t *FunctionalTest) iUpdateResourceWithField(resource, key, value string) e
 		return err
 	}
 
-	unstructured.SetNestedField(updateTarget.Object, value, strings.Split(key, ".")...)
+	unstructured.SetNestedField(updateTarget.UnstructuredContent(), value, keySlice...)
 
 	_, err = t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Update(updateTarget, metav1.UpdateOptions{})
 	if err != nil {
@@ -236,10 +239,11 @@ func (t *FunctionalTest) theResourceShouldBe(state string) error {
 
 func (t *FunctionalTest) theResourceShouldConvergeToSelector(selector string) error {
 	var (
-		counter int
-		split   = strings.Split(selector, "=")
-		key     = split[0]
-		value   = split[1]
+		counter  int
+		split    = testutil.DeleteEmpty(strings.Split(selector, "="))
+		key      = split[0]
+		keySlice = testutil.DeleteEmpty(strings.Split(key, "."))
+		value    = split[1]
 	)
 
 	for {
@@ -253,7 +257,7 @@ func (t *FunctionalTest) theResourceShouldConvergeToSelector(selector string) er
 			return err
 		}
 
-		if val, ok, err := unstructured.NestedString(resource.Object, strings.Split(key, ".")...); ok {
+		if val, ok, err := unstructured.NestedString(resource.UnstructuredContent(), keySlice...); ok {
 			if err != nil {
 				return err
 			}
@@ -364,10 +368,11 @@ func (t *FunctionalTest) deleteAll() error {
 			if counter >= DefaultWaiterRetries {
 				return errors.New("waiter timed out waiting for deletion")
 			}
-			log.Info("BDD >> waiting for resource deletion of %v/%v", resource.GetNamespace(), resource.GetName())
+			log.Infof("BDD >> waiting for resource deletion of %v/%v", resource.GetNamespace(), resource.GetName())
 			_, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(resource.GetNamespace()).Get(resource.GetName(), metav1.GetOptions{})
 			if err != nil {
 				if kerrors.IsNotFound(err) {
+					log.Infof("BDD >> resource %v/%v is deleted", resource.GetNamespace(), resource.GetName())
 					break
 				}
 			}
