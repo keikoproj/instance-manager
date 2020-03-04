@@ -216,8 +216,8 @@ func (t *FunctionalTest) theResourceShouldBe(state string) error {
 		counter int
 	)
 
-	exists = true
 	for {
+		exists = true
 		if counter >= DefaultWaiterRetries {
 			return errors.New("waiter timed out waiting for resource state")
 		}
@@ -234,11 +234,13 @@ func (t *FunctionalTest) theResourceShouldBe(state string) error {
 		switch state {
 		case ResourceStateDeleted:
 			if !exists {
-				break
+				log.Infof("BDD >> %v/%v is deleted", t.ResourceNamespace, t.ResourceName)
+				return nil
 			}
 		case ResourceStateCreated:
 			if exists {
-				break
+				log.Infof("BDD >> %v/%v is created", t.ResourceNamespace, t.ResourceName)
+				return nil
 			}
 		}
 		counter++
