@@ -30,6 +30,7 @@ import (
 	"github.com/keikoproj/instance-manager/test-bdd/testutil"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -94,7 +95,8 @@ func FeatureContext(s *godog.Suite) {
 
 	s.BeforeFeature(func(f *gherkin.Feature) {
 		log.Info("BDD >> trying to delete any existing test instance-groups")
-		// TODO: Delete all IGs
+		t.anEKSCluster()
+		t.deleteAll()
 	})
 
 	s.AfterStep(func(f *gherkin.Step, err error) {
@@ -209,10 +211,12 @@ func (t *FunctionalTest) theResourceShouldBe(state string) error {
 	var (
 		exists bool
 	)
-	log.Infof("BDD >> checking if resource %v is %v", t.ResourceName, state)
+
+	exists = true
+	log.Infof("BDD >> checking if resource %v/%v is %v", t.ResourceNamespace, t.ResourceName, state)
 	_, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Get(t.ResourceName, metav1.GetOptions{})
 	if err != nil {
-		log.Infof("BDD >> %v is not found: %v", t.ResourceName, err)
+		log.Infof("BDD >> %v/%v is not found: %v", t.ResourceNamespace, t.ResourceName, err)
 		exists = false
 	}
 
@@ -230,9 +234,12 @@ func (t *FunctionalTest) theResourceShouldBe(state string) error {
 	return nil
 }
 
-func (t *FunctionalTest) theResourceShouldConvergeToSelector(key, value string) error {
+func (t *FunctionalTest) theResourceShouldConvergeToSelector(selector string) error {
 	var (
 		counter int
+		split   = strings.Split(selector, "=")
+		key     = split[0]
+		value   = split[1]
 	)
 
 	for {
@@ -240,7 +247,7 @@ func (t *FunctionalTest) theResourceShouldConvergeToSelector(key, value string) 
 			return errors.New("waiter timed out waiting for resource")
 		}
 
-		log.Infof("BDD >> waiting for resource %v to converge to %v=%v", t.ResourceName, key, value)
+		log.Infof("BDD >> waiting for resource %v/%v to converge to %v=%v", t.ResourceNamespace, t.ResourceName, key, value)
 		resource, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Get(t.ResourceName, metav1.GetOptions{})
 		if err != nil {
 			return err
@@ -250,7 +257,7 @@ func (t *FunctionalTest) theResourceShouldConvergeToSelector(key, value string) 
 			if err != nil {
 				return err
 			}
-			if val == value {
+			if strings.ToLower(val) == strings.ToLower(value) {
 				break
 			}
 		}
@@ -262,11 +269,24 @@ func (t *FunctionalTest) theResourceShouldConvergeToSelector(key, value string) 
 }
 
 func (t *FunctionalTest) nodesShouldBe(count int, state string) error {
+	return t.waitForNodeCountState(count, state, "", "")
+}
+
+func (t *FunctionalTest) nodesShouldBeWithLabel(count int, state, key, value string) error {
+	return t.waitForNodeCountState(count, state, key, value)
+}
+
+func (t *FunctionalTest) waitForNodeCountState(count int, state, key, value string) error {
 	var (
 		counter       int
 		found         bool
 		labelSelector = fmt.Sprintf("node-role.kubernetes.io/%v=", t.ResourceName)
 	)
+
+	if key != "" {
+		labelSelector += fmt.Sprintf(",%v=%v", key, value)
+	}
+
 	for {
 		var conditionNodes int
 		var opts = metav1.ListOptions{
@@ -309,51 +329,61 @@ func (t *FunctionalTest) nodesShouldBe(count int, state string) error {
 	return nil
 }
 
-// TODO: Merge functions
-func (t *FunctionalTest) nodesShouldBeWithLabel(count int, state, key, value string) error {
-	var (
-		counter       int
-		found         bool
-		labelSelector = fmt.Sprintf("node-role.kubernetes.io/%v=,%v=%v", t.ResourceName, key, value)
-	)
-	for {
-		var conditionNodes int
-		var opts = metav1.ListOptions{
-			LabelSelector: labelSelector,
+func (t *FunctionalTest) deleteAll() error {
+	var deleteFn = func(path string, info os.FileInfo, err error) error {
+
+		if info.IsDir() || filepath.Ext(path) != ".yaml" {
+			return nil
 		}
-		if counter >= DefaultWaiterRetries {
-			return errors.New("waiter timed out waiting for nodes")
-		}
-		log.Infof("BDD >> waiting for %v nodes with labels %v to be %v", count, labelSelector, state)
-		nodes, err := t.KubeClient.CoreV1().Nodes().List(opts)
+
+		resource, err := testutil.ParseInstanceGroupYaml(path, testutil.NewTemplateArguments())
 		if err != nil {
 			return err
 		}
 
-		switch state {
-		case NodeStateFound:
-			if len(nodes.Items) == count {
-				log.Infof("BDD >> found %v nodes", count)
-				found = true
+		t.DynamicClient.Resource(InstanceGroupSchema).Namespace(resource.GetNamespace()).Delete(resource.GetName(), &metav1.DeleteOptions{})
+		log.Infof("BDD >> submitted deletion for %v/%v", resource.GetNamespace(), resource.GetName())
+		return nil
+	}
+
+	var waitFn = func(path string, info os.FileInfo, err error) error {
+		var (
+			counter int
+		)
+
+		if info.IsDir() || filepath.Ext(path) != ".yaml" {
+			return nil
+		}
+
+		resource, err := testutil.ParseInstanceGroupYaml(path, testutil.NewTemplateArguments())
+		if err != nil {
+			return err
+		}
+
+		for {
+			if counter >= DefaultWaiterRetries {
+				return errors.New("waiter timed out waiting for deletion")
 			}
-		case NodeStateReady:
-			for _, node := range nodes.Items {
-				if testutil.IsNodeReady(node) {
-					conditionNodes++
+			log.Info("BDD >> waiting for resource deletion of %v/%v", resource.GetNamespace(), resource.GetName())
+			_, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(resource.GetNamespace()).Get(resource.GetName(), metav1.GetOptions{})
+			if err != nil {
+				if kerrors.IsNotFound(err) {
+					break
 				}
 			}
-			if conditionNodes == count {
-				log.Infof("BDD >> found %v ready nodes", count)
-				found = true
-			}
+			counter++
+			time.Sleep(DefaultWaiterInterval)
 		}
-
-		if found {
-			break
-		}
-
-		counter++
-		time.Sleep(DefaultWaiterInterval)
+		return nil
 	}
+
+	if err := filepath.Walk("templates", deleteFn); err != nil {
+		return err
+	}
+
+	if err := filepath.Walk("templates", waitFn); err != nil {
+		return err
+	}
+
 	return nil
 }

@@ -7,12 +7,12 @@ Feature: EKSCF Create
     Given an EKS cluster
     When I create a resource instance-group.yaml
     Then the resource should be created
-    And the resource should converge to selector .status.currentState=success
+    And the resource should converge to selector .status.currentState=ready
     And 2 nodes should be ready
 
   Scenario: Create an instance-group with CRD strategy
     Given an EKS cluster
     When I create a resource instance-group-crd.yaml
     Then the resource should be created
-    And the resource should converge to selector .status.currentState=success
+    And the resource should converge to selector .status.currentState=ready
     And 2 nodes should be ready
