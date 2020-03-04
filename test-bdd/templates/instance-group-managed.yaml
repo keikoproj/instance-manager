@@ -1,0 +1,30 @@
+apiVersion: instancemgr.keikoproj.io/v1alpha1
+kind: InstanceGroup
+metadata:
+  name: bdd-test-managed
+  namespace: instance-manager
+spec:
+  provisioner: eks-managed
+  strategy:
+    type: managed
+  eks-managed:
+    maxSize: 4
+    minSize: 2
+    configuration:
+      nodeRole: {{ .NodeRole }}
+      clusterName: {{ .ClusterName }}
+      amiType: AL2_x86_64
+      instanceType: t2.small
+      subnets: {{range $element := .Subnets}}
+        - {{$element}}
+      {{ end }}
+      keyPairName: {{ .KeyPairName }}
+      securityGroups: {{range $element := .NodeSecurityGroups}}
+        - {{$element}}
+      {{ end }}
+      nodeLabels:
+        test: bdd-test-managed
+      tags:
+      - key: foo
+        value: bar
+      volSize: 20

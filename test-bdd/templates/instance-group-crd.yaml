@@ -22,22 +22,26 @@ spec:
           namespace: instance-manager
         spec:
           postDrainDelaySeconds: 30
-          nodeIntervalSeconds: 180
+          nodeIntervalSeconds: 60
           region: {{`{{ .ControllerRegion }}`}}
           asgName: {{`{{ .InstanceGroup.Status.ActiveScalingGroupName }}`}}
   eks-cf:
     maxSize: 4
     minSize: 2
     configuration:
-      bootstrapArguments: --register-with-taints=node-role.kubernetes.io/bdd-test=bdd-test:NoSchedule --node-labels=test-label.kubernetes.io/a-label=true
+      bootstrapArguments: --register-with-taints=node-role.kubernetes.io/bdd-test=bdd-test:NoSchedule --node-labels=test=bdd-test-crd
       clusterName: {{ .ClusterName }}
-      subnets: {{ .Subnets }}
+      subnets: {{range $element := .Subnets}}
+        - {{$element}}
+      {{ end }}
       keyPairName: {{ .KeyPairName }}
       vpcId: {{ .VpcID }}
       image: {{ .AmiID }}
       instanceType: t2.small
       volSize: 20
-      securityGroups: {{ .NodeSecurityGroups }}
+      securityGroups: {{range $element := .NodeSecurityGroups}}
+        - {{$element}}
+      {{ end }}
       tags:
         - key: mykey
           value: myvalue

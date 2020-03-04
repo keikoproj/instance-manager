@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -69,7 +70,7 @@ var InstanceGroupSchema = schema.GroupVersionResource{
 
 var opt = godog.Options{
 	Output: colors.Colored(os.Stdout),
-	Format: "progress",
+	Format: "pretty",
 }
 
 func init() {
@@ -169,23 +170,40 @@ func (t *FunctionalTest) iOperateOnResource(operation, resource string) error {
 	case OperationCreate:
 		_, err = t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Create(instanceGroup, metav1.CreateOptions{})
 		if err != nil {
+			if kerrors.IsAlreadyExists(err) {
+				// already created
+				break
+			}
 			return err
 		}
 	case OperationDelete:
 		err = t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Delete(t.ResourceName, &metav1.DeleteOptions{})
 		if err != nil {
+			if kerrors.IsNotFound(err) {
+				// already deleted
+				break
+			}
 			return err
 		}
 	}
 	return nil
 }
 
-func (t *FunctionalTest) iUpdateResourceWithField(resource, key, value string) error {
+func (t *FunctionalTest) iUpdateResourceWithField(resource, key string, value string) error {
 	var (
-		keySlice = testutil.DeleteEmpty(strings.Split(key, "."))
+		keySlice     = testutil.DeleteEmpty(strings.Split(key, "."))
+		overrideType bool
+		intValue     int64
 	)
+
 	resourcePath := filepath.Join("templates", resource)
 	args := testutil.NewTemplateArguments()
+
+	n, err := strconv.ParseInt(value, 10, 64)
+	if err == nil {
+		overrideType = true
+		intValue = n
+	}
 
 	instanceGroup, err := testutil.ParseInstanceGroupYaml(resourcePath, args)
 	if err != nil {
@@ -200,7 +218,11 @@ func (t *FunctionalTest) iUpdateResourceWithField(resource, key, value string) e
 		return err
 	}
 
-	unstructured.SetNestedField(updateTarget.UnstructuredContent(), value, keySlice...)
+	if overrideType {
+		unstructured.SetNestedField(updateTarget.UnstructuredContent(), intValue, keySlice...)
+	} else {
+		unstructured.SetNestedField(updateTarget.UnstructuredContent(), value, keySlice...)
+	}
 
 	_, err = t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Update(updateTarget, metav1.UpdateOptions{})
 	if err != nil {
@@ -286,33 +308,29 @@ func (t *FunctionalTest) theResourceShouldConvergeToSelector(selector string) er
 }
 
 func (t *FunctionalTest) nodesShouldBe(count int, state string) error {
-	return t.waitForNodeCountState(count, state, "", "")
+	return t.waitForNodeCountState(count, state, fmt.Sprintf("test=%v", t.ResourceName))
 }
 
 func (t *FunctionalTest) nodesShouldBeWithLabel(count int, state, key, value string) error {
-	return t.waitForNodeCountState(count, state, key, value)
+	selector := fmt.Sprintf("test=%v,%v=%v", t.ResourceName, key, value)
+	return t.waitForNodeCountState(count, state, selector)
 }
 
-func (t *FunctionalTest) waitForNodeCountState(count int, state, key, value string) error {
+func (t *FunctionalTest) waitForNodeCountState(count int, state, selector string) error {
 	var (
-		counter       int
-		found         bool
-		labelSelector = fmt.Sprintf("node-role.kubernetes.io/%v=", t.ResourceName)
+		counter int
+		found   bool
 	)
-
-	if key != "" {
-		labelSelector += fmt.Sprintf(",%v=%v", key, value)
-	}
 
 	for {
 		var conditionNodes int
 		var opts = metav1.ListOptions{
-			LabelSelector: labelSelector,
+			LabelSelector: selector,
 		}
 		if counter >= DefaultWaiterRetries {
 			return errors.New("waiter timed out waiting for nodes")
 		}
-		log.Infof("BDD >> %v/%v waiting for %v nodes to be %v", t.ResourceNamespace, t.ResourceName, count, state)
+		log.Infof("BDD >> %v/%v waiting for %v nodes to be %v with selector %v", t.ResourceNamespace, t.ResourceName, count, state, selector)
 		nodes, err := t.KubeClient.CoreV1().Nodes().List(opts)
 		if err != nil {
 			return err

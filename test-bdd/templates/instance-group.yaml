@@ -18,15 +18,19 @@ spec:
     maxSize: 4
     minSize: 2
     configuration:
-      bootstrapArguments: --register-with-taints=node-role.kubernetes.io/bdd-test=bdd-test:NoSchedule
+      bootstrapArguments: --register-with-taints=node-role.kubernetes.io/bdd-test=bdd-test:NoSchedule --node-labels=test=bdd-test-rolling
       clusterName: {{ .ClusterName }}
-      subnets: {{ .Subnets }}
+      subnets: {{range $element := .Subnets}}
+        - {{$element}}
+      {{ end }}
       keyPairName: {{ .KeyPairName }}
       vpcId: {{ .VpcID }}
       image: {{ .AmiID }}
       instanceType: t2.small
       volSize: 20
-      securityGroups: {{ .NodeSecurityGroups }}
+      securityGroups: {{range $element := .NodeSecurityGroups}}
+        - {{$element}}
+      {{ end }}
       tags:
         - key: mykey
           value: myvalue
