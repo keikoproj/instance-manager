@@ -16,23 +16,52 @@ limitations under the License.
 package testutil
 
 import (
+	"bytes"
 	"fmt"
+	"html/template"
+	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"time"
+	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/cloudformation"
-	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
+	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/json"
+	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
-var log = logrus.New()
+type TemplateArguments struct {
+	ClusterName        string
+	KeyPairName        string
+	VpcID              string
+	AmiID              string
+	NodeSecurityGroups []string
+	Subnets            []string
+}
+
+func NewTemplateArguments() *TemplateArguments {
+	return &TemplateArguments{
+		ClusterName:        os.Getenv("EKS_CLUSTER"),
+		KeyPairName:        os.Getenv("KEYPAIR_NAME"),
+		VpcID:              os.Getenv("VPC_ID"),
+		AmiID:              os.Getenv("AMI_ID"),
+		NodeSecurityGroups: strings.Split(os.Getenv("SECURITY_GROUPS"), ","),
+		Subnets:            strings.Split(os.Getenv("NODE_SUBNETS"), ","),
+	}
+}
+
+func IsNodeReady(n corev1.Node) bool {
+	for _, condition := range n.Status.Conditions {
+		if condition.Type == "Ready" {
+			if condition.Status == "True" {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 func PathToOSFile(relativePath string) (*os.File, error) {
 	path, err := filepath.Abs(relativePath)
@@ -48,191 +77,51 @@ func PathToOSFile(relativePath string) (*os.File, error) {
 	return manifest, nil
 }
 
-func KubectlApply(manifestRelativePath string) error {
-	kubectlBinaryPath, err := exec.LookPath("kubectl")
+func ParseInstanceGroupYaml(relativePath string, args *TemplateArguments) (*unstructured.Unstructured, error) {
+	var renderBuffer bytes.Buffer
+	var err error
+
+	var ig *unstructured.Unstructured
+
+	if _, err = PathToOSFile(relativePath); err != nil {
+		return nil, err
+	}
+
+	fileData, err := common.ReadFile(relativePath)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	path, err := filepath.Abs(manifestRelativePath)
+	rawTemplate := string(fileData)
+
+	template, err := template.New("InstanceGroup").Parse(rawTemplate)
 	if err != nil {
-		return errors.Wrap(err, fmt.Sprintf("failed generate absolut file path of %s", manifestRelativePath))
+		return nil, err
 	}
 
-	applyArgs := []string{"apply", "-f", path}
-	cmd := exec.Command(kubectlBinaryPath, applyArgs...)
-	log.Printf("Executing: %v %v", kubectlBinaryPath, applyArgs)
-
-	err = cmd.Start()
+	err = template.Execute(&renderBuffer, &args)
 	if err != nil {
-		return errors.Wrap(err, fmt.Sprintf("Could not exec kubectl: "))
+		return nil, err
 	}
 
-	err = cmd.Wait()
-	if err != nil {
-		return errors.Wrap(err, fmt.Sprintf("Command resulted in error: "))
-	}
-
-	return nil
-}
-
-func isNodeReady(n corev1.Node) bool {
-	for _, condition := range n.Status.Conditions {
-		if condition.Type == "Ready" {
-			if condition.Status == "True" {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func WaitForNodesDelete(k kubernetes.Interface, role string) bool {
-	// poll every 20 seconds
-	var pollingInterval = time.Second * 20
-	// timeout after 24 occurrences = 480 seconds = 8 minutes
-	var timeoutCounter = 24
-	var pollingCounter = 0
-	var labelSelector = fmt.Sprintf("node-role.kubernetes.io/%v=", role)
-
+	decoder := yaml.NewYAMLOrJSONDecoder(&renderBuffer, 100)
 	for {
-		log.Printf("waiting for nodes, attempt %v/%v", pollingCounter, timeoutCounter)
-		nodeList, _ := k.CoreV1().Nodes().List(metav1.ListOptions{LabelSelector: labelSelector})
-		nodeCount := len(nodeList.Items)
-
-		if nodeCount == 0 {
-			return true
+		var out unstructured.Unstructured
+		err = decoder.Decode(&out)
+		if err != nil {
+			break
 		}
 
-		time.Sleep(pollingInterval)
-		log.Println("nodes did not terminate yet, retrying")
-		pollingCounter++
-		if pollingCounter == timeoutCounter {
+		if out.GetKind() == "InstanceGroup" {
+			var marshaled []byte
+			marshaled, err = out.MarshalJSON()
+			json.Unmarshal(marshaled, &ig)
 			break
 		}
 	}
-	return false
-}
 
-func IsStackExist(w cloudformationiface.CloudFormationAPI, stackName string) bool {
-	out, _ := w.DescribeStacks(&cloudformation.DescribeStacksInput{StackName: aws.String(stackName)})
-	stackCount := len(out.Stacks)
-	if stackCount != 0 {
-		return true
+	if err != io.EOF && err != nil {
+		return nil, err
 	}
-	return false
-}
-
-func GetStackState(w cloudformationiface.CloudFormationAPI, stackName string) string {
-	out, err := w.DescribeStacks(&cloudformation.DescribeStacksInput{StackName: aws.String(stackName)})
-	if err != nil {
-		log.Println(err)
-		return ""
-	}
-	for _, stack := range out.Stacks {
-		scanStackName := aws.StringValue(stack.StackName)
-		stackStatus := aws.StringValue(stack.StackStatus)
-		log.Printf("Stack %v state is: %v", scanStackName, stackStatus)
-		if scanStackName == stackName {
-			return stackStatus
-		}
-	}
-	return ""
-}
-
-func WaitForNodesCreate(k kubernetes.Interface, role string, expectedReadyCount int) bool {
-	// poll every 40 seconds
-	var pollingInterval = time.Second * 40
-	// timeout after 24 occurrences = 960 seconds = 16 minutes
-	var timeoutCounter = 24
-	var pollingCounter = 0
-	var labelSelector = fmt.Sprintf("node-role.kubernetes.io/%v=", role)
-
-	for {
-		log.Printf("waiting for nodes, attempt %v/%v", pollingCounter, timeoutCounter)
-		nodeList, _ := k.CoreV1().Nodes().List(metav1.ListOptions{LabelSelector: labelSelector})
-		nodeCount := len(nodeList.Items)
-		var seenReady = 0
-
-		if nodeCount == expectedReadyCount {
-
-			for _, node := range nodeList.Items {
-				log.Printf("found %v", node.ObjectMeta.Name)
-
-				if !isNodeReady(node) {
-					log.Printf("%v is not ready", node.ObjectMeta.Name)
-					break
-				} else {
-					seenReady++
-				}
-			}
-			if seenReady == expectedReadyCount {
-				return true
-			}
-		}
-
-		log.Println("nodes did not join yet, retrying")
-		time.Sleep(pollingInterval)
-		pollingCounter++
-		if pollingCounter == timeoutCounter {
-			break
-		}
-	}
-	return false
-}
-
-func WaitForNodesRotate(k kubernetes.Interface, role string) bool {
-	var initialNodeNames []string
-	var pollingInterval = time.Second * 30
-	var timeoutCounter = 48
-	var pollingCounter = 0
-	var labelSelector = fmt.Sprintf("node-role.kubernetes.io/%v=", role)
-
-	initialNodes, _ := k.CoreV1().Nodes().List(metav1.ListOptions{LabelSelector: labelSelector})
-	for _, node := range initialNodes.Items {
-		initialNodeNames = append(initialNodeNames, node.Name)
-	}
-	log.Printf("Found nodes %v, waiting for rotation", initialNodeNames)
-
-	for {
-		var scannedNodeNames []string
-		var nodeMatch int
-		log.Printf("waiting for rotation, attempt %v/%v", pollingCounter, timeoutCounter)
-		nodeList, _ := k.CoreV1().Nodes().List(metav1.ListOptions{LabelSelector: labelSelector})
-		for _, node := range nodeList.Items {
-			scannedNodeNames = append(scannedNodeNames, node.Name)
-		}
-
-		log.Printf("found nodes %v, comparing to %v", scannedNodeNames, initialNodeNames)
-
-		if initialNodeNames != nil && scannedNodeNames != nil {
-			if len(initialNodeNames) == len(scannedNodeNames) {
-				for _, value := range initialNodeNames {
-					if ContainsString(scannedNodeNames, value) {
-						nodeMatch++
-					}
-				}
-				if nodeMatch == 0 {
-					return true
-				}
-			}
-		}
-
-		time.Sleep(pollingInterval)
-		log.Println("nodes did not rotate yet, retrying")
-		pollingCounter++
-		if pollingCounter == timeoutCounter {
-			break
-		}
-	}
-	return false
-}
-
-func ContainsString(slice []string, s string) bool {
-	for _, item := range slice {
-		if item == s {
-			return true
-		}
-	}
-	return false
+	return ig, nil
 }

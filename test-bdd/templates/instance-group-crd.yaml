@@ -26,8 +26,8 @@ spec:
           region: {{`{{ .ControllerRegion }}`}}
           asgName: {{`{{ .InstanceGroup.Status.ActiveScalingGroupName }}`}}
   eks-cf:
-    maxSize: 6
-    minSize: 3
+    maxSize: 4
+    minSize: 2
     configuration:
       bootstrapArguments: --register-with-taints=node-role.kubernetes.io/bdd-test=bdd-test:NoSchedule --node-labels=test-label.kubernetes.io/a-label=true
       clusterName: {{ .ClusterName }}
@@ -35,7 +35,7 @@ spec:
       keyPairName: {{ .KeyPairName }}
       vpcId: {{ .VpcID }}
       image: {{ .AmiID }}
-      instanceType: m3.medium
+      instanceType: t2.small
       volSize: 20
       securityGroups: {{ .NodeSecurityGroups }}
       tags:
