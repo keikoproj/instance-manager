@@ -93,7 +93,7 @@ func TestMain(m *testing.M) {
 func FeatureContext(s *godog.Suite) {
 	t := FunctionalTest{}
 
-	s.BeforeFeature(func(f *gherkin.Feature) {
+	s.BeforeSuite(func() {
 		log.Info("BDD >> trying to delete any existing test instance-groups")
 		t.anEKSCluster()
 		t.deleteAll()
@@ -109,7 +109,7 @@ func FeatureContext(s *godog.Suite) {
 	s.Step(`^the resource should be (created|deleted)$`, t.theResourceShouldBe)
 	s.Step(`^the resource should converge to selector ([^"]*)$`, t.theResourceShouldConvergeToSelector)
 	s.Step(`^I (create|delete) a resource ([^"]*)$`, t.iOperateOnResource)
-	s.Step(`^I update a resource with ([^"]*) set to ([^"]*)$`, t.iUpdateResourceWithField)
+	s.Step(`^I update a resource ([^"]*) with ([^"]*) set to ([^"]*)$`, t.iUpdateResourceWithField)
 
 }
 
@@ -212,26 +212,37 @@ func (t *FunctionalTest) iUpdateResourceWithField(resource, key, value string) e
 
 func (t *FunctionalTest) theResourceShouldBe(state string) error {
 	var (
-		exists bool
+		exists  bool
+		counter int
 	)
 
 	exists = true
-	log.Infof("BDD >> checking if resource %v/%v is %v", t.ResourceNamespace, t.ResourceName, state)
-	_, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Get(t.ResourceName, metav1.GetOptions{})
-	if err != nil {
-		log.Infof("BDD >> %v/%v is not found: %v", t.ResourceNamespace, t.ResourceName, err)
-		exists = false
-	}
+	for {
+		if counter >= DefaultWaiterRetries {
+			return errors.New("waiter timed out waiting for resource state")
+		}
+		log.Infof("BDD >> waiting for resource %v/%v to become %v", t.ResourceNamespace, t.ResourceName, state)
+		_, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Get(t.ResourceName, metav1.GetOptions{})
+		if err != nil {
+			if !kerrors.IsNotFound(err) {
+				return err
+			}
+			log.Infof("BDD >> %v/%v is not found: %v", t.ResourceNamespace, t.ResourceName, err)
+			exists = false
+		}
 
-	switch state {
-	case ResourceStateDeleted:
-		if exists {
-			return errors.Errorf("expected resource '%v' to be %v", t.ResourceName, ResourceStateDeleted)
+		switch state {
+		case ResourceStateDeleted:
+			if !exists {
+				break
+			}
+		case ResourceStateCreated:
+			if exists {
+				break
+			}
 		}
-	case ResourceStateCreated:
-		if !exists {
-			return errors.Errorf("expected resource '%v' to be %v", t.ResourceName, ResourceStateCreated)
-		}
+		counter++
+		time.Sleep(DefaultWaiterInterval)
 	}
 
 	return nil
@@ -299,7 +310,7 @@ func (t *FunctionalTest) waitForNodeCountState(count int, state, key, value stri
 		if counter >= DefaultWaiterRetries {
 			return errors.New("waiter timed out waiting for nodes")
 		}
-		log.Infof("BDD >> waiting for %v nodes to be %v", count, state)
+		log.Infof("BDD >> %v/%v waiting for %v nodes to be %v", t.ResourceNamespace, t.ResourceName, count, state)
 		nodes, err := t.KubeClient.CoreV1().Nodes().List(opts)
 		if err != nil {
 			return err
@@ -308,7 +319,7 @@ func (t *FunctionalTest) waitForNodeCountState(count int, state, key, value stri
 		switch state {
 		case NodeStateFound:
 			if len(nodes.Items) == count {
-				log.Infof("BDD >> found %v nodes", count)
+				log.Infof("BDD >> %v/%v found %v nodes", t.ResourceNamespace, t.ResourceName, count)
 				found = true
 			}
 		case NodeStateReady:
@@ -318,7 +329,7 @@ func (t *FunctionalTest) waitForNodeCountState(count int, state, key, value stri
 				}
 			}
 			if conditionNodes == count {
-				log.Infof("BDD >> found %v ready nodes", count)
+				log.Infof("BDD >> %v/%v found %v ready nodes", t.ResourceNamespace, t.ResourceName, count)
 				found = true
 			}
 		}
