@@ -466,11 +466,6 @@ spec:
                     volSize:
                       format: int32
                       type: integer
-                  required:
-                  - keyPairName
-                  - image
-                  - instanceType
-                  - securityGroups
                   type: object
                 maxSize:
                   format: int32
@@ -478,10 +473,6 @@ spec:
                 minSize:
                   format: int32
                   type: integer
-              required:
-              - maxSize
-              - minSize
-              - configuration
               type: object
             eks-fargate:
               properties:
@@ -518,9 +509,58 @@ spec:
               required:
               - fargateProfileName
               - clusterName
-              - podExecutionRoleArn
               - subnets
-              - selectors
+              type: object
+            eks-managed:
+              properties:
+                configuration:
+                  properties:
+                    amiType:
+                      type: string
+                    clusterName:
+                      type: string
+                    instanceType:
+                      type: string
+                    keyPairName:
+                      type: string
+                    nodeLabels:
+                      additionalProperties:
+                        type: string
+                      type: object
+                    nodeRole:
+                      type: string
+                    releaseVersion:
+                      type: string
+                    securityGroups:
+                      items:
+                        type: string
+                      type: array
+                    subnets:
+                      items:
+                        type: string
+                      type: array
+                    tags:
+                      items:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      type: array
+                    version:
+                      type: string
+                    volSize:
+                      format: int64
+                      type: integer
+                  type: object
+                maxSize:
+                  format: int64
+                  type: integer
+                minSize:
+                  format: int64
+                  type: integer
+              required:
+              - maxSize
+              - minSize
+              - configuration
               type: object
             provisioner:
               type: string

@@ -1,0 +1,31 @@
+apiVersion: instancemgr.keikoproj.io/v1alpha1
+kind: InstanceGroup
+metadata:
+  annotations:
+  name: hello-managed
+  namespace: instance-manager
+spec:
+  provisioner: eks-managed
+  strategy:
+    type: managed
+  eks-managed:
+    configuration:
+      nodeRole: arn:aws:iam::32333344450:role/basic-eks-role
+      clusterName: my-eks-cluster
+      amiType: AL2_x86_64
+      instanceType: m3.medium
+      keyPairName: MyKeyPair
+      securityGroups:
+      - sg-04adb6343b07c7914
+      subnets:
+      - subnet-12345789
+      - subnet-12345555
+      - subnet-33322222
+      nodeLabels:
+        foo: bar
+      tags:
+      - key: foo
+        value: bar
+      volSize: 20
+    maxSize: 6
+    minSize: 3

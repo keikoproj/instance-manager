@@ -35,7 +35,7 @@ func (ctx *EksCfInstanceGroupContext) discoverSpotPrice() {
 		status            = &instanceGroup.Status
 		spec              = &instanceGroup.Spec
 		provisionerConfig = spec.EKSCFSpec
-		specConfig        = &provisionerConfig.EKSCFConfiguration
+		specConfig        = provisionerConfig.EKSCFConfiguration
 		scalingGroupName  = status.GetActiveScalingGroupName()
 	)
 

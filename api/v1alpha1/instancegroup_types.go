@@ -21,6 +21,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 type ReconcileState string
@@ -42,6 +43,14 @@ const (
 	ReconcileErr   ReconcileState = "Error"
 )
 
+var (
+	GroupVersionResource = schema.GroupVersionResource{
+		Group:    "instancemgr.keikoproj.io",
+		Version:  "v1alpha1",
+		Resource: "instancegroups",
+	}
+)
+
 // InstanceGroup is the Schema for the instancegroups API
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:path=instancegroups,scope=Namespaced,shortName=ig
@@ -61,14 +70,6 @@ type InstanceGroup struct {
 	Status InstanceGroupStatus `json:"status,omitempty"`
 }
 
-// InstanceGroupSpec defines the schema of resource Spec
-type InstanceGroupSpec struct {
-	Provisioner        string             `json:"provisioner"`
-	EKSCFSpec          *EKSCFSpec         `json:"eks-cf,omitempty"`
-	EKSFargateSpec     *EKSFargateSpec    `json:"eks-fargate,omitempty"`
-	AwsUpgradeStrategy AwsUpgradeStrategy `json:"strategy"`
-}
-
 // InstanceGroupList contains a list of InstanceGroup
 // +kubebuilder:object:root=true
 type InstanceGroupList struct {
@@ -79,9 +80,9 @@ type InstanceGroupList struct {
 
 // AwsUpgradeStrategy defines the upgrade strategy of an AWS Instance Group
 type AwsUpgradeStrategy struct {
-	Type               string                 `json:"type"`
-	CRDType            CRDUpgradeStrategy     `json:"crd,omitempty"`
-	RollingUpgradeType RollingUpgradeStrategy `json:"rollingUpdate,omitempty"`
+	Type               string                  `json:"type"`
+	CRDType            *CRDUpgradeStrategy     `json:"crd,omitempty"`
+	RollingUpgradeType *RollingUpgradeStrategy `json:"rollingUpdate,omitempty"`
 }
 
 type RollingUpgradeStrategy struct {
@@ -156,6 +157,73 @@ type CRDUpgradeStrategy struct {
 	StatusFailureString string `json:"statusFailureString,omitempty"`
 }
 
+// InstanceGroupSpec defines the schema of resource Spec
+type InstanceGroupSpec struct {
+	Provisioner        string             `json:"provisioner"`
+	EKSCFSpec          *EKSCFSpec         `json:"eks-cf,omitempty"`
+	EKSManagedSpec     *EKSManagedSpec    `json:"eks-managed,omitempty"`
+	EKSFargateSpec     *EKSFargateSpec    `json:"eks-fargate,omitempty"`
+	AwsUpgradeStrategy AwsUpgradeStrategy `json:"strategy"`
+}
+
+type EKSManagedSpec struct {
+	MaxSize                 int64                    `json:"maxSize"`
+	MinSize                 int64                    `json:"minSize"`
+	EKSManagedConfiguration *EKSManagedConfiguration `json:"configuration"`
+}
+
+type EKSCFSpec struct {
+	MaxSize            int32               `json:"maxSize,omitempty"`
+	MinSize            int32               `json:"minSize,omitempty"`
+	EKSCFConfiguration *EKSCFConfiguration `json:"configuration,omitempty"`
+}
+type EKSFargateSpec struct {
+	ProfileName         *string                `json:"fargateProfileName"`
+	ClusterName         *string                `json:"clusterName"`
+	PodExecutionRoleArn *string                `json:"podExecutionRoleArn,omitempty"`
+	Subnets             []*string              `json:"subnets"`
+	Selectors           []*EKSFargateSelectors `json:"selectors,omitempty"`
+	Tags                []map[string]string    `json:"tags,omitempty"`
+}
+
+type EKSManagedConfiguration struct {
+	EksClusterName     string              `json:"clusterName,omitempty"`
+	VolSize            int64               `json:"volSize,omitempty"`
+	InstanceType       string              `json:"instanceType,omitempty"`
+	NodeLabels         map[string]string   `json:"nodeLabels,omitempty"`
+	NodeRole           string              `json:"nodeRole,omitempty"`
+	NodeSecurityGroups []string            `json:"securityGroups,omitempty"`
+	KeyPairName        string              `json:"keyPairName,omitempty"`
+	Tags               []map[string]string `json:"tags,omitempty"`
+	Subnets            []string            `json:"subnets,omitempty"`
+	AmiType            string              `json:"amiType,omitempty"`
+	ReleaseVersion     string              `json:"releaseVersion,omitempty"`
+	Version            string              `json:"version,omitempty"`
+}
+
+// EKSCFConfiguration defines the context of an AWS Instance Group using EKSCF
+type EKSCFConfiguration struct {
+	EksClusterName              string              `json:"clusterName,omitempty"`
+	KeyPairName                 string              `json:"keyPairName,omitempty"`
+	Image                       string              `json:"image,omitempty"`
+	InstanceType                string              `json:"instanceType,omitempty"`
+	NodeSecurityGroups          []string            `json:"securityGroups,omitempty"`
+	VolSize                     int32               `json:"volSize,omitempty"`
+	Subnets                     []string            `json:"subnets,omitempty"`
+	BootstrapArguments          string              `json:"bootstrapArguments,omitempty"`
+	SpotPrice                   string              `json:"spotPrice,omitempty"`
+	Tags                        []map[string]string `json:"tags,omitempty"`
+	ExistingRoleName            string              `json:"roleName,omitempty"`
+	ExistingInstanceProfileName string              `json:"instanceProfileName,omitempty"`
+	ManagedPolicies             []string            `json:"managedPolicies,omitempty"`
+	MetricsCollection           []string            `json:"metricsCollection,omitempty"`
+}
+
+type EKSFargateSelectors struct {
+	Namespace *string           `json:"namespace"`
+	Labels    map[string]string `json:"labels"`
+}
+
 // InstanceGroupStatus defines the schema of resource Status
 type InstanceGroupStatus struct {
 	StackName                     string `json:"stackName,omitempty"`
@@ -170,15 +238,35 @@ type InstanceGroupStatus struct {
 	Lifecycle                     string `json:"lifecycle,omitempty"`
 }
 
-func (s *AwsUpgradeStrategy) GetRollingUpgradeStrategy() RollingUpgradeStrategy {
+func (conf *EKSManagedConfiguration) SetSubnets(subnets []string)  { conf.Subnets = subnets }
+func (conf *EKSManagedConfiguration) SetClusterName(name string)   { conf.EksClusterName = name }
+func (conf *EKSManagedConfiguration) GetLabels() map[string]string { return conf.NodeLabels }
+
+func (ig *InstanceGroup) GetEKSManagedConfiguration() *EKSManagedConfiguration {
+	return ig.Spec.EKSManagedSpec.EKSManagedConfiguration
+}
+
+func (ig *InstanceGroup) GetEKSManagedSpec() *EKSManagedSpec {
+	return ig.Spec.EKSManagedSpec
+}
+
+func (spec *EKSManagedSpec) GetMaxSize() int64 {
+	return spec.MaxSize
+}
+
+func (spec *EKSManagedSpec) GetMinSize() int64 {
+	return spec.MinSize
+}
+
+func (s *AwsUpgradeStrategy) GetRollingUpgradeStrategy() *RollingUpgradeStrategy {
 	return s.RollingUpgradeType
 }
 
-func (s *AwsUpgradeStrategy) GetCRDType() CRDUpgradeStrategy {
+func (s *AwsUpgradeStrategy) GetCRDType() *CRDUpgradeStrategy {
 	return s.CRDType
 }
 
-func (s *AwsUpgradeStrategy) SetCRDType(crd CRDUpgradeStrategy) {
+func (s *AwsUpgradeStrategy) SetCRDType(crd *CRDUpgradeStrategy) {
 	s.CRDType = crd
 }
 
@@ -310,6 +398,126 @@ func (strategy *AwsUpgradeStrategy) SetType(strategyType string) {
 	strategy.Type = strategyType
 }
 
+func (spec *EKSCFSpec) GetMinSize() int32 {
+	return spec.MinSize
+}
+
+func (spec *EKSCFSpec) SetMinSize(size int32) {
+	spec.MinSize = size
+}
+
+func (spec *EKSCFSpec) GetMaxSize() int32 {
+	return spec.MaxSize
+}
+
+func (spec *EKSCFSpec) SetMaxSize(size int32) {
+	spec.MaxSize = size
+}
+
+func (conf *EKSCFConfiguration) GetKeyName() string {
+	return conf.KeyPairName
+}
+
+func (conf *EKSCFConfiguration) SetKeyName(keypairName string) {
+	conf.KeyPairName = keypairName
+}
+
+func (conf *EKSCFConfiguration) SetSpotPrice(price string) {
+	conf.SpotPrice = price
+}
+
+func (conf *EKSCFConfiguration) GetSpotPrice() string {
+	return conf.SpotPrice
+}
+
+func (conf *EKSCFConfiguration) GetImage() string {
+	return conf.Image
+}
+
+func (conf *EKSCFConfiguration) SetImage(image string) {
+	conf.Image = image
+}
+
+func (conf *EKSCFConfiguration) GetInstanceType() string {
+	return conf.InstanceType
+}
+
+func (conf *EKSCFConfiguration) setInstanceType(instanceType string) {
+	conf.InstanceType = instanceType
+}
+
+func (conf *EKSCFConfiguration) GetSubnets() []string {
+	return conf.Subnets
+}
+
+func (conf *EKSCFConfiguration) SetSubnets(subnets []string) {
+	conf.Subnets = subnets
+}
+
+func (conf *EKSCFConfiguration) GetSecurityGroups() []string {
+	return conf.NodeSecurityGroups
+}
+
+func (conf *EKSCFConfiguration) SetSecurityGroups(securityGroups []string) {
+	conf.NodeSecurityGroups = securityGroups
+}
+
+func (conf *EKSCFConfiguration) GetVolSize() int32 {
+	return conf.VolSize
+}
+
+func (conf *EKSCFConfiguration) SetVolSize(s int32) {
+	conf.VolSize = s
+}
+
+func (conf *EKSCFConfiguration) GetClusterName() string {
+	return conf.EksClusterName
+}
+
+func (conf *EKSCFConfiguration) SetClusterName(clusterName string) {
+	conf.EksClusterName = clusterName
+}
+
+func (conf *EKSCFConfiguration) GetBootstrapArgs() string {
+	return conf.BootstrapArguments
+}
+
+func (conf *EKSCFConfiguration) SetBootstrapArgs(args string) {
+	conf.BootstrapArguments = args
+}
+
+func (conf *EKSCFConfiguration) GetRoleName() string {
+	return conf.ExistingRoleName
+}
+
+func (conf *EKSCFConfiguration) SetRoleName(role string) {
+	conf.ExistingRoleName = role
+}
+
+func (conf *EKSCFConfiguration) GetInstanceProfileName() string {
+	return conf.ExistingInstanceProfileName
+}
+
+func (conf *EKSCFConfiguration) SetInstanceProfileName(profile string) {
+	conf.ExistingInstanceProfileName = profile
+}
+
+func (conf *EKSCFConfiguration) GetTags() []map[string]string {
+	return conf.Tags
+}
+
+func (conf *EKSCFConfiguration) SetTags(tags []map[string]string) {
+	conf.Tags = tags
+}
+
+func (conf *EKSCFConfiguration) GetMetricsCollection() []string {
+	return conf.MetricsCollection
+}
+
+func (conf *EKSCFConfiguration) SetMetricsCollection(metricsCollection []string) {
+	conf.MetricsCollection = metricsCollection
+}
+
 func (ig *InstanceGroup) GetState() ReconcileState {
 	return ReconcileState(ig.Status.CurrentState)
 }
@@ -321,4 +529,52 @@ func (ig *InstanceGroup) SetState(s ReconcileState) {
 
 func init() {
 	SchemeBuilder.Register(&InstanceGroup{}, &InstanceGroupList{})
+}
+
+func (spec *EKSFargateSpec) GetProfileName() *string {
+	return spec.ProfileName
+}
+
+func (spec *EKSFargateSpec) SetProfileName(name *string) {
+	spec.ProfileName = name
+}
+
+func (spec *EKSFargateSpec) GetClusterName() *string {
+	return spec.ClusterName
+}
+
+func (spec *EKSFargateSpec) SetClusterName(name *string) {
+	spec.ClusterName = name
+}
+
+func (spec *EKSFargateSpec) GetPodExecutionRoleArn() *string {
+	return spec.PodExecutionRoleArn
+}
+
+func (spec *EKSFargateSpec) SetPodExecutionRoleArn(arn *string) {
+	spec.PodExecutionRoleArn = arn
+}
+
+func (spec *EKSFargateSpec) GetSubnets() []*string {
+	return spec.Subnets
+}
+
+func (spec *EKSFargateSpec) SetSubnets(subnets []*string) {
+	spec.Subnets = subnets
+}
+
+func (spec *EKSFargateSpec) GetSelectors() []*EKSFargateSelectors {
+	return spec.Selectors
+}
+
+func (spec *EKSFargateSpec) SetSelectors(selectors []*EKSFargateSelectors) {
+	spec.Selectors = selectors
+}
+
+func (spec *EKSFargateSpec) GetTags() []map[string]string {
+	return spec.Tags
+}
+
+func (spec *EKSFargateSpec) SetTags(tags []map[string]string) {
+	spec.Tags = tags
 }

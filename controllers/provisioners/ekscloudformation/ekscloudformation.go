@@ -20,7 +20,6 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"regexp"
 
@@ -40,11 +39,6 @@ var (
 	outputLaunchConfiguration = "LaunchConfigName"
 	outputScalingGroupName    = "AsgName"
 	outputGroupARN            = "NodeInstanceRole"
-	groupVersionResource      = schema.GroupVersionResource{
-		Group:    "instancemgr.keikoproj.io",
-		Version:  "v1alpha1",
-		Resource: "instancegroups",
-	}
 )
 
 const (
@@ -57,18 +51,18 @@ const (
 )
 
 // New constructs a new instance group provisioner of EKS Cloudformation type
-func New(instanceGroup *v1alpha1.InstanceGroup, k common.KubernetesClientSet, w awsprovider.AwsWorker) (EksCfInstanceGroupContext, error) {
+func New(instanceGroup *v1alpha1.InstanceGroup, k common.KubernetesClientSet, w awsprovider.AwsWorker) (*EksCfInstanceGroupContext, error) {
 	log.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp: true,
 	})
-	var specConfig = &instanceGroup.Spec.EKSCFSpec.EKSCFConfiguration
+	var specConfig = instanceGroup.Spec.EKSCFSpec.EKSCFConfiguration
 
 	vpcID, err := w.DeriveEksVpcID(specConfig.GetClusterName())
 	if err != nil {
-		return EksCfInstanceGroupContext{}, err
+		return &EksCfInstanceGroupContext{}, err
 	}
 
-	ctx := EksCfInstanceGroupContext{
+	ctx := &EksCfInstanceGroupContext{
 		InstanceGroup:    instanceGroup,
 		KubernetesClient: k,
 		AwsWorker:        w,
@@ -80,7 +74,7 @@ func New(instanceGroup *v1alpha1.InstanceGroup, k common.KubernetesClientSet, w 
 	err = ctx.processParameters()
 	if err != nil {
 		log.Errorf("failed to parse cloudformation parameters: %v", err)
-		return EksCfInstanceGroupContext{}, err
+		return &EksCfInstanceGroupContext{}, err
 	}
 
 	return ctx, nil
@@ -258,7 +252,7 @@ func (ctx *EksCfInstanceGroupContext) discoverInstanceGroups() {
 	instanceGroup := ctx.GetInstanceGroup()
 	spec := &instanceGroup.Spec
 	provisionerConfig := spec.EKSCFSpec
-	specConfig := &provisionerConfig.EKSCFConfiguration
+	specConfig := provisionerConfig.EKSCFConfiguration
 	state := ctx.GetDiscoveredState()
 	stacks := state.GetCloudformationStacks()
 
@@ -296,7 +290,7 @@ func (ctx *EksCfInstanceGroupContext) discoverInstanceGroups() {
 		if group.Namespace != "" && group.Name != "" {
 			var groupDeleting bool
 			var groupDeleted bool
-			groupDeleting, err := ctx.isResourceDeleting(groupVersionResource, group.Namespace, group.Name)
+			groupDeleting, err := ctx.isResourceDeleting(v1alpha1.GroupVersionResource, group.Namespace, group.Name)
 			if err != nil {
 				if errors.IsNotFound(err) {
 					groupDeleted = true
@@ -346,7 +340,7 @@ func (ctx *EksCfInstanceGroupContext) parseTags() {
 	spec := &instanceGroup.Spec
 	meta := &instanceGroup.ObjectMeta
 	provisionerConfig := spec.EKSCFSpec
-	specConfig := &provisionerConfig.EKSCFConfiguration
+	specConfig := provisionerConfig.EKSCFConfiguration
 
 	tags = map[string]string{
 		TagClusterName:       specConfig.GetClusterName(),
@@ -448,7 +442,7 @@ func (ctx *EksCfInstanceGroupContext) processParameters() error {
 	spec := &instanceGroup.Spec
 	meta := &instanceGroup.ObjectMeta
 	provisionerConfig := spec.EKSCFSpec
-	specConfig := &provisionerConfig.EKSCFConfiguration
+	specConfig := provisionerConfig.EKSCFConfiguration
 
 	roleLabel := fmt.Sprintf("node-role.kubernetes.io/%v=\"\"", meta.GetName())
 	kubeletArgs := fmt.Sprintf("--node-labels=%v", roleLabel)
@@ -481,8 +475,11 @@ func (ctx *EksCfInstanceGroupContext) processParameters() error {
 		"VpcId":                       ctx.VpcID,
 		"ManagedPolicyARNs":           getManagedPolicyARNs(specConfig.ManagedPolicies),
 		"NodeAutoScalingGroupMetrics": getNodeAutoScalingGroupMetrics(specConfig.GetMetricsCollection()),
-		"ExistingRoleName":            existingRole,
-		"ExistingInstanceProfileName": existingProfile,
+	}
+
+	if existingRole != "" && existingProfile != "" {
+		rawParameters["ExistingRoleName"] = existingRole
+		rawParameters["ExistingInstanceProfileName"] = existingProfile
 	}
 
 	var parameters []*cloudformation.Parameter

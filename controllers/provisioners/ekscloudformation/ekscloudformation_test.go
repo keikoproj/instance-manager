@@ -440,7 +440,7 @@ func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 			EKSCFSpec: &v1alpha1.EKSCFSpec{
 				MaxSize: 3,
 				MinSize: 1,
-				EKSCFConfiguration: v1alpha1.EKSCFConfiguration{
+				EKSCFConfiguration: &v1alpha1.EKSCFConfiguration{
 					BootstrapArguments: f.BootstrapArguments,
 					Tags: []map[string]string{
 						{
@@ -452,7 +452,7 @@ func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 			},
 			AwsUpgradeStrategy: v1alpha1.AwsUpgradeStrategy{
 				Type: f.UpgradeStrategyType,
-				CRDType: v1alpha1.CRDUpgradeStrategy{
+				CRDType: &v1alpha1.CRDUpgradeStrategy{
 					Spec:                f.UpgradeStrategyCRDSpec,
 					ConcurrencyPolicy:   f.ConcurrencyPolicy,
 					CRDName:             f.UpgradeStrategyCRD,
@@ -460,6 +460,7 @@ func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 					StatusSuccessString: f.UpgradeStrategyCRDStatusSuccess,
 					StatusFailureString: f.UpgradeStrategyCRDStatusFail,
 				},
+				RollingUpgradeType: &v1alpha1.RollingUpgradeStrategy{},
 			},
 		},
 		Status: v1alpha1.InstanceGroupStatus{
@@ -488,7 +489,7 @@ func getSpotSuggestionEvent(id, scalingGroup, price string, useSpot bool, ts tim
 	return event
 }
 
-func getBasicContext(t *testing.T, awsMocker awsprovider.AwsWorker) EksCfInstanceGroupContext {
+func getBasicContext(t *testing.T, awsMocker awsprovider.AwsWorker) *EksCfInstanceGroupContext {
 	client := fake.NewSimpleClientset()
 	dynScheme := runtime.NewScheme()
 	dynClient := fakedynamic.NewSimpleDynamicClient(dynScheme)
@@ -559,13 +560,13 @@ func (u *EksCfUnitTest) Run(t *testing.T) {
 	unstructuredInstanceGroup := &unstructured.Unstructured{
 		Object: obj,
 	}
-	kube.KubeDynamic.Resource(groupVersionResource).Namespace(u.InstanceGroup.GetNamespace()).Create(unstructuredInstanceGroup, metav1.CreateOptions{})
+	kube.KubeDynamic.Resource(v1alpha1.GroupVersionResource).Namespace(u.InstanceGroup.GetNamespace()).Create(unstructuredInstanceGroup, metav1.CreateOptions{})
 
 	provisioner, err := New(u.InstanceGroup, kube, aws)
 	if err != nil {
 		t.Fail()
 	}
-	u.Provisioner = &provisioner
+	u.Provisioner = provisioner
 
 	if len(u.ExistingEvents) != 0 {
 		for _, event := range u.ExistingEvents {
@@ -1179,7 +1180,7 @@ defaultArns:
 - MyARN-1
 - MyARN-2`)
 	ig := ctx.GetInstanceGroup()
-	specConfig := &ig.Spec.EKSCFSpec.EKSCFConfiguration
+	specConfig := ig.Spec.EKSCFSpec.EKSCFConfiguration
 	config, err := LoadControllerConfiguration(ig, payload)
 	if err != nil {
 		t.Fatal("Test_ControllerConfigLoader expected error not to have occured")
