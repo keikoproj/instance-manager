@@ -23,6 +23,6 @@ Feature: EKSCF Update
 
   Scenario: Update an instance-group with managed node-group
     Given an EKS cluster
-    When I update a resource instance-group-managed.yaml with .spec.eks-cf.minSize set to 3
+    When I update a resource instance-group-managed.yaml with .spec.eks-managed.minSize set to 3
     Then 3 nodes should be ready
     And the resource should converge to selector .status.currentState=ready
