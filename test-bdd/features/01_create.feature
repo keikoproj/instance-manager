@@ -1,4 +1,4 @@
-Feature: EKSCF Create
+Feature: CRUD Create
   In order to create instance-groups
   As an EKS cluster operator
   I need to submit the custom resource

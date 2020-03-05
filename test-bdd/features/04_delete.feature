@@ -1,4 +1,4 @@
-Feature: EKSCF Delete
+Feature: CRUD Delete
   In order to delete instance-groups
   As an EKS cluster operator
   I need to delete the custom resource

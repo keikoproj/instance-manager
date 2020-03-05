@@ -1,4 +1,4 @@
-Feature: EKSCF Update
+Feature: CRUD Update
   In order to update an instance-groups
   As an EKS cluster operator
   I need to update the custom resource

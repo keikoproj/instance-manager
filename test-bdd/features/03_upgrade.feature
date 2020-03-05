@@ -1,4 +1,4 @@
-Feature: EKSCF Upgrade
+Feature: CRUD Upgrade
   In order to rotate an instance-groups
   As an EKS cluster operator
   I need to update the custom resource instance type
