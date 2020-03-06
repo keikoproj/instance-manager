@@ -65,16 +65,7 @@ env-delete:
 
 .PHONY: bdd
 bdd:
-	go test -timeout 60m -v ./test-bdd/ -ginkgo.v -ginkgo.progress --ginkgo.failFast \
-	--eks-cluster $(EKS_CLUSTER) \
-	--aws-region $(AWS_REGION) \
-	--kubeconfig $(KUBECONFIG) \
-	--keypair-name $(KEYPAIR_NAME) \
-	--vpc-id $(VPC_ID) \
-	--ami-id-stable $(STABLE_AMI) \
-	--ami-id-latest $(LATEST_AMI) \
-	--security-groups $(SECURITY_GROUPS) \
-	--subnets $(NODE_SUBNETS)
+	go test -timeout 60m -v ./test-bdd/ --godog.stop-on-failure
 
 .PHONY: coverage
 coverage:
