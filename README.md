@@ -3,7 +3,7 @@
 [![codecov](https://codecov.io/gh/keikoproj/instance-manager/branch/master/graph/badge.svg)](https://codecov.io/gh/keikoproj/instance-manager)
 [![Go Report Card](https://goreportcard.com/badge/github.com/keikoproj/instance-manager)](https://goreportcard.com/report/github.com/keikoproj/instance-manager)
 [![slack](https://img.shields.io/badge/slack-join%20the%20conversation-ff69b4.svg)][SlackUrl]
-![version](https://img.shields.io/badge/version-0.4.2-blue.svg?cacheSeconds=2592000)
+![version](https://img.shields.io/badge/version-0.5.0-blue.svg?cacheSeconds=2592000)
 > Create and manage instance groups with Kubernetes.
 
 instance-manager simplifies the creation of worker nodes from within a Kubernetes cluster, create `InstanceGroup` objects in your cluster and instance-manager will provision the actual machines and bootstrap them to the cluster.
@@ -34,6 +34,7 @@ _For more examples and usage, please refer to the [Installation Reference Walkth
 | Provisioner | Description | Supported?
 | :--- | :--- | :---: |
 | eks-cf | provision nodes on EKS using cloudformation | ✅ |
+| eks-managed | provision managed node groups for EKS | ✅ |
 | eks-tf | provision nodes on EKS using terraform | ⚠️🔜 |
 | ec2-kops | provision nodes on AWS using Kops | ⚠️🔜 |
 

@@ -45,16 +45,7 @@ env-delete:
 	delete
 
 bdd:
-	go test -timeout 60m -v ./test-bdd/ -ginkgo.v -ginkgo.progress --ginkgo.failFast \
-	--eks-cluster $(EKS_CLUSTER) \
-	--aws-region $(AWS_REGION) \
-	--kubeconfig $(KUBECONFIG) \
-	--keypair-name $(KEYPAIR_NAME) \
-	--vpc-id $(VPC_ID) \
-	--ami-id-stable $(STABLE_AMI) \
-	--ami-id-latest $(LATEST_AMI) \
-	--security-groups $(SECURITY_GROUPS) \
-	--subnets $(NODE_SUBNETS)
+	go test -timeout 60m -v ./test-bdd/ --godog.stop-on-failure
 
 coverage:
 	go test -coverprofile coverage.txt -v ./controllers/...
@@ -110,7 +101,7 @@ docker-push:
 # download controller-gen if necessary
 controller-gen:
 ifeq (, $(shell which controller-gen))
-	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.0-beta.2
+	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.4
 CONTROLLER_GEN=$(shell go env GOPATH)/bin/controller-gen
 else
 CONTROLLER_GEN=$(shell which controller-gen)

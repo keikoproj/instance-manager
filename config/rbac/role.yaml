@@ -7,55 +7,55 @@ metadata:
   name: instance-manager
 rules:
 - apiGroups:
-  - ""
+  - apiextensions.k8s.io
   resources:
-  - events
+  - customresourcedefinitions
   verbs:
+  - create
+  - delete
   - get
   - list
+  - patch
+  - update
   - watch
-  - create
 - apiGroups:
   - ""
   resources:
   - configmaps
   verbs:
+  - create
+  - delete
   - get
   - list
-  - watch
-  - create
-  - update
   - patch
-  - delete
+  - update
+  - watch
 - apiGroups:
-  - apiextensions.k8s.io
+  - ""
   resources:
-  - customresourcedefinitions
+  - events
   verbs:
+  - create
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - instancemgr.keikoproj.io
   resources:
   - instancegroups
   verbs:
+  - create
+  - delete
   - get
   - list
-  - watch
-  - create
-  - update
   - patch
-  - delete
+  - update
+  - watch
 - apiGroups:
   - instancemgr.keikoproj.io
   resources:
   - instancegroups/status
   verbs:
   - get
-  - update
   - patch
+  - update

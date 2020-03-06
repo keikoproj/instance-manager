@@ -104,7 +104,7 @@ func (ctx *EksCfInstanceGroupContext) reloadCloudformationConfiguration() error 
 
 func LoadControllerConfiguration(ig *v1alpha1.InstanceGroup, controllerConfig []byte) (EksCfDefaultConfiguration, error) {
 	var defaultConfig EksCfDefaultConfiguration
-	var specConfig = &ig.Spec.EKSCFSpec.EKSCFConfiguration
+	var specConfig = ig.Spec.EKSCFSpec.EKSCFConfiguration
 
 	err := yaml.Unmarshal(controllerConfig, &defaultConfig)
 	if err != nil {
