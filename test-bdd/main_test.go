@@ -18,238 +18,408 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
-	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
+	"github.com/cucumber/godog"
+	"github.com/cucumber/godog/colors"
+	"github.com/cucumber/godog/gherkin"
 	"github.com/keikoproj/instance-manager/test-bdd/testutil"
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/reporters"
-	. "github.com/onsi/gomega"
-	"github.com/sirupsen/logrus"
-	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-type ClientSet struct {
-	cloudformationClient cloudformationiface.CloudFormationAPI
-	kube                 kubernetes.Interface
-	kubeDynamic          dynamic.Interface
-	kubeApiextcs         apiextcs.Interface
+type FunctionalTest struct {
+	KubeClient        kubernetes.Interface
+	DynamicClient     dynamic.Interface
+	ResourceName      string
+	ResourceNamespace string
 }
 
 const (
-	TemplateRolling     = "./templates/instance-group.yaml"
-	TemplateCRDStrategy = "./templates/instance-group-crd.yaml"
-	CRDManifest         = "../config/crd/bases/instancemgr.keikoproj.io_instancegroups.yaml"
+	OperationCreate = "create"
+	OperationUpdate = "update"
+	OperationDelete = "delete"
+
+	ResourceStateCreated = "created"
+	ResourceStateDeleted = "deleted"
+
+	NodeStateReady = "ready"
+	NodeStateFound = "found"
+
+	DefaultWaiterInterval = time.Second * 30
+	DefaultWaiterRetries  = 24
 )
 
-var (
-	log                  = logrus.New()
-	EKSClusterName       = flag.String("eks-cluster", "my-eks-cluster", "The name of the EKS Cluster")
-	EKSClusterRegionName = flag.String("aws-region", "us-west-2", "The region of the EKS Cluster")
-	KubeconfigPath       = flag.String("kubeconfig", "~/.kube/config", "Path to kubeconfig file")
-	KeyPairName          = flag.String("keypair-name", "MyKeyPair", "Name of ec2 keypair")
-	VPCID                = flag.String("vpc-id", "", "VPC ID to use")
-	AMIIDStable          = flag.String("ami-id-stable", "", "Previous version AMI")
-	AMIIDLatest          = flag.String("ami-id-latest", "", "Current version AMI")
-	Subnets              = flag.String("subnets", "", "List of comma separated subnets")
-	SecurityGroups       = flag.String("security-groups", "", "List of comma separated security groups")
-	Args                 testutil.TemplateArguments
-	clientSet            = newClientSet()
-)
-
-func TestE2e(t *testing.T) {
-	Args.ClusterName = EKSClusterName
-	Args.KeyPairName = KeyPairName
-	Args.VpcID = VPCID
-	Args.NodeSecurityGroups = strings.Split(*SecurityGroups, ",")
-	Args.Subnets = strings.Split(*Subnets, ",")
-	Args.AmiID = AMIIDStable
-	RegisterFailHandler(Fail)
-	junitReporter := reporters.NewJUnitReporter("junit.xml")
-	RunSpecsWithDefaultAndCustomReporters(t, "InstanceGroup Type Suite", []Reporter{junitReporter})
+var InstanceGroupSchema = schema.GroupVersionResource{
+	Group:    "instancemgr.keikoproj.io",
+	Version:  "v1alpha1",
+	Resource: "instancegroups",
 }
 
-func newClientSet() ClientSet {
-	var clientSet ClientSet
+var opt = godog.Options{
+	Output: colors.Colored(os.Stdout),
+	Format: "pretty",
+}
+
+func init() {
+	godog.BindFlags("godog.", flag.CommandLine, &opt)
+}
+
+func TestMain(m *testing.M) {
 	flag.Parse()
+	opt.Paths = flag.Args()
 
-	config, err := clientcmd.BuildConfigFromFlags("", *KubeconfigPath)
-	if err != nil {
-		log.Fatal("Unable to get client configuration: ", err)
+	status := godog.RunWithOptions("godogs", func(s *godog.Suite) {
+		FeatureContext(s)
+	}, opt)
+
+	if st := m.Run(); st > status {
+		status = st
+	}
+	os.Exit(status)
+}
+
+func FeatureContext(s *godog.Suite) {
+	t := FunctionalTest{}
+
+	s.BeforeSuite(func() {
+		log.Info("BDD >> trying to delete any existing test instance-groups")
+		t.anEKSCluster()
+		t.deleteAll()
+	})
+
+	s.AfterStep(func(f *gherkin.Step, err error) {
+		time.Sleep(time.Second * 5)
+	})
+
+	s.Step(`^an EKS cluster`, t.anEKSCluster)
+	s.Step(`^(\d+) nodes should be (found|ready)`, t.nodesShouldBe)
+	s.Step(`^(\d+) nodes should be (found|ready) with label ([^"]*) set to ([^"]*)$`, t.nodesShouldBeWithLabel)
+	s.Step(`^the resource should be (created|deleted)$`, t.theResourceShouldBe)
+	s.Step(`^the resource should converge to selector ([^"]*)$`, t.theResourceShouldConvergeToSelector)
+	s.Step(`^I (create|delete) a resource ([^"]*)$`, t.iOperateOnResource)
+	s.Step(`^I update a resource ([^"]*) with ([^"]*) set to ([^"]*)$`, t.iUpdateResourceWithField)
+
+}
+
+func (t *FunctionalTest) anEKSCluster() error {
+	var (
+		home, _        = os.UserHomeDir()
+		kubeconfigPath = filepath.Join(home, ".kube", "config")
+	)
+
+	if exported := os.Getenv("KUBECONFIG"); exported != "" {
+		kubeconfigPath = exported
 	}
 
-	extClient, err := apiextcs.NewForConfig(config)
-	if err != nil {
-		log.Fatal("Unable to construct extensions client", err)
+	if _, err := os.Stat(kubeconfigPath); os.IsNotExist(err) {
+		return errors.Errorf("BDD >> expected kubeconfig to exist for create operation, '%v'", kubeconfigPath)
 	}
-	clientSet.kubeApiextcs = extClient
+
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+	if err != nil {
+		return err
+	}
+
+	client, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return err
+	}
 
 	dynClient, err := dynamic.NewForConfig(config)
 	if err != nil {
 		log.Fatal("Unable to construct dynamic client", err)
 	}
-	clientSet.kubeDynamic = dynClient
 
-	kubeClient, err := kubernetes.NewForConfig(config)
+	_, err = client.Discovery().ServerVersion()
 	if err != nil {
-		log.Fatal("Unable to construct kubernetes client", err)
+		return err
 	}
 
-	clientSet.kube = kubeClient
-	clientSet.cloudformationClient = awsprovider.GetAwsCloudformationClient(*EKSClusterRegionName)
-	return clientSet
+	t.KubeClient = client
+	t.DynamicClient = dynClient
+
+	return nil
 }
 
-func getStackName(o *unstructured.Unstructured) string {
-	return fmt.Sprintf("%v-%v", *EKSClusterName, o.GetName())
+func (t *FunctionalTest) iOperateOnResource(operation, resource string) error {
+	resourcePath := filepath.Join("templates", resource)
+	args := testutil.NewTemplateArguments()
+
+	instanceGroup, err := testutil.ParseInstanceGroupYaml(resourcePath, args)
+	if err != nil {
+		return err
+	}
+
+	t.ResourceName = instanceGroup.GetName()
+	t.ResourceNamespace = instanceGroup.GetNamespace()
+
+	switch operation {
+	case OperationCreate:
+		_, err = t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Create(instanceGroup, metav1.CreateOptions{})
+		if err != nil {
+			if kerrors.IsAlreadyExists(err) {
+				// already created
+				break
+			}
+			return err
+		}
+	case OperationDelete:
+		err = t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Delete(t.ResourceName, &metav1.DeleteOptions{})
+		if err != nil {
+			if kerrors.IsNotFound(err) {
+				// already deleted
+				break
+			}
+			return err
+		}
+	}
+	return nil
 }
 
-var _ = Describe("instance-manager is installed", func() {
-	// Pre functional test
-	It("should create CRD", func() {
-		err := testutil.CreateCRD(clientSet.kubeApiextcs, CRDManifest)
-		Expect(err).NotTo(HaveOccurred())
-	})
-})
+func (t *FunctionalTest) iUpdateResourceWithField(resource, key string, value string) error {
+	var (
+		keySlice     = testutil.DeleteEmpty(strings.Split(key, "."))
+		overrideType bool
+		intValue     int64
+	)
 
-var _ = Describe("EKSCF InstanceGroups CRUD operations are succesfull", func() {
+	resourcePath := filepath.Join("templates", resource)
+	args := testutil.NewTemplateArguments()
 
-	// CRUD Create
-	It("should create instance groups", func() {
-		var crdExpectedLabel = "bdd-test-crd"
-		var rollingExpectedLabel = "bdd-test-rolling"
-		var expectedReadyCount = 3
+	n, err := strconv.ParseInt(value, 10, 64)
+	if err == nil {
+		overrideType = true
+		intValue = n
+	}
 
-		// Create instance-groups of crd / rollingUpdate strategy type
-		crdInstanceGroup, err := testutil.CreateUpdateInstanceGroup(clientSet.kubeDynamic, TemplateCRDStrategy, Args)
-		Expect(err).NotTo(HaveOccurred())
-		crdStackName := getStackName(crdInstanceGroup)
+	instanceGroup, err := testutil.ParseInstanceGroupYaml(resourcePath, args)
+	if err != nil {
+		return err
+	}
 
-		rollingInstanceGroup, err := testutil.CreateUpdateInstanceGroup(clientSet.kubeDynamic, TemplateRolling, Args)
-		Expect(err).NotTo(HaveOccurred())
-		rollingStackName := getStackName(rollingInstanceGroup)
+	t.ResourceName = instanceGroup.GetName()
+	t.ResourceNamespace = instanceGroup.GetNamespace()
 
-		// Nodes should join the cluster within reasonable time
-		crdResult := testutil.WaitForNodesCreate(clientSet.kube, crdExpectedLabel, expectedReadyCount)
-		Expect(crdResult).Should(BeTrue())
+	updateTarget, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Get(t.ResourceName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
 
-		rollingResult := testutil.WaitForNodesCreate(clientSet.kube, rollingExpectedLabel, expectedReadyCount)
-		Expect(rollingResult).Should(BeTrue())
+	if overrideType {
+		unstructured.SetNestedField(updateTarget.UnstructuredContent(), intValue, keySlice...)
+	} else {
+		unstructured.SetNestedField(updateTarget.UnstructuredContent(), value, keySlice...)
+	}
 
-		// InstanceGroup status should be "Ready"
-		crdReadiness := testutil.WaitForInstanceGroupReadiness(clientSet.kubeDynamic, crdInstanceGroup.GetNamespace(), crdInstanceGroup.GetName())
-		Expect(crdReadiness).Should(BeTrue())
+	_, err = t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Update(updateTarget, metav1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
 
-		rollingReadiness := testutil.WaitForInstanceGroupReadiness(clientSet.kubeDynamic, rollingInstanceGroup.GetNamespace(), rollingInstanceGroup.GetName())
-		Expect(rollingReadiness).Should(BeTrue())
+	return nil
+}
 
-		// Stacks should be CREATE_COMPLETE
-		crdStackStatus := testutil.GetStackState(clientSet.cloudformationClient, crdStackName)
-		Expect(crdStackStatus).Should(Equal("CREATE_COMPLETE"))
+func (t *FunctionalTest) theResourceShouldBe(state string) error {
+	var (
+		exists  bool
+		counter int
+	)
 
-		rollingStackStatus := testutil.GetStackState(clientSet.cloudformationClient, rollingStackName)
-		Expect(rollingStackStatus).Should(Equal("CREATE_COMPLETE"))
-	})
+	for {
+		exists = true
+		if counter >= DefaultWaiterRetries {
+			return errors.New("waiter timed out waiting for resource state")
+		}
+		log.Infof("BDD >> waiting for resource %v/%v to become %v", t.ResourceNamespace, t.ResourceName, state)
+		_, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Get(t.ResourceName, metav1.GetOptions{})
+		if err != nil {
+			if !kerrors.IsNotFound(err) {
+				return err
+			}
+			log.Infof("BDD >> %v/%v is not found: %v", t.ResourceNamespace, t.ResourceName, err)
+			exists = false
+		}
 
-	// CRUD Update
-	It("should update instance groups", func() {
-		var workflowName string
-		var workflowNamespace = "instance-manager"
-		var workflowPath = []string{"status", "strategyResourceName"}
-		var rollingExpectedLabel = "bdd-test-rolling"
-		var crdExpectedLabel = "bdd-test-crd"
+		switch state {
+		case ResourceStateDeleted:
+			if !exists {
+				log.Infof("BDD >> %v/%v is deleted", t.ResourceNamespace, t.ResourceName)
+				return nil
+			}
+		case ResourceStateCreated:
+			if exists {
+				log.Infof("BDD >> %v/%v is created", t.ResourceNamespace, t.ResourceName)
+				return nil
+			}
+		}
+		counter++
+		time.Sleep(DefaultWaiterInterval)
+	}
 
-		Args.AmiID = AMIIDLatest
+	return nil
+}
 
-		// Update rollingUpdate
-		rollingInstanceGroup, err := testutil.CreateUpdateInstanceGroup(clientSet.kubeDynamic, TemplateRolling, Args)
-		Expect(err).NotTo(HaveOccurred())
+func (t *FunctionalTest) theResourceShouldConvergeToSelector(selector string) error {
+	var (
+		counter  int
+		split    = testutil.DeleteEmpty(strings.Split(selector, "="))
+		key      = split[0]
+		keySlice = testutil.DeleteEmpty(strings.Split(key, "."))
+		value    = split[1]
+	)
 
-		rollingStackName := getStackName(rollingInstanceGroup)
+	for {
+		if counter >= DefaultWaiterRetries {
+			return errors.New("waiter timed out waiting for resource")
+		}
 
-		// Nodes should be replaced within reasonable time
-		rollingUpgrade := testutil.WaitForNodesRotate(clientSet.kube, rollingExpectedLabel)
-		Expect(rollingUpgrade).Should(BeTrue())
+		log.Infof("BDD >> waiting for resource %v/%v to converge to %v=%v", t.ResourceNamespace, t.ResourceName, key, value)
+		resource, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Get(t.ResourceName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
 
-		// Update CRD Strategy
-		crdInstanceGroup, err := testutil.CreateUpdateInstanceGroup(clientSet.kubeDynamic, TemplateCRDStrategy, Args)
-		Expect(err).NotTo(HaveOccurred())
+		if val, ok, err := unstructured.NestedString(resource.UnstructuredContent(), keySlice...); ok {
+			if err != nil {
+				return err
+			}
+			if strings.ToLower(val) == strings.ToLower(value) {
+				break
+			}
+		}
+		counter++
+		time.Sleep(DefaultWaiterInterval)
+	}
 
-		crdStackName := getStackName(crdInstanceGroup)
+	return nil
+}
 
-		// crd strategy should create workflow and expose it's name in status
-		workflowName, err = testutil.WaitForInstanceGroupString(clientSet.kubeDynamic, crdInstanceGroup.GetNamespace(), crdInstanceGroup.GetName(), workflowPath...)
-		Expect(err).NotTo(HaveOccurred())
+func (t *FunctionalTest) nodesShouldBe(count int, state string) error {
+	return t.waitForNodeCountState(count, state, fmt.Sprintf("test=%v", t.ResourceName))
+}
 
-		// Workflow is created
-		wfCreation := testutil.WaitForWorkflowCreation(clientSet.kubeDynamic, workflowNamespace, workflowName)
-		Expect(wfCreation).Should(BeTrue())
+func (t *FunctionalTest) nodesShouldBeWithLabel(count int, state, key, value string) error {
+	selector := fmt.Sprintf("test=%v,%v=%v", t.ResourceName, key, value)
+	return t.waitForNodeCountState(count, state, selector)
+}
 
-		// Nodes should be replaced within reasonable time
-		workflowUpgrade := testutil.WaitForNodesRotate(clientSet.kube, crdExpectedLabel)
-		Expect(workflowUpgrade).Should(BeTrue())
+func (t *FunctionalTest) waitForNodeCountState(count int, state, selector string) error {
+	var (
+		counter int
+		found   bool
+	)
 
-		// Wait for workflow success
-		wfStatus := testutil.WaitForWorkflowSuccess(clientSet.kubeDynamic, workflowNamespace, workflowName)
-		Expect(wfStatus).Should(BeTrue())
+	for {
+		var conditionNodes int
+		var opts = metav1.ListOptions{
+			LabelSelector: selector,
+		}
+		if counter >= DefaultWaiterRetries {
+			return errors.New("waiter timed out waiting for nodes")
+		}
+		log.Infof("BDD >> %v/%v waiting for %v nodes to be %v with selector %v", t.ResourceNamespace, t.ResourceName, count, state, selector)
+		nodes, err := t.KubeClient.CoreV1().Nodes().List(opts)
+		if err != nil {
+			return err
+		}
 
-		// InstanceGroup CR Status should be Ready
-		rollingReadiness := testutil.WaitForInstanceGroupReadiness(clientSet.kubeDynamic, rollingInstanceGroup.GetNamespace(), rollingInstanceGroup.GetName())
-		Expect(rollingReadiness).Should(BeTrue())
+		switch state {
+		case NodeStateFound:
+			if len(nodes.Items) == count {
+				log.Infof("BDD >> %v/%v found %v nodes", t.ResourceNamespace, t.ResourceName, count)
+				found = true
+			}
+		case NodeStateReady:
+			for _, node := range nodes.Items {
+				if testutil.IsNodeReady(node) {
+					conditionNodes++
+				}
+			}
+			if conditionNodes == count {
+				log.Infof("BDD >> %v/%v found %v ready nodes", t.ResourceNamespace, t.ResourceName, count)
+				found = true
+			}
+		}
 
-		crdReadiness := testutil.WaitForInstanceGroupReadiness(clientSet.kubeDynamic, crdInstanceGroup.GetNamespace(), crdInstanceGroup.GetName())
-		Expect(crdReadiness).Should(BeTrue())
+		if found {
+			break
+		}
 
-		// Stacks should be UPDATE_COMPLETE
-		crdStackStatus := testutil.GetStackState(clientSet.cloudformationClient, crdStackName)
-		Expect(crdStackStatus).Should(Equal("UPDATE_COMPLETE"))
+		counter++
+		time.Sleep(DefaultWaiterInterval)
+	}
+	return nil
+}
 
-		rollingStackStatus := testutil.GetStackState(clientSet.cloudformationClient, rollingStackName)
-		Expect(rollingStackStatus).Should(Equal("UPDATE_COMPLETE"))
+func (t *FunctionalTest) deleteAll() error {
+	var deleteFn = func(path string, info os.FileInfo, err error) error {
 
-	})
+		if info.IsDir() || filepath.Ext(path) != ".yaml" {
+			return nil
+		}
 
-	// CRUD Delete
-	It("should delete an InstanceGroup with crd strategy", func() {
-		var crdExpectedLabel = "bdd-test-crd"
-		var rollingExpectedLabel = "bdd-test-rolling"
+		resource, err := testutil.ParseInstanceGroupYaml(path, testutil.NewTemplateArguments())
+		if err != nil {
+			return err
+		}
 
-		// Delete instance groups
-		crdInstanceGroup, err := testutil.DeleteInstanceGroup(clientSet.kubeDynamic, TemplateCRDStrategy, Args)
-		Expect(err).NotTo(HaveOccurred())
+		t.DynamicClient.Resource(InstanceGroupSchema).Namespace(resource.GetNamespace()).Delete(resource.GetName(), &metav1.DeleteOptions{})
+		log.Infof("BDD >> submitted deletion for %v/%v", resource.GetNamespace(), resource.GetName())
+		return nil
+	}
 
-		rollingInstanceGroup, err := testutil.DeleteInstanceGroup(clientSet.kubeDynamic, TemplateRolling, Args)
-		Expect(err).NotTo(HaveOccurred())
+	var waitFn = func(path string, info os.FileInfo, err error) error {
+		var (
+			counter int
+		)
 
-		crdStackName := getStackName(crdInstanceGroup)
-		rollingStackName := getStackName(rollingInstanceGroup)
+		if info.IsDir() || filepath.Ext(path) != ".yaml" {
+			return nil
+		}
 
-		// Nodes should be removed from the cluster within reasonable time
-		crdDelete := testutil.WaitForNodesDelete(clientSet.kube, crdExpectedLabel)
-		Expect(crdDelete).Should(BeTrue())
+		resource, err := testutil.ParseInstanceGroupYaml(path, testutil.NewTemplateArguments())
+		if err != nil {
+			return err
+		}
 
-		rollingDelete := testutil.WaitForNodesDelete(clientSet.kube, rollingExpectedLabel)
-		Expect(rollingDelete).Should(BeTrue())
+		for {
+			if counter >= DefaultWaiterRetries {
+				return errors.New("waiter timed out waiting for deletion")
+			}
+			log.Infof("BDD >> waiting for resource deletion of %v/%v", resource.GetNamespace(), resource.GetName())
+			_, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(resource.GetNamespace()).Get(resource.GetName(), metav1.GetOptions{})
+			if err != nil {
+				if kerrors.IsNotFound(err) {
+					log.Infof("BDD >> resource %v/%v is deleted", resource.GetNamespace(), resource.GetName())
+					break
+				}
+			}
+			counter++
+			time.Sleep(DefaultWaiterInterval)
+		}
+		return nil
+	}
 
-		// InstanceGroup CR should be deleted
-		crdDeleted := testutil.WaitForInstanceGroupDeletion(clientSet.kubeDynamic, crdInstanceGroup.GetNamespace(), crdInstanceGroup.GetName())
-		Expect(crdDeleted).Should(BeTrue())
+	if err := filepath.Walk("templates", deleteFn); err != nil {
+		return err
+	}
 
-		rollingDeleted := testutil.WaitForInstanceGroupDeletion(clientSet.kubeDynamic, rollingInstanceGroup.GetNamespace(), rollingInstanceGroup.GetName())
-		Expect(rollingDeleted).Should(BeTrue())
+	if err := filepath.Walk("templates", waitFn); err != nil {
+		return err
+	}
 
-		// Cloudformation Stack should not exist
-		crdStackExist := testutil.IsStackExist(clientSet.cloudformationClient, crdStackName)
-		Expect(crdStackExist).Should(BeFalse())
-
-		rollingStackExist := testutil.IsStackExist(clientSet.cloudformationClient, rollingStackName)
-		Expect(rollingStackExist).Should(BeFalse())
-	})
-})
+	return nil
+}
