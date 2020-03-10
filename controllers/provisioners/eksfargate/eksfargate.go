@@ -19,37 +19,20 @@ import (
 	//	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/eks"
 	v1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
-	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
+	aws "github.com/keikoproj/instance-manager/controllers/providers/aws"
+	provisioners "github.com/keikoproj/instance-manager/controllers/provisioners"
 	log "github.com/sirupsen/logrus"
 )
 
-func hash(instancegroup_state string, profile_status string) string {
-	return instancegroup_state + ":" + profile_status
-}
-
-type transition func(ig *v1alpha1.InstanceGroup, worker awsprovider.AwsFargateWorker) error
-type stateMachine map[string]transition
-
-var sm = stateMachine{
-	// IG state    Profile State
-	hash("", "NONE"):     t1,
-	hash("", "ACTIVE"):   e1,
-	hash("", "CREATING"): e1,
-	hash("", "DELETING"): e1,
-	hash(string(v1alpha1.ReconcileInitCreate), "ACTIVE"): t2,
-	hash(string(v1alpha1.ReconcileDeleting), "NONE"):     t3,
-	hash(string(v1alpha1.ReconcileInit), "NONE"):         t4,
-	hash(string(v1alpha1.ReconcileReady), "ACTIVE"):      t5,
-}
-
-func New(instanceGroup *v1alpha1.InstanceGroup) (*EksFargateInstanceGroupContext, error) {
-	ctx := EksFargateInstanceGroupContext{
-		InstanceGroup: instanceGroup,
+func New(instanceGroup *v1alpha1.InstanceGroup, worker *aws.AwsFargateWorker) (*InstanceGroupContext, error) {
+	ctx := InstanceGroupContext{
+		InstanceGroup:    instanceGroup,
+		AwsFargateWorker: worker,
 	}
+	instanceGroup.SetState(v1alpha1.ReconcileInit)
 	return &ctx, nil
 }
-
-func createFargateSelectors(selectors []*v1alpha1.EKSFargateSelectors) []*eks.FargateProfileSelector {
+func CreateFargateSelectors(selectors []*v1alpha1.EKSFargateSelectors) []*eks.FargateProfileSelector {
 	var eksSelectors []*eks.FargateProfileSelector
 	for _, selector := range selectors {
 		m := make(map[string]*string)
@@ -61,95 +44,118 @@ func createFargateSelectors(selectors []*v1alpha1.EKSFargateSelectors) []*eks.Fa
 	return eksSelectors
 }
 
-func e1(ig *v1alpha1.InstanceGroup, worker awsprovider.AwsFargateWorker) error {
-	log.Info("Running transistioner e1\n")
-	ig.SetState(v1alpha1.ReconcileErr)
-	return nil
-}
-func t1(ig *v1alpha1.InstanceGroup, worker awsprovider.AwsFargateWorker) error {
-	log.Info("Running transistioner t1\n")
-	var err error = nil
-	// cluster and profile do not exist
-	//Not a delete
-	if ig.ObjectMeta.DeletionTimestamp.IsZero() {
-		ig.SetState(v1alpha1.ReconcileInit)
-	} else {
-		ig.SetState(v1alpha1.ReconcileErr)
-	}
-	return err
-}
-func t2(ig *v1alpha1.InstanceGroup, worker awsprovider.AwsFargateWorker) error {
-	log.Info("Running transistioner t2\n")
-	ig.SetState(v1alpha1.ReconcileReady)
-	return nil
-}
-func t3(ig *v1alpha1.InstanceGroup, worker awsprovider.AwsFargateWorker) error {
-	log.Info("Running transistioner t3\n")
-	ig.SetState(v1alpha1.ReconcileDeleted)
-	return nil
-}
-func t4(ig *v1alpha1.InstanceGroup, worker awsprovider.AwsFargateWorker) error {
-	log.Info("Running transistioner t4\n")
-	var err error = nil
-	// Create request
-	if ig.ObjectMeta.DeletionTimestamp.IsZero() {
-		// profile does not exist
-		log.Infof("Fargate creating cluster: %s and profile: %s \n", *worker.ClusterName, *worker.ProfileName)
-		err = worker.Create()
-		if err != nil {
-			ig.SetState(v1alpha1.ReconcileErr)
-		} else {
-			ig.SetState(v1alpha1.ReconcileInitCreate)
-		}
-	}
-	return err
-}
-func t5(ig *v1alpha1.InstanceGroup, worker awsprovider.AwsFargateWorker) error {
-	log.Info("Running transistioner t5\n")
-	var err error = nil
-	// Delete request
-	if !ig.ObjectMeta.DeletionTimestamp.IsZero() {
-		err = worker.Delete()
-		if err != nil {
-			ig.SetState(v1alpha1.ReconcileErr)
-		} else {
-			ig.SetState(v1alpha1.ReconcileDeleting)
-		}
-	}
-	return err
-}
-
-func (ctx *EksFargateInstanceGroupContext) HandleRequest() error {
+func (ctx *InstanceGroupContext) Create() error {
 	log.SetFormatter(&log.TextFormatter{
 		FullTimestamp: true,
 	})
-	spec := ctx.GetInstanceGroup().Spec.EKSFargateSpec
-	worker := awsprovider.AwsFargateWorker{
-		ClusterName:  spec.GetClusterName(),
-		ProfileName:  spec.GetProfileName(),
-		ExecutionArn: spec.GetPodExecutionRoleArn(),
-		Selectors:    createFargateSelectors(spec.GetSelectors()),
+
+	//ig := ctx.GetInstanceGroup()
+	worker := ctx.AwsFargateWorker
+
+	log.Infof("Fargate cluster: %s and profile: %s not found\n", *worker.ClusterName, *worker.ProfileName)
+	ig := ctx.GetInstanceGroup()
+	var err error
+	var arn *string
+	if *ig.Spec.EKSFargateSpec.GetPodExecutionRoleArn() == "" {
+		arn, err = ctx.AwsFargateWorker.CreateDefaultRolePolicy()
+		if err != nil {
+			log.Errorf("Creation of default role policy failed: %v", err)
+			return err
+		}
+	} else {
+		arn = ig.Spec.EKSFargateSpec.GetPodExecutionRoleArn()
 	}
+	log.Infof("Create() - Creating profile with arn: %s", *arn)
+	err = ctx.AwsFargateWorker.CreateProfile(arn)
+	if err != nil {
+		log.Errorf("Creation of the fargate profile failed: %v", err)
+	}
+	return err
+}
+func (ctx *InstanceGroupContext) CloudDiscovery() error {
+	return nil
+}
+func (ctx *InstanceGroupContext) Delete() error {
+
+	worker := ctx.AwsFargateWorker
 
 	ig := ctx.GetInstanceGroup()
-
-	fargateProfile, fargateErr := worker.Describe()
-
-	var profileStatus = "NONE"
-	if fargateErr != nil {
-		log.Infof("Fargate cluster: %s and profile: %s not found\n", *worker.ClusterName, *worker.ProfileName)
-	} else {
-		log.Infof("Fargate cluster: %s and profile: %s status %s\n", *worker.ClusterName, *worker.ProfileName, *fargateProfile.Status)
-		profileStatus = *fargateProfile.Status
+	err := worker.DeleteProfile()
+	if *ig.Spec.EKSFargateSpec.GetPodExecutionRoleArn() == "" {
+		err = worker.DeleteDefaultRolePolicy()
 	}
 
-	log.Infof("Fargate DeletionTimestamp: %v \n", ig.ObjectMeta.DeletionTimestamp)
-	log.Infof("Fargate instance group state: %s", ig.GetState())
-	log.Infof("Fargate profile state: %s", profileStatus)
-
-	if transitioner, ok := sm[hash(string(ig.GetState()), profileStatus)]; ok {
-		return transitioner(ig, worker)
-	}
+	return err
+}
+func (ctx *InstanceGroupContext) Update() error {
 	return nil
+}
+func (ctx *InstanceGroupContext) UpgradeNodes() error {
+	return nil
+}
+func (ctx *InstanceGroupContext) BootstrapNodes() error {
+	return nil
+}
+func (ctx *InstanceGroupContext) IsReady() bool {
+	return false
+}
+func (ctx *InstanceGroupContext) IsUpgradeNeeded() bool {
+	return false
+}
+func (ctx *InstanceGroupContext) StateDiscovery() {
+	ig := ctx.GetInstanceGroup()
+	if ig.GetState() == v1alpha1.ReconcileInit {
+		state := ctx.AwsFargateWorker.GetState()
 
+		if ig.ObjectMeta.DeletionTimestamp.IsZero() {
+			if state.IsProvisioned() {
+				// Role exists and the Profile exists in some form.
+				if aws.IsProfileInConditionState(*state.GetProfileState(), provisioners.OngoingStateString) {
+					// stack is in an ongoing state
+					ig.SetState(v1alpha1.ReconcileModifying)
+				} else if aws.IsProfileInConditionState(*state.GetProfileState(), provisioners.FiniteStateString) {
+					// stack is in a finite state
+					ig.SetState(v1alpha1.ReconcileInitUpdate)
+				} else if aws.IsProfileInConditionState(*state.GetProfileState(), provisioners.UpdateRecoverableErrorString) {
+					// stack is in update-recoverable error state
+					ig.SetState(v1alpha1.ReconcileInitUpdate)
+				} else {
+					// stack is in unrecoverable error state
+					ig.SetState(v1alpha1.ReconcileErr)
+				}
+			} else {
+				ig.SetState(v1alpha1.ReconcileInitCreate)
+			}
+		} else {
+			if state.IsProvisioned() {
+				if aws.IsProfileInConditionState(*state.GetProfileState(), provisioners.OngoingStateString) {
+					// deleting stack is in an ongoing state
+					ig.SetState(v1alpha1.ReconcileDeleting)
+				} else if aws.IsProfileInConditionState(*state.GetProfileState(), provisioners.FiniteStateString) {
+					// deleting stack is in a finite state
+					ig.SetState(v1alpha1.ReconcileInitDelete)
+				} else if aws.IsProfileInConditionState(*state.GetProfileState(), provisioners.UpdateRecoverableErrorString) {
+					// deleting stack is in an update recoverable state
+					ig.SetState(v1alpha1.ReconcileInitDelete)
+				} else if aws.IsStackInConditionState(*state.GetProfileState(), provisioners.FiniteDeletedString) {
+					// deleting stack is in a finite-deleted state
+					ig.SetState(v1alpha1.ReconcileDeleted)
+				} else if aws.IsStackInConditionState(*state.GetProfileState(), provisioners.UnrecoverableDeleteErrorString) {
+					// deleting stack is in a unrecoverable delete error state
+					ig.SetState(v1alpha1.ReconcileErr)
+				} else if aws.IsStackInConditionState(*state.GetProfileState(), provisioners.UnrecoverableErrorString) {
+					// deleting stack is in a unrecoverable error state - allow it to delete
+					ig.SetState(v1alpha1.ReconcileInitDelete)
+				}
+			} else {
+				ig.SetState(v1alpha1.ReconcileDeleted)
+			}
+		}
+	}
+}
+func (ctx *InstanceGroupContext) SetState(state v1alpha1.ReconcileState) {
+	ctx.GetInstanceGroup().SetState(state)
+}
+func (ctx *InstanceGroupContext) GetState() v1alpha1.ReconcileState {
+	return ctx.GetInstanceGroup().GetState()
 }

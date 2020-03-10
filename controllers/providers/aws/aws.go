@@ -30,6 +30,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
+	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -188,10 +190,14 @@ func (w *AwsWorker) compactTags(tags []map[string]string) map[string]string {
 }
 
 type AwsFargateWorker struct {
-	ClusterName  *string
-	ProfileName  *string
-	ExecutionArn *string
-	Selectors    []*eks.FargateProfileSelector
+	IamClient                 iamiface.IAMAPI
+	EksClient                 eksiface.EKSAPI
+	ClusterName               *string
+	ProfileName               *string
+	ExecutionArn              *string
+	PodExecutionRoleStackName *string
+	Selectors                 []*eks.FargateProfileSelector
+	RoleName                  *string
 }
 
 func (w *AwsWorker) CreateCloudformationStack() error {
@@ -216,7 +222,6 @@ func (w *AwsWorker) CreateCloudformationStack() error {
 	}
 	return nil
 }
-
 func (w *AwsWorker) UpdateCloudformationStack() (error, bool) {
 	capabilities := []*string{
 		aws.String("CAPABILITY_IAM"),
@@ -415,6 +420,17 @@ func GetAwsEksClient(region string) eksiface.EKSAPI {
 	return eks.New(sess)
 }
 
+// GetAwsAsgClient returns an ASG client
+func GetAwsIAMClient(region string) iamiface.IAMAPI {
+	var config aws.Config
+	config.Region = aws.String(region)
+	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+		Config:            config,
+	}))
+	return iam.New(sess)
+}
+
 func (w *AwsWorker) DeriveEksVpcID(clusterName string) (string, error) {
 	out, err := w.EksClient.DescribeCluster(&eks.DescribeClusterInput{Name: aws.String(clusterName)})
 	if err != nil {
@@ -423,7 +439,7 @@ func (w *AwsWorker) DeriveEksVpcID(clusterName string) (string, error) {
 	return aws.StringValue(out.Cluster.ResourcesVpcConfig.VpcId), nil
 }
 
-type CloudformationReconcileState struct {
+type CloudResourceReconcileState struct {
 	OngoingState             bool
 	FiniteState              bool
 	FiniteDeleted            bool
@@ -432,12 +448,12 @@ type CloudformationReconcileState struct {
 	UnrecoverableDeleteError bool
 }
 
-var OngoingState = CloudformationReconcileState{OngoingState: true}
-var FiniteState = CloudformationReconcileState{FiniteState: true}
-var FiniteDeleted = CloudformationReconcileState{FiniteDeleted: true}
-var UpdateRecoverableError = CloudformationReconcileState{UpdateRecoverableError: true}
-var UnrecoverableError = CloudformationReconcileState{UnrecoverableError: true}
-var UnrecoverableDeleteError = CloudformationReconcileState{UnrecoverableDeleteError: true}
+var OngoingState = CloudResourceReconcileState{OngoingState: true}
+var FiniteState = CloudResourceReconcileState{FiniteState: true}
+var FiniteDeleted = CloudResourceReconcileState{FiniteDeleted: true}
+var UpdateRecoverableError = CloudResourceReconcileState{UpdateRecoverableError: true}
+var UnrecoverableError = CloudResourceReconcileState{UnrecoverableError: true}
+var UnrecoverableDeleteError = CloudResourceReconcileState{UnrecoverableDeleteError: true}
 
 type ManagedNodeGroupReconcileState struct {
 	OngoingState             bool
@@ -478,7 +494,7 @@ func IsNodeGroupInConditionState(key string, condition string) bool {
 }
 
 func IsStackInConditionState(key string, condition string) bool {
-	conditionStates := map[string]CloudformationReconcileState{
+	conditionStates := map[string]CloudResourceReconcileState{
 		"CREATE_COMPLETE":                              FiniteState,
 		"UPDATE_COMPLETE":                              FiniteState,
 		"DELETE_COMPLETE":                              FiniteDeleted,
@@ -514,6 +530,80 @@ func IsStackInConditionState(key string, condition string) bool {
 		return false
 	}
 }
+func IsProfileInConditionState(key string, condition string) bool {
+	conditionStates := map[string]CloudResourceReconcileState{
+		"CREATING":      OngoingState,
+		"ACTIVE":        FiniteState,
+		"DELETING":      OngoingState,
+		"CREATE_FAILED": UnrecoverableError,
+		"DELETE_FAILED": UnrecoverableDeleteError,
+	}
+	state := conditionStates[key]
+	switch condition {
+	case "OngoingState":
+		return state.OngoingState
+	case "FiniteState":
+		return state.FiniteState
+	case "FiniteDeleted":
+		return state.FiniteDeleted
+	case "UpdateRecoverableError":
+		return state.UpdateRecoverableError
+	case "UnrecoverableError":
+		return state.UnrecoverableError
+	case "UnrecoverableDeleteError":
+		return state.UnrecoverableDeleteError
+	default:
+		return false
+	}
+}
+
+type ResourceState struct {
+	RoleExists bool
+	Profile    *eks.FargateProfile
+}
+
+func (state *ResourceState) GetRoleExits() bool {
+	return state.RoleExists
+
+}
+func (state *ResourceState) GetProfileState() *string {
+	none := "NONE"
+	if state.Profile != nil {
+		return state.Profile.Status
+
+	} else {
+		return &none
+	}
+}
+func (state *ResourceState) IsProvisioned() bool {
+	return *state.GetProfileState() != "NONE" && state.GetRoleExits()
+}
+
+func (state *ResourceState) IsReady() bool {
+	profileState := state.GetProfileState()
+	return state.RoleExists && *profileState == eks.FargateProfileStatusActive
+}
+func (state *ResourceState) IsCreating() bool {
+	profileState := state.GetProfileState()
+	return (state.RoleExists &&
+		*profileState == eks.FargateProfileStatusCreating)
+}
+func (state *ResourceState) IsDeleting() bool {
+	profileState := state.GetProfileState()
+	return (*profileState == eks.FargateProfileStatusDeleting && state.RoleExists)
+}
+func (state *ResourceState) IsFailed() bool {
+	return !(state.IsCreating() || state.IsDeleting() || state.IsReady())
+}
+
+func (w *AwsFargateWorker) GetState() *ResourceState {
+	state := ResourceState{}
+	state.Profile, _ = w.DescribeProfile()
+	state.RoleExists = w.HasDefaultRole()
+	return &state
+
+}
+
 func (w *AwsFargateWorker) Create() error {
 	input := &eks.CreateFargateProfileInput{
 		ClusterName:         w.ClusterName,
@@ -521,50 +611,160 @@ func (w *AwsFargateWorker) Create() error {
 		PodExecutionRoleArn: w.ExecutionArn,
 		Selectors:           w.Selectors,
 	}
-	region, err := GetRegion()
-	if err != nil {
-		log.Errorf("Failed to get AWS Region: %v\n", err)
-		return err
-	}
-	svc := GetAwsEksClient(region)
-	_, err = svc.CreateFargateProfile(input)
+	_, err := w.EksClient.CreateFargateProfile(input)
 	if err != nil {
 		log.Errorf("Failed to create fargate cluster : %v\n", err)
 	}
 	return err
 }
-func (w *AwsFargateWorker) Delete() error {
+
+var defaultPolicyArn = "arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy"
+
+func (w *AwsFargateWorker) DeleteDefaultRolePolicy() error {
+	if w.RoleName == nil {
+		return errors.New("DeleteDefaultRolePolicy - AwsFargateWorker.RoleName is nil.  Needs a role name.")
+	}
+	rolePolicy := &iam.DetachRolePolicyInput{
+		PolicyArn: aws.String(defaultPolicyArn),
+		RoleName:  w.RoleName,
+	}
+	_, err := w.IamClient.DetachRolePolicy(rolePolicy)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+
+			case iam.ErrCodeNoSuchEntityException:
+				log.Infof("DeleteDefaultRolePolicy - ErrCodeNoSuchEntityException: %v:", aerr.Error())
+				return nil
+			default:
+				log.Errorf("DeleteDefaultRolePolicy - %v:", aerr.Error())
+				return aerr
+			}
+		} else {
+			log.Errorf("DeleteDefaultRolePolicy - %v:", err)
+		}
+	}
+	role := &iam.DeleteRoleInput{
+		RoleName: w.RoleName,
+	}
+	_, err = w.IamClient.DeleteRole(role)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+
+			case iam.ErrCodeNoSuchEntityException:
+				log.Infof("DeleteDefaultRolePolicy - ErrCodeNoSuchEntityException: %v:", aerr.Error())
+				return nil
+			default:
+				log.Errorf("DeleteDefaultRolePolicy - %v:", aerr.Error())
+				return aerr
+			}
+		} else {
+			log.Errorf("DeleteDefaultRolePolicy - %v:", err)
+		}
+	}
+	return nil
+}
+func (w *AwsFargateWorker) createDefaultRoleName() *string {
+	s := fmt.Sprintf("%v:%vRole", w.ClusterName, w.ProfileName)
+	return &s
+}
+
+func (w *AwsFargateWorker) CreateDefaultRolePolicy() (*string, error) {
+	var roleName = fmt.Sprintf("%v-%vRole", *w.ClusterName, *w.ProfileName)
+	var template = `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"eks-fargate-pods.amazonaws.com"},"Action":"sts:AssumeRole"}]}`
+	role := &iam.CreateRoleInput{
+		AssumeRolePolicyDocument: &template,
+		Path:                     aws.String("/"),
+		RoleName:                 aws.String(roleName),
+	}
+	createRoleOutput, err := w.IamClient.CreateRole(role)
+
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			case iam.ErrCodeEntityAlreadyExistsException:
+				log.Infof("CreateDefaultRolePolicy - ErrCodeEntityAlreadyExistsException: %v:", aerr.Error())
+				w.RoleName = &roleName
+				return createRoleOutput.Role.Arn, nil
+			default:
+				log.Errorf("CreateDefaultRolePolicy - %v:", aerr.Error())
+				return nil, aerr
+			}
+		} else {
+			log.Errorf("CreateDefaultRolePolicy - %v:", err)
+			return nil, err
+		}
+	} else {
+		log.Infof("CreateDefaultRolePolicy - Role with name: %s created:", roleName)
+		w.RoleName = &roleName
+		rolePolicy := &iam.AttachRolePolicyInput{
+			PolicyArn: aws.String(defaultPolicyArn),
+			RoleName:  aws.String(roleName),
+		}
+		_, err = w.IamClient.AttachRolePolicy(rolePolicy)
+		if err != nil {
+			if aerr, ok := err.(awserr.Error); ok {
+				switch aerr.Code() {
+
+				case iam.ErrCodeEntityAlreadyExistsException:
+					log.Infof("CreateDefaultRolePolicy - ErrCodeEntityAlreadyExistsException: %v:", aerr.Error())
+					return createRoleOutput.Role.Arn, nil
+				default:
+					log.Errorf("CreateDefaultRolePolicy - %v:", aerr.Error())
+					return nil, aerr
+				}
+			} else {
+				log.Errorf("CreateDefaultRolePolicy - %v:", err)
+				return nil, err
+			}
+		}
+		log.Infof("CreateDefaultRolePolicy - AttachedRolePolicy with arn: %s created:", *createRoleOutput.Role.Arn)
+		return createRoleOutput.Role.Arn, nil
+	}
+}
+func (w *AwsFargateWorker) CreateProfile(arn *string) error {
+	input := &eks.CreateFargateProfileInput{
+		ClusterName:         w.ClusterName,
+		FargateProfileName:  w.ProfileName,
+		PodExecutionRoleArn: arn,
+		Selectors:           w.Selectors,
+	}
+	log.Infof("CreateProfile - creating profile for cluster: %s, name: %s, arn: %s", *w.ClusterName, *w.ProfileName, *arn)
+	_, err := w.EksClient.CreateFargateProfile(input)
+	if err != nil {
+		log.Errorf("CreateProfile - Failed to create fargate cluster : %v\n", err)
+	}
+	return err
+}
+func (w *AwsFargateWorker) DeleteProfile() error {
+	log.Infof("DeleteProfile - deleting profile for cluster: %s, name: %s", *w.ClusterName, *w.ProfileName)
 	input := &eks.DeleteFargateProfileInput{
 		ClusterName:        w.ClusterName,
 		FargateProfileName: w.ProfileName,
 	}
-	region, err := GetRegion()
+	_, err := w.EksClient.DeleteFargateProfile(input)
 	if err != nil {
-		log.Errorf("Failed to get AWS Region: %v\n", err)
-		return err
-	}
-	svc := GetAwsEksClient(region)
-	_, err = svc.DeleteFargateProfile(input)
-	if err != nil {
-		log.Errorf("Failed to delete fargate cluster: %v\n", err)
+		log.Errorf("DeleteProfile - Failed to delete fargate cluster: %v\n", err)
 	}
 	return err
 }
-func (w *AwsFargateWorker) Describe() (*eks.FargateProfile, error) {
+func (w *AwsFargateWorker) DescribeProfile() (*eks.FargateProfile, error) {
 	input := &eks.DescribeFargateProfileInput{
 		ClusterName:        w.ClusterName,
 		FargateProfileName: w.ProfileName,
 	}
-	region, err := GetRegion()
+	output, err := w.EksClient.DescribeFargateProfile(input)
 	if err != nil {
-		log.Errorf("Failed to get AWS Region: %v\n", err)
-		return nil, err
-	}
-	svc := GetAwsEksClient(region)
-	output, err := svc.DescribeFargateProfile(input)
-	if err != nil {
-		log.Errorf("Failed to describe fargate cluster: %v\n", err)
+		log.Errorf("DescribeProfile - Failed to describe fargate cluster: %v\n", err)
 		return nil, err
 	}
 	return output.FargateProfile, nil
+}
+func (w *AwsFargateWorker) HasDefaultRole() bool {
+	input := &iam.GetRoleInput{
+		RoleName: w.createDefaultRoleName(),
+	}
+	_, err := w.IamClient.GetRole(input)
+	return err != nil
 }

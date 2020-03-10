@@ -236,6 +236,7 @@ type InstanceGroupStatus struct {
 	StrategyResourceName          string `json:"strategyResourceName,omitempty"`
 	UsingSpotRecommendation       bool   `json:"usingSpotRecommendation,omitempty"`
 	Lifecycle                     string `json:"lifecycle,omitempty"`
+	FargateRoleName               string `json:"fargateRoleName,omitempty"`
 }
 
 func (conf *EKSManagedConfiguration) SetSubnets(subnets []string)  { conf.Subnets = subnets }

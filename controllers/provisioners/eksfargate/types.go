@@ -17,57 +17,60 @@ package eksfargate
 
 import (
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	aws "github.com/keikoproj/instance-manager/controllers/providers/aws"
 )
 
 // EksCfInstanceGroupContext defines the main type of an EKS Cloudformation provisioner
-type EksFargateInstanceGroupContext struct {
-	InstanceGroup *v1alpha1.InstanceGroup
+type InstanceGroupContext struct {
+	InstanceGroup             *v1alpha1.InstanceGroup
+	AwsFargateWorker          *aws.AwsFargateWorker
+	ExecutionPodRoleStackName string
 }
 
-type EksFargateCreateContext struct {
+type CreateContext struct {
 	ClusterName  *string
 	ProfileName  *string
 	ExecutionArn *string
 }
-type EksFargateDeleteContext struct {
+type DeleteContext struct {
 	ClusterName *string
 	ProfileName *string
 }
 
-func (ctx *EksFargateInstanceGroupContext) GetInstanceGroup() *v1alpha1.InstanceGroup {
+func (ctx *InstanceGroupContext) GetInstanceGroup() *v1alpha1.InstanceGroup {
 	if ctx != nil {
 		return ctx.InstanceGroup
 	}
 	return &v1alpha1.InstanceGroup{}
 }
 
-func (ctx *EksFargateCreateContext) SetClusterName(name *string) {
+func (ctx *CreateContext) SetClusterName(name *string) {
 	ctx.ClusterName = name
 }
-func (ctx *EksFargateCreateContext) SetProfileName(name *string) {
+func (ctx *CreateContext) SetProfileName(name *string) {
 	ctx.ProfileName = name
 }
-func (ctx *EksFargateCreateContext) SetExecutionArn(arn *string) {
+func (ctx *CreateContext) SetExecutionArn(arn *string) {
 	ctx.ExecutionArn = arn
 }
-func (ctx *EksFargateCreateContext) GetClusterName() *string {
+func (ctx *CreateContext) GetClusterName() *string {
 	return ctx.ClusterName
 }
-func (ctx *EksFargateCreateContext) GetProfileName() *string {
+func (ctx *CreateContext) GetProfileName() *string {
 	return ctx.ProfileName
 }
-func (ctx *EksFargateCreateContext) GetExecutionArn() *string {
+func (ctx *CreateContext) GetExecutionArn() *string {
 	return ctx.ExecutionArn
 }
-func (ctx *EksFargateDeleteContext) SetClusterName(name *string) {
+func (ctx *DeleteContext) SetClusterName(name *string) {
 	ctx.ClusterName = name
 }
-func (ctx *EksFargateDeleteContext) SetProfileName(name *string) {
+func (ctx *DeleteContext) SetProfileName(name *string) {
 	ctx.ProfileName = name
 }
-func (ctx *EksFargateDeleteContext) GetClusterName() *string {
+func (ctx *DeleteContext) GetClusterName() *string {
 	return ctx.ClusterName
 }
-func (ctx *EksFargateDeleteContext) GetProfileName() *string {
+func (ctx *DeleteContext) GetProfileName() *string {
 	return ctx.ProfileName
 }

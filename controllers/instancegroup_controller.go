@@ -177,12 +177,26 @@ func (r *InstanceGroupReconciler) SetFinalizer(instanceGroup *v1alpha.InstanceGr
 }
 
 func (r *InstanceGroupReconciler) ReconcileEKSFargate(instanceGroup *v1alpha.InstanceGroup, finalizerName string) error {
-	ctx, err := eksfargate.New(instanceGroup)
+	awsRegion, err := aws.GetRegion()
+	if err != nil {
+		return err
+	}
+	spec := instanceGroup.Spec.EKSFargateSpec
+	worker := &aws.AwsFargateWorker{
+		IamClient:    aws.GetAwsIAMClient(awsRegion),
+		EksClient:    aws.GetAwsEksClient(awsRegion),
+		ClusterName:  spec.GetClusterName(),
+		ProfileName:  spec.GetProfileName(),
+		ExecutionArn: spec.GetPodExecutionRoleArn(),
+		Selectors:    eksfargate.CreateFargateSelectors(spec.GetSelectors()),
+		RoleName:     nil,
+	}
+	ctx, err := eksfargate.New(instanceGroup, worker)
 	if err != nil {
 		log.Errorf("Allocation of EKSFargate context failed: %v\n", err)
 		return err
 	}
-	err = ctx.HandleRequest()
+	err = HandleReconcileRequest(ctx)
 	r.Finalize(instanceGroup, finalizerName)
 	err = r.Update(context.Background(), instanceGroup)
 	if err != nil {
@@ -433,18 +447,23 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		}
 	case "eks-fargate":
 		//Some Silly logic to get and end to end loop working
-		currentState := ig.GetState()
-		log.Infof("eks-fargate current state: %v\n", currentState)
+		log.Infof("eks-fargate entry state: %v\n", ig.GetState())
 
 		err := r.ReconcileEKSFargate(ig, finalizerName)
+		log.Infof("eks-fargate exit state: %v\n", ig.GetState())
 		if err != nil {
 			log.Errorln(err)
 		}
-		log.Infof("eks-fargate leaving state: %v\n", ig.GetState())
-		if ig.GetState() == v1alpha.ReconcileInitCreate || ig.GetState() == v1alpha.ReconcileDeleting {
-			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
-		} else {
+		currentState := ig.GetState()
+		if currentState == v1alpha.ReconcileErr {
+			log.Errorln("fargate reconcile failed")
 			return ctrl.Result{}, nil
+		} else if currentState == v1alpha.ReconcileDeleted || currentState == v1alpha.ReconcileReady {
+			log.Infoln("fargate reconcile completed")
+			return ctrl.Result{}, nil
+		} else {
+			log.Infoln("fargate reconcile completed with requeue")
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
 
 	default:
