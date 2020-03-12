@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -197,6 +198,7 @@ type AwsFargateWorker struct {
 	ExecutionArn              *string
 	PodExecutionRoleStackName *string
 	Selectors                 []*eks.FargateProfileSelector
+	Tags                      map[string]*string
 	RoleName                  *string
 }
 
@@ -532,6 +534,7 @@ func IsStackInConditionState(key string, condition string) bool {
 }
 func IsProfileInConditionState(key string, condition string) bool {
 	conditionStates := map[string]CloudResourceReconcileState{
+		"NONE":          FiniteDeleted,
 		"CREATING":      OngoingState,
 		"ACTIVE":        FiniteState,
 		"DELETING":      OngoingState,
@@ -562,7 +565,7 @@ type ResourceState struct {
 	Profile    *eks.FargateProfile
 }
 
-func (state *ResourceState) GetRoleExits() bool {
+func (state *ResourceState) GetRoleExists() bool {
 	return state.RoleExists
 
 }
@@ -576,24 +579,7 @@ func (state *ResourceState) GetProfileState() *string {
 	}
 }
 func (state *ResourceState) IsProvisioned() bool {
-	return *state.GetProfileState() != "NONE" && state.GetRoleExits()
-}
-
-func (state *ResourceState) IsReady() bool {
-	profileState := state.GetProfileState()
-	return state.RoleExists && *profileState == eks.FargateProfileStatusActive
-}
-func (state *ResourceState) IsCreating() bool {
-	profileState := state.GetProfileState()
-	return (state.RoleExists &&
-		*profileState == eks.FargateProfileStatusCreating)
-}
-func (state *ResourceState) IsDeleting() bool {
-	profileState := state.GetProfileState()
-	return (*profileState == eks.FargateProfileStatusDeleting && state.RoleExists)
-}
-func (state *ResourceState) IsFailed() bool {
-	return !(state.IsCreating() || state.IsDeleting() || state.IsReady())
+	return *state.GetProfileState() != "NONE"
 }
 
 func (w *AwsFargateWorker) GetState() *ResourceState {
@@ -684,15 +670,24 @@ func (w *AwsFargateWorker) CreateDefaultRolePolicy() (*string, error) {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case iam.ErrCodeEntityAlreadyExistsException:
-				log.Infof("CreateDefaultRolePolicy - ErrCodeEntityAlreadyExistsException: %v:", aerr.Error())
-				w.RoleName = &roleName
-				return createRoleOutput.Role.Arn, nil
+				// Role already exists.  Need the arn
+				getRoleInput := &iam.GetRoleInput{
+					RoleName: aws.String(roleName),
+				}
+				getRoleOutput, err := w.IamClient.GetRole(getRoleInput)
+				if err != nil {
+
+					log.Errorf("CreateDefaultRolePolicy - GetRole call failed. %v:", err)
+					return nil, err
+				}
+				w.RoleName = getRoleOutput.Role.RoleName
+				return getRoleOutput.Role.Arn, nil
 			default:
 				log.Errorf("CreateDefaultRolePolicy - %v:", aerr.Error())
 				return nil, aerr
 			}
 		} else {
-			log.Errorf("CreateDefaultRolePolicy - %v:", err)
+			log.Errorf("CreateDefaultRolePolicy - CreateRole failed. %v:", err)
 			return nil, err
 		}
 	} else {
@@ -729,9 +724,14 @@ func (w *AwsFargateWorker) CreateProfile(arn *string) error {
 		FargateProfileName:  w.ProfileName,
 		PodExecutionRoleArn: arn,
 		Selectors:           w.Selectors,
+		Tags:                w.Tags,
 	}
-	log.Infof("CreateProfile - creating profile for cluster: %s, name: %s, arn: %s", *w.ClusterName, *w.ProfileName, *arn)
-	_, err := w.EksClient.CreateFargateProfile(input)
+	var err = errors.New("")
+	for i := 0; i < 10 && err != nil; i++ {
+		log.Infof("CreateProfile - %d try - creating profile for cluster: %s, name: %s, arn: %s", i, *w.ClusterName, *w.ProfileName, *arn)
+		time.Sleep(time.Duration(i*500) * time.Millisecond)
+		_, err = w.EksClient.CreateFargateProfile(input)
+	}
 	if err != nil {
 		log.Errorf("CreateProfile - Failed to create fargate cluster : %v\n", err)
 	}
@@ -749,6 +749,7 @@ func (w *AwsFargateWorker) DeleteProfile() error {
 	}
 	return err
 }
+
 func (w *AwsFargateWorker) DescribeProfile() (*eks.FargateProfile, error) {
 	input := &eks.DescribeFargateProfileInput{
 		ClusterName:        w.ClusterName,
@@ -756,11 +757,12 @@ func (w *AwsFargateWorker) DescribeProfile() (*eks.FargateProfile, error) {
 	}
 	output, err := w.EksClient.DescribeFargateProfile(input)
 	if err != nil {
-		log.Errorf("DescribeProfile - Failed to describe fargate cluster: %v\n", err)
+		//log.Errorf("DescribeProfile - Failed to describe fargate cluster: %v\n", err)
 		return nil, err
 	}
 	return output.FargateProfile, nil
 }
+
 func (w *AwsFargateWorker) HasDefaultRole() bool {
 	input := &iam.GetRoleInput{
 		RoleName: w.createDefaultRoleName(),

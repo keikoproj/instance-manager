@@ -226,17 +226,17 @@ type EKSFargateSelectors struct {
 
 // InstanceGroupStatus defines the schema of resource Status
 type InstanceGroupStatus struct {
-	StackName                     string `json:"stackName,omitempty"`
-	CurrentState                  string `json:"currentState,omitempty"`
-	CurrentMin                    int    `json:"currentMin,omitempty"`
-	CurrentMax                    int    `json:"currentMax,omitempty"`
-	ActiveLaunchConfigurationName string `json:"activeLaunchConfigurationName,omitempty"`
-	ActiveScalingGroupName        string `json:"activeScalingGroupName,omitempty"`
-	NodesArn                      string `json:"nodesInstanceRoleArn,omitempty"`
-	StrategyResourceName          string `json:"strategyResourceName,omitempty"`
-	UsingSpotRecommendation       bool   `json:"usingSpotRecommendation,omitempty"`
-	Lifecycle                     string `json:"lifecycle,omitempty"`
-	FargateRoleName               string `json:"fargateRoleName,omitempty"`
+	StackName                     string  `json:"stackName,omitempty"`
+	CurrentState                  string  `json:"currentState,omitempty"`
+	CurrentMin                    int     `json:"currentMin,omitempty"`
+	CurrentMax                    int     `json:"currentMax,omitempty"`
+	ActiveLaunchConfigurationName string  `json:"activeLaunchConfigurationName,omitempty"`
+	ActiveScalingGroupName        string  `json:"activeScalingGroupName,omitempty"`
+	NodesArn                      string  `json:"nodesInstanceRoleArn,omitempty"`
+	StrategyResourceName          string  `json:"strategyResourceName,omitempty"`
+	UsingSpotRecommendation       bool    `json:"usingSpotRecommendation,omitempty"`
+	Lifecycle                     string  `json:"lifecycle,omitempty"`
+	FargateRoleName               *string `json:"fargateRoleName,omitempty"`
 }
 
 func (conf *EKSManagedConfiguration) SetSubnets(subnets []string)  { conf.Subnets = subnets }
@@ -329,6 +329,12 @@ func (status *InstanceGroupStatus) SetActiveLaunchConfigurationName(name string)
 
 func (status *InstanceGroupStatus) GetStackName() string {
 	return status.StackName
+}
+func (status *InstanceGroupStatus) GetFargateRoleName() *string {
+	return status.FargateRoleName
+}
+func (status *InstanceGroupStatus) SetFargateRoleName(roleName *string) {
+	status.FargateRoleName = roleName
 }
 
 func (status *InstanceGroupStatus) SetStackName(name string) {

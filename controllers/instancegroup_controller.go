@@ -189,7 +189,8 @@ func (r *InstanceGroupReconciler) ReconcileEKSFargate(instanceGroup *v1alpha.Ins
 		ProfileName:  spec.GetProfileName(),
 		ExecutionArn: spec.GetPodExecutionRoleArn(),
 		Selectors:    eksfargate.CreateFargateSelectors(spec.GetSelectors()),
-		RoleName:     nil,
+		Tags:         eksfargate.CreateFargateTags(spec.GetTags()),
+		RoleName:     instanceGroup.Status.GetFargateRoleName(),
 	}
 	ctx, err := eksfargate.New(instanceGroup, worker)
 	if err != nil {

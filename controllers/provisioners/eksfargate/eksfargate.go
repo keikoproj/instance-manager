@@ -32,6 +32,15 @@ func New(instanceGroup *v1alpha1.InstanceGroup, worker *aws.AwsFargateWorker) (*
 	instanceGroup.SetState(v1alpha1.ReconcileInit)
 	return &ctx, nil
 }
+func CreateFargateTags(tagArray []map[string]string) map[string]*string {
+	tags := make(map[string]*string)
+	for _, t := range tagArray {
+		for k, v := range t {
+			tags[k] = &v
+		}
+	}
+	return tags
+}
 func CreateFargateSelectors(selectors []*v1alpha1.EKSFargateSelectors) []*eks.FargateProfileSelector {
 	var eksSelectors []*eks.FargateProfileSelector
 	for _, selector := range selectors {
@@ -62,6 +71,8 @@ func (ctx *InstanceGroupContext) Create() error {
 			log.Errorf("Creation of default role policy failed: %v", err)
 			return err
 		}
+		// Save the role name of the default role we created.
+		ctx.GetInstanceGroup().Status.SetFargateRoleName(ctx.AwsFargateWorker.RoleName)
 	} else {
 		arn = ig.Spec.EKSFargateSpec.GetPodExecutionRoleArn()
 	}
@@ -76,18 +87,27 @@ func (ctx *InstanceGroupContext) CloudDiscovery() error {
 	return nil
 }
 func (ctx *InstanceGroupContext) Delete() error {
-
+	var err error
 	worker := ctx.AwsFargateWorker
-
 	ig := ctx.GetInstanceGroup()
-	err := worker.DeleteProfile()
+	log.Infof("Delete() PodExecutionRoleArn: <%v>", *ig.Spec.EKSFargateSpec.GetPodExecutionRoleArn())
+	log.Infof("Delete() RoleName: <%v>", *ig.Status.GetFargateRoleName())
 	if *ig.Spec.EKSFargateSpec.GetPodExecutionRoleArn() == "" {
 		err = worker.DeleteDefaultRolePolicy()
+		if err != nil {
+			log.Errorf("Delete() - Delete of default role policy failed: %v", err)
+		}
+	}
+	err = worker.DeleteProfile()
+	if err != nil {
+		log.Errorf("Delete() - Delete of profile failed: %v", err)
 	}
 
 	return err
 }
 func (ctx *InstanceGroupContext) Update() error {
+	// No update is required
+	ctx.GetInstanceGroup().SetState(v1alpha1.ReconcileModified)
 	return nil
 }
 func (ctx *InstanceGroupContext) UpgradeNodes() error {
@@ -97,7 +117,8 @@ func (ctx *InstanceGroupContext) BootstrapNodes() error {
 	return nil
 }
 func (ctx *InstanceGroupContext) IsReady() bool {
-	return false
+	state := ctx.AwsFargateWorker.GetState()
+	return *state.GetProfileState() == "ACTIVE" && state.GetRoleExists()
 }
 func (ctx *InstanceGroupContext) IsUpgradeNeeded() bool {
 	return false
