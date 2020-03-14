@@ -72,7 +72,7 @@ func (ctx *InstanceGroupContext) Create() error {
 			return err
 		}
 		// Save the role name of the default role we created.
-		ctx.GetInstanceGroup().Status.SetFargateRoleName(ctx.AwsFargateWorker.RoleName)
+		ctx.GetInstanceGroup().Status.SetFargateRoleName(*ctx.AwsFargateWorker.RoleName)
 	} else {
 		arn = ig.Spec.EKSFargateSpec.GetPodExecutionRoleArn()
 	}
@@ -91,7 +91,7 @@ func (ctx *InstanceGroupContext) Delete() error {
 	worker := ctx.AwsFargateWorker
 	ig := ctx.GetInstanceGroup()
 	log.Infof("Delete() PodExecutionRoleArn: <%v>", *ig.Spec.EKSFargateSpec.GetPodExecutionRoleArn())
-	log.Infof("Delete() RoleName: <%v>", *ig.Status.GetFargateRoleName())
+	log.Infof("Delete() RoleName: <%v>", ig.Status.GetFargateRoleName())
 	if *ig.Spec.EKSFargateSpec.GetPodExecutionRoleArn() == "" {
 		err = worker.DeleteDefaultRolePolicy()
 		if err != nil {
@@ -107,7 +107,18 @@ func (ctx *InstanceGroupContext) Delete() error {
 }
 func (ctx *InstanceGroupContext) Update() error {
 	// No update is required
-	ctx.GetInstanceGroup().SetState(v1alpha1.ReconcileModified)
+	updateNeeded, err := ctx.HasChanged()
+	if err != nil {
+		return err
+	}
+	log.Infof("Update - Tags have changed: %v", updateNeeded)
+	instanceGroup := ctx.GetInstanceGroup()
+	if updateNeeded {
+		log.Infof("Update() - initiating a Delete()")
+		ctx.Delete()
+	} else {
+		instanceGroup.SetState(v1alpha1.ReconcileModified)
+	}
 	return nil
 }
 func (ctx *InstanceGroupContext) UpgradeNodes() error {
@@ -118,7 +129,7 @@ func (ctx *InstanceGroupContext) BootstrapNodes() error {
 }
 func (ctx *InstanceGroupContext) IsReady() bool {
 	state := ctx.AwsFargateWorker.GetState()
-	return *state.GetProfileState() == "ACTIVE" && state.GetRoleExists()
+	return *state.GetProfileState() == "ACTIVE"
 }
 func (ctx *InstanceGroupContext) IsUpgradeNeeded() bool {
 	return false
@@ -179,4 +190,23 @@ func (ctx *InstanceGroupContext) SetState(state v1alpha1.ReconcileState) {
 }
 func (ctx *InstanceGroupContext) GetState() v1alpha1.ReconcileState {
 	return ctx.GetInstanceGroup().GetState()
+}
+
+func (ctx *InstanceGroupContext) HasChanged() (bool, error) {
+	state := ctx.AwsFargateWorker.GetState()
+	fpTagsOld := state.Profile.Tags
+	fpTagsNew := CreateFargateTags(ctx.GetInstanceGroup().Spec.EKSFargateSpec.Tags)
+	if len(fpTagsOld) != len(fpTagsNew) {
+		return true, nil
+	}
+	for k, v := range fpTagsNew {
+		if value, ok := fpTagsOld[k]; ok {
+			if *v != *value {
+				return true, nil
+			}
+		} else {
+			return true, nil
+		}
+	}
+	return false, nil
 }

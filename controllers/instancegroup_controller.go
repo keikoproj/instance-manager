@@ -176,6 +176,10 @@ func (r *InstanceGroupReconciler) SetFinalizer(instanceGroup *v1alpha.InstanceGr
 	}
 }
 
+func addressOf(s string) *string {
+	return &s
+}
+
 func (r *InstanceGroupReconciler) ReconcileEKSFargate(instanceGroup *v1alpha.InstanceGroup, finalizerName string) error {
 	awsRegion, err := aws.GetRegion()
 	if err != nil {
@@ -190,7 +194,7 @@ func (r *InstanceGroupReconciler) ReconcileEKSFargate(instanceGroup *v1alpha.Ins
 		ExecutionArn: spec.GetPodExecutionRoleArn(),
 		Selectors:    eksfargate.CreateFargateSelectors(spec.GetSelectors()),
 		Tags:         eksfargate.CreateFargateTags(spec.GetTags()),
-		RoleName:     instanceGroup.Status.GetFargateRoleName(),
+		RoleName:     addressOf(instanceGroup.Status.GetFargateRoleName()),
 	}
 	ctx, err := eksfargate.New(instanceGroup, worker)
 	if err != nil {

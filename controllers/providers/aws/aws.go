@@ -726,7 +726,13 @@ func (w *AwsFargateWorker) CreateProfile(arn *string) error {
 		Selectors:           w.Selectors,
 		Tags:                w.Tags,
 	}
-	var err = errors.New("")
+	// Lets see if the profile exists.  Return now if it does.
+	_, err := w.DescribeProfile()
+	if err == nil {
+		//profile exists
+		return nil
+	}
+
 	for i := 0; i < 10 && err != nil; i++ {
 		log.Infof("CreateProfile - %d try - creating profile for cluster: %s, name: %s, arn: %s", i, *w.ClusterName, *w.ProfileName, *arn)
 		time.Sleep(time.Duration(i*500) * time.Millisecond)
@@ -737,6 +743,7 @@ func (w *AwsFargateWorker) CreateProfile(arn *string) error {
 	}
 	return err
 }
+
 func (w *AwsFargateWorker) DeleteProfile() error {
 	log.Infof("DeleteProfile - deleting profile for cluster: %s, name: %s", *w.ClusterName, *w.ProfileName)
 	input := &eks.DeleteFargateProfileInput{
@@ -750,17 +757,56 @@ func (w *AwsFargateWorker) DeleteProfile() error {
 	return err
 }
 
-func (w *AwsFargateWorker) DescribeProfile() (*eks.FargateProfile, error) {
+func DescribeProfileWithParms(client eksiface.EKSAPI, clusterName *string, profileName *string) (*eks.FargateProfile, error) {
 	input := &eks.DescribeFargateProfileInput{
-		ClusterName:        w.ClusterName,
-		FargateProfileName: w.ProfileName,
+		ClusterName:        clusterName,
+		FargateProfileName: profileName,
 	}
-	output, err := w.EksClient.DescribeFargateProfile(input)
+	output, err := client.DescribeFargateProfile(input)
 	if err != nil {
-		//log.Errorf("DescribeProfile - Failed to describe fargate cluster: %v\n", err)
 		return nil, err
 	}
 	return output.FargateProfile, nil
+}
+func (w *AwsFargateWorker) DescribeProfile() (*eks.FargateProfile, error) {
+	return DescribeProfileWithParms(w.EksClient, w.ClusterName, w.ProfileName)
+}
+func IsDeleting(fargateProfiles []*eks.FargateProfile) bool {
+	for _, profile := range fargateProfiles {
+		if *profile.Status == "DELETING" {
+			return true
+		}
+	}
+	return false
+}
+func (w *AwsFargateWorker) DescribeAllProfiles(profiles []*string) ([]*eks.FargateProfile, error) {
+	fargateProfiles := []*eks.FargateProfile{}
+	for _, profile := range profiles {
+		x, err := DescribeProfileWithParms(w.EksClient, w.ClusterName, profile)
+		if err != nil {
+			return nil, err
+		} else {
+			fargateProfiles = append(fargateProfiles, x)
+		}
+	}
+	return fargateProfiles, nil
+}
+
+func (w *AwsFargateWorker) ListAllProfiles() ([]*string, error) {
+	profiles := []*string{}
+	input := &eks.ListFargateProfilesInput{
+		ClusterName: w.ClusterName,
+	}
+	err := w.EksClient.ListFargateProfilesPages(input,
+		func(page *eks.ListFargateProfilesOutput, lastPage bool) bool {
+			profiles = append(profiles, page.FargateProfileNames...)
+			return !lastPage
+		})
+	if err != nil {
+		log.Errorf("ListAllProfiles - Failed on cluster: %s with error: %v", *w.ClusterName, err)
+		return nil, err
+	}
+	return profiles, nil
 }
 
 func (w *AwsFargateWorker) HasDefaultRole() bool {
@@ -768,5 +814,5 @@ func (w *AwsFargateWorker) HasDefaultRole() bool {
 		RoleName: w.createDefaultRoleName(),
 	}
 	_, err := w.IamClient.GetRole(input)
-	return err != nil
+	return err == nil
 }
