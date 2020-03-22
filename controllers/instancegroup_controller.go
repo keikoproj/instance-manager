@@ -194,20 +194,24 @@ func (r *InstanceGroupReconciler) ReconcileEKSFargate(instanceGroup *v1alpha.Ins
 		ExecutionArn: spec.GetPodExecutionRoleArn(),
 		Selectors:    eksfargate.CreateFargateSelectors(spec.GetSelectors()),
 		Tags:         eksfargate.CreateFargateTags(spec.GetTags()),
+		Subnets:      spec.GetSubnets(),
 		RoleName:     addressOf(instanceGroup.Status.GetFargateRoleName()),
 	}
 	ctx, err := eksfargate.New(instanceGroup, worker)
 	if err != nil {
 		log.Errorf("Allocation of EKSFargate context failed: %v\n", err)
+		ctx.SetState(v1alpha.ReconcileErr)
+		r.Update(context.Background(), ctx.GetInstanceGroup())
 		return err
 	}
 	err = HandleReconcileRequest(ctx)
-	r.Finalize(instanceGroup, finalizerName)
-	err = r.Update(context.Background(), instanceGroup)
 	if err != nil {
-		log.Infof("Update failed: %v", err)
+		ctx.SetState(v1alpha.ReconcileErr)
+		r.Update(context.Background(), ctx.GetInstanceGroup())
+		return err
 	}
-	return nil
+	r.Finalize(instanceGroup, finalizerName)
+	return r.Update(context.Background(), instanceGroup)
 }
 
 func (r *InstanceGroupReconciler) ReconcileEKSManaged(instanceGroup *v1alpha.InstanceGroup, finalizerName string) error {
@@ -453,7 +457,6 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	case "eks-fargate":
 		//Some Silly logic to get and end to end loop working
 		log.Infof("eks-fargate entry state: %v\n", ig.GetState())
-
 		err := r.ReconcileEKSFargate(ig, finalizerName)
 		log.Infof("eks-fargate exit state: %v\n", ig.GetState())
 		if err != nil {

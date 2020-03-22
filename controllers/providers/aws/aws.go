@@ -199,7 +199,9 @@ type AwsFargateWorker struct {
 	PodExecutionRoleStackName *string
 	Selectors                 []*eks.FargateProfileSelector
 	Tags                      map[string]*string
+	Subnets                   []*string
 	RoleName                  *string
+	RetryLimit                int
 }
 
 func (w *AwsWorker) CreateCloudformationStack() error {
@@ -538,7 +540,7 @@ func IsProfileInConditionState(key string, condition string) bool {
 		"CREATING":      OngoingState,
 		"ACTIVE":        FiniteState,
 		"DELETING":      OngoingState,
-		"CREATE_FAILED": UnrecoverableError,
+		"CREATE_FAILED": UpdateRecoverableError,
 		"DELETE_FAILED": UnrecoverableDeleteError,
 	}
 	state := conditionStates[key]
@@ -598,9 +600,6 @@ func (w *AwsFargateWorker) Create() error {
 		Selectors:           w.Selectors,
 	}
 	_, err := w.EksClient.CreateFargateProfile(input)
-	if err != nil {
-		log.Errorf("Failed to create fargate cluster : %v\n", err)
-	}
 	return err
 }
 
@@ -629,6 +628,7 @@ func (w *AwsFargateWorker) DeleteDefaultRolePolicy() error {
 		} else {
 			log.Errorf("DeleteDefaultRolePolicy - %v:", err)
 		}
+		return err
 	}
 	role := &iam.DeleteRoleInput{
 		RoleName: w.RoleName,
@@ -649,72 +649,56 @@ func (w *AwsFargateWorker) DeleteDefaultRolePolicy() error {
 			log.Errorf("DeleteDefaultRolePolicy - %v:", err)
 		}
 	}
-	return nil
+	return err
 }
-func (w *AwsFargateWorker) createDefaultRoleName() *string {
-	s := fmt.Sprintf("%v:%vRole", w.ClusterName, w.ProfileName)
+func (w *AwsFargateWorker) CreateDefaultRoleName() *string {
+	s := fmt.Sprintf("%v_%v_Role", *w.ClusterName, *w.ProfileName)
 	return &s
 }
 
 func (w *AwsFargateWorker) CreateDefaultRolePolicy() (*string, error) {
-	var roleName = fmt.Sprintf("%v-%vRole", *w.ClusterName, *w.ProfileName)
+	var roleName = w.CreateDefaultRoleName()
 	var template = `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"eks-fargate-pods.amazonaws.com"},"Action":"sts:AssumeRole"}]}`
 	role := &iam.CreateRoleInput{
 		AssumeRolePolicyDocument: &template,
 		Path:                     aws.String("/"),
-		RoleName:                 aws.String(roleName),
+		RoleName:                 roleName,
 	}
 	createRoleOutput, err := w.IamClient.CreateRole(role)
 
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case iam.ErrCodeEntityAlreadyExistsException:
+			if aerr.Code() == iam.ErrCodeEntityAlreadyExistsException {
 				// Role already exists.  Need the arn
 				getRoleInput := &iam.GetRoleInput{
-					RoleName: aws.String(roleName),
+					RoleName: roleName,
 				}
 				getRoleOutput, err := w.IamClient.GetRole(getRoleInput)
 				if err != nil {
-
-					log.Errorf("CreateDefaultRolePolicy - GetRole call failed. %v:", err)
 					return nil, err
 				}
 				w.RoleName = getRoleOutput.Role.RoleName
 				return getRoleOutput.Role.Arn, nil
-			default:
-				log.Errorf("CreateDefaultRolePolicy - %v:", aerr.Error())
-				return nil, aerr
 			}
-		} else {
-			log.Errorf("CreateDefaultRolePolicy - CreateRole failed. %v:", err)
-			return nil, err
+			return nil, aerr
 		}
+		return nil, err
 	} else {
-		log.Infof("CreateDefaultRolePolicy - Role with name: %s created:", roleName)
-		w.RoleName = &roleName
+		w.RoleName = roleName
 		rolePolicy := &iam.AttachRolePolicyInput{
 			PolicyArn: aws.String(defaultPolicyArn),
-			RoleName:  aws.String(roleName),
+			RoleName:  roleName,
 		}
 		_, err = w.IamClient.AttachRolePolicy(rolePolicy)
 		if err != nil {
 			if aerr, ok := err.(awserr.Error); ok {
-				switch aerr.Code() {
-
-				case iam.ErrCodeEntityAlreadyExistsException:
-					log.Infof("CreateDefaultRolePolicy - ErrCodeEntityAlreadyExistsException: %v:", aerr.Error())
+				if aerr.Code() == iam.ErrCodeEntityAlreadyExistsException {
 					return createRoleOutput.Role.Arn, nil
-				default:
-					log.Errorf("CreateDefaultRolePolicy - %v:", aerr.Error())
-					return nil, aerr
 				}
-			} else {
-				log.Errorf("CreateDefaultRolePolicy - %v:", err)
-				return nil, err
+				return nil, aerr
 			}
+			return nil, err
 		}
-		log.Infof("CreateDefaultRolePolicy - AttachedRolePolicy with arn: %s created:", *createRoleOutput.Role.Arn)
 		return createRoleOutput.Role.Arn, nil
 	}
 }
@@ -724,6 +708,7 @@ func (w *AwsFargateWorker) CreateProfile(arn *string) error {
 		FargateProfileName:  w.ProfileName,
 		PodExecutionRoleArn: arn,
 		Selectors:           w.Selectors,
+		Subnets:             w.Subnets,
 		Tags:                w.Tags,
 	}
 	// Lets see if the profile exists.  Return now if it does.
@@ -733,52 +718,45 @@ func (w *AwsFargateWorker) CreateProfile(arn *string) error {
 		return nil
 	}
 
-	for i := 0; i < 10 && err != nil; i++ {
+	for i := 0; i < w.RetryLimit && err != nil; i++ {
 		log.Infof("CreateProfile - %d try - creating profile for cluster: %s, name: %s, arn: %s", i, *w.ClusterName, *w.ProfileName, *arn)
 		time.Sleep(time.Duration(i*500) * time.Millisecond)
 		_, err = w.EksClient.CreateFargateProfile(input)
-	}
-	if err != nil {
-		log.Errorf("CreateProfile - Failed to create fargate cluster : %v\n", err)
 	}
 	return err
 }
 
 func (w *AwsFargateWorker) DeleteProfile() error {
-	log.Infof("DeleteProfile - deleting profile for cluster: %s, name: %s", *w.ClusterName, *w.ProfileName)
 	input := &eks.DeleteFargateProfileInput{
 		ClusterName:        w.ClusterName,
 		FargateProfileName: w.ProfileName,
 	}
 	_, err := w.EksClient.DeleteFargateProfile(input)
-	if err != nil {
-		log.Errorf("DeleteProfile - Failed to delete fargate cluster: %v\n", err)
-	}
 	return err
 }
 
-func DescribeProfileWithParms(client eksiface.EKSAPI, clusterName *string, profileName *string) (*eks.FargateProfile, error) {
+/*
+func (w *AwsFargateWorker) DescribeProfile() (*eks.FargateProfile, error) {
 	input := &eks.DescribeFargateProfileInput{
-		ClusterName:        clusterName,
-		FargateProfileName: profileName,
+		ClusterName:        w.ClusterName,
+		FargateProfileName: w.ProfileName,
 	}
-	output, err := client.DescribeFargateProfile(input)
+	output, err := w.EksClient.DescribeFargateProfile(input)
 	if err != nil {
 		return nil, err
 	}
 	return output.FargateProfile, nil
 }
-func (w *AwsFargateWorker) DescribeProfile() (*eks.FargateProfile, error) {
-	return DescribeProfileWithParms(w.EksClient, w.ClusterName, w.ProfileName)
-}
-func IsDeleting(fargateProfiles []*eks.FargateProfile) bool {
-	for _, profile := range fargateProfiles {
-		if *profile.Status == "DELETING" {
-			return true
-		}
+*/
+
+func (w *AwsFargateWorker) HasDefaultRole() bool {
+	input := &iam.GetRoleInput{
+		RoleName: w.CreateDefaultRoleName(),
 	}
-	return false
+	_, err := w.IamClient.GetRole(input)
+	return err == nil
 }
+
 func (w *AwsFargateWorker) DescribeAllProfiles(profiles []*string) ([]*eks.FargateProfile, error) {
 	fargateProfiles := []*eks.FargateProfile{}
 	for _, profile := range profiles {
@@ -809,10 +787,25 @@ func (w *AwsFargateWorker) ListAllProfiles() ([]*string, error) {
 	return profiles, nil
 }
 
-func (w *AwsFargateWorker) HasDefaultRole() bool {
-	input := &iam.GetRoleInput{
-		RoleName: w.createDefaultRoleName(),
+func DescribeProfileWithParms(client eksiface.EKSAPI, clusterName *string, profileName *string) (*eks.FargateProfile, error) {
+	input := &eks.DescribeFargateProfileInput{
+		ClusterName:        clusterName,
+		FargateProfileName: profileName,
 	}
-	_, err := w.IamClient.GetRole(input)
-	return err == nil
+	output, err := client.DescribeFargateProfile(input)
+	if err != nil {
+		return nil, err
+	}
+	return output.FargateProfile, nil
+}
+func (w *AwsFargateWorker) DescribeProfile() (*eks.FargateProfile, error) {
+	return DescribeProfileWithParms(w.EksClient, w.ClusterName, w.ProfileName)
+}
+func IsDeleting(fargateProfiles []*eks.FargateProfile) bool {
+	for _, profile := range fargateProfiles {
+		if *profile.Status == "DELETING" {
+			return true
+		}
+	}
+	return false
 }

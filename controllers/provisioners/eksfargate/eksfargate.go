@@ -16,15 +16,27 @@ limitations under the License.
 package eksfargate
 
 import (
-	//	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/eks"
 	v1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
 	aws "github.com/keikoproj/instance-manager/controllers/providers/aws"
-	provisioners "github.com/keikoproj/instance-manager/controllers/provisioners"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
+	"sort"
+	"strings"
+)
+
+var log = logrus.New()
+
+const (
+	OngoingStateString             = "OngoingState"
+	FiniteStateString              = "FiniteState"
+	FiniteDeletedString            = "FiniteDeleted"
+	UpdateRecoverableErrorString   = "UpdateRecoverableError"
+	UnrecoverableErrorString       = "UnrecoverableError"
+	UnrecoverableDeleteErrorString = "UnrecoverableDeleteError"
 )
 
 func New(instanceGroup *v1alpha1.InstanceGroup, worker *aws.AwsFargateWorker) (*InstanceGroupContext, error) {
+	worker.RetryLimit = 15
 	ctx := InstanceGroupContext{
 		InstanceGroup:    instanceGroup,
 		AwsFargateWorker: worker,
@@ -54,18 +66,26 @@ func CreateFargateSelectors(selectors []*v1alpha1.EKSFargateSelectors) []*eks.Fa
 }
 
 func (ctx *InstanceGroupContext) Create() error {
-	log.SetFormatter(&log.TextFormatter{
+	log.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp: true,
 	})
 
-	//ig := ctx.GetInstanceGroup()
+	createable, err := ctx.CanCreateAndDelete()
+	if err != nil {
+		return err
+	}
+	if !createable {
+		return nil
+	}
+
+	//instanceGroup := ctx.GetInstanceGroup()
 	worker := ctx.AwsFargateWorker
 
 	log.Infof("Fargate cluster: %s and profile: %s not found\n", *worker.ClusterName, *worker.ProfileName)
-	ig := ctx.GetInstanceGroup()
-	var err error
+	instanceGroup := ctx.GetInstanceGroup()
 	var arn *string
-	if *ig.Spec.EKSFargateSpec.GetPodExecutionRoleArn() == "" {
+	log.Infof("Create() - Input PodExecutionRoleArn is: %s", *instanceGroup.Spec.EKSFargateSpec.GetPodExecutionRoleArn())
+	if *instanceGroup.Spec.EKSFargateSpec.GetPodExecutionRoleArn() == "" {
 		arn, err = ctx.AwsFargateWorker.CreateDefaultRolePolicy()
 		if err != nil {
 			log.Errorf("Creation of default role policy failed: %v", err)
@@ -73,13 +93,16 @@ func (ctx *InstanceGroupContext) Create() error {
 		}
 		// Save the role name of the default role we created.
 		ctx.GetInstanceGroup().Status.SetFargateRoleName(*ctx.AwsFargateWorker.RoleName)
+		log.Infof("Create() - RoleName: %s", *ctx.AwsFargateWorker.RoleName)
 	} else {
-		arn = ig.Spec.EKSFargateSpec.GetPodExecutionRoleArn()
+		arn = instanceGroup.Spec.EKSFargateSpec.GetPodExecutionRoleArn()
 	}
 	log.Infof("Create() - Creating profile with arn: %s", *arn)
 	err = ctx.AwsFargateWorker.CreateProfile(arn)
 	if err != nil {
 		log.Errorf("Creation of the fargate profile failed: %v", err)
+	} else {
+		instanceGroup.SetState(v1alpha1.ReconcileModifying)
 	}
 	return err
 }
@@ -89,10 +112,11 @@ func (ctx *InstanceGroupContext) CloudDiscovery() error {
 func (ctx *InstanceGroupContext) Delete() error {
 	var err error
 	worker := ctx.AwsFargateWorker
-	ig := ctx.GetInstanceGroup()
-	log.Infof("Delete() PodExecutionRoleArn: <%v>", *ig.Spec.EKSFargateSpec.GetPodExecutionRoleArn())
-	log.Infof("Delete() RoleName: <%v>", ig.Status.GetFargateRoleName())
-	if *ig.Spec.EKSFargateSpec.GetPodExecutionRoleArn() == "" {
+	instanceGroup := ctx.GetInstanceGroup()
+	log.Infof("Delete() PodExecutionRoleArn: <%v>", *instanceGroup.Spec.EKSFargateSpec.GetPodExecutionRoleArn())
+	log.Infof("Delete() RoleName: <%v>", instanceGroup.Status.GetFargateRoleName())
+	//if *instanceGroup.Spec.EKSFargateSpec.GetPodExecutionRoleArn() == "" {
+	if instanceGroup.Status.GetFargateRoleName() != "" {
 		err = worker.DeleteDefaultRolePolicy()
 		if err != nil {
 			log.Errorf("Delete() - Delete of default role policy failed: %v", err)
@@ -101,17 +125,15 @@ func (ctx *InstanceGroupContext) Delete() error {
 	err = worker.DeleteProfile()
 	if err != nil {
 		log.Errorf("Delete() - Delete of profile failed: %v", err)
+	} else {
+		instanceGroup.SetState(v1alpha1.ReconcileDeleting)
 	}
 
 	return err
 }
 func (ctx *InstanceGroupContext) Update() error {
 	// No update is required
-	updateNeeded, err := ctx.HasChanged()
-	if err != nil {
-		return err
-	}
-	log.Infof("Update - Tags have changed: %v", updateNeeded)
+	updateNeeded := ctx.HasChanged()
 	instanceGroup := ctx.GetInstanceGroup()
 	if updateNeeded {
 		log.Infof("Update() - initiating a Delete()")
@@ -135,52 +157,51 @@ func (ctx *InstanceGroupContext) IsUpgradeNeeded() bool {
 	return false
 }
 func (ctx *InstanceGroupContext) StateDiscovery() {
-	ig := ctx.GetInstanceGroup()
-	if ig.GetState() == v1alpha1.ReconcileInit {
+	instanceGroup := ctx.GetInstanceGroup()
+	if instanceGroup.GetState() == v1alpha1.ReconcileInit {
 		state := ctx.AwsFargateWorker.GetState()
 
-		if ig.ObjectMeta.DeletionTimestamp.IsZero() {
+		if instanceGroup.ObjectMeta.DeletionTimestamp.IsZero() {
 			if state.IsProvisioned() {
 				// Role exists and the Profile exists in some form.
-				if aws.IsProfileInConditionState(*state.GetProfileState(), provisioners.OngoingStateString) {
+				if aws.IsProfileInConditionState(*state.GetProfileState(), OngoingStateString) {
 					// stack is in an ongoing state
-					ig.SetState(v1alpha1.ReconcileModifying)
-				} else if aws.IsProfileInConditionState(*state.GetProfileState(), provisioners.FiniteStateString) {
+					instanceGroup.SetState(v1alpha1.ReconcileModifying)
+				} else if aws.IsProfileInConditionState(*state.GetProfileState(), FiniteStateString) {
 					// stack is in a finite state
-					ig.SetState(v1alpha1.ReconcileInitUpdate)
-				} else if aws.IsProfileInConditionState(*state.GetProfileState(), provisioners.UpdateRecoverableErrorString) {
+					instanceGroup.SetState(v1alpha1.ReconcileInitUpdate)
+				} else if aws.IsProfileInConditionState(*state.GetProfileState(), UpdateRecoverableErrorString) {
 					// stack is in update-recoverable error state
-					ig.SetState(v1alpha1.ReconcileInitUpdate)
+					instanceGroup.SetState(v1alpha1.ReconcileInitUpdate)
 				} else {
 					// stack is in unrecoverable error state
-					ig.SetState(v1alpha1.ReconcileErr)
+					instanceGroup.SetState(v1alpha1.ReconcileErr)
 				}
 			} else {
-				ig.SetState(v1alpha1.ReconcileInitCreate)
+				instanceGroup.SetState(v1alpha1.ReconcileInitCreate)
 			}
 		} else {
 			if state.IsProvisioned() {
-				if aws.IsProfileInConditionState(*state.GetProfileState(), provisioners.OngoingStateString) {
+				if aws.IsProfileInConditionState(*state.GetProfileState(), OngoingStateString) {
 					// deleting stack is in an ongoing state
-					ig.SetState(v1alpha1.ReconcileDeleting)
-				} else if aws.IsProfileInConditionState(*state.GetProfileState(), provisioners.FiniteStateString) {
+					instanceGroup.SetState(v1alpha1.ReconcileDeleting)
+				} else if aws.IsProfileInConditionState(*state.GetProfileState(), FiniteStateString) {
 					// deleting stack is in a finite state
-					ig.SetState(v1alpha1.ReconcileInitDelete)
-				} else if aws.IsProfileInConditionState(*state.GetProfileState(), provisioners.UpdateRecoverableErrorString) {
+					instanceGroup.SetState(v1alpha1.ReconcileInitDelete)
+				} else if aws.IsProfileInConditionState(*state.GetProfileState(), UpdateRecoverableErrorString) {
 					// deleting stack is in an update recoverable state
-					ig.SetState(v1alpha1.ReconcileInitDelete)
-				} else if aws.IsStackInConditionState(*state.GetProfileState(), provisioners.FiniteDeletedString) {
+					instanceGroup.SetState(v1alpha1.ReconcileInitDelete)
+				} else if aws.IsStackInConditionState(*state.GetProfileState(), FiniteDeletedString) {
 					// deleting stack is in a finite-deleted state
-					ig.SetState(v1alpha1.ReconcileDeleted)
-				} else if aws.IsStackInConditionState(*state.GetProfileState(), provisioners.UnrecoverableDeleteErrorString) {
+					instanceGroup.SetState(v1alpha1.ReconcileDeleted)
+				} else if aws.IsStackInConditionState(*state.GetProfileState(), UnrecoverableDeleteErrorString) {
 					// deleting stack is in a unrecoverable delete error state
-					ig.SetState(v1alpha1.ReconcileErr)
-				} else if aws.IsStackInConditionState(*state.GetProfileState(), provisioners.UnrecoverableErrorString) {
-					// deleting stack is in a unrecoverable error state - allow it to delete
-					ig.SetState(v1alpha1.ReconcileInitDelete)
+					instanceGroup.SetState(v1alpha1.ReconcileErr)
+				} else {
+					instanceGroup.SetState(v1alpha1.ReconcileErr)
 				}
 			} else {
-				ig.SetState(v1alpha1.ReconcileDeleted)
+				instanceGroup.SetState(v1alpha1.ReconcileDeleted)
 			}
 		}
 	}
@@ -191,22 +212,174 @@ func (ctx *InstanceGroupContext) SetState(state v1alpha1.ReconcileState) {
 func (ctx *InstanceGroupContext) GetState() v1alpha1.ReconcileState {
 	return ctx.GetInstanceGroup().GetState()
 }
-
-func (ctx *InstanceGroupContext) HasChanged() (bool, error) {
-	state := ctx.AwsFargateWorker.GetState()
-	fpTagsOld := state.Profile.Tags
-	fpTagsNew := CreateFargateTags(ctx.GetInstanceGroup().Spec.EKSFargateSpec.Tags)
-	if len(fpTagsOld) != len(fpTagsNew) {
-		return true, nil
+func equalTags(tag1 map[string]*string, tag2 map[string]*string) bool {
+	return equalStringMap(tag1, tag2)
+}
+func equalSubnetSlices(a1 []*string, a2 []*string) bool {
+	if len(a1) != len(a2) {
+		return false
 	}
-	for k, v := range fpTagsNew {
-		if value, ok := fpTagsOld[k]; ok {
-			if *v != *value {
-				return true, nil
+
+	oldSubnetsSorted := []string{}
+	for _, v := range a1 {
+		oldSubnetsSorted = append(oldSubnetsSorted, *v)
+	}
+	newSubnetsSorted := []string{}
+	for _, v := range a2 {
+		newSubnetsSorted = append(newSubnetsSorted, *v)
+	}
+	sort.Strings(oldSubnetsSorted)
+	sort.Strings(newSubnetsSorted)
+	for i, _ := range newSubnetsSorted {
+		if newSubnetsSorted[i] != oldSubnetsSorted[i] {
+			return false
+		}
+	}
+	return true
+}
+func equalStringMap(m1 map[string]*string, m2 map[string]*string) bool {
+	if len(m1) != len(m2) {
+		return false
+	}
+	for k, v1 := range m1 {
+		if v2, ok := m2[k]; ok {
+			if *v1 != *v2 {
+				return false
 			}
 		} else {
+			return false
+		}
+
+	}
+
+	return true
+}
+func equalArns(a1 *string, a2 *string) bool {
+	if a1 == nil && a2 == nil {
+		return true
+	}
+	if a1 == nil || a2 == nil {
+		return false
+	}
+	aa1 := strings.Split(*a1, ":")
+	aa2 := strings.Split(*a2, ":")
+	if len(aa1) != len(aa2) {
+		return false
+	}
+	for i := 0; i < 4; i++ {
+		if aa1[i] != aa2[i] {
+			return false
+		}
+	}
+
+	//skip the 4th element
+
+	if aa1[5] != aa2[5] {
+		return false
+	}
+	return true
+}
+func equalSelector(selector1 *eks.FargateProfileSelector, selector2 *eks.FargateProfileSelector) bool {
+	labels1 := selector1.Labels
+	labels2 := selector2.Labels
+
+	b := equalStringMap(labels1, labels2)
+	if !b {
+		return false
+	}
+	if isEmpty(selector1.Namespace) && !isEmpty(selector2.Namespace) ||
+		!isEmpty(selector1.Namespace) && isEmpty(selector2.Namespace) ||
+		(selector1.Namespace != nil && selector2.Namespace != nil && *selector1.Namespace != *selector2.Namespace) {
+		return false
+	}
+
+	return true
+}
+func equalSelectors(selectors1 []*eks.FargateProfileSelector, selectors2 []*eks.FargateProfileSelector) bool {
+	if len(selectors1) != len(selectors2) {
+		return false
+	}
+	var found bool
+	for i, _ := range selectors1 {
+		found = false
+		for j, _ := range selectors2 {
+			if equalSelector(selectors1[i], selectors2[j]) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+func isEmpty(s *string) bool {
+	return s == nil || strings.TrimSpace(*s) == ""
+}
+func nilOrValue(s *string) string {
+	if s == nil {
+		return ""
+	} else {
+		return *s
+	}
+}
+
+func (ctx *InstanceGroupContext) HasChanged() bool {
+	state := ctx.AwsFargateWorker.GetState()
+	if !equalTags(state.Profile.Tags, CreateFargateTags(ctx.GetInstanceGroup().Spec.EKSFargateSpec.Tags)) {
+		for k, v := range state.Profile.Tags {
+			log.Infof("old key: %s value:%s\n", k, nilOrValue(v))
+		}
+		for k, v := range CreateFargateTags(ctx.GetInstanceGroup().Spec.EKSFargateSpec.Tags) {
+			log.Infof("new key: %s value:%s\n", k, nilOrValue(v))
+		}
+		for _, m := range ctx.GetInstanceGroup().Spec.EKSFargateSpec.GetTags() {
+			for k, v := range m {
+				log.Infof("--- key: %s value:%s\n", k, v)
+			}
+		}
+		log.Infof("HasChanged - Tags have changed.")
+		return true
+	}
+	if !equalArns(state.Profile.PodExecutionRoleArn, ctx.GetInstanceGroup().Spec.EKSFargateSpec.GetPodExecutionRoleArn()) {
+		if strings.TrimSpace(*ctx.GetInstanceGroup().Spec.EKSFargateSpec.GetPodExecutionRoleArn()) == "" &&
+			state.Profile.PodExecutionRoleArn != nil &&
+			strings.HasSuffix(*state.Profile.PodExecutionRoleArn, *ctx.AwsFargateWorker.CreateDefaultRoleName()) {
+			return false
+		} else {
+			log.Infof("HasChanged - Arns have changed. old %v and new %v",
+				nilOrValue(state.Profile.PodExecutionRoleArn),
+				nilOrValue(ctx.GetInstanceGroup().Spec.EKSFargateSpec.GetPodExecutionRoleArn()))
+			return true
+		}
+	}
+	if !equalSubnetSlices(ctx.GetInstanceGroup().Spec.EKSFargateSpec.GetSubnets(), state.Profile.Subnets) {
+		log.Infof("HasChanged - Subnets have changed. old %v and new %v",
+			state.Profile.Subnets,
+			ctx.GetInstanceGroup().Spec.EKSFargateSpec.GetSubnets())
+		return true
+	}
+	if !equalSelectors(CreateFargateSelectors(ctx.GetInstanceGroup().Spec.EKSFargateSpec.GetSelectors()), state.Profile.Selectors) {
+		log.Infof("HasChanged - Selectors have changed. old %v and new %v",
+			state.Profile.Selectors,
+			ctx.GetInstanceGroup().Spec.EKSFargateSpec.GetSelectors())
+		return true
+	}
+	return false
+}
+
+func (ctx *InstanceGroupContext) CanCreateAndDelete() (bool, error) {
+	var profileNames []*string
+	var err error
+	var profiles []*eks.FargateProfile
+
+	profileNames, err = ctx.AwsFargateWorker.ListAllProfiles()
+	if err == nil {
+		profiles, err = ctx.AwsFargateWorker.DescribeAllProfiles(profileNames)
+		if err == nil && !aws.IsDeleting(profiles) {
 			return true, nil
 		}
 	}
-	return false, nil
+	return false, err
 }

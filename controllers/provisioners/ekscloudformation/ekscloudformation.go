@@ -28,7 +28,6 @@ import (
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
-	provisioners "github.com/keikoproj/instance-manager/controllers/provisioners"
 	"github.com/sirupsen/logrus"
 )
 
@@ -40,6 +39,15 @@ var (
 	outputLaunchConfiguration = "LaunchConfigName"
 	outputScalingGroupName    = "AsgName"
 	outputGroupARN            = "NodeInstanceRole"
+)
+
+const (
+	OngoingStateString             = "OngoingState"
+	FiniteStateString              = "FiniteState"
+	FiniteDeletedString            = "FiniteDeleted"
+	UpdateRecoverableErrorString   = "UpdateRecoverableError"
+	UnrecoverableErrorString       = "UnrecoverableError"
+	UnrecoverableDeleteErrorString = "UnrecoverableDeleteError"
 )
 
 // New constructs a new instance group provisioner of EKS Cloudformation type
@@ -189,16 +197,16 @@ func (ctx *EksCfInstanceGroupContext) StateDiscovery() {
 			// resource is not being deleted
 			if provisioned {
 				// stack Exists
-				if awsprovider.IsStackInConditionState(stackStatus, provisioners.OngoingStateString) {
+				if awsprovider.IsStackInConditionState(stackStatus, OngoingStateString) {
 					// stack is in an ongoing state
 					instanceGroup.SetState(v1alpha1.ReconcileModifying)
-				} else if awsprovider.IsStackInConditionState(stackStatus, provisioners.FiniteStateString) {
+				} else if awsprovider.IsStackInConditionState(stackStatus, FiniteStateString) {
 					// stack is in a finite state
 					instanceGroup.SetState(v1alpha1.ReconcileInitUpdate)
-				} else if awsprovider.IsStackInConditionState(stackStatus, provisioners.UpdateRecoverableErrorString) {
+				} else if awsprovider.IsStackInConditionState(stackStatus, UpdateRecoverableErrorString) {
 					// stack is in update-recoverable error state
 					instanceGroup.SetState(v1alpha1.ReconcileInitUpdate)
-				} else if awsprovider.IsStackInConditionState(stackStatus, provisioners.UnrecoverableErrorString) {
+				} else if awsprovider.IsStackInConditionState(stackStatus, UnrecoverableErrorString) {
 					// stack is in unrecoverable error state
 					instanceGroup.SetState(v1alpha1.ReconcileErr)
 				}
@@ -209,22 +217,22 @@ func (ctx *EksCfInstanceGroupContext) StateDiscovery() {
 		} else {
 			// resource is being deleted
 			if provisioned {
-				if awsprovider.IsStackInConditionState(stackStatus, provisioners.OngoingStateString) {
+				if awsprovider.IsStackInConditionState(stackStatus, OngoingStateString) {
 					// deleting stack is in an ongoing state
 					instanceGroup.SetState(v1alpha1.ReconcileDeleting)
-				} else if awsprovider.IsStackInConditionState(stackStatus, provisioners.FiniteStateString) {
+				} else if awsprovider.IsStackInConditionState(stackStatus, FiniteStateString) {
 					// deleting stack is in a finite state
 					instanceGroup.SetState(v1alpha1.ReconcileInitDelete)
-				} else if awsprovider.IsStackInConditionState(stackStatus, provisioners.UpdateRecoverableErrorString) {
+				} else if awsprovider.IsStackInConditionState(stackStatus, UpdateRecoverableErrorString) {
 					// deleting stack is in an update recoverable state
 					instanceGroup.SetState(v1alpha1.ReconcileInitDelete)
-				} else if awsprovider.IsStackInConditionState(stackStatus, provisioners.FiniteDeletedString) {
+				} else if awsprovider.IsStackInConditionState(stackStatus, FiniteDeletedString) {
 					// deleting stack is in a finite-deleted state
 					instanceGroup.SetState(v1alpha1.ReconcileDeleted)
-				} else if awsprovider.IsStackInConditionState(stackStatus, provisioners.UnrecoverableDeleteErrorString) {
+				} else if awsprovider.IsStackInConditionState(stackStatus, UnrecoverableDeleteErrorString) {
 					// deleting stack is in a unrecoverable delete error state
 					instanceGroup.SetState(v1alpha1.ReconcileErr)
-				} else if awsprovider.IsStackInConditionState(stackStatus, provisioners.UnrecoverableErrorString) {
+				} else if awsprovider.IsStackInConditionState(stackStatus, UnrecoverableErrorString) {
 					// deleting stack is in a unrecoverable error state - allow it to delete
 					instanceGroup.SetState(v1alpha1.ReconcileInitDelete)
 				}
