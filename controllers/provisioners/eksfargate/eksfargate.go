@@ -48,7 +48,9 @@ func CreateFargateTags(tagArray []map[string]string) map[string]*string {
 	tags := make(map[string]*string)
 	for _, t := range tagArray {
 		for k, v := range t {
-			tags[k] = &v
+			va := new(string)
+			*va = v
+			tags[k] = va
 		}
 	}
 	return tags
@@ -58,7 +60,9 @@ func CreateFargateSelectors(selectors []*v1alpha1.EKSFargateSelectors) []*eks.Fa
 	for _, selector := range selectors {
 		m := make(map[string]*string)
 		for k, v := range selector.Labels {
-			m[k] = &v
+			vv := new(string)
+			*vv = v
+			m[k] = vv
 		}
 		eksSelectors = append(eksSelectors, &eks.FargateProfileSelector{Namespace: selector.Namespace, Labels: m})
 	}
