@@ -269,7 +269,6 @@ func (t *FunctionalTest) theResourceShouldBe(state string) error {
 		time.Sleep(DefaultWaiterInterval)
 	}
 
-	return nil
 }
 
 func (t *FunctionalTest) theResourceShouldConvergeToSelector(selector string) error {
