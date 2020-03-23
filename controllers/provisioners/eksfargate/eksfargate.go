@@ -303,16 +303,16 @@ func equalSelectors(selectors1 []*eks.FargateProfileSelector, selectors2 []*eks.
 	if len(selectors1) != len(selectors2) {
 		return false
 	}
-	var found bool
+	var match bool
 	for i, _ := range selectors1 {
-		found = false
+		match = false
 		for j, _ := range selectors2 {
 			if equalSelector(selectors1[i], selectors2[j]) {
-				found = true
+				match = true
 				break
 			}
 		}
-		if !found {
+		if !match {
 			return false
 		}
 	}
@@ -330,28 +330,29 @@ func nilOrValue(s *string) string {
 }
 
 func (ctx *InstanceGroupContext) HasChanged() bool {
+	log.Info("HasChanged - Checking for changes.")
 	state := ctx.AwsFargateWorker.GetState()
 	if !equalTags(state.Profile.Tags, CreateFargateTags(ctx.GetInstanceGroup().Spec.EKSFargateSpec.Tags)) {
-		for k, v := range state.Profile.Tags {
-			log.Infof("old key: %s value:%s\n", k, nilOrValue(v))
-		}
-		for k, v := range CreateFargateTags(ctx.GetInstanceGroup().Spec.EKSFargateSpec.Tags) {
-			log.Infof("new key: %s value:%s\n", k, nilOrValue(v))
-		}
-		for _, m := range ctx.GetInstanceGroup().Spec.EKSFargateSpec.GetTags() {
-			for k, v := range m {
-				log.Infof("--- key: %s value:%s\n", k, v)
+		/*
+			for k, v := range state.Profile.Tags {
+				log.Infof("old key: %s value:%s\n", k, nilOrValue(v))
 			}
-		}
-		log.Infof("HasChanged - Tags have changed.")
+			for k, v := range CreateFargateTags(ctx.GetInstanceGroup().Spec.EKSFargateSpec.Tags) {
+				log.Infof("new key: %s value:%s\n", k, nilOrValue(v))
+			}
+			for _, m := range ctx.GetInstanceGroup().Spec.EKSFargateSpec.GetTags() {
+				for k, v := range m {
+					log.Infof("--- key: %s value:%s\n", k, v)
+				}
+			}
+		*/
+		log.Info("HasChanged - Tags have changed.")
 		return true
 	}
 	if !equalArns(state.Profile.PodExecutionRoleArn, ctx.GetInstanceGroup().Spec.EKSFargateSpec.GetPodExecutionRoleArn()) {
-		if strings.TrimSpace(*ctx.GetInstanceGroup().Spec.EKSFargateSpec.GetPodExecutionRoleArn()) == "" &&
-			state.Profile.PodExecutionRoleArn != nil &&
-			strings.HasSuffix(*state.Profile.PodExecutionRoleArn, *ctx.AwsFargateWorker.CreateDefaultRoleName()) {
-			return false
-		} else {
+		if strings.TrimSpace(*ctx.GetInstanceGroup().Spec.EKSFargateSpec.GetPodExecutionRoleArn()) != "" ||
+			state.Profile.PodExecutionRoleArn == nil ||
+			!strings.HasSuffix(*state.Profile.PodExecutionRoleArn, *ctx.AwsFargateWorker.CreateDefaultRoleName()) {
 			log.Infof("HasChanged - Arns have changed. old %v and new %v",
 				nilOrValue(state.Profile.PodExecutionRoleArn),
 				nilOrValue(ctx.GetInstanceGroup().Spec.EKSFargateSpec.GetPodExecutionRoleArn()))
@@ -370,6 +371,7 @@ func (ctx *InstanceGroupContext) HasChanged() bool {
 			ctx.GetInstanceGroup().Spec.EKSFargateSpec.GetSelectors())
 		return true
 	}
+	log.Info("HasChanged - No changes detected")
 	return false
 }
 

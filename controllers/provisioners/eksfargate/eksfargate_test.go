@@ -732,6 +732,140 @@ func TestEqualSelectorsSuccess2(t *testing.T) {
 		t.Fatal("TestEqualSelectorsSuccess: got false, expected true")
 	}
 }
+func TestEqualSelectorsFailure1(t *testing.T) {
+	selectors1 := []*eks.FargateProfileSelector{
+		&eks.FargateProfileSelector{
+			Namespace: aws.String("namespace1"),
+			Labels:    map[string]*string{"l11": aws.String("v11"), "l12": aws.String("v12")},
+		},
+		&eks.FargateProfileSelector{
+			Namespace: aws.String("namespace2"),
+			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
+		},
+	}
+	selectors2 := []*eks.FargateProfileSelector{
+		&eks.FargateProfileSelector{
+			Namespace: aws.String("namespace2"),
+			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
+		},
+		&eks.FargateProfileSelector{
+			Namespace: aws.String("namespace1"),
+			Labels:    map[string]*string{"l12": aws.String("v12"), "l11": aws.String("v11")},
+		},
+		&eks.FargateProfileSelector{
+			Namespace: aws.String("namespace3"),
+			Labels:    map[string]*string{"l12": aws.String("v12"), "l11": aws.String("v11")},
+		},
+	}
+	b := equalSelectors(selectors1, selectors2)
+	if b {
+		t.Fatal("TestEqualSelectorsFailure1: got true, expected false")
+	}
+}
+func TestEqualSelectorsFailure2(t *testing.T) {
+	selectors1 := []*eks.FargateProfileSelector{
+		&eks.FargateProfileSelector{
+			Namespace: aws.String("namespace1"),
+			Labels:    map[string]*string{"l11": aws.String("v11"), "l12": aws.String("v12")},
+		},
+		&eks.FargateProfileSelector{
+			Namespace: aws.String("namespace2"),
+			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
+		},
+		&eks.FargateProfileSelector{
+			Namespace: aws.String("namespace3"),
+			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
+		},
+	}
+	selectors2 := []*eks.FargateProfileSelector{
+		&eks.FargateProfileSelector{
+			Namespace: aws.String("namespace2"),
+			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
+		},
+		&eks.FargateProfileSelector{
+			Namespace: aws.String("namespace1"),
+			Labels:    map[string]*string{"l12": aws.String("v12"), "l11": aws.String("v11")},
+		},
+	}
+	b := equalSelectors(selectors1, selectors2)
+	if b {
+		t.Fatal("TestEqualSelectorsFailure2: got true, expected false")
+	}
+}
+func TestEqualSelectorsFailure3(t *testing.T) {
+	selectors1 := []*eks.FargateProfileSelector{
+		&eks.FargateProfileSelector{
+			Namespace: aws.String("namespace1"),
+			Labels:    map[string]*string{"l11": aws.String("v11"), "l12": aws.String("v12")},
+		},
+		&eks.FargateProfileSelector{
+			Namespace: aws.String("namespace2"),
+			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22"), "xyz": aws.String("xyx")},
+		},
+	}
+	selectors2 := []*eks.FargateProfileSelector{
+		&eks.FargateProfileSelector{
+			Namespace: aws.String("namespace2"),
+			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
+		},
+		&eks.FargateProfileSelector{
+			Namespace: aws.String("namespace1"),
+			Labels:    map[string]*string{"l12": aws.String("v12"), "l11": aws.String("v11")},
+		},
+	}
+	b := equalSelectors(selectors1, selectors2)
+	if b {
+		t.Fatal("TestEqualSelectorsFailure3: got true, expected false")
+	}
+}
+func TestEqualSelectorsFailure4(t *testing.T) {
+	selectors1 := []*eks.FargateProfileSelector{
+		&eks.FargateProfileSelector{
+			Namespace: aws.String("namespace1"),
+			Labels:    map[string]*string{"l11": aws.String("v11")},
+		},
+		&eks.FargateProfileSelector{
+			Namespace: aws.String("namespace2"),
+			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
+		},
+	}
+	selectors2 := []*eks.FargateProfileSelector{
+		&eks.FargateProfileSelector{
+			Namespace: aws.String("namespace2"),
+			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
+		},
+		&eks.FargateProfileSelector{
+			Namespace: aws.String("namespace1"),
+			Labels:    map[string]*string{"l12": aws.String("v12"), "l11": aws.String("v11")},
+		},
+	}
+	b := equalSelectors(selectors1, selectors2)
+	if b {
+		t.Fatal("TestEqualSelectorsFailure4: got true, expected false")
+	}
+}
+func TestEqualSelectorsFailure5(t *testing.T) {
+	selectors1 := []*eks.FargateProfileSelector{
+		&eks.FargateProfileSelector{
+			Namespace: aws.String("namespace1"),
+			Labels:    map[string]*string{"l11": aws.String("v11")},
+		},
+		&eks.FargateProfileSelector{
+			Namespace: aws.String("namespace2"),
+			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
+		},
+	}
+	selectors2 := []*eks.FargateProfileSelector{
+		&eks.FargateProfileSelector{
+			Namespace: aws.String("namespace2"),
+			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
+		},
+	}
+	b := equalSelectors(selectors1, selectors2)
+	if b {
+		t.Fatal("TestEqualSelectorsFailure5: got true, expected false")
+	}
+}
 func TestHasChangedSimpleTagSuccess(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
