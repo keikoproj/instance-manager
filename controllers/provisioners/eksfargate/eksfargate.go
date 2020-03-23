@@ -55,6 +55,8 @@ func CreateFargateTags(tagArray []map[string]string) map[string]*string {
 	}
 	return tags
 }
+
+// Convienence function to convert from json to API.
 func CreateFargateSelectors(selectors []*v1alpha1.EKSFargateSelectors) []*eks.FargateProfileSelector {
 	var eksSelectors []*eks.FargateProfileSelector
 	for _, selector := range selectors {
@@ -73,22 +75,18 @@ func (ctx *InstanceGroupContext) Create() error {
 	log.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp: true,
 	})
-
+	// See if any profiles are being deleted?
 	createable, err := ctx.CanCreateAndDelete()
 	if err != nil {
 		return err
 	}
+	// Can't create the profile since other profiles are deleting.
 	if !createable {
 		return nil
 	}
 
-	//instanceGroup := ctx.GetInstanceGroup()
-	worker := ctx.AwsFargateWorker
-
-	log.Infof("Fargate cluster: %s and profile: %s not found\n", *worker.ClusterName, *worker.ProfileName)
 	instanceGroup := ctx.GetInstanceGroup()
 	var arn *string
-	log.Infof("Create() - Input PodExecutionRoleArn is: %s", *instanceGroup.Spec.EKSFargateSpec.GetPodExecutionRoleArn())
 	if *instanceGroup.Spec.EKSFargateSpec.GetPodExecutionRoleArn() == "" {
 		arn, err = ctx.AwsFargateWorker.CreateDefaultRolePolicy()
 		if err != nil {
@@ -97,14 +95,17 @@ func (ctx *InstanceGroupContext) Create() error {
 		}
 		// Save the role name of the default role we created.
 		ctx.GetInstanceGroup().Status.SetFargateRoleName(*ctx.AwsFargateWorker.RoleName)
-		log.Infof("Create() - RoleName: %s", *ctx.AwsFargateWorker.RoleName)
+		log.Infof("Create() - Generated roleName: %s", *ctx.AwsFargateWorker.RoleName)
 	} else {
 		arn = instanceGroup.Spec.EKSFargateSpec.GetPodExecutionRoleArn()
 	}
 	log.Infof("Create() - Creating profile with arn: %s", *arn)
 	err = ctx.AwsFargateWorker.CreateProfile(arn)
 	if err != nil {
-		log.Errorf("Creation of the fargate profile failed: %v", err)
+		log.Errorf("Creation of the fargate profile for cluster %v and name %v failed: %v",
+			instanceGroup.Spec.EKSFargateSpec.GetClusterName(),
+			instanceGroup.Spec.EKSFargateSpec.GetProfileName(),
+			err)
 	} else {
 		instanceGroup.SetState(v1alpha1.ReconcileModifying)
 	}
@@ -117,9 +118,6 @@ func (ctx *InstanceGroupContext) Delete() error {
 	var err error
 	worker := ctx.AwsFargateWorker
 	instanceGroup := ctx.GetInstanceGroup()
-	log.Infof("Delete() PodExecutionRoleArn: <%v>", *instanceGroup.Spec.EKSFargateSpec.GetPodExecutionRoleArn())
-	log.Infof("Delete() RoleName: <%v>", instanceGroup.Status.GetFargateRoleName())
-	//if *instanceGroup.Spec.EKSFargateSpec.GetPodExecutionRoleArn() == "" {
 	if instanceGroup.Status.GetFargateRoleName() != "" {
 		err = worker.DeleteDefaultRolePolicy()
 		if err != nil {
@@ -140,7 +138,7 @@ func (ctx *InstanceGroupContext) Update() error {
 	updateNeeded := ctx.HasChanged()
 	instanceGroup := ctx.GetInstanceGroup()
 	if updateNeeded {
-		log.Infof("Update() - initiating a Delete()")
+		log.Infof("Update() - initiating a Delete due to needed updates()")
 		ctx.Delete()
 	} else {
 		instanceGroup.SetState(v1alpha1.ReconcileModified)
@@ -210,12 +208,14 @@ func (ctx *InstanceGroupContext) StateDiscovery() {
 		}
 	}
 }
+
 func (ctx *InstanceGroupContext) SetState(state v1alpha1.ReconcileState) {
 	ctx.GetInstanceGroup().SetState(state)
 }
 func (ctx *InstanceGroupContext) GetState() v1alpha1.ReconcileState {
 	return ctx.GetInstanceGroup().GetState()
 }
+
 func equalTags(tag1 map[string]*string, tag2 map[string]*string) bool {
 	return equalStringMap(tag1, tag2)
 }
@@ -333,19 +333,6 @@ func (ctx *InstanceGroupContext) HasChanged() bool {
 	log.Info("HasChanged - Checking for changes.")
 	state := ctx.AwsFargateWorker.GetState()
 	if !equalTags(state.Profile.Tags, CreateFargateTags(ctx.GetInstanceGroup().Spec.EKSFargateSpec.Tags)) {
-		/*
-			for k, v := range state.Profile.Tags {
-				log.Infof("old key: %s value:%s\n", k, nilOrValue(v))
-			}
-			for k, v := range CreateFargateTags(ctx.GetInstanceGroup().Spec.EKSFargateSpec.Tags) {
-				log.Infof("new key: %s value:%s\n", k, nilOrValue(v))
-			}
-			for _, m := range ctx.GetInstanceGroup().Spec.EKSFargateSpec.GetTags() {
-				for k, v := range m {
-					log.Infof("--- key: %s value:%s\n", k, v)
-				}
-			}
-		*/
 		log.Info("HasChanged - Tags have changed.")
 		return true
 	}

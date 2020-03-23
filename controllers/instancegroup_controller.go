@@ -455,10 +455,7 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
 	case "eks-fargate":
-		//Some Silly logic to get and end to end loop working
-		log.Infof("eks-fargate entry state: %v\n", ig.GetState())
 		err := r.ReconcileEKSFargate(ig, finalizerName)
-		log.Infof("eks-fargate exit state: %v\n", ig.GetState())
 		if err != nil {
 			log.Errorln(err)
 		}
