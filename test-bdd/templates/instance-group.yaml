@@ -15,18 +15,22 @@ spec:
       minSuccessfulInstancesPercent: 100
       pauseTime: PT2M
   eks-cf:
-    maxSize: 6
-    minSize: 3
+    maxSize: 4
+    minSize: 2
     configuration:
-      bootstrapArguments: --register-with-taints=node-role.kubernetes.io/bdd-test=bdd-test:NoSchedule
+      bootstrapArguments: --register-with-taints=node-role.kubernetes.io/bdd-test=bdd-test:NoSchedule --node-labels=test=bdd-test-rolling
       clusterName: {{ .ClusterName }}
-      subnets: {{ .Subnets }}
+      subnets: {{range $element := .Subnets}}
+        - {{$element}}
+      {{ end }}
       keyPairName: {{ .KeyPairName }}
       vpcId: {{ .VpcID }}
       image: {{ .AmiID }}
-      instanceType: m3.medium
+      instanceType: t2.small
       volSize: 20
-      securityGroups: {{ .NodeSecurityGroups }}
+      securityGroups: {{range $element := .NodeSecurityGroups}}
+        - {{$element}}
+      {{ end }}
       tags:
         - key: mykey
           value: myvalue
