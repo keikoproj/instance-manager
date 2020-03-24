@@ -44,12 +44,11 @@ type EksFargateUnitTest struct {
 	ProfileBasic        *eks.FargateProfile
 	ProfileFromDescribe *eks.FargateProfile
 	ProfileFromCreate   *eks.FargateProfile
-	UpdateNeeded        bool
-	ListOfProfiles      []*string
-	ProfileExists       bool
-	MakeCreateFail      bool
-	MakeDescribeFail    bool
-	ExpectedState       v1alpha1.ReconcileState
+	//UpdateNeeded        bool
+	ListOfProfiles   []*string
+	ProfileExists    bool
+	MakeCreateFail   bool
+	MakeDescribeFail bool
 }
 
 type FakeIG struct {
@@ -209,7 +208,7 @@ func (u *EksFargateUnitTest) BuildProvisioner(t *testing.T) *InstanceGroupContex
 	return provisioner
 }
 
-func (u *EksFargateUnitTest) Run(t *testing.T) {
+func (u *EksFargateUnitTest) Run(t *testing.T) v1alpha1.ReconcileState {
 
 	provisioner := u.BuildProvisioner(t)
 
@@ -218,183 +217,159 @@ func (u *EksFargateUnitTest) Run(t *testing.T) {
 	}
 
 	provisioner.StateDiscovery()
-	if u.ExpectedState != u.InstanceGroup.GetState() {
-		t.Fatalf("DiscoveredState, expected:\n %#v, \ngot:\n %#v", u.ExpectedState, u.InstanceGroup.GetState())
+	return u.InstanceGroup.GetState()
+}
+func TestAllStateDiscovery(t *testing.T) {
+	type args struct {
+		description  string
+		profileState string
+		isDeleting   bool
 	}
-
-	if u.InstanceGroup.GetState() == v1alpha1.ReconcileInitDelete {
-		if err := provisioner.Delete(); err != nil {
-			t.Fatal(err)
+	testFunction := func(t *testing.T, args args) v1alpha1.ReconcileState {
+		ig := FakeIG{IsDeleting: args.isDeleting, CurrentState: string(v1alpha1.ReconcileInit)}
+		testCase := EksFargateUnitTest{
+			Description:   args.description,
+			InstanceGroup: ig.getInstanceGroup(),
+			ProfileFromDescribe: &eks.FargateProfile{
+				Status: aws.String(args.profileState),
+			},
 		}
+		return testCase.Run(t)
 	}
+	tests := []struct {
+		name string
+		args args
+		want v1alpha1.ReconcileState
+	}{
+		{
+			name: "TestStateDiscoveryInitUpdate",
+			args: args{
+				description:  "StateDiscovery - when a profile already exist (active), state should be InitUpdate",
+				profileState: "ACTIVE",
+				isDeleting:   false,
+			},
+			want: v1alpha1.ReconcileInitUpdate,
+		},
+		{
+			name: "TestStateDiscoveryInitUpdate",
+			args: args{
+				description:  "StateDiscovery - when a profile already exist (active), state should be InitUpdate",
+				profileState: "ACTIVE",
+				isDeleting:   false,
+			},
+			want: v1alpha1.ReconcileInitUpdate,
+		},
+		{
+			name: "TestStateDiscoveryInitCreate",
+			args: args{
+				description:  "StateDiscovery - when a profile NOT exist , state should be ReconcileInitCreate",
+				profileState: "NONE",
+				isDeleting:   false,
+			},
+			want: v1alpha1.ReconcileInitCreate,
+		},
+		{
+			name: "TestStateDiscoveryReconcileModifying1",
+			args: args{
+				description:  "StateDiscovery - when a profile is CREATING, state should be ReconcileModifying",
+				profileState: "CREATING",
+				isDeleting:   false,
+			},
+			want: v1alpha1.ReconcileModifying,
+		},
+		{
+			name: "TestStateDiscoveryReconcileModifying2",
+			args: args{
+				description:  "StateDiscovery - when a profile is DELETING, state should be ReconcileModifying",
+				profileState: "DELETING",
+				isDeleting:   false,
+			},
+			want: v1alpha1.ReconcileModifying,
+		},
+		{
+			name: "TestStateDiscoveryErr1",
+			args: args{
+				description:  "StateDiscovery - resource creation state and the profile is DELETE_FAILED, state should be ReconcileErr",
+				profileState: "DELETE_FAILED",
+				isDeleting:   false,
+			},
+			want: v1alpha1.ReconcileErr,
+		},
+		{
+			name: "TestStateDiscoveryReconcileRecoverableUpdate",
+			args: args{
+				description:  "StateDiscovery - resource creation state and the profile is CREATE_FAILED, state should be ReconcileInitUpdate",
+				profileState: "CREATE_FAILED",
+				isDeleting:   false,
+			},
+			want: v1alpha1.ReconcileInitUpdate,
+		},
+		{
+			name: "TestStateDiscoveryReconcileDeleted",
+			args: args{
+				description:  "StateDiscovery - resource is deleting state and no profile, state should be ReconcileDeleted",
+				profileState: "NONE",
+				isDeleting:   true,
+			},
+			want: v1alpha1.ReconcileDeleted,
+		},
+		{
+			name: "TestStateDiscoveryReconcileInitDelete",
+			args: args{
+				description:  "StateDiscovery - resource is deleting state and the profile is ACTIVE, state should be ReconcileInitDelete",
+				profileState: "ACTIVE",
+				isDeleting:   true,
+			},
+			want: v1alpha1.ReconcileInitDelete,
+		},
+		{
+			name: "TestStateDiscoveryReconcileDeleting1",
+			args: args{
+				description:  "StateDiscovery - resource is deleting state and the profile is CREATING, state should be ReconcileDeleting",
+				profileState: "CREATING",
+				isDeleting:   true,
+			},
+			want: v1alpha1.ReconcileDeleting,
+		},
+		{
+			name: "TestStateDiscoveryReconcileDeleting2",
+			args: args{
+				description:  "StateDiscovery - resource is deleting state and the profile is DELETING, state should be ReconcileDeleting",
+				profileState: "DELETING",
+				isDeleting:   true,
+			},
+			want: v1alpha1.ReconcileDeleting,
+		},
+		{
+			name: "TestStateDiscoveryDeleteWithRecoverableUpate",
+			args: args{
+				description:  "StateDiscovery - resource delete state and the profile is CREATE_FAILED, state should be ReconcileInitDelete",
+				profileState: "CREATE_FAILED",
+				isDeleting:   true,
+			},
+			want: v1alpha1.ReconcileInitDelete,
+		},
+		{
+			name: "TestStateDiscoveryErr2",
+			args: args{
+				description:  "StateDiscovery - resource delete state and the profile is DELETE_FAILED, state should be ReconcileErr",
+				profileState: "DELETE_FAILED",
+				isDeleting:   true,
+			},
+			want: v1alpha1.ReconcileErr,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := testFunction(t, tt.args)
+			if got != tt.want {
+				t.Errorf("%v: got %v, want %v", tt.name, got, tt.want)
+			}
+		})
 
-	if u.InstanceGroup.GetState() == v1alpha1.ReconcileInitCreate {
-		if err := provisioner.Create(); err != nil {
-			t.Fatal(err)
-		}
 	}
-
-	if u.InstanceGroup.GetState() == v1alpha1.ReconcileInitUpdate {
-		if err := provisioner.Update(); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
-func TestStateDiscoveryInitUpdate(t *testing.T) {
-	ig := FakeIG{CurrentState: string(v1alpha1.ReconcileInit)}
-	testCase := EksFargateUnitTest{
-		Description:   "StateDiscovery - when a profile already exist (active), state should be InitUpdate",
-		InstanceGroup: ig.getInstanceGroup(),
-		ProfileFromDescribe: &eks.FargateProfile{
-			Status: aws.String("ACTIVE"),
-		},
-		UpdateNeeded:  true,
-		ExpectedState: v1alpha1.ReconcileInitUpdate,
-	}
-	testCase.Run(t)
-}
-
-func TestStateDiscoveryInitCreate(t *testing.T) {
-	ig := FakeIG{CurrentState: string(v1alpha1.ReconcileInit)}
-	testCase := EksFargateUnitTest{
-		Description:   "StateDiscovery - when a profile NOT exist , state should be ReconcileInitCreate",
-		InstanceGroup: ig.getInstanceGroup(),
-		UpdateNeeded:  true,
-		ExpectedState: v1alpha1.ReconcileInitCreate,
-	}
-	testCase.Run(t)
-}
-
-func TestStateDiscoveryReconcileModifying1(t *testing.T) {
-	ig := FakeIG{CurrentState: string(v1alpha1.ReconcileInit)}
-	testCase := EksFargateUnitTest{
-		Description:   "StateDiscovery - when a profile is CREATING, state should be ReconcileModifying",
-		InstanceGroup: ig.getInstanceGroup(),
-		ProfileFromDescribe: &eks.FargateProfile{
-			Status: aws.String("CREATING"),
-		},
-		UpdateNeeded:  true,
-		ExpectedState: v1alpha1.ReconcileModifying,
-	}
-	testCase.Run(t)
-}
-func TestStateDiscoveryReconcileModifying2(t *testing.T) {
-	ig := FakeIG{}
-	testCase := EksFargateUnitTest{
-		Description:   "StateDiscovery - when a profile is DELETING, state should be ReconcileModifying",
-		InstanceGroup: ig.getInstanceGroup(),
-		ProfileFromDescribe: &eks.FargateProfile{
-			Status: aws.String("DELETING"),
-		},
-		UpdateNeeded:  true,
-		ExpectedState: v1alpha1.ReconcileModifying,
-	}
-	testCase.Run(t)
-}
-func TestStateDiscoveryErr1(t *testing.T) {
-	ig := FakeIG{}
-	testCase := EksFargateUnitTest{
-		Description:   "StateDiscovery - resource creation state and the profile is DELETE_FAILED, state should be ReconcileErr",
-		InstanceGroup: ig.getInstanceGroup(),
-		ProfileFromDescribe: &eks.FargateProfile{
-			Status: aws.String("DELETE_FAILED"),
-		},
-		UpdateNeeded:  true,
-		ExpectedState: v1alpha1.ReconcileErr,
-	}
-	testCase.Run(t)
-}
-func TestStateDiscoveryReconcileRecoverableUpdate(t *testing.T) {
-	ig := FakeIG{}
-	testCase := EksFargateUnitTest{
-		Description:   "StateDiscovery - resource creation state and the profile is CREATE_FAILED, state should be ReconcileInitUpdate",
-		InstanceGroup: ig.getInstanceGroup(),
-		ProfileFromDescribe: &eks.FargateProfile{
-			Status: aws.String("CREATE_FAILED"),
-		},
-		UpdateNeeded:  true,
-		ExpectedState: v1alpha1.ReconcileInitUpdate,
-	}
-	testCase.Run(t)
-}
-func TestStateDiscoveryReconcileDeleted(t *testing.T) {
-	ig := FakeIG{IsDeleting: true}
-	testCase := EksFargateUnitTest{
-		Description:   "StateDiscovery - resource is deleting state and no profile, state should be ReconcileDeleted",
-		InstanceGroup: ig.getInstanceGroup(),
-		UpdateNeeded:  true,
-		ExpectedState: v1alpha1.ReconcileDeleted,
-	}
-	testCase.Run(t)
-}
-func TestStateDiscoveryReconcileInitDelete(t *testing.T) {
-	ig := FakeIG{IsDeleting: true}
-	testCase := EksFargateUnitTest{
-		Description:   "StateDiscovery - resource is deleting state and the profile is ACTIVE, state should be ReconcileInitDelete",
-		InstanceGroup: ig.getInstanceGroup(),
-		ProfileFromDescribe: &eks.FargateProfile{
-			Status: aws.String("ACTIVE"),
-		},
-		UpdateNeeded:  true,
-		ExpectedState: v1alpha1.ReconcileInitDelete,
-	}
-	testCase.Run(t)
-}
-
-func TestStateDiscoveryReconcileDeleting1(t *testing.T) {
-	ig := FakeIG{IsDeleting: true}
-	testCase := EksFargateUnitTest{
-		Description:   "StateDiscovery - resource is deleting state and the profile is CREATING, state should be ReconcileDeleting",
-		InstanceGroup: ig.getInstanceGroup(),
-		ProfileFromDescribe: &eks.FargateProfile{
-			Status: aws.String("CREATING"),
-		},
-		UpdateNeeded:  true,
-		ExpectedState: v1alpha1.ReconcileDeleting,
-	}
-	testCase.Run(t)
-}
-func TestStateDiscoveryReconcileDeleting2(t *testing.T) {
-	ig := FakeIG{IsDeleting: true}
-	testCase := EksFargateUnitTest{
-		Description:   "StateDiscovery - resource is deleting state and the profile is DELETING, state should be ReconcileDeleting",
-		InstanceGroup: ig.getInstanceGroup(),
-		ProfileFromDescribe: &eks.FargateProfile{
-			Status: aws.String("DELETING"),
-		},
-		UpdateNeeded:  true,
-		ExpectedState: v1alpha1.ReconcileDeleting,
-	}
-	testCase.Run(t)
 }
 
-func TestStateDiscoveryDeleteWithRecoverableUpate(t *testing.T) {
-	ig := FakeIG{IsDeleting: true}
-	testCase := EksFargateUnitTest{
-		Description:   "StateDiscovery - resource delete state and the profile is CREATE_FAILED, state should be ReconcileInitDelete",
-		InstanceGroup: ig.getInstanceGroup(),
-		ProfileFromDescribe: &eks.FargateProfile{
-			Status: aws.String("CREATE_FAILED"),
-		},
-		UpdateNeeded:  true,
-		ExpectedState: v1alpha1.ReconcileInitDelete,
-	}
-	testCase.Run(t)
-}
-func TestStateDiscoveryErr2(t *testing.T) {
-	ig := FakeIG{IsDeleting: true}
-	testCase := EksFargateUnitTest{
-		Description:   "StateDiscovery - resource delete state and the profile is DELETE_FAILED, state should be ReconcileErr",
-		InstanceGroup: ig.getInstanceGroup(),
-		ProfileFromDescribe: &eks.FargateProfile{
-			Status: aws.String("DELETE_FAILED"),
-		},
-		UpdateNeeded:  true,
-		ExpectedState: v1alpha1.ReconcileErr,
-	}
-	testCase.Run(t)
-}
 func TestIsReadyPass(t *testing.T) {
 	ig := FakeIG{}
 	testCase := EksFargateUnitTest{

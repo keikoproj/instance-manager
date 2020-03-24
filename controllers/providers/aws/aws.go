@@ -191,17 +191,17 @@ func (w *AwsWorker) compactTags(tags []map[string]string) map[string]string {
 }
 
 type AwsFargateWorker struct {
-	IamClient                 iamiface.IAMAPI
-	EksClient                 eksiface.EKSAPI
 	ClusterName               *string
-	ProfileName               *string
+	EksClient                 eksiface.EKSAPI
 	ExecutionArn              *string
+	IamClient                 iamiface.IAMAPI
 	PodExecutionRoleStackName *string
-	Selectors                 []*eks.FargateProfileSelector
-	Tags                      map[string]*string
-	Subnets                   []*string
-	RoleName                  *string
+	ProfileName               *string
 	RetryLimit                int
+	RoleName                  *string
+	Selectors                 []*eks.FargateProfileSelector
+	Subnets                   []*string
+	Tags                      map[string]*string
 }
 
 func (w *AwsWorker) CreateCloudformationStack() error {
