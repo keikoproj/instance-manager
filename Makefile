@@ -152,6 +152,11 @@ lint: check-go
 		golint $(LINTARGS) $$pkg ; \
 	done
 
+.PHONY: vendor
+vendor:
+	go mod tidy
+	go mod vendor
+
 .PHONY: clean
 clean:
 	@rm -rf ./bin	
