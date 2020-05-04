@@ -69,6 +69,7 @@ func (r *InstanceGroupReconciler) ReconcileEKS(instanceGroup *v1alpha.InstanceGr
 	awsWorker := aws.AwsWorker{
 		AsgClient: aws.GetAwsAsgClient(awsRegion),
 		EksClient: aws.GetAwsEksClient(awsRegion),
+		IamClient: aws.GetAwsIamClient(awsRegion),
 	}
 
 	ctx := eks.New(instanceGroup, kube, awsWorker)

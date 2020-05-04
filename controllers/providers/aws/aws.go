@@ -151,11 +151,13 @@ func (w *AwsWorker) GetBasicUserData(clusterName, bootstrapArgs string) string {
 	return base64.StdEncoding.EncodeToString([]byte(userData))
 }
 
-func (w *AwsWorker) NewTag(key, val string) *autoscaling.Tag {
+func (w *AwsWorker) NewTag(key, val, resource string) *autoscaling.Tag {
 	return &autoscaling.Tag{
 		Key:               aws.String(key),
 		Value:             aws.String(val),
 		PropagateAtLaunch: aws.Bool(true),
+		ResourceId:        aws.String(resource),
+		ResourceType:      aws.String("auto-scaling-group"),
 	}
 }
 
@@ -262,7 +264,7 @@ func (w *AwsWorker) CreateUpdateScalingGroupRole(name string, managedPolicies []
 	_, err = w.IamClient.AddRoleToInstanceProfile(profileBindingInput)
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() != iam.ErrCodeEntityAlreadyExistsException {
+			if aerr.Code() == iam.ErrCodeServiceFailureException {
 				return err
 			}
 		}
@@ -658,7 +660,7 @@ func GetAwsEksClient(region string) eksiface.EKSAPI {
 }
 
 // GetAwsIAMClient returns an IAM client
-func GetAwsIAMClient(region string) iamiface.IAMAPI {
+func GetAwsIamClient(region string) iamiface.IAMAPI {
 	mySession := session.Must(session.NewSession())
 	return iam.New(mySession, aws.NewConfig().WithRegion(region))
 }

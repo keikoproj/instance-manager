@@ -57,10 +57,10 @@ func (ctx *EksInstanceGroupContext) SetState(state v1alpha1.ReconcileState) {
 }
 
 func (ctx *EksInstanceGroupContext) GetDiscoveredState() *DiscoveredState {
-	if ctx != nil {
-		return ctx.DiscoveredState
+	if ctx.DiscoveredState == nil {
+		ctx.DiscoveredState = &DiscoveredState{}
 	}
-	return &DiscoveredState{}
+	return ctx.DiscoveredState
 }
 
 func (ctx *EksInstanceGroupContext) SetDiscoveredState(state *DiscoveredState) {

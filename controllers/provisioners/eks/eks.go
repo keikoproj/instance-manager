@@ -38,6 +38,7 @@ var (
 	TagClusterName            = "instancegroups.keikoproj.io/ClusterName"
 	TagInstanceGroupName      = "instancegroups.keikoproj.io/InstanceGroup"
 	TagInstanceGroupNamespace = "instancegroups.keikoproj.io/Namespace"
+	TagName                   = "Name"
 	DefaultManagedPolicies    = []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}
 )
 
@@ -88,6 +89,12 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	}
 
 	instanceGroup.SetState(v1alpha1.ReconcileModified)
+
+	err = ctx.CloudDiscovery()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -125,6 +132,12 @@ func (ctx *EksInstanceGroupContext) Delete() error {
 	}
 
 	instanceGroup.SetState(v1alpha1.ReconcileDeleted)
+
+	err = ctx.CloudDiscovery()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -156,6 +169,11 @@ func (ctx *EksInstanceGroupContext) Create() error {
 		return errors.Wrap(err, "failed to create scaling group")
 	}
 
+	err = ctx.CloudDiscovery()
+	if err != nil {
+		return err
+	}
+
 	instanceGroup.SetState(v1alpha1.ReconcileModified)
 	return nil
 }
@@ -170,12 +188,12 @@ func (ctx *EksInstanceGroupContext) IsReady() bool {
 
 func (ctx *EksInstanceGroupContext) BootstrapNodes() error {
 	var (
-		state           = ctx.GetDiscoveredState()
-		scalingGroup    = state.GetScalingGroup()
-		scalingGroupARN = aws.StringValue(scalingGroup.AutoScalingGroupARN)
+		state   = ctx.GetDiscoveredState()
+		role    = state.GetRole()
+		roleARN = aws.StringValue(role.Arn)
 	)
 
-	err := common.UpsertAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{scalingGroupARN})
+	err := common.UpsertAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{roleARN})
 	if err != nil {
 		return err
 	}

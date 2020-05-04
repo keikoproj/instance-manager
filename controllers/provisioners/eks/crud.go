@@ -26,13 +26,14 @@ import (
 
 func (ctx *EksInstanceGroupContext) CreateScalingGroup() error {
 	var (
-		asgInput      *autoscaling.CreateAutoScalingGroupInput
+		asgInput      = &autoscaling.CreateAutoScalingGroupInput{}
 		tags          []*autoscaling.Tag
 		instanceGroup = ctx.GetInstanceGroup()
 		spec          = instanceGroup.GetEKSSpec()
 		configuration = instanceGroup.GetEKSConfiguration()
 		clusterName   = configuration.GetClusterName()
 		state         = ctx.GetDiscoveredState()
+		asgName       = fmt.Sprintf("%v-%v-%v", clusterName, instanceGroup.GetNamespace(), instanceGroup.GetName())
 	)
 
 	if state.HasScalingGroup() {
@@ -40,18 +41,19 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup() error {
 	}
 
 	// default tags
-	tags = append(tags, ctx.AwsWorker.NewTag(TagClusterName, clusterName))
-	tags = append(tags, ctx.AwsWorker.NewTag(TagInstanceGroupNamespace, instanceGroup.GetNamespace()))
-	tags = append(tags, ctx.AwsWorker.NewTag(TagInstanceGroupName, instanceGroup.GetName()))
+	tags = append(tags, ctx.AwsWorker.NewTag(TagName, asgName, asgName))
+	tags = append(tags, ctx.AwsWorker.NewTag(TagClusterName, clusterName, asgName))
+	tags = append(tags, ctx.AwsWorker.NewTag(TagInstanceGroupNamespace, instanceGroup.GetNamespace(), asgName))
+	tags = append(tags, ctx.AwsWorker.NewTag(TagInstanceGroupName, instanceGroup.GetName(), asgName))
 
 	// custom tags
 	for _, tagSlice := range configuration.GetTags() {
 		for customKey, customValue := range tagSlice {
-			tags = append(tags, ctx.AwsWorker.NewTag(customKey, customValue))
+			tags = append(tags, ctx.AwsWorker.NewTag(customKey, customValue, asgName))
 		}
 	}
 
-	asgInput.AutoScalingGroupName = aws.String(instanceGroup.GetName())
+	asgInput.AutoScalingGroupName = aws.String(asgName)
 	asgInput.DesiredCapacity = aws.Int64(spec.GetMinSize())
 	asgInput.LaunchConfigurationName = aws.String(state.GetActiveLaunchConfigurationName())
 	asgInput.MinSize = aws.Int64(spec.GetMinSize())
@@ -69,28 +71,30 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup() error {
 
 func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 	var (
-		asgInput      *autoscaling.UpdateAutoScalingGroupInput
+		asgInput      = &autoscaling.UpdateAutoScalingGroupInput{}
 		tags          []*autoscaling.Tag
 		instanceGroup = ctx.GetInstanceGroup()
 		spec          = instanceGroup.GetEKSSpec()
 		configuration = instanceGroup.GetEKSConfiguration()
 		clusterName   = configuration.GetClusterName()
 		state         = ctx.GetDiscoveredState()
+		asgName       = aws.StringValue(state.ScalingGroup.AutoScalingGroupName)
 	)
 
 	// default tags
-	tags = append(tags, ctx.AwsWorker.NewTag(TagClusterName, clusterName))
-	tags = append(tags, ctx.AwsWorker.NewTag(TagInstanceGroupNamespace, instanceGroup.GetNamespace()))
-	tags = append(tags, ctx.AwsWorker.NewTag(TagInstanceGroupName, instanceGroup.GetName()))
+	tags = append(tags, ctx.AwsWorker.NewTag(TagName, asgName, asgName))
+	tags = append(tags, ctx.AwsWorker.NewTag(TagClusterName, clusterName, asgName))
+	tags = append(tags, ctx.AwsWorker.NewTag(TagInstanceGroupNamespace, instanceGroup.GetNamespace(), asgName))
+	tags = append(tags, ctx.AwsWorker.NewTag(TagInstanceGroupName, instanceGroup.GetName(), asgName))
 
 	// custom tags
 	for _, tagSlice := range configuration.GetTags() {
 		for customKey, customValue := range tagSlice {
-			tags = append(tags, ctx.AwsWorker.NewTag(customKey, customValue))
+			tags = append(tags, ctx.AwsWorker.NewTag(customKey, customValue, asgName))
 		}
 	}
 
-	asgInput.AutoScalingGroupName = aws.String(instanceGroup.GetName())
+	asgInput.AutoScalingGroupName = aws.String(asgName)
 	asgInput.DesiredCapacity = aws.Int64(spec.GetMinSize())
 	asgInput.LaunchConfigurationName = aws.String(state.GetActiveLaunchConfigurationName())
 	asgInput.MinSize = aws.Int64(spec.GetMinSize())
@@ -107,7 +111,7 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 
 func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput() *autoscaling.CreateLaunchConfigurationInput {
 	var (
-		lcInput         *autoscaling.CreateLaunchConfigurationInput
+		lcInput         = &autoscaling.CreateLaunchConfigurationInput{}
 		instanceGroup   = ctx.GetInstanceGroup()
 		configuration   = instanceGroup.GetEKSConfiguration()
 		clusterName     = configuration.GetClusterName()
@@ -145,10 +149,13 @@ func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput() *autoscaling.C
 	lcInput.ImageId = aws.String(configuration.Image)
 	lcInput.InstanceType = aws.String(configuration.InstanceType)
 	lcInput.KeyName = aws.String(configuration.KeyPairName)
-	lcInput.SpotPrice = aws.String(configuration.SpotPrice)
 	lcInput.SecurityGroups = aws.StringSlice(configuration.NodeSecurityGroups)
 	lcInput.BlockDeviceMappings = devices
 	lcInput.UserData = aws.String(userData)
+
+	if configuration.SpotPrice != "" {
+		lcInput.SpotPrice = aws.String(configuration.SpotPrice)
+	}
 
 	return lcInput
 }

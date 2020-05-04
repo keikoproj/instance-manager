@@ -83,14 +83,16 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 
 	// cache the scaling group we are reconciling for if it exists
 	targetScalingGroup := ctx.findTargetScalingGroup(ownedScalingGroups)
+
+	if targetScalingGroup == nil {
+		return nil
+	}
+
+	state.SetProvisioned(true)
 	state.SetScalingGroup(targetScalingGroup)
 	status.SetActiveScalingGroupName(aws.StringValue(targetScalingGroup.AutoScalingGroupName))
 	status.SetCurrentMin(int(aws.Int64Value(targetScalingGroup.MinSize)))
 	status.SetCurrentMax(int(aws.Int64Value(targetScalingGroup.MaxSize)))
-
-	if targetScalingGroup != nil {
-		state.SetProvisioned(true)
-	}
 
 	// cache the launch configuration we are reconciling for if it exists
 	launchConfigName := aws.StringValue(targetScalingGroup.LaunchConfigurationName)
@@ -165,7 +167,7 @@ func (ctx *EksInstanceGroupContext) LaunchConfigurationDrifted() bool {
 
 func (ctx *EksInstanceGroupContext) findOwnedScalingGroups(groups []*autoscaling.Group) []*autoscaling.Group {
 	var (
-		filteredGroups []*autoscaling.Group
+		filteredGroups = make([]*autoscaling.Group, 0)
 		instanceGroup  = ctx.GetInstanceGroup()
 		configuration  = instanceGroup.GetEKSConfiguration()
 		clusterName    = configuration.GetClusterName()
