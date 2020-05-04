@@ -191,5 +191,5 @@ func ParseCustomResourceYaml(raw string) (*unstructured.Unstructured, error) {
 
 func GetTimeString() string {
 	n := time.Now().UTC()
-	return fmt.Sprintf("%v%v%v%v%v", n.Year(), int(n.Month()), n.Day(), n.Hour(), n.Minute())
+	return fmt.Sprintf("%v%v%v%v%v%v", n.Year(), int(n.Month()), n.Day(), n.Hour(), n.Minute(), n.Second())
 }

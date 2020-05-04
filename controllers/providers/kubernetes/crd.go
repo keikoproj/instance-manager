@@ -52,7 +52,13 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 		lcName   = status.GetActiveScalingGroupName()
 	)
 
-	templatedCustomResource, err := common.RenderCustomResource(strategy.GetSpec(), instanceGroup)
+	renderParams := struct {
+		InstanceGroup *v1alpha1.InstanceGroup
+	}{
+		InstanceGroup: instanceGroup,
+	}
+
+	templatedCustomResource, err := common.RenderCustomResource(strategy.GetSpec(), renderParams)
 	if err != nil {
 		return errors.Wrap(err, "failed to render custom resource templating")
 	}
@@ -93,7 +99,7 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 		return errors.Wrap(err, "failed to submit custom resource")
 	}
 
-	_, err = kube.Resource(GVR).Namespace(customResource.GetNamespace()).Get(customResource.GetName(), metav1.GetOptions{})
+	customResource, err = kube.Resource(GVR).Namespace(customResource.GetNamespace()).Get(customResource.GetName(), metav1.GetOptions{})
 	if kerr.IsNotFound(err) {
 		log.Infoln("custom resource did not propagate yet")
 		instanceGroup.SetState(v1alpha1.ReconcileModifying)
@@ -108,6 +114,7 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 		return err
 	}
 
+	log.Infof("rollup status: %v", resourceStatus)
 	switch strings.ToLower(resourceStatus) {
 	case strings.ToLower(strategy.GetStatusSuccessString()):
 		log.Infof("custom resource %v/%v completed successfully", customResource.GetNamespace(), customResource.GetName())

@@ -115,13 +115,23 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 
 func (ctx *EksInstanceGroupContext) LaunchConfigurationDrifted() bool {
 	var (
-		state = ctx.GetDiscoveredState()
-		drift bool
+		state        = ctx.GetDiscoveredState()
+		scalingGroup = state.GetScalingGroup()
+		launchConfig = state.GetActiveLaunchConfigurationName()
+		drift        bool
 	)
 
 	if state.LaunchConfiguration == nil {
 		log.Info("detected drift in launch configuration: launch config is nil")
 		return true
+	}
+
+	for _, instance := range scalingGroup.Instances {
+		if aws.StringValue(instance.LaunchConfigurationName) != launchConfig {
+			log.Info("detected drift in launch configuration: scaling instances with different launch-config")
+			drift = true
+			break
+		}
 	}
 
 	newConfig := ctx.GetLaunchConfigurationInput()

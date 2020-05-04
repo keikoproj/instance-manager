@@ -50,8 +50,8 @@ type AwsWorker struct {
 
 func DefaultUserDataFmt() string {
 	return `#!/bin/bash
-	set -o xtrace
-	/etc/eks/bootstrap.sh %s %s`
+set -o xtrace
+/etc/eks/bootstrap.sh %s %s`
 }
 
 func (w *AwsWorker) RoleExist(name string) (*iam.Role, bool) {

@@ -64,6 +64,8 @@ func New(instanceGroup *v1alpha1.InstanceGroup, k common.KubernetesClientSet, w 
 func (ctx *EksInstanceGroupContext) Update() error {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
+		state         = ctx.GetDiscoveredState()
+		oldConfigName string
 	)
 
 	instanceGroup.SetState(v1alpha1.ReconcileModifying)
@@ -75,11 +77,14 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	}
 
 	// create new launchconfig if it has drifted
-	if ctx.LaunchConfigurationDrifted() {
+	drifted := ctx.LaunchConfigurationDrifted()
+	if drifted {
+		oldConfigName = state.GetActiveLaunchConfigurationName()
 		err := ctx.CreateLaunchConfiguration()
 		if err != nil {
 			return errors.Wrap(err, "failed to create launch configuration")
 		}
+		instanceGroup.SetState(v1alpha1.ReconcileInitUpgrade)
 	}
 
 	// update scaling group
@@ -88,7 +93,14 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		return errors.Wrap(err, "failed to update scaling group")
 	}
 
-	instanceGroup.SetState(v1alpha1.ReconcileModified)
+	if drifted {
+		err = ctx.AwsWorker.DeleteLaunchConfig(oldConfigName)
+		if err != nil {
+			return err
+		}
+	} else {
+		instanceGroup.SetState(v1alpha1.ReconcileModified)
+	}
 
 	err = ctx.CloudDiscovery()
 	if err != nil {
