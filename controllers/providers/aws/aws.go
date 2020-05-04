@@ -55,13 +55,10 @@ func DefaultUserDataFmt() string {
 }
 
 func (w *AwsWorker) RoleExist(name string) (*iam.Role, bool) {
-	var (
-		role  *iam.Role
-		input = &iam.GetRoleInput{
-			RoleName: aws.String(name),
-		}
-	)
-
+	var role *iam.Role
+	input := &iam.GetRoleInput{
+		RoleName: aws.String(name),
+	}
 	out, err := w.IamClient.GetRole(input)
 	if err != nil {
 		return role, false
@@ -649,7 +646,7 @@ func GetAwsAsgClient(region string) autoscalingiface.AutoScalingAPI {
 	return autoscaling.New(sess)
 }
 
-// GetAwsAsgClient returns an ASG client
+// GetAwsEksClient returns an EKS client
 func GetAwsEksClient(region string) eksiface.EKSAPI {
 	var config aws.Config
 	config.Region = aws.String(region)
@@ -658,6 +655,12 @@ func GetAwsEksClient(region string) eksiface.EKSAPI {
 		Config:            config,
 	}))
 	return eks.New(sess)
+}
+
+// GetAwsIAMClient returns an IAM client
+func GetAwsIAMClient(region string) iamiface.IAMAPI {
+	mySession := session.Must(session.NewSession())
+	return iam.New(mySession, aws.NewConfig().WithRegion(region))
 }
 
 func (w *AwsWorker) DeriveEksVpcID(clusterName string) (string, error) {
