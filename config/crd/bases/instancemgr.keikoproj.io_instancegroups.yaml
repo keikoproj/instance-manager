@@ -70,6 +70,71 @@ spec:
         spec:
           description: InstanceGroupSpec defines the schema of resource Spec
           properties:
+            eks:
+              properties:
+                configuration:
+                  properties:
+                    bootstrapArguments:
+                      type: string
+                    clusterName:
+                      type: string
+                    image:
+                      type: string
+                    instanceProfileName:
+                      type: string
+                    instanceType:
+                      type: string
+                    keyPairName:
+                      type: string
+                    managedPolicies:
+                      items:
+                        type: string
+                      type: array
+                    roleName:
+                      type: string
+                    securityGroups:
+                      items:
+                        type: string
+                      type: array
+                    spotPrice:
+                      type: string
+                    subnets:
+                      items:
+                        type: string
+                      type: array
+                    tags:
+                      items:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      type: array
+                    volSize:
+                      format: int64
+                      type: integer
+                    volumes:
+                      items:
+                        properties:
+                          name:
+                            type: string
+                          size:
+                            format: int64
+                            type: integer
+                          type:
+                            type: string
+                        type: object
+                      type: array
+                  type: object
+                maxSize:
+                  format: int64
+                  type: integer
+                minSize:
+                  format: int64
+                  type: integer
+              required:
+              - configuration
+              - maxSize
+              - minSize
+              type: object
             eks-cf:
               properties:
                 configuration:

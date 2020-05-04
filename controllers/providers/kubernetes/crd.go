@@ -19,10 +19,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/keikoproj/gatekeeper/pkg/log"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -35,6 +36,12 @@ const (
 	OwnershipAnnotationValue = "instance-manager"
 	DefaultConcurrencyPolicy = "forbid"
 )
+
+func init() {
+	log.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+	})
+}
 
 func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGroup) error {
 
