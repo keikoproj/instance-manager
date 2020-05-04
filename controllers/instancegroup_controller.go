@@ -414,6 +414,22 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 			log.Infoln("reconcile completed with requeue")
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
+	case "eks":
+		err := r.ReconcileEKS(ig, finalizerName)
+		if err != nil {
+			log.Errorln(err)
+		}
+		currentState := ig.GetState()
+		if currentState == v1alpha.ReconcileErr {
+			log.Errorln("reconcile failed")
+			return ctrl.Result{}, nil
+		} else if currentState == v1alpha.ReconcileDeleted || currentState == v1alpha.ReconcileReady {
+			log.Infoln("reconcile completed")
+			return ctrl.Result{}, nil
+		} else {
+			log.Infoln("reconcile completed with requeue")
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+		}
 	default:
 		log.Errorln("provisioner not implemented")
 		return ctrl.Result{}, fmt.Errorf("provisioner '%v' not implemented", ig.Spec.Provisioner)

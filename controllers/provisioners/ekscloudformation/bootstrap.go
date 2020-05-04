@@ -18,35 +18,11 @@ package ekscloudformation
 import (
 	awsauth "github.com/keikoproj/aws-auth/pkg/mapper"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
-
+	"github.com/keikoproj/instance-manager/controllers/common"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-func getNodeUpsert(arn string) *awsauth.UpsertArguments {
-	return &awsauth.UpsertArguments{
-		MapRoles: true,
-		RoleARN:  arn,
-		Username: "system:node:{{EC2PrivateDNSName}}",
-		Groups: []string{
-			"system:bootstrappers",
-			"system:nodes",
-		},
-	}
-}
-
-func getNodeRemove(arn string) *awsauth.RemoveArguments {
-	return &awsauth.RemoveArguments{
-		MapRoles: true,
-		RoleARN:  arn,
-		Username: "system:node:{{EC2PrivateDNSName}}",
-		Groups: []string{
-			"system:bootstrappers",
-			"system:nodes",
-		},
-	}
-}
 
 func (ctx *EksCfInstanceGroupContext) updateAuthConfigMap() error {
 	var (
@@ -81,7 +57,7 @@ func (ctx *EksCfInstanceGroupContext) updateAuthConfigMap() error {
 		if instanceGroup.ARN == "" {
 			continue
 		}
-		err = authMap.Upsert(getNodeUpsert(instanceGroup.ARN))
+		err = authMap.Upsert(common.GetNodeBootstrapUpsert(instanceGroup.ARN))
 		if err != nil {
 			return err
 		}
@@ -91,14 +67,14 @@ func (ctx *EksCfInstanceGroupContext) updateAuthConfigMap() error {
 		if arn == "" {
 			continue
 		}
-		err = authMap.Upsert(getNodeUpsert(arn))
+		err = authMap.Upsert(common.GetNodeBootstrapUpsert(arn))
 		if err != nil {
 			return err
 		}
 	}
 	// Remove selfARN in case of deletion event
 	if ctx.GetState() == v1alpha1.ReconcileInitDelete && selfARN != "" {
-		err = authMap.Remove(getNodeRemove(selfARN))
+		err = authMap.Remove(common.GetNodeBootstrapRemove(selfARN))
 		if err != nil {
 			return err
 		}

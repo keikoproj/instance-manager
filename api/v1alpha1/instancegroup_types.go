@@ -17,9 +17,10 @@ package v1alpha1
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -41,6 +42,8 @@ const (
 	// End States
 	ReconcileReady ReconcileState = "Ready"
 	ReconcileErr   ReconcileState = "Error"
+
+	DefaultVolSize int64 = 32
 )
 
 var (
@@ -162,6 +165,7 @@ type InstanceGroupSpec struct {
 	Provisioner        string             `json:"provisioner"`
 	EKSCFSpec          *EKSCFSpec         `json:"eks-cf,omitempty"`
 	EKSManagedSpec     *EKSManagedSpec    `json:"eks-managed,omitempty"`
+	EKSSpec            *EKSSpec           `json:"eks,omitempty"`
 	AwsUpgradeStrategy AwsUpgradeStrategy `json:"strategy"`
 }
 
@@ -171,10 +175,39 @@ type EKSManagedSpec struct {
 	EKSManagedConfiguration *EKSManagedConfiguration `json:"configuration"`
 }
 
+type EKSSpec struct {
+	MaxSize          int64             `json:"maxSize"`
+	MinSize          int64             `json:"minSize"`
+	EKSConfiguration *EKSConfiguration `json:"configuration"`
+}
+
 type EKSCFSpec struct {
 	MaxSize            int32               `json:"maxSize,omitempty"`
 	MinSize            int32               `json:"minSize,omitempty"`
 	EKSCFConfiguration *EKSCFConfiguration `json:"configuration,omitempty"`
+}
+
+type EKSConfiguration struct {
+	EksClusterName              string              `json:"clusterName,omitempty"`
+	KeyPairName                 string              `json:"keyPairName,omitempty"`
+	Image                       string              `json:"image,omitempty"`
+	InstanceType                string              `json:"instanceType,omitempty"`
+	NodeSecurityGroups          []string            `json:"securityGroups,omitempty"`
+	VolSize                     int64               `json:"volSize,omitempty"`
+	Volumes                     []NodeVolume        `json:"volumes,omitempty"`
+	Subnets                     []string            `json:"subnets,omitempty"`
+	BootstrapArguments          string              `json:"bootstrapArguments,omitempty"`
+	SpotPrice                   string              `json:"spotPrice,omitempty"`
+	Tags                        []map[string]string `json:"tags,omitempty"`
+	ExistingRoleName            string              `json:"roleName,omitempty"`
+	ExistingInstanceProfileName string              `json:"instanceProfileName,omitempty"`
+	ManagedPolicies             []string            `json:"managedPolicies,omitempty"`
+}
+
+type NodeVolume struct {
+	Name string `json:"name,omitempty"`
+	Type string `json:"type,omitempty"`
+	Size int64  `json:"size,omitempty"`
 }
 
 type EKSManagedConfiguration struct {
@@ -224,6 +257,73 @@ type InstanceGroupStatus struct {
 	Lifecycle                     string `json:"lifecycle,omitempty"`
 }
 
+func (ig *InstanceGroup) GetEKSConfiguration() *EKSConfiguration {
+	return ig.Spec.EKSSpec.EKSConfiguration
+}
+func (ig *InstanceGroup) GetEKSSpec() *EKSSpec {
+	return ig.Spec.EKSSpec
+}
+func (ig *InstanceGroup) GetStatus() *InstanceGroupStatus {
+	return &ig.Status
+}
+func (ig *InstanceGroup) GetUpgradeStrategy() *AwsUpgradeStrategy {
+	return &ig.Spec.AwsUpgradeStrategy
+}
+func (c *EKSConfiguration) GetRoleName() string {
+	return c.ExistingRoleName
+}
+func (c *EKSConfiguration) GetInstanceProfileName() string {
+	return c.ExistingInstanceProfileName
+}
+func (c *EKSConfiguration) HasExistingRole() bool {
+	return c.ExistingRoleName != ""
+}
+func (c *EKSConfiguration) SetRoleName(role string) {
+	c.ExistingRoleName = role
+}
+func (c *EKSConfiguration) GetClusterName() string {
+	return c.EksClusterName
+}
+func (c *EKSConfiguration) SetClusterName(name string) {
+	c.EksClusterName = name
+}
+func (c *EKSConfiguration) GetManagedPolicies() []string {
+	return c.ManagedPolicies
+}
+func (c *EKSConfiguration) GetVolumes() []NodeVolume {
+	return c.Volumes
+}
+func (c *EKSConfiguration) GetVolumeSize() int64 {
+	if c.VolSize == 0 {
+		c.VolSize = DefaultVolSize
+	}
+	return c.VolSize
+}
+func (c *EKSConfiguration) GetBootstrapArguments() string {
+	return c.BootstrapArguments
+}
+func (c *EKSConfiguration) GetTags() []map[string]string {
+	if c.Tags == nil {
+		return []map[string]string{}
+	}
+	return c.Tags
+}
+func (c *EKSConfiguration) GetSubnets() []string {
+	if c.Subnets == nil {
+		return []string{}
+	}
+	return c.Subnets
+}
+func (c *EKSConfiguration) SetSubnets(subnets []string) {
+	c.Subnets = subnets
+}
+func (spec *EKSSpec) GetMaxSize() int64 {
+	return spec.MaxSize
+}
+func (spec *EKSSpec) GetMinSize() int64 {
+	return spec.MinSize
+}
+
 func (conf *EKSManagedConfiguration) SetSubnets(subnets []string)  { conf.Subnets = subnets }
 func (conf *EKSManagedConfiguration) SetClusterName(name string)   { conf.EksClusterName = name }
 func (conf *EKSManagedConfiguration) GetLabels() map[string]string { return conf.NodeLabels }
@@ -254,6 +354,37 @@ func (s *AwsUpgradeStrategy) GetCRDType() *CRDUpgradeStrategy {
 
 func (s *AwsUpgradeStrategy) SetCRDType(crd *CRDUpgradeStrategy) {
 	s.CRDType = crd
+}
+
+func (c *CRDUpgradeStrategy) Validate() error {
+	if c.Spec == "" {
+		return errors.New("spec is empty")
+	}
+
+	if strings.ToLower(c.ConcurrencyPolicy) != "forbid" && strings.ToLower(c.ConcurrencyPolicy) != "allow" {
+		c.SetConcurrencyPolicy("forbid")
+	}
+
+	if strings.ToLower(c.ConcurrencyPolicy) == "" {
+		c.SetConcurrencyPolicy("forbid")
+	}
+
+	if c.GetCRDName() == "" {
+		return errors.New("crdName is empty")
+	}
+
+	if c.GetStatusJSONPath() == "" {
+		return errors.New("statusJSONPath is empty")
+	}
+
+	if c.GetStatusSuccessString() == "" {
+		return errors.New("statusSuccessString is empty")
+	}
+
+	if c.GetStatusFailureString() == "" {
+		return errors.New("statusFailureString is empty")
+	}
+	return nil
 }
 
 func (c *CRDUpgradeStrategy) GetSpec() string {

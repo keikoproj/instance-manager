@@ -16,6 +16,7 @@ limitations under the License.
 package aws
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -30,6 +31,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
+	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -37,11 +40,250 @@ type AwsWorker struct {
 	CfClient        cloudformationiface.CloudFormationAPI
 	AsgClient       autoscalingiface.AutoScalingAPI
 	EksClient       eksiface.EKSAPI
+	IamClient       iamiface.IAMAPI
 	TemplateBody    string
 	StackName       string
 	StackTags       []*cloudformation.Tag
 	StackParameters []*cloudformation.Parameter
 	Parameters      map[string]interface{}
+}
+
+func DefaultUserDataFmt() string {
+	return `#!/bin/bash
+	set -o xtrace
+	/etc/eks/bootstrap.sh %s %s`
+}
+
+func (w *AwsWorker) RoleExist(name string) (*iam.Role, bool) {
+	var (
+		role  *iam.Role
+		input = &iam.GetRoleInput{
+			RoleName: aws.String(name),
+		}
+	)
+
+	out, err := w.IamClient.GetRole(input)
+	if err != nil {
+		return role, false
+	}
+	return out.Role, true
+}
+
+func (w *AwsWorker) InstanceProfileExist(name string) (*iam.InstanceProfile, bool) {
+	var (
+		instanceProfile *iam.InstanceProfile
+		input           = &iam.GetInstanceProfileInput{
+			InstanceProfileName: aws.String(name),
+		}
+	)
+
+	out, err := w.IamClient.GetInstanceProfile(input)
+	if err != nil {
+		return instanceProfile, false
+	}
+	return out.InstanceProfile, true
+}
+
+func (w *AwsWorker) GetBasicBlockDevice(name, volType string, volSize int64) *autoscaling.BlockDeviceMapping {
+	return &autoscaling.BlockDeviceMapping{
+		DeviceName: aws.String(name),
+		Ebs: &autoscaling.Ebs{
+			VolumeSize:          aws.Int64(volSize),
+			VolumeType:          aws.String(volType),
+			DeleteOnTermination: aws.Bool(true),
+		},
+	}
+}
+
+func (w *AwsWorker) CreateLaunchConfig(input *autoscaling.CreateLaunchConfigurationInput) error {
+	_, err := w.AsgClient.CreateLaunchConfiguration(input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) DeleteLaunchConfig(name string) error {
+	input := &autoscaling.DeleteLaunchConfigurationInput{
+		LaunchConfigurationName: aws.String(name),
+	}
+	_, err := w.AsgClient.DeleteLaunchConfiguration(input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) CreateScalingGroup(input *autoscaling.CreateAutoScalingGroupInput) error {
+	_, err := w.AsgClient.CreateAutoScalingGroup(input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) UpdateScalingGroup(input *autoscaling.UpdateAutoScalingGroupInput, tags []*autoscaling.Tag) error {
+	tagsInput := &autoscaling.CreateOrUpdateTagsInput{
+		Tags: tags,
+	}
+	_, err := w.AsgClient.CreateOrUpdateTags(tagsInput)
+	if err != nil {
+		return err
+	}
+
+	_, err = w.AsgClient.UpdateAutoScalingGroup(input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) DeleteScalingGroup(name string) error {
+	input := &autoscaling.DeleteAutoScalingGroupInput{
+		AutoScalingGroupName: aws.String(name),
+	}
+	_, err := w.AsgClient.DeleteAutoScalingGroup(input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) GetBasicUserData(clusterName, bootstrapArgs string) string {
+	userData := fmt.Sprintf(DefaultUserDataFmt(), clusterName, bootstrapArgs)
+	return base64.StdEncoding.EncodeToString([]byte(userData))
+}
+
+func (w *AwsWorker) NewTag(key, val string) *autoscaling.Tag {
+	return &autoscaling.Tag{
+		Key:               aws.String(key),
+		Value:             aws.String(val),
+		PropagateAtLaunch: aws.Bool(true),
+	}
+}
+
+func (w *AwsWorker) DeleteScalingGroupRole(name string, managedPolicies []string) error {
+
+	for _, policy := range managedPolicies {
+		policyBindingInput := &iam.DetachRolePolicyInput{
+			RoleName:  aws.String(name),
+			PolicyArn: aws.String(policy),
+		}
+
+		_, err := w.IamClient.DetachRolePolicy(policyBindingInput)
+		if err != nil {
+			return err
+		}
+	}
+
+	profileBindingInput := &iam.RemoveRoleFromInstanceProfileInput{
+		InstanceProfileName: aws.String(name),
+		RoleName:            aws.String(name),
+	}
+
+	_, err := w.IamClient.RemoveRoleFromInstanceProfile(profileBindingInput)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			if aerr.Code() != iam.ErrCodeNoSuchEntityException {
+				return err
+			}
+		}
+	}
+
+	profileInput := &iam.DeleteInstanceProfileInput{
+		InstanceProfileName: aws.String(name),
+	}
+
+	_, err = w.IamClient.DeleteInstanceProfile(profileInput)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			if aerr.Code() != iam.ErrCodeNoSuchEntityException {
+				return err
+			}
+		}
+	}
+
+	roleInput := &iam.DeleteRoleInput{
+		RoleName: aws.String(name),
+	}
+
+	_, err = w.IamClient.DeleteRole(roleInput)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			if aerr.Code() != iam.ErrCodeNoSuchEntityException {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (w *AwsWorker) CreateUpdateScalingGroupRole(name string, managedPolicies []string) error {
+	var assumeRolePolicyDocument = `{
+		"Version": "2012-10-17",
+		"Statement": [{
+			"Effect": "Allow",
+			"Principal": {
+				"Service": "ec2.amazonaws.com"
+			},
+			"Action": "sts:AssumeRole"
+		}]
+	}`
+
+	roleInput := &iam.CreateRoleInput{
+		RoleName:                 aws.String(name),
+		AssumeRolePolicyDocument: aws.String(assumeRolePolicyDocument),
+	}
+
+	_, err := w.IamClient.CreateRole(roleInput)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			if aerr.Code() != iam.ErrCodeEntityAlreadyExistsException {
+				return err
+			}
+		}
+	}
+
+	profileInput := &iam.CreateInstanceProfileInput{
+		InstanceProfileName: aws.String(name),
+	}
+
+	_, err = w.IamClient.CreateInstanceProfile(profileInput)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			if aerr.Code() != iam.ErrCodeEntityAlreadyExistsException {
+				return err
+			}
+		}
+	}
+
+	profileBindingInput := &iam.AddRoleToInstanceProfileInput{
+		InstanceProfileName: aws.String(name),
+		RoleName:            aws.String(name),
+	}
+
+	_, err = w.IamClient.AddRoleToInstanceProfile(profileBindingInput)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			if aerr.Code() != iam.ErrCodeEntityAlreadyExistsException {
+				return err
+			}
+		}
+	}
+
+	for _, policy := range managedPolicies {
+		policyBindingInput := &iam.AttachRolePolicyInput{
+			RoleName:  aws.String(name),
+			PolicyArn: aws.String(policy),
+		}
+
+		_, err = w.IamClient.AttachRolePolicy(policyBindingInput)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (w *AwsWorker) IsNodeGroupExist() bool {
@@ -300,6 +542,16 @@ func (w *AwsWorker) DescribeAutoscalingGroups() (autoscaling.DescribeAutoScaling
 
 func (w *AwsWorker) DescribeAutoscalingLaunchConfigs() (autoscaling.DescribeLaunchConfigurationsOutput, error) {
 	out, err := w.AsgClient.DescribeLaunchConfigurations(&autoscaling.DescribeLaunchConfigurationsInput{})
+	if err != nil {
+		return autoscaling.DescribeLaunchConfigurationsOutput{}, err
+	}
+	return *out, nil
+}
+
+func (w *AwsWorker) GetAutoscalingLaunchConfig(name string) (autoscaling.DescribeLaunchConfigurationsOutput, error) {
+	out, err := w.AsgClient.DescribeLaunchConfigurations(&autoscaling.DescribeLaunchConfigurationsInput{
+		LaunchConfigurationNames: aws.StringSlice([]string{name}),
+	})
 	if err != nil {
 		return autoscaling.DescribeLaunchConfigurationsOutput{}, err
 	}
