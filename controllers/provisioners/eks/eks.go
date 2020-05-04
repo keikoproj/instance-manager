@@ -100,10 +100,10 @@ func (ctx *EksInstanceGroupContext) Update() error {
 
 func (ctx *EksInstanceGroupContext) Delete() error {
 	var (
-		instanceGroup   = ctx.GetInstanceGroup()
-		state           = ctx.GetDiscoveredState()
-		scalingGroup    = state.GetScalingGroup()
-		scalingGroupARN = aws.StringValue(scalingGroup.AutoScalingGroupARN)
+		instanceGroup = ctx.GetInstanceGroup()
+		state         = ctx.GetDiscoveredState()
+		role          = state.GetRole()
+		roleARN       = aws.StringValue(role.Arn)
 	)
 
 	instanceGroup.SetState(v1alpha1.ReconcileDeleting)
@@ -126,7 +126,7 @@ func (ctx *EksInstanceGroupContext) Delete() error {
 	}
 
 	// remove IAM role from aws-auth configmap
-	err = common.RemoveAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{scalingGroupARN})
+	err = common.RemoveAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{roleARN})
 	if err != nil {
 		return errors.Wrap(err, "failed to remove ARN from aws-auth")
 	}

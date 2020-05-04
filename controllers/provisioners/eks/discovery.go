@@ -84,7 +84,7 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	// cache the scaling group we are reconciling for if it exists
 	targetScalingGroup := ctx.findTargetScalingGroup(ownedScalingGroups)
 
-	if targetScalingGroup == nil {
+	if targetScalingGroup == nil || targetScalingGroup.Status != nil {
 		return nil
 	}
 

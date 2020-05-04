@@ -138,6 +138,7 @@ func (w *AwsWorker) UpdateScalingGroup(input *autoscaling.UpdateAutoScalingGroup
 func (w *AwsWorker) DeleteScalingGroup(name string) error {
 	input := &autoscaling.DeleteAutoScalingGroupInput{
 		AutoScalingGroupName: aws.String(name),
+		ForceDelete:          aws.Bool(true),
 	}
 	_, err := w.AsgClient.DeleteAutoScalingGroup(input)
 	if err != nil {
