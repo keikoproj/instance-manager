@@ -193,7 +193,7 @@ func (ctx *EksInstanceGroupContext) CreateLaunchConfiguration() error {
 	)
 
 	lcName := aws.StringValue(lcInput.LaunchConfigurationName)
-	log.Infof("creating launch configuration %s", lcName)
+	log.Infof("creating new launch configuration %s", lcName)
 
 	err := ctx.AwsWorker.CreateLaunchConfig(lcInput)
 	if err != nil {
@@ -228,7 +228,7 @@ func (ctx *EksInstanceGroupContext) CreateManagedRole() error {
 	}
 
 	// create a controller-owned role for the instancegroup
-	log.Infof("creating managed role %s", roleName)
+	log.Infof("updating managed role %s", roleName)
 	managedPolicies := make([]string, 0)
 	for _, name := range additionalPolicies {
 		if strings.HasPrefix(name, IAMPolicyPrefix) {

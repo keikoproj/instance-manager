@@ -22,6 +22,8 @@ import (
 	"io/ioutil"
 	"os"
 	"os/user"
+	"reflect"
+	"sort"
 	"strings"
 	"time"
 
@@ -57,6 +59,12 @@ func ContainsString(slice []string, s string) bool {
 		}
 	}
 	return false
+}
+
+func StringSliceEquals(x, y []string) bool {
+	sort.Strings(x)
+	sort.Strings(y)
+	return reflect.DeepEqual(x, y)
 }
 
 // RemoveString removes a string 's' from slice 'slice'

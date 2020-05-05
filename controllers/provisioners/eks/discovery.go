@@ -20,6 +20,8 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/keikoproj/instance-manager/controllers/common"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -116,63 +118,90 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 
 func (ctx *EksInstanceGroupContext) LaunchConfigurationDrifted() bool {
 	var (
-		state        = ctx.GetDiscoveredState()
-		scalingGroup = state.GetScalingGroup()
-		launchConfig = state.GetActiveLaunchConfigurationName()
-		drift        bool
+		state          = ctx.GetDiscoveredState()
+		newConfig      = ctx.GetLaunchConfigurationInput()
+		existingConfig = state.GetLaunchConfiguration()
+		drift          bool
 	)
 
 	if state.LaunchConfiguration == nil {
-		log.Info("detected drift in launch configuration: launch config is nil")
+		log.Info("detected drift in launch configuration: launch config does not exist")
 		return true
 	}
 
-	for _, instance := range scalingGroup.Instances {
-		if aws.StringValue(instance.LaunchConfigurationName) != launchConfig {
-			log.Info("detected drift in launch configuration: scaling instances with different launch-config")
-			drift = true
-			break
-		}
+	if aws.StringValue(existingConfig.ImageId) != aws.StringValue(newConfig.ImageId) {
+		log.Infof(
+			"detected drift in launch configuration: image-id has changed, %s -> %s",
+			aws.StringValue(existingConfig.ImageId),
+			aws.StringValue(newConfig.ImageId),
+		)
+		drift = true
 	}
 
-	newConfig := ctx.GetLaunchConfigurationInput()
-	existingConfig := state.LaunchConfiguration
+	if aws.StringValue(existingConfig.InstanceType) != aws.StringValue(newConfig.InstanceType) {
+		log.Infof(
+			"detected drift in launch configuration: instance-type has changed, %s -> %s",
+			aws.StringValue(existingConfig.InstanceType),
+			aws.StringValue(newConfig.InstanceType),
+		)
+		drift = true
+	}
 
 	if aws.StringValue(existingConfig.IamInstanceProfile) != aws.StringValue(newConfig.IamInstanceProfile) {
-		log.Info("detected drift in launch configuration: instance-profile has changed")
+		log.Infof(
+			"detected drift in launch configuration: instance-profile has changed, %s -> %s",
+			aws.StringValue(existingConfig.IamInstanceProfile),
+			aws.StringValue(newConfig.IamInstanceProfile),
+		)
 		drift = true
 	}
 
-	if aws.StringValue(existingConfig.ImageId) != aws.StringValue(newConfig.ImageId) {
-		log.Info("detected drift in launch configuration: image-id has changed")
-		drift = true
-	}
-
-	if !reflect.DeepEqual(aws.StringValueSlice(existingConfig.SecurityGroups), aws.StringValueSlice(newConfig.SecurityGroups)) {
-		log.Info("detected drift in launch configuration: security-groups have changed")
+	if !common.StringSliceEquals(aws.StringValueSlice(existingConfig.SecurityGroups), aws.StringValueSlice(newConfig.SecurityGroups)) {
+		log.Infof(
+			"detected drift in launch configuration: security-groups have changed, %v -> %v",
+			aws.StringValueSlice(existingConfig.SecurityGroups),
+			aws.StringValueSlice(newConfig.SecurityGroups),
+		)
 		drift = true
 	}
 
 	if aws.StringValue(existingConfig.SpotPrice) != aws.StringValue(newConfig.SpotPrice) {
-		log.Info("detected drift in launch configuration: spot-price has changed")
+		log.Infof(
+			"detected drift in launch configuration: spot-price has changed, %s -> %s",
+			aws.StringValue(existingConfig.SpotPrice),
+			aws.StringValue(newConfig.SpotPrice),
+		)
 		drift = true
 	}
 
 	if aws.StringValue(existingConfig.KeyName) != aws.StringValue(newConfig.KeyName) {
-		log.Info("detected drift in launch configuration: key-pair-name has changed")
+		log.Infof(
+			"detected drift in launch configuration: key-pair-name has changed, %s -> %s",
+			aws.StringValue(existingConfig.KeyName),
+			aws.StringValue(newConfig.KeyName),
+		)
 		drift = true
 	}
 
 	if aws.StringValue(existingConfig.UserData) != aws.StringValue(newConfig.UserData) {
-		log.Info("detected drift in launch configuration: user-data has changed")
+		log.Infof(
+			"detected drift in launch configuration: user-data has changed, %s -> %s",
+			aws.StringValue(existingConfig.UserData),
+			aws.StringValue(newConfig.UserData),
+		)
 		drift = true
 	}
 
 	if !reflect.DeepEqual(existingConfig.BlockDeviceMappings, newConfig.BlockDeviceMappings) {
-		log.Info("detected drift in launch configuration: block-device-mappings has changed")
+		log.Infof(
+			"detected drift in launch configuration: block-device-mappings has changed, %v -> %v",
+			existingConfig.BlockDeviceMappings,
+			newConfig.BlockDeviceMappings,
+		)
 		drift = true
 	}
 
+	log.Info("no drift detected")
 	return drift
 }
 

@@ -79,6 +79,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	}
 
 	// create new launchconfig if it has drifted
+	log.Info("checking for launch configuration drift")
 	drifted := ctx.LaunchConfigurationDrifted()
 	if drifted {
 		oldConfigName = state.GetActiveLaunchConfigurationName()
