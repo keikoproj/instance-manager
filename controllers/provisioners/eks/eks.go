@@ -31,13 +31,15 @@ import (
 
 const (
 	IAMPolicyPrefix = "arn:aws:iam::aws:policy"
-	RoleLabelsFmt   = "node-role.kubernetes.io/%s=\"\",node.kubernetes.io/role=%s"
+	RoleLabelFmt    = "node.kubernetes.io/role=%s"
 )
 
 var (
 	TagClusterName            = "instancegroups.keikoproj.io/ClusterName"
 	TagInstanceGroupName      = "instancegroups.keikoproj.io/InstanceGroup"
 	TagInstanceGroupNamespace = "instancegroups.keikoproj.io/Namespace"
+	TagClusterOwnershipFmt    = "kubernetes.io/cluster/%s"
+	TagClusterOwned           = "owned"
 	TagName                   = "Name"
 	DefaultManagedPolicies    = []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}
 )
@@ -102,11 +104,6 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		instanceGroup.SetState(v1alpha1.ReconcileModified)
 	}
 
-	err = ctx.CloudDiscovery()
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -144,12 +141,6 @@ func (ctx *EksInstanceGroupContext) Delete() error {
 	}
 
 	instanceGroup.SetState(v1alpha1.ReconcileDeleted)
-
-	err = ctx.CloudDiscovery()
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -179,11 +170,6 @@ func (ctx *EksInstanceGroupContext) Create() error {
 	err = ctx.CreateScalingGroup()
 	if err != nil {
 		return errors.Wrap(err, "failed to create scaling group")
-	}
-
-	err = ctx.CloudDiscovery()
-	if err != nil {
-		return err
 	}
 
 	instanceGroup.SetState(v1alpha1.ReconcileModified)

@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/keikoproj/instance-manager/controllers/common"
@@ -40,11 +42,14 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup() error {
 		return nil
 	}
 
+	log.Infof("creating scaling group %s", asgName)
+
 	// default tags
 	tags = append(tags, ctx.AwsWorker.NewTag(TagName, asgName, asgName))
 	tags = append(tags, ctx.AwsWorker.NewTag(TagClusterName, clusterName, asgName))
 	tags = append(tags, ctx.AwsWorker.NewTag(TagInstanceGroupNamespace, instanceGroup.GetNamespace(), asgName))
 	tags = append(tags, ctx.AwsWorker.NewTag(TagInstanceGroupName, instanceGroup.GetName(), asgName))
+	tags = append(tags, ctx.AwsWorker.NewTag(fmt.Sprintf(TagClusterOwnershipFmt, clusterName), TagClusterOwned, asgName))
 
 	// custom tags
 	for _, tagSlice := range configuration.GetTags() {
@@ -66,6 +71,15 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup() error {
 		return err
 	}
 
+	out, err := ctx.AwsWorker.GetAutoscalingGroup(asgName)
+	if err != nil {
+		return err
+	}
+
+	if len(out.AutoScalingGroups) == 1 {
+		state.SetScalingGroup(out.AutoScalingGroups[0])
+	}
+
 	return nil
 }
 
@@ -80,6 +94,8 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 		state         = ctx.GetDiscoveredState()
 		asgName       = aws.StringValue(state.ScalingGroup.AutoScalingGroupName)
 	)
+
+	log.Infof("updating scaling group %s", asgName)
 
 	// default tags
 	tags = append(tags, ctx.AwsWorker.NewTag(TagName, asgName, asgName))
@@ -104,6 +120,15 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 	err := ctx.AwsWorker.UpdateScalingGroup(asgInput, tags)
 	if err != nil {
 		return err
+	}
+
+	out, err := ctx.AwsWorker.GetAutoscalingGroup(asgName)
+	if err != nil {
+		return err
+	}
+
+	if len(out.AutoScalingGroups) == 1 {
+		state.SetScalingGroup(out.AutoScalingGroups[0])
 	}
 
 	return nil
@@ -133,13 +158,14 @@ func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput() *autoscaling.C
 	// get userdata with bootstrap arguments
 	var args string
 	bootstrapArgs := configuration.GetBootstrapArguments()
-	roleLabels := fmt.Sprintf(RoleLabelsFmt, instanceGroup.GetName(), instanceGroup.GetName())
+	roleLabels := fmt.Sprintf(RoleLabelFmt, instanceGroup.GetName())
 	labelsFlag := fmt.Sprintf("--node-labels=%v", roleLabels)
-
 	args = fmt.Sprintf("--kubelet-extra-args '%v'", labelsFlag)
+
 	if bootstrapArgs != "" {
 		args = fmt.Sprintf("--kubelet-extra-args '%v %v'", labelsFlag, bootstrapArgs)
 	}
+
 	userData := ctx.AwsWorker.GetBasicUserData(clusterName, args)
 
 	name := fmt.Sprintf("%v-%v-%v-%v", clusterName, instanceGroup.GetNamespace(), instanceGroup.GetName(), common.GetTimeString())
@@ -166,11 +192,23 @@ func (ctx *EksInstanceGroupContext) CreateLaunchConfiguration() error {
 		state   = ctx.GetDiscoveredState()
 	)
 
+	lcName := aws.StringValue(lcInput.LaunchConfigurationName)
+	log.Infof("creating launch configuration %s", lcName)
+
 	err := ctx.AwsWorker.CreateLaunchConfig(lcInput)
 	if err != nil {
 		return err
 	}
-	state.SetActiveLaunchConfigurationName(aws.StringValue(lcInput.LaunchConfigurationName))
+
+	lcOut, err := ctx.AwsWorker.GetAutoscalingLaunchConfig(lcName)
+	if err != nil {
+		return err
+	}
+
+	state.SetActiveLaunchConfigurationName(lcName)
+	if len(lcOut.LaunchConfigurations) == 1 {
+		state.SetLaunchConfiguration(lcOut.LaunchConfigurations[0])
+	}
 
 	return nil
 }
@@ -178,9 +216,11 @@ func (ctx *EksInstanceGroupContext) CreateLaunchConfiguration() error {
 func (ctx *EksInstanceGroupContext) CreateManagedRole() error {
 	var (
 		instanceGroup      = ctx.GetInstanceGroup()
+		state              = ctx.GetDiscoveredState()
 		configuration      = instanceGroup.GetEKSConfiguration()
 		clusterName        = configuration.GetClusterName()
 		additionalPolicies = configuration.GetManagedPolicies()
+		roleName           = fmt.Sprintf("%v-%v-%v", clusterName, instanceGroup.GetNamespace(), instanceGroup.GetName())
 	)
 
 	if configuration.HasExistingRole() {
@@ -188,9 +228,8 @@ func (ctx *EksInstanceGroupContext) CreateManagedRole() error {
 	}
 
 	// create a controller-owned role for the instancegroup
-	roleName := fmt.Sprintf("%v-%v-%v", clusterName, instanceGroup.GetNamespace(), instanceGroup.GetName())
+	log.Infof("creating managed role %s", roleName)
 	managedPolicies := make([]string, 0)
-
 	for _, name := range additionalPolicies {
 		if strings.HasPrefix(name, IAMPolicyPrefix) {
 			managedPolicies = append(managedPolicies, name)
@@ -203,14 +242,18 @@ func (ctx *EksInstanceGroupContext) CreateManagedRole() error {
 		managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", IAMPolicyPrefix, name))
 	}
 
-	err := ctx.AwsWorker.CreateUpdateScalingGroupRole(roleName, managedPolicies)
+	role, profile, err := ctx.AwsWorker.CreateUpdateScalingGroupRole(roleName, managedPolicies)
 	if err != nil {
 		return err
 	}
 
+	state.SetRole(role)
+	state.SetInstanceProfile(profile)
+
 	return nil
 }
 
+// TODO: Reconcile until ASG is gone
 func (ctx *EksInstanceGroupContext) DeleteScalingGroup() error {
 	var (
 		state   = ctx.GetDiscoveredState()
@@ -219,6 +262,8 @@ func (ctx *EksInstanceGroupContext) DeleteScalingGroup() error {
 	if !state.HasScalingGroup() {
 		return nil
 	}
+	log.Infof("deleting scaling group %s", asgName)
+
 	err := ctx.AwsWorker.DeleteScalingGroup(asgName)
 	if err != nil {
 		return err
@@ -229,12 +274,13 @@ func (ctx *EksInstanceGroupContext) DeleteScalingGroup() error {
 func (ctx *EksInstanceGroupContext) DeleteLaunchConfiguration() error {
 	var (
 		state  = ctx.GetDiscoveredState()
-		lcName = state.ActiveLaunchConfigurationName
+		lcName = state.GetActiveLaunchConfigurationName()
 	)
 
 	if !state.HasLaunchConfiguration() {
 		return nil
 	}
+	log.Infof("deleting launch configuration %s", lcName)
 
 	err := ctx.AwsWorker.DeleteLaunchConfig(lcName)
 	if err != nil {
@@ -249,15 +295,16 @@ func (ctx *EksInstanceGroupContext) DeleteManagedRole() error {
 		configuration      = instanceGroup.GetEKSConfiguration()
 		state              = ctx.GetDiscoveredState()
 		additionalPolicies = configuration.GetManagedPolicies()
+		role               = state.GetRole()
+		roleName           = aws.StringValue(role.RoleName)
 	)
 
 	if !state.HasRole() || !configuration.HasExistingRole() {
 		return nil
 	}
+	log.Infof("deleting managed role %s", roleName)
 
-	roleName := aws.StringValue(state.IAMRole.RoleName)
 	managedPolicies := make([]string, 0)
-
 	for _, name := range additionalPolicies {
 		if strings.HasPrefix(name, IAMPolicyPrefix) {
 			managedPolicies = append(managedPolicies, name)

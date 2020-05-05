@@ -17,7 +17,6 @@ package aws
 
 import (
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"os"
 
@@ -33,6 +32,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -97,7 +97,7 @@ func (w *AwsWorker) CreateLaunchConfig(input *autoscaling.CreateLaunchConfigurat
 	if err != nil {
 		return err
 	}
-	return nil
+	return err
 }
 
 func (w *AwsWorker) DeleteLaunchConfig(name string) error {
@@ -218,72 +218,72 @@ func (w *AwsWorker) DeleteScalingGroupRole(name string, managedPolicies []string
 	return nil
 }
 
-func (w *AwsWorker) CreateUpdateScalingGroupRole(name string, managedPolicies []string) error {
-	var assumeRolePolicyDocument = `{
-		"Version": "2012-10-17",
-		"Statement": [{
-			"Effect": "Allow",
-			"Principal": {
-				"Service": "ec2.amazonaws.com"
-			},
-			"Action": "sts:AssumeRole"
-		}]
-	}`
+func (w *AwsWorker) CreateUpdateScalingGroupRole(name string, managedPolicies []string) (*iam.Role, *iam.InstanceProfile, error) {
+	var (
+		assumeRolePolicyDocument = `{
+			"Version": "2012-10-17",
+			"Statement": [{
+				"Effect": "Allow",
+				"Principal": {
+					"Service": "ec2.amazonaws.com"
+				},
+				"Action": "sts:AssumeRole"
+			}]
+		}`
+		createdRole    = &iam.Role{}
+		createdProfile = &iam.InstanceProfile{}
+	)
 
-	roleInput := &iam.CreateRoleInput{
-		RoleName:                 aws.String(name),
-		AssumeRolePolicyDocument: aws.String(assumeRolePolicyDocument),
-	}
-
-	_, err := w.IamClient.CreateRole(roleInput)
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() != iam.ErrCodeEntityAlreadyExistsException {
-				return err
-			}
+	if role, ok := w.RoleExist(name); !ok {
+		out, err := w.IamClient.CreateRole(&iam.CreateRoleInput{
+			RoleName:                 aws.String(name),
+			AssumeRolePolicyDocument: aws.String(assumeRolePolicyDocument),
+		})
+		if err != nil {
+			return createdRole, createdProfile, errors.Wrap(err, "failed to create role")
 		}
+		log.Infof("created IAM role %s", aws.StringValue(createdRole.RoleName))
+		createdRole = out.Role
+	} else {
+		createdRole = role
 	}
 
-	profileInput := &iam.CreateInstanceProfileInput{
-		InstanceProfileName: aws.String(name),
-	}
-
-	_, err = w.IamClient.CreateInstanceProfile(profileInput)
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() != iam.ErrCodeEntityAlreadyExistsException {
-				return err
-			}
+	if instanceProfile, ok := w.InstanceProfileExist(name); !ok {
+		out, err := w.IamClient.CreateInstanceProfile(&iam.CreateInstanceProfileInput{
+			InstanceProfileName: aws.String(name),
+		})
+		if err != nil {
+			return createdRole, createdProfile, errors.Wrap(err, "failed to create instance-profile")
 		}
+		log.Infof("created instance-profile %s", aws.StringValue(createdProfile.InstanceProfileName))
+		createdProfile = out.InstanceProfile
+	} else {
+		createdProfile = instanceProfile
 	}
 
-	profileBindingInput := &iam.AddRoleToInstanceProfileInput{
+	_, err := w.IamClient.AddRoleToInstanceProfile(&iam.AddRoleToInstanceProfileInput{
 		InstanceProfileName: aws.String(name),
 		RoleName:            aws.String(name),
-	}
-
-	_, err = w.IamClient.AddRoleToInstanceProfile(profileBindingInput)
+	})
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() == iam.ErrCodeServiceFailureException {
-				return err
+			if aerr.Code() != iam.ErrCodeLimitExceededException {
+				return createdRole, createdProfile, errors.Wrap(err, "failed to attach instance-profile")
 			}
 		}
 	}
 
 	for _, policy := range managedPolicies {
-		policyBindingInput := &iam.AttachRolePolicyInput{
+		_, err = w.IamClient.AttachRolePolicy(&iam.AttachRolePolicyInput{
 			RoleName:  aws.String(name),
 			PolicyArn: aws.String(policy),
-		}
-
-		_, err = w.IamClient.AttachRolePolicy(policyBindingInput)
+		})
 		if err != nil {
-			return err
+			return createdRole, createdProfile, errors.Wrap(err, "failed to attach policies")
 		}
 	}
 
-	return nil
+	return createdRole, createdProfile, nil
 }
 
 func (w *AwsWorker) IsNodeGroupExist() bool {
@@ -548,14 +548,24 @@ func (w *AwsWorker) DescribeAutoscalingLaunchConfigs() (autoscaling.DescribeLaun
 	return *out, nil
 }
 
-func (w *AwsWorker) GetAutoscalingLaunchConfig(name string) (autoscaling.DescribeLaunchConfigurationsOutput, error) {
+func (w *AwsWorker) GetAutoscalingLaunchConfig(name string) (*autoscaling.DescribeLaunchConfigurationsOutput, error) {
 	out, err := w.AsgClient.DescribeLaunchConfigurations(&autoscaling.DescribeLaunchConfigurationsInput{
 		LaunchConfigurationNames: aws.StringSlice([]string{name}),
 	})
 	if err != nil {
-		return autoscaling.DescribeLaunchConfigurationsOutput{}, err
+		return &autoscaling.DescribeLaunchConfigurationsOutput{}, err
 	}
-	return *out, nil
+	return out, nil
+}
+
+func (w *AwsWorker) GetAutoscalingGroup(name string) (*autoscaling.DescribeAutoScalingGroupsOutput, error) {
+	out, err := w.AsgClient.DescribeAutoScalingGroups(&autoscaling.DescribeAutoScalingGroupsInput{
+		AutoScalingGroupNames: aws.StringSlice([]string{name}),
+	})
+	if err != nil {
+		return &autoscaling.DescribeAutoScalingGroupsOutput{}, err
+	}
+	return out, nil
 }
 
 func (w *AwsWorker) DetectScalingGroupDrift(scalingGroupName string) (bool, error) {

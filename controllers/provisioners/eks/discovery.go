@@ -72,6 +72,7 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		state.SetInstanceProfile(val)
 	}
 
+	// TODO: Pagination
 	scalingGroups, err := ctx.AwsWorker.DescribeAutoscalingGroups()
 	if err != nil {
 		return errors.Wrap(err, "failed to describe autoscaling groups")
@@ -228,7 +229,9 @@ func (ctx *EksInstanceGroupContext) findTargetScalingGroup(groups []*autoscaling
 }
 
 func (d *DiscoveredState) SetScalingGroup(asg *autoscaling.Group) {
-	d.ScalingGroup = asg
+	if asg != nil {
+		d.ScalingGroup = asg
+	}
 }
 
 func (d *DiscoveredState) GetScalingGroup() *autoscaling.Group {
@@ -244,7 +247,9 @@ func (d *DiscoveredState) GetOwnedScalingGroups() []*autoscaling.Group {
 }
 
 func (d *DiscoveredState) SetLaunchConfiguration(lc *autoscaling.LaunchConfiguration) {
-	d.LaunchConfiguration = lc
+	if lc != nil {
+		d.LaunchConfiguration = lc
+	}
 }
 
 func (d *DiscoveredState) GetLaunchConfiguration() *autoscaling.LaunchConfiguration {
@@ -267,16 +272,24 @@ func (d *DiscoveredState) HasRole() bool {
 	return d.IAMRole != nil
 }
 
+func (d *DiscoveredState) HasInstanceProfile() bool {
+	return d.InstanceProfile != nil
+}
+
 func (d *DiscoveredState) HasScalingGroup() bool {
 	return d.ScalingGroup != nil
 }
 
 func (d *DiscoveredState) SetRole(role *iam.Role) {
-	d.IAMRole = role
+	if role != nil {
+		d.IAMRole = role
+	}
 }
 
 func (d *DiscoveredState) SetInstanceProfile(profile *iam.InstanceProfile) {
-	d.InstanceProfile = profile
+	if profile != nil {
+		d.InstanceProfile = profile
+	}
 }
 
 func (d *DiscoveredState) GetInstanceProfile() *iam.InstanceProfile {
