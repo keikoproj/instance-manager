@@ -49,7 +49,7 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 		status   = instanceGroup.GetStatus()
 		strategy = instanceGroup.GetUpgradeStrategy().GetCRDType()
 		asgName  = status.GetActiveScalingGroupName()
-		lcName   = status.GetActiveScalingGroupName()
+		lcName   = status.GetActiveLaunchConfigurationName()
 	)
 
 	renderParams := struct {
@@ -73,7 +73,8 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 	GVR := GetGVR(customResource, strategy.GetCRDName())
 
 	s := strings.Split(lcName, "-")
-	NormalizeName(customResource, s[len(s)-1])
+	rotationId := s[len(s)-1]
+	NormalizeName(customResource, rotationId)
 	status.SetStrategyResourceName(customResource.GetName())
 
 	activeResources, err := GetActiveResources(kube, instanceGroup, customResource)
@@ -88,7 +89,7 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 	}
 
 	if len(activeResources) > 0 && strings.ToLower(strategy.GetConcurrencyPolicy()) == "forbid" {
-		log.Infoln("custom resource/s still active, will wait for finite-state per concurrencyPolicy = Forbid")
+		log.Infoln("custom resource/s still active, will requeue")
 		instanceGroup.SetState(v1alpha1.ReconcileModifying)
 		return nil
 	}
@@ -130,7 +131,6 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 }
 
 func NormalizeName(customResource *unstructured.Unstructured, id string) {
-
 	if providedName := customResource.GetName(); providedName != "" {
 		if !strings.HasSuffix(providedName, id) {
 			customResource.SetName(fmt.Sprintf("%v-%v", providedName, id))

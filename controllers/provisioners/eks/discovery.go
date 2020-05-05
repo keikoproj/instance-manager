@@ -209,7 +209,7 @@ func (ctx *EksInstanceGroupContext) LaunchConfigurationDrifted() bool {
 
 	if !reflect.DeepEqual(existingConfig.BlockDeviceMappings, newConfig.BlockDeviceMappings) {
 		log.Infof(
-			"detected drift in launch configuration: block-device-mappings has changed, %v -> %v",
+			"detected drift in launch configuration: block-device-mappings has changed;\n < %v\n---\n> %v",
 			existingConfig.BlockDeviceMappings,
 			newConfig.BlockDeviceMappings,
 		)

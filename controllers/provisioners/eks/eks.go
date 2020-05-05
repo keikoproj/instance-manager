@@ -88,10 +88,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		if err != nil {
 			return errors.Wrap(err, "failed to create launch configuration")
 		}
-		err = ctx.AwsWorker.DeleteLaunchConfig(oldConfigName)
-		if err != nil {
-			return err
-		}
+		defer ctx.AwsWorker.DeleteLaunchConfig(oldConfigName)
 	}
 
 	if ctx.RotationNeeded() {
