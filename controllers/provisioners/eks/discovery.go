@@ -116,6 +116,21 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	return nil
 }
 
+func (ctx *EksInstanceGroupContext) RotationNeeded() bool {
+	var (
+		state        = ctx.GetDiscoveredState()
+		scalingGroup = state.GetScalingGroup()
+	)
+
+	for _, instance := range scalingGroup.Instances {
+		if aws.StringValue(instance.LaunchConfigurationName) != state.GetActiveLaunchConfigurationName() {
+			log.Info("upgrade required: scaling instances with different launch-config")
+			return true
+		}
+	}
+	return false
+}
+
 func (ctx *EksInstanceGroupContext) LaunchConfigurationDrifted() bool {
 	var (
 		state          = ctx.GetDiscoveredState()

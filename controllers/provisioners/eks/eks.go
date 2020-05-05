@@ -65,9 +65,10 @@ func New(instanceGroup *v1alpha1.InstanceGroup, k common.KubernetesClientSet, w 
 
 func (ctx *EksInstanceGroupContext) Update() error {
 	var (
-		instanceGroup = ctx.GetInstanceGroup()
-		state         = ctx.GetDiscoveredState()
-		oldConfigName string
+		instanceGroup  = ctx.GetInstanceGroup()
+		state          = ctx.GetDiscoveredState()
+		oldConfigName  string
+		rotationNeeded bool
 	)
 
 	instanceGroup.SetState(v1alpha1.ReconcileModifying)
@@ -80,14 +81,21 @@ func (ctx *EksInstanceGroupContext) Update() error {
 
 	// create new launchconfig if it has drifted
 	log.Info("checking for launch configuration drift")
-	drifted := ctx.LaunchConfigurationDrifted()
-	if drifted {
+	if ctx.LaunchConfigurationDrifted() {
+		rotationNeeded = true
 		oldConfigName = state.GetActiveLaunchConfigurationName()
 		err := ctx.CreateLaunchConfiguration()
 		if err != nil {
 			return errors.Wrap(err, "failed to create launch configuration")
 		}
-		instanceGroup.SetState(v1alpha1.ReconcileInitUpgrade)
+		err = ctx.AwsWorker.DeleteLaunchConfig(oldConfigName)
+		if err != nil {
+			return err
+		}
+	}
+
+	if ctx.RotationNeeded() {
+		rotationNeeded = true
 	}
 
 	// update scaling group
@@ -96,11 +104,8 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		return errors.Wrap(err, "failed to update scaling group")
 	}
 
-	if drifted {
-		err = ctx.AwsWorker.DeleteLaunchConfig(oldConfigName)
-		if err != nil {
-			return err
-		}
+	if rotationNeeded {
+		instanceGroup.SetState(v1alpha1.ReconcileInitUpgrade)
 	} else {
 		instanceGroup.SetState(v1alpha1.ReconcileModified)
 	}
