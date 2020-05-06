@@ -233,6 +233,8 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 			// processing CRD Strategy is done
 			break
 		}
+		// if CRD processing is not complete, requeue
+		return nil
 	default:
 		return errors.Errorf("'%v' is not an implemented upgrade type, will not process upgrade", strategy.GetType())
 	}
