@@ -300,9 +300,6 @@ spec:
                 description: InstanceGroupConditions describes the conditions of the
                   InstanceGroup
                 properties:
-                  lastProbeTime:
-                    format: date-time
-                    type: string
                   status:
                     type: string
                   type:

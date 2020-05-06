@@ -18,6 +18,8 @@ package kubernetes
 import (
 	"strings"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/keikoproj/instance-manager/controllers/common"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,8 +42,8 @@ func IsDesiredNodesReady(kube kubernetes.Interface, instanceIds []string, desire
 
 	for _, id := range instanceIds {
 		for _, node := range nodes.Items {
-			if IsNodeReady(node) && common.GetLastElementBy(node.Spec.ProviderID, "-") == id {
-				// found ready desired node
+			if IsNodeReady(node) && common.GetLastElementBy(node.Spec.ProviderID, "/") == id {
+				log.Infof("found desired node -> %s", node.Name)
 				readyDesiredInstances = append(readyDesiredInstances, id)
 			}
 

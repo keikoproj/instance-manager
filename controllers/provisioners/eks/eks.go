@@ -103,10 +103,17 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		return errors.Wrap(err, "failed to update scaling group")
 	}
 
+	// update readiness conditions
+	ok, err := ctx.UpdateNodeReadyCondition()
+	if err != nil {
+		log.Warnf("could not update instance group conditions: %v", err)
+	}
+	if ok {
+		instanceGroup.SetState(v1alpha1.ReconcileModified)
+	}
+
 	if rotationNeeded {
 		instanceGroup.SetState(v1alpha1.ReconcileInitUpgrade)
-	} else {
-		instanceGroup.SetState(v1alpha1.ReconcileModified)
 	}
 
 	return nil
@@ -207,8 +214,6 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
 		strategy      = ctx.GetUpgradeStrategy()
-		state         = ctx.GetDiscoveredState()
-		scalingGroup  = state.GetScalingGroup()
 	)
 
 	// process the upgrade strategy
@@ -232,8 +237,26 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 		return errors.Errorf("'%v' is not an implemented upgrade type, will not process upgrade", strategy.GetType())
 	}
 
-	// update node conditions
-	instanceIds := make([]string, len(scalingGroup.Instances))
+	ok, err := ctx.UpdateNodeReadyCondition()
+	if err != nil {
+		log.Warnf("could not update instance group conditions: %v", err)
+	}
+	if ok {
+		instanceGroup.SetState(v1alpha1.ReconcileModified)
+	}
+	return nil
+}
+
+func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() (bool, error) {
+	var (
+		state         = ctx.GetDiscoveredState()
+		instanceGroup = ctx.GetInstanceGroup()
+		status        = instanceGroup.GetStatus()
+		scalingGroup  = state.GetScalingGroup()
+	)
+	log.Info("updating node readiness conditions")
+
+	instanceIds := make([]string, 0)
 	desiredCount := int(aws.Int64Value(scalingGroup.DesiredCapacity))
 	for _, instance := range scalingGroup.Instances {
 		instanceIds = append(instanceIds, aws.StringValue(instance.InstanceId))
@@ -241,16 +264,18 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 
 	var conditions []v1alpha1.InstanceGroupCondition
 	ok, err := kubeprovider.IsDesiredNodesReady(ctx.KubernetesClient.Kubernetes, instanceIds, desiredCount)
+	if err != nil {
+		return false, err
+	}
+
 	if ok {
 		conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionTrue))
-	} else {
-		conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionTrue))
+		status.SetConditions(conditions)
+		return true, nil
 	}
-	if err != nil {
-		log.Warnf("could not update instance group conditions: %v", err)
-	}
-	instanceGroup.SetState(v1alpha1.ReconcileModified)
-	return nil
+	conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionTrue))
+	status.SetConditions(conditions)
+	return false, nil
 }
 
 func LoadControllerConfiguration(instanceGroup *v1alpha1.InstanceGroup, controllerConfig []byte) (EksDefaultConfiguration, error) {

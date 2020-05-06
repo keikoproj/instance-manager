@@ -18,7 +18,6 @@ package v1alpha1
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -269,17 +268,15 @@ type InstanceGroupConditionType string
 
 func NewInstanceGroupCondition(cType InstanceGroupConditionType, status corev1.ConditionStatus) InstanceGroupCondition {
 	return InstanceGroupCondition{
-		Type:          cType,
-		Status:        status,
-		LastProbeTime: metav1.Time{time.Now().UTC()},
+		Type:   cType,
+		Status: status,
 	}
 }
 
 // InstanceGroupConditions describes the conditions of the InstanceGroup
 type InstanceGroupCondition struct {
-	Type          InstanceGroupConditionType `json:"type,omitempty"`
-	Status        corev1.ConditionStatus     `json:"status,omitempty"`
-	LastProbeTime metav1.Time                `json:"lastProbeTime,omitempty"`
+	Type   InstanceGroupConditionType `json:"type,omitempty"`
+	Status corev1.ConditionStatus     `json:"status,omitempty"`
 }
 
 func (ig *InstanceGroup) GetEKSConfiguration() *EKSConfiguration {
