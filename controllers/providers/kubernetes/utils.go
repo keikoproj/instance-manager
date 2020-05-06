@@ -51,7 +51,7 @@ func IsDesiredNodesReady(kube kubernetes.Interface, instanceIds []string, desire
 
 	// if discovered nodes match provided instance ids, condition is ready
 	if common.StringSliceEquals(readyDesiredInstances, instanceIds) {
-		log.Infof("found desired nodes -> %v", readyDesiredInstances)
+		log.Infof("desired instances %s are ready", strings.Join(readyDesiredInstances, ","))
 		return true, nil
 	}
 
