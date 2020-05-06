@@ -32,7 +32,7 @@ import (
 const (
 	ProvisionerName = "eks"
 	IAMPolicyPrefix = "arn:aws:iam::aws:policy"
-	RoleLabelFmt    = "node.kubernetes.io/role=%s"
+	RoleLabelFmt    = "node.kubernetes.io/role=%s,node-role.kubernetes.io/%s=\"\""
 )
 
 var (

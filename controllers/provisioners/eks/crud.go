@@ -158,7 +158,7 @@ func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput() *autoscaling.C
 	// get userdata with bootstrap arguments
 	var args string
 	bootstrapArgs := configuration.GetBootstrapArguments()
-	roleLabels := fmt.Sprintf(RoleLabelFmt, instanceGroup.GetName())
+	roleLabels := fmt.Sprintf(RoleLabelFmt, instanceGroup.GetName(), instanceGroup.GetName())
 	labelsFlag := fmt.Sprintf("--node-labels=%v", roleLabels)
 	args = fmt.Sprintf("--kubelet-extra-args '%v'", labelsFlag)
 
@@ -171,7 +171,7 @@ func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput() *autoscaling.C
 	name := fmt.Sprintf("%v-%v-%v-%v", clusterName, instanceGroup.GetNamespace(), instanceGroup.GetName(), common.GetTimeString())
 
 	lcInput.LaunchConfigurationName = aws.String(name)
-	lcInput.IamInstanceProfile = instanceProfile.InstanceProfileName
+	lcInput.IamInstanceProfile = instanceProfile.Arn
 	lcInput.ImageId = aws.String(configuration.Image)
 	lcInput.InstanceType = aws.String(configuration.InstanceType)
 	lcInput.KeyName = aws.String(configuration.KeyPairName)

@@ -20,6 +20,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -74,43 +75,56 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		state.SetInstanceProfile(val)
 	}
 
-	// TODO: Pagination
 	scalingGroups, err := ctx.AwsWorker.DescribeAutoscalingGroups()
 	if err != nil {
 		return errors.Wrap(err, "failed to describe autoscaling groups")
 	}
 
 	// find all owned scaling groups
-	ownedScalingGroups := ctx.findOwnedScalingGroups(scalingGroups.AutoScalingGroups)
+	ownedScalingGroups := ctx.findOwnedScalingGroups(scalingGroups)
 	state.SetOwnedScalingGroups(ownedScalingGroups)
 
 	// cache the scaling group we are reconciling for if it exists
 	targetScalingGroup := ctx.findTargetScalingGroup(ownedScalingGroups)
 
-	if targetScalingGroup == nil || targetScalingGroup.Status != nil {
+	// if there is no scaling group found, it's deprovisioned
+	if targetScalingGroup == nil {
+		state.SetProvisioned(false)
+		// no need to look for launch configurations at this point
 		return nil
 	}
-
 	state.SetProvisioned(true)
 	state.SetScalingGroup(targetScalingGroup)
+
+	// update status with scaling group info
 	status.SetActiveScalingGroupName(aws.StringValue(targetScalingGroup.AutoScalingGroupName))
 	status.SetCurrentMin(int(aws.Int64Value(targetScalingGroup.MinSize)))
 	status.SetCurrentMax(int(aws.Int64Value(targetScalingGroup.MaxSize)))
+	if configuration.GetSpotPrice() == "" {
+		status.SetLifecycle(v1alpha1.LifecycleStateNormal)
+	} else {
+		status.SetLifecycle(v1alpha1.LifecycleStateSpot)
+	}
 
 	// cache the launch configuration we are reconciling for if it exists
 	launchConfigName := aws.StringValue(targetScalingGroup.LaunchConfigurationName)
-	targetLaunchConfig, err := ctx.AwsWorker.GetAutoscalingLaunchConfig(launchConfigName)
-	if err != nil {
-		return errors.Wrap(err, "failed to describe autoscaling launch configurations")
-	}
+	if launchConfigName != "" {
+		targetLaunchConfig, err := ctx.AwsWorker.GetAutoscalingLaunchConfig(launchConfigName)
+		if err != nil {
+			return errors.Wrap(err, "failed to describe autoscaling launch configurations")
+		}
 
-	if len(targetLaunchConfig.LaunchConfigurations) == 1 {
-		lc := targetLaunchConfig.LaunchConfigurations[0]
+		// there can only be 1 launch config since we're searching by name
+		if len(targetLaunchConfig.LaunchConfigurations) != 1 {
+			return nil
+		}
+
+		var lc = targetLaunchConfig.LaunchConfigurations[0]
+		var lcName = aws.StringValue(lc.LaunchConfigurationName)
+
 		state.SetLaunchConfiguration(lc)
-		lcName := aws.StringValue(lc.LaunchConfigurationName)
 		state.SetActiveLaunchConfigurationName(lcName)
 		status.SetActiveLaunchConfigurationName(lcName)
-
 	}
 
 	return nil

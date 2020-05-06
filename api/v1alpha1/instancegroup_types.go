@@ -44,6 +44,9 @@ const (
 	ReconcileErr   ReconcileState = "Error"
 
 	DefaultVolSize int64 = 32
+
+	LifecycleStateNormal = "normal"
+	LifecycleStateSpot   = "spot"
 )
 
 var (
@@ -313,6 +316,9 @@ func (c *EKSConfiguration) GetSubnets() []string {
 		return []string{}
 	}
 	return c.Subnets
+}
+func (c *EKSConfiguration) GetSpotPrice() string {
+	return c.SpotPrice
 }
 func (c *EKSConfiguration) SetSubnets(subnets []string) {
 	c.Subnets = subnets

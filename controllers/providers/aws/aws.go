@@ -19,6 +19,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -47,6 +48,12 @@ type AwsWorker struct {
 	StackParameters []*cloudformation.Parameter
 	Parameters      map[string]interface{}
 }
+
+var (
+	DefaultInstanceProfilePropagationDelay = time.Second * 20
+	DefaultWaiterDuration                  = time.Second * 5
+	DefaultWaiterRetries                   = 12
+)
 
 func DefaultUserDataFmt() string {
 	return `#!/bin/bash
@@ -162,26 +169,51 @@ func (w *AwsWorker) NewTag(key, val, resource string) *autoscaling.Tag {
 	}
 }
 
-func (w *AwsWorker) DeleteScalingGroupRole(name string, managedPolicies []string) error {
+func (w *AwsWorker) WithWaiter(f func() bool) error {
+	var counter int
+	for {
+		if counter >= DefaultWaiterRetries {
+			break
+		}
+		if f() {
+			return nil
+		}
+		time.Sleep(DefaultWaiterDuration)
+		counter++
+	}
+	return errors.New("waiter timed out")
+}
 
+func (w *AwsWorker) DeleteScalingGroupRole(name string, managedPolicies []string) error {
 	for _, policy := range managedPolicies {
-		policyBindingInput := &iam.DetachRolePolicyInput{
+		_, err := w.IamClient.DetachRolePolicy(&iam.DetachRolePolicyInput{
 			RoleName:  aws.String(name),
 			PolicyArn: aws.String(policy),
-		}
-
-		_, err := w.IamClient.DetachRolePolicy(policyBindingInput)
+		})
 		if err != nil {
 			return err
 		}
 	}
 
-	profileBindingInput := &iam.RemoveRoleFromInstanceProfileInput{
+	// must wait until all policies are detached
+	err := w.WithWaiter(func() bool {
+		policies, _ := w.IamClient.ListRolePolicies(&iam.ListRolePoliciesInput{
+			RoleName: aws.String(name),
+		})
+		log.Info(policies)
+		if len(policies.PolicyNames) == 0 {
+			return true
+		}
+		return false
+	})
+	if err != nil {
+		return errors.Wrap(err, "policy detachment")
+	}
+
+	_, err = w.IamClient.RemoveRoleFromInstanceProfile(&iam.RemoveRoleFromInstanceProfileInput{
 		InstanceProfileName: aws.String(name),
 		RoleName:            aws.String(name),
-	}
-
-	_, err := w.IamClient.RemoveRoleFromInstanceProfile(profileBindingInput)
+	})
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			if aerr.Code() != iam.ErrCodeNoSuchEntityException {
@@ -190,11 +222,9 @@ func (w *AwsWorker) DeleteScalingGroupRole(name string, managedPolicies []string
 		}
 	}
 
-	profileInput := &iam.DeleteInstanceProfileInput{
+	_, err = w.IamClient.DeleteInstanceProfile(&iam.DeleteInstanceProfileInput{
 		InstanceProfileName: aws.String(name),
-	}
-
-	_, err = w.IamClient.DeleteInstanceProfile(profileInput)
+	})
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			if aerr.Code() != iam.ErrCodeNoSuchEntityException {
@@ -203,11 +233,9 @@ func (w *AwsWorker) DeleteScalingGroupRole(name string, managedPolicies []string
 		}
 	}
 
-	roleInput := &iam.DeleteRoleInput{
+	_, err = w.IamClient.DeleteRole(&iam.DeleteRoleInput{
 		RoleName: aws.String(name),
-	}
-
-	_, err = w.IamClient.DeleteRole(roleInput)
+	})
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			if aerr.Code() != iam.ErrCodeNoSuchEntityException {
@@ -215,6 +243,7 @@ func (w *AwsWorker) DeleteScalingGroupRole(name string, managedPolicies []string
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -257,6 +286,14 @@ func (w *AwsWorker) CreateUpdateScalingGroupRole(name string, managedPolicies []
 		}
 		log.Infof("created instance-profile %s", aws.StringValue(createdProfile.InstanceProfileName))
 		createdProfile = out.InstanceProfile
+
+		err = w.IamClient.WaitUntilInstanceProfileExists(&iam.GetInstanceProfileInput{
+			InstanceProfileName: aws.String(name),
+		})
+		if err != nil {
+			return createdRole, createdProfile, errors.Wrap(err, "instance-profile propogation waiter timed out")
+		}
+		time.Sleep(DefaultInstanceProfilePropagationDelay)
 	} else {
 		createdProfile = instanceProfile
 	}
@@ -532,12 +569,16 @@ func (w *AwsWorker) DescribeCloudformationStacks() (cloudformation.DescribeStack
 	return *out, nil
 }
 
-func (w *AwsWorker) DescribeAutoscalingGroups() (autoscaling.DescribeAutoScalingGroupsOutput, error) {
-	out, err := w.AsgClient.DescribeAutoScalingGroups(&autoscaling.DescribeAutoScalingGroupsInput{})
+func (w *AwsWorker) DescribeAutoscalingGroups() ([]*autoscaling.Group, error) {
+	scalingGroups := []*autoscaling.Group{}
+	err := w.AsgClient.DescribeAutoScalingGroupsPages(&autoscaling.DescribeAutoScalingGroupsInput{}, func(page *autoscaling.DescribeAutoScalingGroupsOutput, lastPage bool) bool {
+		scalingGroups = append(scalingGroups, page.AutoScalingGroups...)
+		return page.NextToken != nil
+	})
 	if err != nil {
-		return autoscaling.DescribeAutoScalingGroupsOutput{}, err
+		return scalingGroups, err
 	}
-	return *out, nil
+	return scalingGroups, nil
 }
 
 func (w *AwsWorker) DescribeAutoscalingLaunchConfigs() (autoscaling.DescribeLaunchConfigurationsOutput, error) {
