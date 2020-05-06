@@ -202,7 +202,7 @@ func (ctx *EksInstanceGroupContext) LaunchConfigurationDrifted() bool {
 
 	if aws.StringValue(existingConfig.SpotPrice) != aws.StringValue(newConfig.SpotPrice) {
 		log.Infof(
-			"detected drift in launch configuration: spot-price has changed, %s -> %s",
+			"detected drift in launch configuration: spot-price has changed, '%s' -> '%s'",
 			aws.StringValue(existingConfig.SpotPrice),
 			aws.StringValue(newConfig.SpotPrice),
 		)

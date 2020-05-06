@@ -40,6 +40,7 @@ var (
 	TagInstanceGroupName      = "instancegroups.keikoproj.io/InstanceGroup"
 	TagInstanceGroupNamespace = "instancegroups.keikoproj.io/Namespace"
 	TagClusterOwnershipFmt    = "kubernetes.io/cluster/%s"
+	TagKubernetesCluster      = "KubernetesCluster"
 	TagClusterOwned           = "owned"
 	TagName                   = "Name"
 	DefaultManagedPolicies    = []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}

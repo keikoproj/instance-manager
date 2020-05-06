@@ -130,13 +130,21 @@ func (w *AwsWorker) CreateScalingGroup(input *autoscaling.CreateAutoScalingGroup
 	return nil
 }
 
-func (w *AwsWorker) UpdateScalingGroup(input *autoscaling.UpdateAutoScalingGroupInput, tags []*autoscaling.Tag) error {
-	tagsInput := &autoscaling.CreateOrUpdateTagsInput{
-		Tags: tags,
-	}
-	_, err := w.AsgClient.CreateOrUpdateTags(tagsInput)
+func (w *AwsWorker) UpdateScalingGroup(input *autoscaling.UpdateAutoScalingGroupInput, upTags []*autoscaling.Tag, rmTags []*autoscaling.Tag) error {
+	_, err := w.AsgClient.CreateOrUpdateTags(&autoscaling.CreateOrUpdateTagsInput{
+		Tags: upTags,
+	})
 	if err != nil {
 		return err
+	}
+
+	if len(rmTags) > 0 {
+		_, err = w.AsgClient.DeleteTags(&autoscaling.DeleteTagsInput{
+			Tags: rmTags,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	_, err = w.AsgClient.UpdateAutoScalingGroup(input)

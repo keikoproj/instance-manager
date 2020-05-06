@@ -17,6 +17,7 @@ package eks
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
@@ -48,6 +49,7 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup() error {
 	// default tags
 	tags = append(tags, ctx.AwsWorker.NewTag(TagName, asgName, asgName))
 	tags = append(tags, ctx.AwsWorker.NewTag(TagClusterName, clusterName, asgName))
+	tags = append(tags, ctx.AwsWorker.NewTag(TagKubernetesCluster, clusterName, asgName))
 	tags = append(tags, ctx.AwsWorker.NewTag(TagInstanceGroupNamespace, instanceGroup.GetNamespace(), asgName))
 	tags = append(tags, ctx.AwsWorker.NewTag(TagInstanceGroupName, instanceGroup.GetName(), asgName))
 	tags = append(tags, ctx.AwsWorker.NewTag(fmt.Sprintf(TagClusterOwnershipFmt, clusterName), TagClusterOwned, asgName))
@@ -86,18 +88,29 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 	var (
 		asgInput      = &autoscaling.UpdateAutoScalingGroupInput{}
 		tags          []*autoscaling.Tag
+		rmTags        []*autoscaling.Tag
 		instanceGroup = ctx.GetInstanceGroup()
 		spec          = instanceGroup.GetEKSSpec()
 		configuration = instanceGroup.GetEKSConfiguration()
 		clusterName   = configuration.GetClusterName()
 		state         = ctx.GetDiscoveredState()
+		scalingGroup  = state.GetScalingGroup()
 		asgName       = aws.StringValue(state.ScalingGroup.AutoScalingGroupName)
 	)
 
 	log.Infof("updating scaling group %s", asgName)
 
+	// TODO: GetAddedTags() ; GetRemovedTags()
+
+	// get existing tags
+	var xTags []*autoscaling.Tag
+	for _, xTag := range scalingGroup.Tags {
+		xTags = append(xTags, ctx.AwsWorker.NewTag(aws.StringValue(xTag.Key), aws.StringValue(xTag.Value), asgName))
+	}
+
 	// default tags
 	tags = append(tags, ctx.AwsWorker.NewTag(TagName, asgName, asgName))
+	tags = append(tags, ctx.AwsWorker.NewTag(TagKubernetesCluster, clusterName, asgName))
 	tags = append(tags, ctx.AwsWorker.NewTag(TagClusterName, clusterName, asgName))
 	tags = append(tags, ctx.AwsWorker.NewTag(TagInstanceGroupNamespace, instanceGroup.GetNamespace(), asgName))
 	tags = append(tags, ctx.AwsWorker.NewTag(TagInstanceGroupName, instanceGroup.GetName(), asgName))
@@ -107,6 +120,19 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 		tags = append(tags, ctx.AwsWorker.NewTag(tagSlice["key"], tagSlice["value"], asgName))
 	}
 
+	// find removals
+	for _, xTag := range xTags {
+		var match bool
+		for _, tag := range tags {
+			if reflect.DeepEqual(tag, xTag) {
+				match = true
+			}
+		}
+		if !match {
+			rmTags = append(rmTags, xTag)
+		}
+	}
+
 	asgInput.AutoScalingGroupName = aws.String(asgName)
 	asgInput.DesiredCapacity = aws.Int64(spec.GetMinSize())
 	asgInput.LaunchConfigurationName = aws.String(state.GetActiveLaunchConfigurationName())
@@ -114,7 +140,7 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 	asgInput.MaxSize = aws.Int64(spec.GetMaxSize())
 	asgInput.VPCZoneIdentifier = aws.String(common.ConcatonateList(configuration.GetSubnets(), ","))
 
-	err := ctx.AwsWorker.UpdateScalingGroup(asgInput, tags)
+	err := ctx.AwsWorker.UpdateScalingGroup(asgInput, tags, rmTags)
 	if err != nil {
 		return err
 	}
