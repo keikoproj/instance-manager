@@ -339,6 +339,9 @@ func (c *EKSConfiguration) GetSubnets() []string {
 func (c *EKSConfiguration) GetSpotPrice() string {
 	return c.SpotPrice
 }
+func (c *EKSConfiguration) SetSpotPrice(price string) {
+	c.SpotPrice = price
+}
 func (c *EKSConfiguration) SetSubnets(subnets []string) {
 	c.Subnets = subnets
 }

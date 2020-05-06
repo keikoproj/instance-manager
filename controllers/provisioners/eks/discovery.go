@@ -22,6 +22,7 @@ import (
 
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
+	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
@@ -95,6 +96,11 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	}
 	state.SetProvisioned(true)
 	state.SetScalingGroup(targetScalingGroup)
+
+	err = ctx.discoverSpotPrice()
+	if err != nil {
+		log.Warnf("failed to discover spot price: %v", err)
+	}
 
 	// update status with scaling group info
 	status.SetActiveScalingGroupName(aws.StringValue(targetScalingGroup.AutoScalingGroupName))
@@ -232,6 +238,48 @@ func (ctx *EksInstanceGroupContext) LaunchConfigurationDrifted() bool {
 
 	log.Info("no drift detected")
 	return drift
+}
+
+func (ctx *EksInstanceGroupContext) discoverSpotPrice() error {
+	var (
+		instanceGroup    = ctx.GetInstanceGroup()
+		state            = ctx.GetDiscoveredState()
+		status           = instanceGroup.GetStatus()
+		configuration    = instanceGroup.GetEKSConfiguration()
+		scalingGroup     = state.GetScalingGroup()
+		scalingGroupName = aws.StringValue(scalingGroup.AutoScalingGroupName)
+	)
+
+	// get latest spot recommendations from events
+	recommendation, err := kubeprovider.GetSpotRecommendation(ctx.KubernetesClient.Kubernetes, scalingGroupName)
+	if err != nil {
+		configuration.SetSpotPrice("")
+		return err
+	}
+
+	// in the case there are no recommendations, which should turn of spot unless it's manually set
+	if reflect.DeepEqual(recommendation, kubeprovider.SpotRecommendation{}) {
+		// if it was not using a recommendation before and spec has a spot price it means it was manually configured
+		if !status.GetUsingSpotRecommendation() && configuration.GetSpotPrice() != "" {
+			log.Warnf("using manually configured spot price", configuration.GetSpotPrice())
+		} else {
+			// if recommendation was used, set flag to false
+			status.SetUsingSpotRecommendation(false)
+		}
+		return nil
+	}
+
+	// set the recommendation given
+	status.SetUsingSpotRecommendation(true)
+
+	if recommendation.UseSpot {
+		log.Infof("spot enabled with current bid price: %v", recommendation.SpotPrice)
+		configuration.SetSpotPrice(recommendation.SpotPrice)
+	} else {
+		log.Infoln("spot disabled by recommendation")
+		configuration.SetSpotPrice("")
+	}
+	return nil
 }
 
 func (ctx *EksInstanceGroupContext) findOwnedScalingGroups(groups []*autoscaling.Group) []*autoscaling.Group {

@@ -27,6 +27,7 @@ import (
 	v1alpha "github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/keikoproj/instance-manager/controllers/providers/aws"
+	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/eks"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/ekscloudformation"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/eksmanaged"
@@ -457,7 +458,7 @@ func (r *InstanceGroupReconciler) spotEventReconciler(obj handler.MapObject) []c
 	if !exists || err != nil {
 		return nil
 	}
-	if reason != ekscloudformation.SpotRecommendationReason {
+	if reason != kubeprovider.SpotRecommendationReason {
 		return nil
 	}
 
