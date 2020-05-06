@@ -54,9 +54,7 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup() error {
 
 	// custom tags
 	for _, tagSlice := range configuration.GetTags() {
-		for customKey, customValue := range tagSlice {
-			tags = append(tags, ctx.AwsWorker.NewTag(customKey, customValue, asgName))
-		}
+		tags = append(tags, ctx.AwsWorker.NewTag(tagSlice["key"], tagSlice["value"], asgName))
 	}
 
 	asgInput.AutoScalingGroupName = aws.String(asgName)
