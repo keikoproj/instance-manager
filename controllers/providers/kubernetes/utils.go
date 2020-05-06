@@ -43,7 +43,6 @@ func IsDesiredNodesReady(kube kubernetes.Interface, instanceIds []string, desire
 	for _, id := range instanceIds {
 		for _, node := range nodes.Items {
 			if IsNodeReady(node) && common.GetLastElementBy(node.Spec.ProviderID, "/") == id {
-				log.Infof("found desired node -> %s", node.Name)
 				readyDesiredInstances = append(readyDesiredInstances, id)
 			}
 
@@ -52,6 +51,7 @@ func IsDesiredNodesReady(kube kubernetes.Interface, instanceIds []string, desire
 
 	// if discovered nodes match provided instance ids, condition is ready
 	if common.StringSliceEquals(readyDesiredInstances, instanceIds) {
+		log.Infof("found desired nodes -> %v", readyDesiredInstances)
 		return true, nil
 	}
 
