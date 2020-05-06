@@ -253,7 +253,6 @@ func (ctx *EksInstanceGroupContext) CreateManagedRole() error {
 	return nil
 }
 
-// TODO: Reconcile until ASG is gone
 func (ctx *EksInstanceGroupContext) DeleteScalingGroup() error {
 	var (
 		state   = ctx.GetDiscoveredState()

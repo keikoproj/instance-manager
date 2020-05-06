@@ -18,9 +18,11 @@ package v1alpha1
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -47,6 +49,8 @@ const (
 
 	LifecycleStateNormal = "normal"
 	LifecycleStateSpot   = "spot"
+
+	NodesReady InstanceGroupConditionType = "NodesReady"
 )
 
 var (
@@ -248,16 +252,34 @@ type EKSCFConfiguration struct {
 
 // InstanceGroupStatus defines the schema of resource Status
 type InstanceGroupStatus struct {
-	StackName                     string `json:"stackName,omitempty"`
-	CurrentState                  string `json:"currentState,omitempty"`
-	CurrentMin                    int    `json:"currentMin,omitempty"`
-	CurrentMax                    int    `json:"currentMax,omitempty"`
-	ActiveLaunchConfigurationName string `json:"activeLaunchConfigurationName,omitempty"`
-	ActiveScalingGroupName        string `json:"activeScalingGroupName,omitempty"`
-	NodesArn                      string `json:"nodesInstanceRoleArn,omitempty"`
-	StrategyResourceName          string `json:"strategyResourceName,omitempty"`
-	UsingSpotRecommendation       bool   `json:"usingSpotRecommendation,omitempty"`
-	Lifecycle                     string `json:"lifecycle,omitempty"`
+	StackName                     string                   `json:"stackName,omitempty"`
+	CurrentState                  string                   `json:"currentState,omitempty"`
+	CurrentMin                    int                      `json:"currentMin,omitempty"`
+	CurrentMax                    int                      `json:"currentMax,omitempty"`
+	ActiveLaunchConfigurationName string                   `json:"activeLaunchConfigurationName,omitempty"`
+	ActiveScalingGroupName        string                   `json:"activeScalingGroupName,omitempty"`
+	NodesArn                      string                   `json:"nodesInstanceRoleArn,omitempty"`
+	StrategyResourceName          string                   `json:"strategyResourceName,omitempty"`
+	UsingSpotRecommendation       bool                     `json:"usingSpotRecommendation,omitempty"`
+	Lifecycle                     string                   `json:"lifecycle,omitempty"`
+	Conditions                    []InstanceGroupCondition `json:"conditions,omitempty"`
+}
+
+type InstanceGroupConditionType string
+
+func NewInstanceGroupCondition(cType InstanceGroupConditionType, status corev1.ConditionStatus) InstanceGroupCondition {
+	return InstanceGroupCondition{
+		Type:          cType,
+		Status:        status,
+		LastProbeTime: metav1.Time{time.Now().UTC()},
+	}
+}
+
+// InstanceGroupConditions describes the conditions of the InstanceGroup
+type InstanceGroupCondition struct {
+	Type          InstanceGroupConditionType `json:"type,omitempty"`
+	Status        corev1.ConditionStatus     `json:"status,omitempty"`
+	LastProbeTime metav1.Time                `json:"lastProbeTime,omitempty"`
 }
 
 func (ig *InstanceGroup) GetEKSConfiguration() *EKSConfiguration {
@@ -511,6 +533,14 @@ func (status *InstanceGroupStatus) GetLifecycle() string {
 
 func (status *InstanceGroupStatus) SetLifecycle(phase string) {
 	status.Lifecycle = phase
+}
+
+func (status *InstanceGroupStatus) GetConditions() []InstanceGroupCondition {
+	return status.Conditions
+}
+
+func (status *InstanceGroupStatus) SetConditions(conditions []InstanceGroupCondition) {
+	status.Conditions = conditions
 }
 
 func (strategy *AwsUpgradeStrategy) GetType() string {

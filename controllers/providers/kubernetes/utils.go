@@ -18,9 +18,52 @@ package kubernetes
 import (
 	"strings"
 
+	"github.com/keikoproj/instance-manager/controllers/common"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/kubernetes"
 )
+
+func IsDesiredNodesReady(kube kubernetes.Interface, instanceIds []string, desiredCount int) (bool, error) {
+	readyDesiredInstances := make([]string, 0)
+	nodes, err := kube.CoreV1().Nodes().List(metav1.ListOptions{})
+	if err != nil {
+		return false, err
+	}
+
+	// if count of instances in scaling group does not match desired, need to requeue
+	if len(instanceIds) != desiredCount {
+		return false, nil
+	}
+
+	for _, id := range instanceIds {
+		for _, node := range nodes.Items {
+			if IsNodeReady(node) && common.GetLastElementBy(node.Spec.ProviderID, "-") == id {
+				// found ready desired node
+				readyDesiredInstances = append(readyDesiredInstances, id)
+			}
+
+		}
+	}
+
+	// if discovered nodes match provided instance ids, condition is ready
+	if common.StringSliceEquals(readyDesiredInstances, instanceIds) {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func IsNodeReady(n corev1.Node) bool {
+	for _, condition := range n.Status.Conditions {
+		if condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue {
+			return true
+		}
+	}
+	return false
+}
 
 func AddAnnotation(u *unstructured.Unstructured, key, value string) {
 	annotations := u.GetAnnotations()

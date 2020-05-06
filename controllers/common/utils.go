@@ -67,6 +67,11 @@ func StringSliceEquals(x, y []string) bool {
 	return reflect.DeepEqual(x, y)
 }
 
+func GetLastElementBy(s, sep string) string {
+	sp := strings.Split(s, sep)
+	return sp[len(sp)-1]
+}
+
 // RemoveString removes a string 's' from slice 'slice'
 func RemoveString(slice []string, s string) (result []string) {
 	for _, item := range slice {

@@ -295,6 +295,20 @@ spec:
               type: string
             activeScalingGroupName:
               type: string
+            conditions:
+              items:
+                description: InstanceGroupConditions describes the conditions of the
+                  InstanceGroup
+                properties:
+                  lastProbeTime:
+                    format: date-time
+                    type: string
+                  status:
+                    type: string
+                  type:
+                    type: string
+                type: object
+              type: array
             currentMax:
               type: integer
             currentMin:

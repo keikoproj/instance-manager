@@ -27,6 +27,7 @@ import (
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	yaml "gopkg.in/yaml.v2"
+	corev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -206,8 +207,11 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
 		strategy      = ctx.GetUpgradeStrategy()
+		state         = ctx.GetDiscoveredState()
+		scalingGroup  = state.GetScalingGroup()
 	)
 
+	// process the upgrade strategy
 	switch strings.ToLower(strategy.GetType()) {
 	case kubeprovider.CRDStrategyName:
 		crdStrategy := strategy.GetCRDType()
@@ -215,13 +219,37 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 			instanceGroup.SetState(v1alpha1.ReconcileErr)
 			return errors.Wrap(err, "failed to validate strategy spec")
 		}
-		err := kubeprovider.ProcessCRDStrategy(ctx.KubernetesClient.KubeDynamic, instanceGroup)
+		ok, err := kubeprovider.ProcessCRDStrategy(ctx.KubernetesClient.KubeDynamic, instanceGroup)
 		if err != nil {
+			instanceGroup.SetState(v1alpha1.ReconcileErr)
 			return errors.Wrap(err, "failed to process CRD strategy")
+		}
+		if ok {
+			// processing CRD Strategy is done
+			break
 		}
 	default:
 		return errors.Errorf("'%v' is not an implemented upgrade type, will not process upgrade", strategy.GetType())
 	}
+
+	// update node conditions
+	instanceIds := make([]string, len(scalingGroup.Instances))
+	desiredCount := int(aws.Int64Value(scalingGroup.DesiredCapacity))
+	for _, instance := range scalingGroup.Instances {
+		instanceIds = append(instanceIds, aws.StringValue(instance.InstanceId))
+	}
+
+	var conditions []v1alpha1.InstanceGroupCondition
+	ok, err := kubeprovider.IsDesiredNodesReady(ctx.KubernetesClient.Kubernetes, instanceIds, desiredCount)
+	if ok {
+		conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionTrue))
+	} else {
+		conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionTrue))
+	}
+	if err != nil {
+		log.Warnf("could not update instance group conditions: %v", err)
+	}
+	instanceGroup.SetState(v1alpha1.ReconcileModified)
 	return nil
 }
 

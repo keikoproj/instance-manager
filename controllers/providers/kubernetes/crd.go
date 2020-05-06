@@ -44,7 +44,7 @@ func init() {
 	})
 }
 
-func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGroup) error {
+func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGroup) (bool, error) {
 
 	var (
 		status   = instanceGroup.GetStatus()
@@ -61,51 +61,49 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 
 	templatedCustomResource, err := common.RenderCustomResource(strategy.GetSpec(), renderParams)
 	if err != nil {
-		return errors.Wrap(err, "failed to render custom resource templating")
+		return false, errors.Wrap(err, "failed to render custom resource templating")
 	}
 
 	customResource, err := common.ParseCustomResourceYaml(templatedCustomResource)
 	if err != nil {
-		return errors.Wrap(err, "failed to parse custom resource yaml")
+		return false, errors.Wrap(err, "failed to parse custom resource yaml")
 
 	}
 	AddAnnotation(customResource, OwnershipAnnotationKey, OwnershipAnnotationValue)
 	AddAnnotation(customResource, ScopeAnnotationKey, asgName)
 	GVR := GetGVR(customResource, strategy.GetCRDName())
 
-	s := strings.Split(lcName, "-")
-	rotationId := s[len(s)-1]
-	NormalizeName(customResource, rotationId)
+	NormalizeName(customResource, common.GetLastElementBy(lcName, "-"))
 	status.SetStrategyResourceName(customResource.GetName())
 
 	activeResources, err := GetActiveResources(kube, instanceGroup, customResource)
 	if err != nil {
-		return errors.Wrap(err, "failed to discover active custom resources")
+		return false, errors.Wrap(err, "failed to discover active custom resources")
 	}
 
 	crdFullName := strings.Join([]string{GVR.Resource, GVR.Group}, ".")
 
 	if !common.CRDExists(kube, crdFullName) {
-		return errors.Errorf("custom resource definition '%v' is missing, could not upgrade", crdFullName)
+		return false, errors.Errorf("custom resource definition '%v' is missing, could not upgrade", crdFullName)
 	}
 
 	if len(activeResources) > 0 && strings.ToLower(strategy.GetConcurrencyPolicy()) == "forbid" {
 		log.Infoln("custom resource/s still active, will requeue")
 		instanceGroup.SetState(v1alpha1.ReconcileModifying)
-		return nil
+		return false, nil
 	}
 
 	log.Infoln("submitting custom resource")
 	err = SubmitCustomResource(kube, customResource, strategy.GetCRDName())
 	if err != nil {
-		return errors.Wrap(err, "failed to submit custom resource")
+		return false, errors.Wrap(err, "failed to submit custom resource")
 	}
 
 	customResource, err = kube.Resource(GVR).Namespace(customResource.GetNamespace()).Get(customResource.GetName(), metav1.GetOptions{})
 	if kerr.IsNotFound(err) {
 		log.Infoln("custom resource did not propagate yet")
 		instanceGroup.SetState(v1alpha1.ReconcileModifying)
-		return nil
+		return false, nil
 	}
 
 	log.Infof("waiting for custom resource %v/%v success status", customResource.GetNamespace(), customResource.GetName())
@@ -113,22 +111,20 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 
 	resourceStatus, err := GetUnstructuredPath(customResource, strategy.GetStatusJSONPath())
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	log.Infof("rollup status: %v", resourceStatus)
 	switch strings.ToLower(resourceStatus) {
 	case strings.ToLower(strategy.GetStatusSuccessString()):
 		log.Infof("custom resource %v/%v completed successfully", customResource.GetNamespace(), customResource.GetName())
-		instanceGroup.SetState(v1alpha1.ReconcileModified)
+		return true, nil
 	case strings.ToLower(strategy.GetStatusFailureString()):
-		instanceGroup.SetState(v1alpha1.ReconcileErr)
-		return errors.Errorf("custom resource failed to converge, %v status is %v", strategy.GetStatusJSONPath(), resourceStatus)
+		return false, errors.Errorf("custom resource failed to converge, %v status is %v", strategy.GetStatusJSONPath(), resourceStatus)
 	default:
 		log.Infof("custom resource %v/%v still converging", customResource.GetNamespace(), customResource.GetName())
-		instanceGroup.SetState(v1alpha1.ReconcileModifying)
+		return false, nil
 	}
-	return nil
 }
 
 func NormalizeName(customResource *unstructured.Unstructured, id string) {
