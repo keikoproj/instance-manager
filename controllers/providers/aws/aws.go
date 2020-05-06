@@ -169,7 +169,7 @@ func (w *AwsWorker) NewTag(key, val, resource string) *autoscaling.Tag {
 	}
 }
 
-func (w *AwsWorker) WithWaiter(f func() bool) error {
+func (w *AwsWorker) WithRetries(f func() bool) error {
 	var counter int
 	for {
 		if counter >= DefaultWaiterRetries {
@@ -195,22 +195,7 @@ func (w *AwsWorker) DeleteScalingGroupRole(name string, managedPolicies []string
 		}
 	}
 
-	// must wait until all policies are detached
-	err := w.WithWaiter(func() bool {
-		policies, _ := w.IamClient.ListRolePolicies(&iam.ListRolePoliciesInput{
-			RoleName: aws.String(name),
-		})
-		log.Info(policies)
-		if len(policies.PolicyNames) == 0 {
-			return true
-		}
-		return false
-	})
-	if err != nil {
-		return errors.Wrap(err, "policy detachment")
-	}
-
-	_, err = w.IamClient.RemoveRoleFromInstanceProfile(&iam.RemoveRoleFromInstanceProfileInput{
+	_, err := w.IamClient.RemoveRoleFromInstanceProfile(&iam.RemoveRoleFromInstanceProfileInput{
 		InstanceProfileName: aws.String(name),
 		RoleName:            aws.String(name),
 	})
@@ -233,15 +218,23 @@ func (w *AwsWorker) DeleteScalingGroupRole(name string, managedPolicies []string
 		}
 	}
 
-	_, err = w.IamClient.DeleteRole(&iam.DeleteRoleInput{
-		RoleName: aws.String(name),
-	})
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() != iam.ErrCodeNoSuchEntityException {
-				return err
+	// must wait until all policies are detached
+	err = w.WithRetries(func() bool {
+		_, err := w.IamClient.DeleteRole(&iam.DeleteRoleInput{
+			RoleName: aws.String(name),
+		})
+		if err != nil {
+			if aerr, ok := err.(awserr.Error); ok {
+				if aerr.Code() != iam.ErrCodeNoSuchEntityException {
+					log.Warn(err)
+					return false
+				}
 			}
 		}
+		return true
+	})
+	if err != nil {
+		return errors.Wrap(err, "role deletion failed")
 	}
 
 	return nil
