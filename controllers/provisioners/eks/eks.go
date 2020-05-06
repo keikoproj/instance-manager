@@ -32,7 +32,6 @@ import (
 
 const (
 	ProvisionerName = "eks"
-	IAMPolicyPrefix = "arn:aws:iam::aws:policy"
 	RoleLabelFmt    = "node.kubernetes.io/role=%s,node-role.kubernetes.io/%s=\"\""
 )
 
@@ -152,7 +151,6 @@ func (ctx *EksInstanceGroupContext) Delete() error {
 		return errors.Wrap(err, "failed to remove ARN from aws-auth")
 	}
 
-	instanceGroup.SetState(v1alpha1.ReconcileDeleted)
 	return nil
 }
 
