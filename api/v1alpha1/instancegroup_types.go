@@ -194,17 +194,19 @@ type EKSCFSpec struct {
 }
 
 type EKSConfiguration struct {
-	EksClusterName              string              `json:"clusterName,omitempty"`
-	KeyPairName                 string              `json:"keyPairName,omitempty"`
-	Image                       string              `json:"image,omitempty"`
-	InstanceType                string              `json:"instanceType,omitempty"`
+	EksClusterName              string              `json:"clusterName"`
+	KeyPairName                 string              `json:"keyPairName"`
+	Image                       string              `json:"image"`
+	InstanceType                string              `json:"instanceType"`
 	NodeSecurityGroups          []string            `json:"securityGroups,omitempty"`
 	VolSize                     int64               `json:"volSize,omitempty"`
 	Volumes                     []NodeVolume        `json:"volumes,omitempty"`
-	Subnets                     []string            `json:"subnets,omitempty"`
+	Subnets                     []string            `json:"subnets"`
 	BootstrapArguments          string              `json:"bootstrapArguments,omitempty"`
 	SpotPrice                   string              `json:"spotPrice,omitempty"`
 	Tags                        []map[string]string `json:"tags,omitempty"`
+	Labels                      map[string]string   `json:"labels,labels,omitempty"`
+	Taints                      []corev1.Taint      `json:"taints,taints,omitempty"`
 	ExistingRoleName            string              `json:"roleName,omitempty"`
 	ExistingInstanceProfileName string              `json:"instanceProfileName,omitempty"`
 	ManagedPolicies             []string            `json:"managedPolicies,omitempty"`
@@ -308,6 +310,18 @@ func (c *EKSConfiguration) GetClusterName() string {
 }
 func (c *EKSConfiguration) SetClusterName(name string) {
 	c.EksClusterName = name
+}
+func (c *EKSConfiguration) GetLabels() map[string]string {
+	return c.Labels
+}
+func (c *EKSConfiguration) SetLabels(labels map[string]string) {
+	c.Labels = labels
+}
+func (c *EKSConfiguration) GetTaints() []corev1.Taint {
+	return c.Taints
+}
+func (c *EKSConfiguration) SetTaints(taints []corev1.Taint) {
+	c.Taints = taints
 }
 func (c *EKSConfiguration) GetManagedPolicies() []string {
 	return c.ManagedPolicies

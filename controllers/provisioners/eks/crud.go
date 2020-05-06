@@ -167,6 +167,8 @@ func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput() *autoscaling.C
 		instanceProfile = state.GetInstanceProfile()
 	)
 
+	// TODO: GetBlockDeviceList() ; GetTaintList(); GetLabelList()
+
 	// get custom volumes or use default volume
 	var devices []*autoscaling.BlockDeviceMapping
 	customVolumes := configuration.GetVolumes()
@@ -178,19 +180,37 @@ func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput() *autoscaling.C
 		devices = append(devices, ctx.AwsWorker.GetBasicBlockDevice("/dev/xvda", "gp2", configuration.GetVolumeSize()))
 	}
 
-	// get userdata with bootstrap arguments
-	var args string
-	bootstrapArgs := configuration.GetBootstrapArguments()
-	roleLabels := fmt.Sprintf(RoleLabelFmt, instanceGroup.GetName(), instanceGroup.GetName())
-	labelsFlag := fmt.Sprintf("--node-labels=%v", roleLabels)
-	args = fmt.Sprintf("--kubelet-extra-args '%v'", labelsFlag)
-
-	if bootstrapArgs != "" {
-		args = fmt.Sprintf("--kubelet-extra-args '%v %v'", labelsFlag, bootstrapArgs)
+	// get list of taints
+	taints := configuration.GetTaints()
+	taintList := make([]string, 0)
+	if len(taints) > 0 {
+		for _, t := range taints {
+			taintList = append(taintList, fmt.Sprintf("%v=%v:%v", t.Key, t.Value, t.Effect))
+		}
 	}
 
-	userData := ctx.AwsWorker.GetBasicUserData(clusterName, args)
+	// get custom labels
+	customLabels := configuration.GetLabels()
+	labelList := make([]string, 0)
+	if len(customLabels) > 0 {
+		for k, v := range customLabels {
+			labelList = append(labelList, fmt.Sprintf("%v=%v", k, v))
+		}
+	}
 
+	// add role label
+	for _, label := range RoleLabelsFmt {
+		labelList = append(labelList, fmt.Sprintf(label, instanceGroup.GetName()))
+	}
+
+	// update userdata with bootstrap arguments
+	var args string
+	bootstrapArgs := configuration.GetBootstrapArguments()
+
+	labelsFlag := fmt.Sprintf("--node-labels=%v", strings.Join(labelList, ","))
+	taintsFlag := fmt.Sprintf("--register-with-taints=%v", strings.Join(taintList, ","))
+	args = fmt.Sprintf("--kubelet-extra-args '%v %v %v'", labelsFlag, taintsFlag, bootstrapArgs)
+	userData := ctx.AwsWorker.GetBasicUserData(clusterName, args)
 	name := fmt.Sprintf("%v-%v-%v-%v", clusterName, instanceGroup.GetNamespace(), instanceGroup.GetName(), common.GetTimeString())
 
 	lcInput.LaunchConfigurationName = aws.String(name)

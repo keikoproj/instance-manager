@@ -32,7 +32,6 @@ import (
 
 const (
 	ProvisionerName = "eks"
-	RoleLabelFmt    = "node.kubernetes.io/role=%s,node-role.kubernetes.io/%s=\"\""
 )
 
 var (
@@ -43,6 +42,7 @@ var (
 	TagKubernetesCluster      = "KubernetesCluster"
 	TagClusterOwned           = "owned"
 	TagName                   = "Name"
+	RoleLabelsFmt             = []string{"node.kubernetes.io/role=%s", "node-role.kubernetes.io/%s=\"\""}
 	DefaultManagedPolicies    = []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}
 )
 
