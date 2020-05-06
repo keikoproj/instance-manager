@@ -261,7 +261,7 @@ func (ctx *EksInstanceGroupContext) discoverSpotPrice() error {
 	if reflect.DeepEqual(recommendation, kubeprovider.SpotRecommendation{}) {
 		// if it was not using a recommendation before and spec has a spot price it means it was manually configured
 		if !status.GetUsingSpotRecommendation() && configuration.GetSpotPrice() != "" {
-			log.Warnf("using manually configured spot price", configuration.GetSpotPrice())
+			log.Warnf("using manually configured spot price %v", configuration.GetSpotPrice())
 		} else {
 			// if recommendation was used, set flag to false
 			status.SetUsingSpotRecommendation(false)
