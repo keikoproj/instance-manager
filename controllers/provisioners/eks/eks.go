@@ -30,6 +30,7 @@ import (
 )
 
 const (
+	ProvisionerName = "eks"
 	IAMPolicyPrefix = "arn:aws:iam::aws:policy"
 	RoleLabelFmt    = "node.kubernetes.io/role=%s"
 )
@@ -208,13 +209,12 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 	)
 
 	switch strings.ToLower(strategy.GetType()) {
-	case "crd":
+	case kubeprovider.CRDStrategyName:
 		crdStrategy := strategy.GetCRDType()
 		if err := crdStrategy.Validate(); err != nil {
 			instanceGroup.SetState(v1alpha1.ReconcileErr)
 			return errors.Wrap(err, "failed to validate strategy spec")
 		}
-
 		err := kubeprovider.ProcessCRDStrategy(ctx.KubernetesClient.KubeDynamic, instanceGroup)
 		if err != nil {
 			return errors.Wrap(err, "failed to process CRD strategy")

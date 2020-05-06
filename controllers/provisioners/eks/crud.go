@@ -299,9 +299,10 @@ func (ctx *EksInstanceGroupContext) DeleteManagedRole() error {
 		roleName           = aws.StringValue(role.RoleName)
 	)
 
-	if !state.HasRole() || !configuration.HasExistingRole() {
+	if !state.HasRole() || configuration.HasExistingRole() {
 		return nil
 	}
+
 	log.Infof("deleting managed role %s", roleName)
 
 	managedPolicies := make([]string, 0)

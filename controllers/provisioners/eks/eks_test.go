@@ -15,141 +15,100 @@ limitations under the License.
 
 package eks
 
-// type EksManagedUnitTest struct {
-// 	Description   string
-// 	Provisioner   *EksManagedInstanceGroupContext
-// 	InstanceGroup *v1alpha1.InstanceGroup
-// 	GroupExist    bool
-// 	NodeGroup     *eks.Nodegroup
-// 	UpdateNeeded  bool
-// 	VpcID         string
-// 	ExpectedState v1alpha1.ReconcileState
-// }
+import (
+	"flag"
+	"time"
 
-// type FakeIG struct {
-// 	Name         string
-// 	Namespace    string
-// 	ClusterName  string
-// 	CurrentState string
-// 	IsDeleting   bool
-// }
+	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-// type stubEKS struct {
-// 	eksiface.EKSAPI
-// 	NodeGroup       *eks.Nodegroup
-// 	NodeGroupExists bool
-// }
+	"github.com/aws/aws-sdk-go/service/autoscaling"
+	"github.com/keikoproj/instance-manager/api/v1alpha1"
+)
 
-// func (s *stubEKS) DescribeNodegroup(input *eks.DescribeNodegroupInput) (*eks.DescribeNodegroupOutput, error) {
-// 	output := &eks.DescribeNodegroupOutput{
-// 		Nodegroup: s.NodeGroup,
-// 	}
-// 	if !s.NodeGroupExists {
-// 		return output, awserr.New(eks.ErrCodeResourceNotFoundException, "not found", errors.New("notFound"))
-// 	}
-// 	return output, nil
-// }
+type EksUnitTest struct {
+	Description         string
+	Provisioner         *EksInstanceGroupContext
+	InstanceGroup       *v1alpha1.InstanceGroup
+	GroupExist          bool
+	ScalingGroup        *autoscaling.Group
+	LaunchConfiguration *autoscaling.LaunchConfiguration
+	ExpectedState       v1alpha1.ReconcileState
+}
 
-// func (s *stubEKS) CreateNodegroup(input *eks.CreateNodegroupInput) (*eks.CreateNodegroupOutput, error) {
-// 	output := &eks.CreateNodegroupOutput{}
-// 	return output, nil
-// }
+type FakeIG struct {
+	Name         string
+	Namespace    string
+	ClusterName  string
+	CurrentState string
+	IsDeleting   bool
+}
 
-// func (s *stubEKS) UpdateNodegroupConfig(input *eks.UpdateNodegroupConfigInput) (*eks.UpdateNodegroupConfigOutput, error) {
-// 	output := &eks.UpdateNodegroupConfigOutput{}
-// 	return output, nil
-// }
+var loggingEnabled bool
 
-// func (s *stubEKS) DeleteNodegroup(input *eks.DeleteNodegroupInput) (*eks.DeleteNodegroupOutput, error) {
-// 	output := &eks.DeleteNodegroupOutput{}
-// 	return output, nil
-// }
+func init() {
+	flag.BoolVar(&loggingEnabled, "logging-enabled", false, "Enable Logging")
+}
 
-// var loggingEnabled bool
+func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
+	var deletionTimestamp metav1.Time
 
-// func init() {
-// 	flag.BoolVar(&loggingEnabled, "logging-enabled", false, "Enable Logging")
-// }
+	if f.Name == "" {
+		f.Name = "instancegroup-1"
+	}
+	if f.Namespace == "" {
+		f.Namespace = "namespace-1"
+	}
+	if f.ClusterName == "" {
+		f.ClusterName = "EKS-Test"
+	}
+	if f.CurrentState == "" {
+		f.CurrentState = "Null"
+	}
+	if f.IsDeleting == true {
+		deletionTimestamp = metav1.Time{Time: time.Now()}
+	} else {
+		nilTime := time.Time{}
+		deletionTimestamp = metav1.Time{Time: nilTime}
+	}
 
-// func getNodeGroup(state string) *eks.Nodegroup {
-// 	return &eks.Nodegroup{
-// 		Status: aws.String(state),
-// 		Resources: &eks.NodegroupResources{
-// 			AutoScalingGroups: []*eks.AutoScalingGroup{
-// 				&eks.AutoScalingGroup{
-// 					Name: aws.String("some-asg"),
-// 				},
-// 			},
-// 		},
-// 		ScalingConfig: &eks.NodegroupScalingConfig{
-// 			MinSize: aws.Int64(3),
-// 			MaxSize: aws.Int64(6),
-// 		},
-// 	}
-// }
+	instanceGroup := &v1alpha1.InstanceGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              f.Name,
+			Namespace:         f.Namespace,
+			DeletionTimestamp: &deletionTimestamp,
+		},
+		Spec: v1alpha1.InstanceGroupSpec{
+			Provisioner: ProvisionerName,
+			EKSSpec: &v1alpha1.EKSSpec{
+				MaxSize: 3,
+				MinSize: 1,
+				EKSConfiguration: &v1alpha1.EKSConfiguration{
+					EksClusterName:     f.ClusterName,
+					VolSize:            20,
+					InstanceType:       "m3.medium",
+					KeyPairName:        "my-keypair",
+					NodeSecurityGroups: []string{"sg-122222", "sg-3333333"},
+					Subnets:            []string{"subnet-122222", "subnet-3333333"},
+					Tags: []map[string]string{
+						{
+							"key":   "a-key",
+							"value": "a-value",
+						},
+					},
+				},
+			},
+			AwsUpgradeStrategy: v1alpha1.AwsUpgradeStrategy{
+				Type: kubeprovider.CRDStrategyName,
+			},
+		},
+		Status: v1alpha1.InstanceGroupStatus{
+			CurrentState: f.CurrentState,
+		},
+	}
 
-// func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
-// 	var deletionTimestamp metav1.Time
-
-// 	if f.Name == "" {
-// 		f.Name = "instancegroup-1"
-// 	}
-// 	if f.Namespace == "" {
-// 		f.Namespace = "namespace-1"
-// 	}
-// 	if f.ClusterName == "" {
-// 		f.ClusterName = "EKS-Test"
-// 	}
-// 	if f.CurrentState == "" {
-// 		f.CurrentState = "Null"
-// 	}
-// 	if f.IsDeleting == true {
-// 		deletionTimestamp = metav1.Time{Time: time.Now()}
-// 	} else {
-// 		nilTime := time.Time{}
-// 		deletionTimestamp = metav1.Time{Time: nilTime}
-// 	}
-
-// 	instanceGroup := &v1alpha1.InstanceGroup{
-// 		ObjectMeta: metav1.ObjectMeta{
-// 			Name:              f.Name,
-// 			Namespace:         f.Namespace,
-// 			DeletionTimestamp: &deletionTimestamp,
-// 		},
-// 		Spec: v1alpha1.InstanceGroupSpec{
-// 			Provisioner: "eks-managed",
-// 			EKSManagedSpec: &v1alpha1.EKSManagedSpec{
-// 				MaxSize: 3,
-// 				MinSize: 1,
-// 				EKSManagedConfiguration: &v1alpha1.EKSManagedConfiguration{
-// 					EksClusterName:     f.ClusterName,
-// 					VolSize:            20,
-// 					InstanceType:       "m3.medium",
-// 					NodeRole:           "some-iam-role",
-// 					KeyPairName:        "my-keypair",
-// 					NodeSecurityGroups: []string{"sg-122222", "sg-3333333"},
-// 					NodeLabels:         map[string]string{"foo": "bar"},
-// 					AmiType:            "AL2_x86_64",
-// 					Subnets:            []string{"subnet-122222", "subnet-3333333"},
-// 					Tags: []map[string]string{
-// 						{
-// 							"key":   "a-key",
-// 							"value": "a-value",
-// 						},
-// 					},
-// 				},
-// 			},
-// 			AwsUpgradeStrategy: v1alpha1.AwsUpgradeStrategy{
-// 				Type: "managed",
-// 			},
-// 		},
-// 		Status: v1alpha1.InstanceGroupStatus{
-// 			CurrentState: f.CurrentState,
-// 		},
-// 	}
-
-// 	return instanceGroup
-// }
+	return instanceGroup
+}
 
 // func (u *EksManagedUnitTest) Run(t *testing.T) {
 

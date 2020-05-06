@@ -16,7 +16,12 @@ limitations under the License.
 package eks
 
 import (
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
+)
+
+const (
+	ScalingGroupDeletionStatus = "Delete in progress"
 )
 
 func (ctx *EksInstanceGroupContext) StateDiscovery() {
@@ -40,8 +45,8 @@ func (ctx *EksInstanceGroupContext) StateDiscovery() {
 			}
 		} else {
 			// resource is being deleted
-			if provisioned || state.GetLaunchConfiguration() != nil {
-				if group.Status != nil {
+			if provisioned {
+				if aws.StringValue(group.Status) == ScalingGroupDeletionStatus {
 					// scaling group is being deleted
 					instanceGroup.SetState(v1alpha1.ReconcileDeleting)
 				} else {

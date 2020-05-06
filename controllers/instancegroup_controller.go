@@ -27,6 +27,7 @@ import (
 	v1alpha "github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/keikoproj/instance-manager/controllers/providers/aws"
+	"github.com/keikoproj/instance-manager/controllers/provisioners/eks"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/ekscloudformation"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/eksmanaged"
 	log "github.com/sirupsen/logrus"
@@ -414,7 +415,7 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 			log.Infoln("reconcile completed with requeue")
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
-	case "eks":
+	case eks.ProvisionerName:
 		err := r.ReconcileEKS(ig, finalizerName)
 		if err != nil {
 			log.Errorln(err)

@@ -31,6 +31,7 @@ import (
 )
 
 const (
+	StrategyName             = "crd"
 	OwnershipAnnotationKey   = "app.kubernetes.io/managed-by"
 	ScopeAnnotationKey       = "instancemgr.keikoproj.io/upgrade-scope"
 	OwnershipAnnotationValue = "instance-manager"
