@@ -231,8 +231,10 @@ func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput() *autoscaling.C
 
 func (ctx *EksInstanceGroupContext) CreateLaunchConfiguration() error {
 	var (
-		lcInput = ctx.GetLaunchConfigurationInput()
-		state   = ctx.GetDiscoveredState()
+		lcInput       = ctx.GetLaunchConfigurationInput()
+		state         = ctx.GetDiscoveredState()
+		instanceGroup = ctx.GetInstanceGroup()
+		status        = instanceGroup.GetStatus()
 	)
 
 	lcName := aws.StringValue(lcInput.LaunchConfigurationName)
@@ -249,6 +251,7 @@ func (ctx *EksInstanceGroupContext) CreateLaunchConfiguration() error {
 	}
 
 	state.SetActiveLaunchConfigurationName(lcName)
+	status.SetActiveLaunchConfigurationName(lcName)
 	if len(lcOut.LaunchConfigurations) == 1 {
 		state.SetLaunchConfiguration(lcOut.LaunchConfigurations[0])
 	}
