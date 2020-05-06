@@ -256,7 +256,7 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() (bool, error) {
 		status        = instanceGroup.GetStatus()
 		scalingGroup  = state.GetScalingGroup()
 	)
-	log.Info("updating node readiness conditions")
+	log.Info("waiting for node readiness conditions")
 
 	instanceIds := make([]string, 0)
 	desiredCount := int(aws.Int64Value(scalingGroup.DesiredCapacity))
