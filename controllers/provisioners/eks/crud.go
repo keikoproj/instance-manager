@@ -18,6 +18,7 @@ package eks
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
@@ -188,6 +189,7 @@ func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput() *autoscaling.C
 			taintList = append(taintList, fmt.Sprintf("%v=%v:%v", t.Key, t.Value, t.Effect))
 		}
 	}
+	sort.Strings(taintList)
 
 	// get custom labels
 	customLabels := configuration.GetLabels()
@@ -197,6 +199,7 @@ func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput() *autoscaling.C
 			labelList = append(labelList, fmt.Sprintf("%v=%v", k, v))
 		}
 	}
+	sort.Strings(labelList)
 
 	// add role label
 	for _, label := range RoleLabelsFmt {
