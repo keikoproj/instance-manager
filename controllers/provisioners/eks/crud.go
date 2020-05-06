@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strings"
 
+	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -231,15 +232,15 @@ func (ctx *EksInstanceGroupContext) CreateManagedRole() error {
 	log.Infof("updating managed role %s", roleName)
 	managedPolicies := make([]string, 0)
 	for _, name := range additionalPolicies {
-		if strings.HasPrefix(name, IAMPolicyPrefix) {
+		if strings.HasPrefix(name, awsprovider.IAMPolicyPrefix) {
 			managedPolicies = append(managedPolicies, name)
 		} else {
-			managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", IAMPolicyPrefix, name))
+			managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, name))
 		}
 	}
 
 	for _, name := range DefaultManagedPolicies {
-		managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", IAMPolicyPrefix, name))
+		managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, name))
 	}
 
 	role, profile, err := ctx.AwsWorker.CreateUpdateScalingGroupRole(roleName, managedPolicies)
@@ -306,11 +307,15 @@ func (ctx *EksInstanceGroupContext) DeleteManagedRole() error {
 
 	managedPolicies := make([]string, 0)
 	for _, name := range additionalPolicies {
-		if strings.HasPrefix(name, IAMPolicyPrefix) {
+		if strings.HasPrefix(name, awsprovider.IAMPolicyPrefix) {
 			managedPolicies = append(managedPolicies, name)
 		} else {
-			managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", IAMPolicyPrefix, name))
+			managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, name))
 		}
+	}
+
+	for _, name := range DefaultManagedPolicies {
+		managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, name))
 	}
 
 	err := ctx.AwsWorker.DeleteScalingGroupRole(roleName, managedPolicies)

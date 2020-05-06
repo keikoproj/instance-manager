@@ -55,6 +55,10 @@ var (
 	DefaultWaiterRetries                   = 12
 )
 
+const (
+	IAMPolicyPrefix = "arn:aws:iam::aws:policy"
+)
+
 func DefaultUserDataFmt() string {
 	return `#!/bin/bash
 set -o xtrace
