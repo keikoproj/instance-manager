@@ -60,3 +60,11 @@ func (ctx *EksInstanceGroupContext) StateDiscovery() {
 		}
 	}
 }
+
+func (ctx *EksInstanceGroupContext) IsReady() bool {
+	instanceGroup := ctx.GetInstanceGroup()
+	if instanceGroup.GetState() == v1alpha1.ReconcileModified {
+		return true
+	}
+	return false
+}

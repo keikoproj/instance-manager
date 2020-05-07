@@ -16,19 +16,11 @@ limitations under the License.
 package eks
 
 import (
-	"strings"
-
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
-	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
-	yaml "gopkg.in/yaml.v2"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 const (
@@ -66,288 +58,43 @@ func New(instanceGroup *v1alpha1.InstanceGroup, k common.KubernetesClientSet, w 
 	return ctx
 }
 
-func (ctx *EksInstanceGroupContext) Update() error {
-	var (
-		instanceGroup  = ctx.GetInstanceGroup()
-		state          = ctx.GetDiscoveredState()
-		oldConfigName  string
-		rotationNeeded bool
-	)
-
-	instanceGroup.SetState(v1alpha1.ReconcileModifying)
-
-	// make sure our managed role exists if instance group has not provided one
-	err := ctx.CreateManagedRole()
-	if err != nil {
-		return errors.Wrap(err, "failed to update scaling group role")
-	}
-
-	// create new launchconfig if it has drifted
-	log.Info("checking for launch configuration drift")
-	if ctx.LaunchConfigurationDrifted() {
-		rotationNeeded = true
-		oldConfigName = state.GetActiveLaunchConfigurationName()
-		err := ctx.CreateLaunchConfiguration()
-		if err != nil {
-			return errors.Wrap(err, "failed to create launch configuration")
-		}
-		defer ctx.AwsWorker.DeleteLaunchConfig(oldConfigName)
-	}
-
-	if ctx.RotationNeeded() {
-		rotationNeeded = true
-	}
-
-	// update scaling group
-	err = ctx.UpdateScalingGroup()
-	if err != nil {
-		return errors.Wrap(err, "failed to update scaling group")
-	}
-
-	// update readiness conditions
-	ok, err := ctx.UpdateNodeReadyCondition()
-	if err != nil {
-		log.Warnf("could not update instance group conditions: %v", err)
-	}
-	if ok {
-		instanceGroup.SetState(v1alpha1.ReconcileModified)
-	}
-
-	if rotationNeeded {
-		instanceGroup.SetState(v1alpha1.ReconcileInitUpgrade)
-	}
-
-	return nil
+type EksDefaultConfiguration struct {
+	DefaultSubnets []string `yaml:"defaultSubnets,omitempty"`
+	EksClusterName string   `yaml:"defaultClusterName,omitempty"`
 }
 
-func (ctx *EksInstanceGroupContext) Delete() error {
-	var (
-		instanceGroup = ctx.GetInstanceGroup()
-		state         = ctx.GetDiscoveredState()
-		role          = state.GetRole()
-		roleARN       = aws.StringValue(role.Arn)
-	)
-
-	instanceGroup.SetState(v1alpha1.ReconcileDeleting)
-	// delete scaling group
-	err := ctx.DeleteScalingGroup()
-	if err != nil {
-		return errors.Wrap(err, "failed to delete scaling group")
-	}
-
-	// delete launchconfig
-	err = ctx.DeleteLaunchConfiguration()
-	if err != nil {
-		return errors.Wrap(err, "failed to delete launch configuration")
-	}
-
-	// delete the managed IAM role if one was created
-	err = ctx.DeleteManagedRole()
-	if err != nil {
-		return errors.Wrap(err, "failed to delete scaling group role")
-	}
-
-	// remove IAM role from aws-auth configmap
-	err = common.RemoveAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{roleARN})
-	if err != nil {
-		return errors.Wrap(err, "failed to remove ARN from aws-auth")
-	}
-
-	return nil
+type EksInstanceGroupContext struct {
+	InstanceGroup    *v1alpha1.InstanceGroup
+	KubernetesClient common.KubernetesClientSet
+	AwsWorker        awsprovider.AwsWorker
+	DiscoveredState  *DiscoveredState
+	ControllerRegion string
 }
 
-func (ctx *EksInstanceGroupContext) Create() error {
-	var (
-		instanceGroup = ctx.GetInstanceGroup()
-		state         = ctx.GetDiscoveredState()
-	)
-
-	instanceGroup.SetState(v1alpha1.ReconcileModifying)
-
-	// no need to create a role if one is already provided
-	err := ctx.CreateManagedRole()
-	if err != nil {
-		return errors.Wrap(err, "failed to create scaling group role")
+func (ctx *EksInstanceGroupContext) GetInstanceGroup() *v1alpha1.InstanceGroup {
+	if ctx != nil {
+		return ctx.InstanceGroup
 	}
-
-	// create launchconfig
-	if !state.HasLaunchConfiguration() {
-		err := ctx.CreateLaunchConfiguration()
-		if err != nil {
-			return errors.Wrap(err, "failed to create launch configuration")
-		}
-	}
-
-	// create scaling group
-	err = ctx.CreateScalingGroup()
-	if err != nil {
-		return errors.Wrap(err, "failed to create scaling group")
-	}
-
-	instanceGroup.SetState(v1alpha1.ReconcileModified)
-	return nil
+	return &v1alpha1.InstanceGroup{}
 }
-
-func (ctx *EksInstanceGroupContext) IsReady() bool {
-	instanceGroup := ctx.GetInstanceGroup()
-	if instanceGroup.GetState() == v1alpha1.ReconcileModified {
-		return true
+func (ctx *EksInstanceGroupContext) GetUpgradeStrategy() *v1alpha1.AwsUpgradeStrategy {
+	if &ctx.InstanceGroup.Spec.AwsUpgradeStrategy != nil {
+		return &ctx.InstanceGroup.Spec.AwsUpgradeStrategy
 	}
-	return false
+	return &v1alpha1.AwsUpgradeStrategy{}
 }
-
-func (ctx *EksInstanceGroupContext) BootstrapNodes() error {
-	var (
-		state   = ctx.GetDiscoveredState()
-		role    = state.GetRole()
-		roleARN = aws.StringValue(role.Arn)
-	)
-
-	err := common.UpsertAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{roleARN})
-	if err != nil {
-		return err
-	}
-	return nil
+func (ctx *EksInstanceGroupContext) GetState() v1alpha1.ReconcileState {
+	return ctx.InstanceGroup.GetState()
 }
-
-func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
-	var (
-		instanceGroup = ctx.GetInstanceGroup()
-		strategy      = ctx.GetUpgradeStrategy()
-	)
-
-	// process the upgrade strategy
-	switch strings.ToLower(strategy.GetType()) {
-	case kubeprovider.CRDStrategyName:
-		crdStrategy := strategy.GetCRDType()
-		if err := crdStrategy.Validate(); err != nil {
-			instanceGroup.SetState(v1alpha1.ReconcileErr)
-			return errors.Wrap(err, "failed to validate strategy spec")
-		}
-		ok, err := kubeprovider.ProcessCRDStrategy(ctx.KubernetesClient.KubeDynamic, instanceGroup)
-		if err != nil {
-			instanceGroup.SetState(v1alpha1.ReconcileErr)
-			return errors.Wrap(err, "failed to process CRD strategy")
-		}
-		if ok {
-			break
-		}
-		return nil
-	case kubeprovider.RollingUpdateStrategyName:
-		req := ctx.NewRollingUpdateRequest()
-		ok, err := kubeprovider.ProcessRollingUpgradeStrategy(req)
-		if err != nil {
-			instanceGroup.SetState(v1alpha1.ReconcileErr)
-			return errors.Wrap(err, "failed to process CRD strategy")
-		}
-		if ok {
-			break
-		}
-		return nil
-	default:
-		return errors.Errorf("'%v' is not an implemented upgrade type, will not process upgrade", strategy.GetType())
-	}
-
-	ok, err := ctx.UpdateNodeReadyCondition()
-	if err != nil {
-		log.Warnf("could not update instance group conditions: %v", err)
-	}
-	if ok {
-		instanceGroup.SetState(v1alpha1.ReconcileModified)
-	}
-	return nil
+func (ctx *EksInstanceGroupContext) SetState(state v1alpha1.ReconcileState) {
+	ctx.InstanceGroup.SetState(state)
 }
-
-func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *kubeprovider.RollingUpdateRequest {
-	var (
-		needsUpdate        []string
-		allInstances       []string
-		instanceGroup      = ctx.GetInstanceGroup()
-		scalingGroup       = ctx.GetDiscoveredState().GetScalingGroup()
-		activeLaunchConfig = aws.StringValue(scalingGroup.LaunchConfigurationName)
-		desiredCount       = int(aws.Int64Value(scalingGroup.DesiredCapacity))
-		strategy           = instanceGroup.GetUpgradeStrategy().GetRollingUpdateType()
-		maxUnavailable     = strategy.GetMaxUnavailable()
-	)
-
-	// Get all Autoscaling Instances that needs update
-	for _, instance := range scalingGroup.Instances {
-		allInstances = append(allInstances, aws.StringValue(instance.InstanceId))
-		if aws.StringValue(instance.LaunchConfigurationName) != activeLaunchConfig {
-			needsUpdate = append(needsUpdate, aws.StringValue(instance.InstanceId))
-		}
+func (ctx *EksInstanceGroupContext) GetDiscoveredState() *DiscoveredState {
+	if ctx.DiscoveredState == nil {
+		ctx.DiscoveredState = &DiscoveredState{}
 	}
-	allCount := len(allInstances)
-
-	var unavailableInt int
-	if maxUnavailable.Type == intstr.String {
-		unavailableInt, _ = intstr.GetValueFromIntOrPercent(maxUnavailable, allCount, true)
-		if unavailableInt == 0 {
-			unavailableInt = 1
-		}
-	} else {
-		unavailableInt = maxUnavailable.IntValue()
-	}
-
-	return &kubeprovider.RollingUpdateRequest{
-		AwsWorker:       ctx.AwsWorker,
-		Kubernetes:      ctx.KubernetesClient.Kubernetes,
-		MaxUnavailable:  unavailableInt,
-		DesiredCapacity: desiredCount,
-		AllInstances:    allInstances,
-		UpdateTargets:   needsUpdate,
-	}
+	return ctx.DiscoveredState
 }
-
-func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() (bool, error) {
-	var (
-		state         = ctx.GetDiscoveredState()
-		instanceGroup = ctx.GetInstanceGroup()
-		status        = instanceGroup.GetStatus()
-		scalingGroup  = state.GetScalingGroup()
-	)
-	log.Info("waiting for node readiness conditions")
-
-	instanceIds := make([]string, 0)
-	desiredCount := int(aws.Int64Value(scalingGroup.DesiredCapacity))
-	for _, instance := range scalingGroup.Instances {
-		instanceIds = append(instanceIds, aws.StringValue(instance.InstanceId))
-	}
-
-	var conditions []v1alpha1.InstanceGroupCondition
-	ok, err := kubeprovider.IsDesiredNodesReady(ctx.KubernetesClient.Kubernetes, instanceIds, desiredCount)
-	if err != nil {
-		return false, err
-	}
-
-	if ok {
-		conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionTrue))
-		status.SetConditions(conditions)
-		return true, nil
-	}
-	conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionFalse))
-	status.SetConditions(conditions)
-	return false, nil
-}
-
-func LoadControllerConfiguration(instanceGroup *v1alpha1.InstanceGroup, controllerConfig []byte) (EksDefaultConfiguration, error) {
-	var (
-		defaultConfig EksDefaultConfiguration
-		configuration = instanceGroup.GetEKSConfiguration()
-	)
-
-	err := yaml.Unmarshal(controllerConfig, &defaultConfig)
-	if err != nil {
-		return defaultConfig, err
-	}
-
-	if len(defaultConfig.DefaultSubnets) != 0 {
-		configuration.SetSubnets(defaultConfig.DefaultSubnets)
-	}
-
-	if defaultConfig.EksClusterName != "" {
-		configuration.SetClusterName(defaultConfig.EksClusterName)
-	}
-
-	return defaultConfig, nil
+func (ctx *EksInstanceGroupContext) SetDiscoveredState(state *DiscoveredState) {
+	ctx.DiscoveredState = state
 }
