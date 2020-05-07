@@ -18,8 +18,6 @@ package kubernetes
 import (
 	"strings"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/keikoproj/instance-manager/controllers/common"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,33 +27,56 @@ import (
 )
 
 func IsDesiredNodesReady(kube kubernetes.Interface, instanceIds []string, desiredCount int) (bool, error) {
-	readyDesiredInstances := make([]string, 0)
 	nodes, err := kube.CoreV1().Nodes().List(metav1.ListOptions{})
 	if err != nil {
 		return false, err
 	}
 
-	// if count of instances in scaling group does not match desired, need to requeue
 	if len(instanceIds) != desiredCount {
 		return false, nil
 	}
 
-	for _, id := range instanceIds {
-		for _, node := range nodes.Items {
-			if IsNodeReady(node) && common.GetLastElementBy(node.Spec.ProviderID, "/") == id {
-				readyDesiredInstances = append(readyDesiredInstances, id)
-			}
-
-		}
-	}
+	readyInstances := GetReadyNodesByInstance(instanceIds, nodes)
 
 	// if discovered nodes match provided instance ids, condition is ready
-	if common.StringSliceEquals(readyDesiredInstances, instanceIds) {
-		log.Infof("desired instances %s are ready", strings.Join(readyDesiredInstances, ","))
+	if common.StringSliceEquals(readyInstances, instanceIds) {
 		return true, nil
 	}
 
 	return false, nil
+}
+
+func IsMinNodesReady(kube kubernetes.Interface, instanceIds []string, minCount int) (bool, error) {
+	nodes, err := kube.CoreV1().Nodes().List(metav1.ListOptions{})
+	if err != nil {
+		return false, err
+	}
+
+	// if count of instances in scaling group is not over min, requeue
+	if len(instanceIds) <= minCount {
+		return false, nil
+	}
+
+	readyInstances := GetReadyNodesByInstance(instanceIds, nodes)
+
+	// if discovered nodes match provided instance ids, condition is ready
+	if common.StringSliceEquals(readyInstances, instanceIds) {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func GetReadyNodesByInstance(instanceIds []string, nodes *corev1.NodeList) []string {
+	readyInstances := make([]string, 0)
+	for _, id := range instanceIds {
+		for _, node := range nodes.Items {
+			if IsNodeReady(node) && common.GetLastElementBy(node.Spec.ProviderID, "/") == id {
+				readyInstances = append(readyInstances, id)
+			}
+		}
+	}
+	return readyInstances
 }
 
 func IsNodeReady(n corev1.Node) bool {

@@ -67,6 +67,15 @@ func StringSliceEquals(x, y []string) bool {
 	return reflect.DeepEqual(x, y)
 }
 
+func StringSliceContains(x, y []string) bool {
+	for _, s := range x {
+		if !ContainsString(y, s) {
+			return false
+		}
+	}
+	return true
+}
+
 func GetLastElementBy(s, sep string) string {
 	sp := strings.Split(s, sep)
 	return sp[len(sp)-1]

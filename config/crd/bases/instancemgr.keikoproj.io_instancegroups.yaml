@@ -303,7 +303,14 @@ spec:
                 rollingUpdate:
                   properties:
                     maxBatchSize:
+                      description: EKSCF Only
                       type: integer
+                    maxUnavailable:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      description: EKS provisioner
+                      x-kubernetes-int-or-string: true
                     minInstancesInService:
                       type: integer
                     minSuccessfulInstancesPercent:

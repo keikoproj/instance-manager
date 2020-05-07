@@ -196,6 +196,19 @@ func (w *AwsWorker) WithRetries(f func() bool) error {
 	return errors.New("waiter timed out")
 }
 
+func (w *AwsWorker) TerminateScalingInstances(instanceIds []string) error {
+	for _, instance := range instanceIds {
+		_, err := w.AsgClient.TerminateInstanceInAutoScalingGroup(&autoscaling.TerminateInstanceInAutoScalingGroupInput{
+			InstanceId:                     aws.String(instance),
+			ShouldDecrementDesiredCapacity: aws.Bool(false),
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (w *AwsWorker) DeleteScalingGroupRole(name string, managedPolicies []string) error {
 	for _, policy := range managedPolicies {
 		_, err := w.IamClient.DetachRolePolicy(&iam.DetachRolePolicyInput{

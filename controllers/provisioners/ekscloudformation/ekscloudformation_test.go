@@ -460,7 +460,7 @@ func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 					StatusSuccessString: f.UpgradeStrategyCRDStatusSuccess,
 					StatusFailureString: f.UpgradeStrategyCRDStatusFail,
 				},
-				RollingUpgradeType: &v1alpha1.RollingUpgradeStrategy{},
+				RollingUpdateType: &v1alpha1.RollingUpdateStrategy{},
 			},
 		},
 		Status: v1alpha1.InstanceGroupStatus{

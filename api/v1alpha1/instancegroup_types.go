@@ -24,6 +24,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 type ReconcileState string
@@ -89,12 +90,15 @@ type InstanceGroupList struct {
 
 // AwsUpgradeStrategy defines the upgrade strategy of an AWS Instance Group
 type AwsUpgradeStrategy struct {
-	Type               string                  `json:"type"`
-	CRDType            *CRDUpgradeStrategy     `json:"crd,omitempty"`
-	RollingUpgradeType *RollingUpgradeStrategy `json:"rollingUpdate,omitempty"`
+	Type              string                 `json:"type"`
+	CRDType           *CRDUpgradeStrategy    `json:"crd,omitempty"`
+	RollingUpdateType *RollingUpdateStrategy `json:"rollingUpdate,omitempty"`
 }
 
-type RollingUpgradeStrategy struct {
+type RollingUpdateStrategy struct {
+	// EKS provisioner
+	MaxUnavailable *intstr.IntOrString `json:"maxUnavailable,omitempty"`
+	// EKSCF Only
 	MaxBatchSize                  int      `json:"maxBatchSize,omitempty"`
 	MinInstancesInService         int      `json:"minInstancesInService,omitempty"`
 	MinSuccessfulInstancesPercent int      `json:"minSuccessfulInstancesPercent,omitempty"`
@@ -103,54 +107,62 @@ type RollingUpgradeStrategy struct {
 	WaitOnResourceSignals         bool     `json:"waitOnResourceSignals,omitempty"`
 }
 
-func (s *RollingUpgradeStrategy) GetMaxBatchSize() int {
+func (s *RollingUpdateStrategy) GetMaxUnavailable() *intstr.IntOrString {
+	return s.MaxUnavailable
+}
+
+func (s *RollingUpdateStrategy) SetMaxUnavailable(value *intstr.IntOrString) {
+	s.MaxUnavailable = value
+}
+
+func (s *RollingUpdateStrategy) GetMaxBatchSize() int {
 	return s.MaxBatchSize
 }
 
-func (s *RollingUpgradeStrategy) SetMaxBatchSize(value int) {
+func (s *RollingUpdateStrategy) SetMaxBatchSize(value int) {
 	s.MaxBatchSize = value
 }
 
-func (s *RollingUpgradeStrategy) GetMinInstancesInService() int {
+func (s *RollingUpdateStrategy) GetMinInstancesInService() int {
 	return s.MinInstancesInService
 }
 
-func (s *RollingUpgradeStrategy) SetMinInstancesInService(value int) {
+func (s *RollingUpdateStrategy) SetMinInstancesInService(value int) {
 	s.MinInstancesInService = value
 }
 
-func (s *RollingUpgradeStrategy) GetMinSuccessfulInstancesPercent() int {
+func (s *RollingUpdateStrategy) GetMinSuccessfulInstancesPercent() int {
 	return s.MinSuccessfulInstancesPercent
 }
 
-func (s *RollingUpgradeStrategy) SetMinSuccessfulInstancesPercent(value int) {
+func (s *RollingUpdateStrategy) SetMinSuccessfulInstancesPercent(value int) {
 	s.MinSuccessfulInstancesPercent = value
 }
 
-func (s *RollingUpgradeStrategy) GetPauseTime() string {
+func (s *RollingUpdateStrategy) GetPauseTime() string {
 	return s.PauseTime
 }
 
-func (s *RollingUpgradeStrategy) SetPauseTime(pauseTime string) {
+func (s *RollingUpdateStrategy) SetPauseTime(pauseTime string) {
 	s.PauseTime = pauseTime
 }
 
-func (s *RollingUpgradeStrategy) GetWaitOnResourceSignals() bool {
+func (s *RollingUpdateStrategy) GetWaitOnResourceSignals() bool {
 	return s.WaitOnResourceSignals
 }
 
-func (s *RollingUpgradeStrategy) SetWaitOnResourceSignals(wait bool) {
+func (s *RollingUpdateStrategy) SetWaitOnResourceSignals(wait bool) {
 	s.WaitOnResourceSignals = wait
 }
 
-func (s *RollingUpgradeStrategy) GetSuspendProcesses() []string {
+func (s *RollingUpdateStrategy) GetSuspendProcesses() []string {
 	if s.SuspendProcesses == nil {
 		s.SuspendProcesses = make([]string, 0)
 	}
 	return s.SuspendProcesses
 }
 
-func (s *RollingUpgradeStrategy) SetSuspendProcesses(processes []string) {
+func (s *RollingUpdateStrategy) SetSuspendProcesses(processes []string) {
 	if s.SuspendProcesses == nil {
 		s.SuspendProcesses = make([]string, 0)
 	}
@@ -386,8 +398,12 @@ func (spec *EKSManagedSpec) GetMinSize() int64 {
 	return spec.MinSize
 }
 
-func (s *AwsUpgradeStrategy) GetRollingUpgradeStrategy() *RollingUpgradeStrategy {
-	return s.RollingUpgradeType
+func (s *AwsUpgradeStrategy) GetRollingUpdateType() *RollingUpdateStrategy {
+	return s.RollingUpdateType
+}
+
+func (s *AwsUpgradeStrategy) SetRollingUpdateType(ru *RollingUpdateStrategy) {
+	s.RollingUpdateType = ru
 }
 
 func (s *AwsUpgradeStrategy) GetCRDType() *CRDUpgradeStrategy {
