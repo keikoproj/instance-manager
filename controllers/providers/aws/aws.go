@@ -59,7 +59,7 @@ const (
 	IAMPolicyPrefix = "arn:aws:iam::aws:policy"
 )
 
-func DefaultUserDataFmt() string {
+func DefaultEksUserDataFmt() string {
 	return `#!/bin/bash
 set -o xtrace
 /etc/eks/bootstrap.sh %s %s`
@@ -167,7 +167,7 @@ func (w *AwsWorker) DeleteScalingGroup(name string) error {
 }
 
 func (w *AwsWorker) GetBasicUserData(clusterName, bootstrapArgs string) string {
-	userData := fmt.Sprintf(DefaultUserDataFmt(), clusterName, bootstrapArgs)
+	userData := fmt.Sprintf(DefaultEksUserDataFmt(), clusterName, bootstrapArgs)
 	return base64.StdEncoding.EncodeToString([]byte(userData))
 }
 
