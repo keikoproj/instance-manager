@@ -182,8 +182,8 @@ type EKSFargateSpec struct {
 	ClusterName         *string                `json:"clusterName"`
 	PodExecutionRoleArn *string                `json:"podExecutionRoleArn,omitempty"`
 	Subnets             []*string              `json:"subnets"`
-	Selectors           []*EKSFargateSelectors `json:"selectors,omitempty"`
-	Tags                []map[string]string    `json:"tags,omitempty"`
+	Selectors           []*EKSFargateSelectors `json:"selectors"`
+	Tags                []map[string]string    `json:"tags"`
 }
 
 type EKSManagedConfiguration struct {
@@ -236,7 +236,6 @@ type InstanceGroupStatus struct {
 	StrategyResourceName          string `json:"strategyResourceName,omitempty"`
 	UsingSpotRecommendation       bool   `json:"usingSpotRecommendation,omitempty"`
 	Lifecycle                     string `json:"lifecycle,omitempty"`
-	FargateRoleName               string `json:"fargateRoleName,omitempty"`
 }
 
 func (conf *EKSManagedConfiguration) SetSubnets(subnets []string)  { conf.Subnets = subnets }
@@ -329,12 +328,6 @@ func (status *InstanceGroupStatus) SetActiveLaunchConfigurationName(name string)
 
 func (status *InstanceGroupStatus) GetStackName() string {
 	return status.StackName
-}
-func (status *InstanceGroupStatus) GetFargateRoleName() string {
-	return status.FargateRoleName
-}
-func (status *InstanceGroupStatus) SetFargateRoleName(roleName string) {
-	status.FargateRoleName = roleName
 }
 
 func (status *InstanceGroupStatus) SetStackName(name string) {

@@ -45,10 +45,20 @@ type EksFargateUnitTest struct {
 	ProfileFromDescribe *eks.FargateProfile
 	ProfileFromCreate   *eks.FargateProfile
 	//UpdateNeeded        bool
-	ListOfProfiles   []*string
-	ProfileExists    bool
-	MakeCreateFail   bool
-	MakeDescribeFail bool
+	ListOfProfiles           []*string
+	ProfileExists            bool
+	MakeCreateProfileFail    bool
+	MakeDeleteProfileFail    bool
+	MakeDescribeProfileFail  bool
+	CheckArnFor              string
+	MakeCreateRoleFail       bool
+	MakeGetRoleFail          bool
+	CreateRoleDupFound       bool
+	DetachRolePolicyFound    bool
+	DetachRolePolicyFail     bool
+	MakeAttachRolePolicyFail bool
+	MakeDeleteRoleFail       bool
+	DeleteRoleFound          bool
 }
 
 type FakeIG struct {
@@ -61,37 +71,88 @@ type FakeIG struct {
 
 type stubEKS struct {
 	eksiface.EKSAPI
-	ProfileFromDescribe *eks.FargateProfile
-	ProfileFromCreate   *eks.FargateProfile
-	ProfileBasic        *eks.FargateProfile
-	ProfileExists       bool
-	ListOfProfiles      []*string
-	MakeCreateFail      bool
-	MakeDescribeFail    bool
+	ProfileFromDescribe     *eks.FargateProfile
+	ProfileFromCreate       *eks.FargateProfile
+	ProfileBasic            *eks.FargateProfile
+	ProfileExists           bool
+	ListOfProfiles          []*string
+	MakeCreateProfileFail   bool
+	MakeDeleteProfileFail   bool
+	MakeDescribeProfileFail bool
+	CheckArnFor             string
 }
 type stubIAM struct {
 	iamiface.IAMAPI
-	Profile *eks.FargateProfile
+	Profile                  *eks.FargateProfile
+	MakeCreateRoleFail       bool
+	MakeGetRoleFail          bool
+	CreateRoleDupFound       bool
+	MakeAttachRolePolicyFail bool
+	DetachRolePolicyFound    bool
+	DetachRolePolicyFail     bool
+	MakeDeleteRoleFail       bool
+	DeleteRoleFound          bool
 }
 
-func (s *stubIAM) CreateRole(input *iam.CreateRoleInput) (*iam.CreateRoleOutput, error) {
-	output := &iam.CreateRoleOutput{
-		Role: &iam.Role{
-			Arn: aws.String("the profile execution arn"),
-		},
+func (s *stubIAM) DetachRolePolicy(input *iam.DetachRolePolicyInput) (*iam.DetachRolePolicyOutput, error) {
+	if s.DetachRolePolicyFail == false {
+		if !s.DetachRolePolicyFound {
+			return nil, awserr.New(iam.ErrCodeNoSuchEntityException, "not found", errors.New(""))
+		}
+		output := &iam.DetachRolePolicyOutput{}
+		return output, nil
+	} else {
+		return nil, errors.New("detach role policy failed")
 	}
-	return output, nil
+}
+func (s *stubIAM) DeleteRole(input *iam.DeleteRoleInput) (*iam.DeleteRoleOutput, error) {
+	if s.MakeDeleteRoleFail == false {
+		if !s.DeleteRoleFound {
+			return nil, awserr.New(iam.ErrCodeNoSuchEntityException, "not found", errors.New(""))
+		}
+		output := &iam.DeleteRoleOutput{}
+		return output, nil
+	} else {
+		return nil, errors.New("delete role failed")
+	}
+}
+func (s *stubIAM) CreateRole(input *iam.CreateRoleInput) (*iam.CreateRoleOutput, error) {
+	if s.MakeCreateRoleFail == false {
+		if s.CreateRoleDupFound {
+			return nil, awserr.New(iam.ErrCodeEntityAlreadyExistsException, "duplicate found", errors.New(""))
+		}
+		output := &iam.CreateRoleOutput{
+			Role: &iam.Role{
+				Arn: aws.String("the profile execution arn"),
+			},
+		}
+		return output, nil
+	} else {
+		return nil, errors.New("create role failed")
+	}
 }
 func (s *stubIAM) GetRole(input *iam.GetRoleInput) (*iam.GetRoleOutput, error) {
-	output := &iam.GetRoleOutput{}
-	return output, nil
+	if s.MakeGetRoleFail == false {
+		output := &iam.GetRoleOutput{
+			Role: &iam.Role{
+				Arn: aws.String("eksfargate::dummy_arn"),
+			},
+		}
+		return output, nil
+	} else {
+		return nil, errors.New("get role failed")
+	}
 }
 func (s *stubIAM) AttachRolePolicy(input *iam.AttachRolePolicyInput) (*iam.AttachRolePolicyOutput, error) {
-	return &iam.AttachRolePolicyOutput{}, nil
+	if s.MakeAttachRolePolicyFail == false {
+		return &iam.AttachRolePolicyOutput{}, nil
+	} else {
+		return nil, errors.New("attach role policy failed")
+	}
 }
 
 func (s *stubEKS) DescribeFargateProfile(input *eks.DescribeFargateProfileInput) (*eks.DescribeFargateProfileOutput, error) {
-	if s.MakeDescribeFail {
+	if s.MakeDescribeProfileFail {
 		return nil, awserr.New(eks.ErrCodeResourceNotFoundException, "not found", errors.New("notFound"))
 	}
 
@@ -105,16 +166,23 @@ func (s *stubEKS) CreateFargateProfile(input *eks.CreateFargateProfileInput) (*e
 	output := &eks.CreateFargateProfileOutput{
 		FargateProfile: s.ProfileFromCreate,
 	}
-	if s.MakeCreateFail {
-		return nil, errors.New("CreateFargateProfile failed")
+	if s.MakeCreateProfileFail {
+		return nil, errors.New("create profile failed")
+	}
+	if s.CheckArnFor != "" && s.CheckArnFor != *input.PodExecutionRoleArn {
+		return nil, errors.New("bad arn")
 	}
 
 	return output, nil
 }
 
 func (s *stubEKS) DeleteFargateProfile(input *eks.DeleteFargateProfileInput) (*eks.DeleteFargateProfileOutput, error) {
-	output := &eks.DeleteFargateProfileOutput{}
-	return output, nil
+	if s.MakeDeleteProfileFail == false {
+		output := &eks.DeleteFargateProfileOutput{}
+		return output, nil
+	} else {
+		return nil, errors.New("delete profile failed")
+	}
 }
 
 func (s *stubEKS) ListFargateProfilesPages(input *eks.ListFargateProfilesInput, fn func(page *eks.ListFargateProfilesOutput, lastPage bool) bool) error {
@@ -186,15 +254,26 @@ func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 func (u *EksFargateUnitTest) BuildProvisioner(t *testing.T) *InstanceGroupContext {
 	aws := &awsprovider.AwsFargateWorker{
 		EksClient: &stubEKS{
-			ProfileBasic:        u.ProfileBasic,
-			ProfileFromDescribe: u.ProfileFromDescribe,
-			ProfileFromCreate:   u.ProfileFromCreate,
-			ProfileExists:       u.ProfileExists,
-			MakeCreateFail:      u.MakeCreateFail,
-			MakeDescribeFail:    u.MakeDescribeFail,
-			ListOfProfiles:      u.ListOfProfiles,
+			ProfileBasic:            u.ProfileBasic,
+			ProfileFromDescribe:     u.ProfileFromDescribe,
+			ProfileFromCreate:       u.ProfileFromCreate,
+			ProfileExists:           u.ProfileExists,
+			MakeCreateProfileFail:   u.MakeCreateProfileFail,
+			MakeDeleteProfileFail:   u.MakeDeleteProfileFail,
+			MakeDescribeProfileFail: u.MakeDescribeProfileFail,
+			ListOfProfiles:          u.ListOfProfiles,
+			CheckArnFor:             u.CheckArnFor,
 		},
-		IamClient:   &stubIAM{},
+		IamClient: &stubIAM{
+			MakeCreateRoleFail:       u.MakeCreateRoleFail,
+			MakeGetRoleFail:          u.MakeGetRoleFail,
+			CreateRoleDupFound:       u.CreateRoleDupFound,
+			MakeAttachRolePolicyFail: u.MakeAttachRolePolicyFail,
+			DetachRolePolicyFound:    u.DetachRolePolicyFound,
+			DetachRolePolicyFail:     u.DetachRolePolicyFail,
+			MakeDeleteRoleFail:       u.MakeDeleteRoleFail,
+			DeleteRoleFound:          u.DeleteRoleFound,
+		},
 		ProfileName: u.InstanceGroup.Spec.EKSFargateSpec.GetProfileName(),
 		ClusterName: u.InstanceGroup.Spec.EKSFargateSpec.GetClusterName(),
 	}
@@ -222,7 +301,7 @@ func (u *EksFargateUnitTest) Run(t *testing.T) v1alpha1.ReconcileState {
 func TestAllStateDiscovery(t *testing.T) {
 	type args struct {
 		description  string
-		profileState string
+		profileState *string
 		isDeleting   bool
 	}
 	testFunction := func(t *testing.T, args args) v1alpha1.ReconcileState {
@@ -231,7 +310,7 @@ func TestAllStateDiscovery(t *testing.T) {
 			Description:   args.description,
 			InstanceGroup: ig.getInstanceGroup(),
 			ProfileFromDescribe: &eks.FargateProfile{
-				Status: aws.String(args.profileState),
+				Status: args.profileState,
 			},
 		}
 		return testCase.Run(t)
@@ -242,19 +321,10 @@ func TestAllStateDiscovery(t *testing.T) {
 		want v1alpha1.ReconcileState
 	}{
 		{
-			name: "TestStateDiscoveryInitUpdate",
+			name: "TestStateDiscoveryReconcileModified",
 			args: args{
 				description:  "StateDiscovery - when a profile already exist (active), state should be InitUpdate",
-				profileState: "ACTIVE",
-				isDeleting:   false,
-			},
-			want: v1alpha1.ReconcileInitUpdate,
-		},
-		{
-			name: "TestStateDiscoveryInitUpdate",
-			args: args{
-				description:  "StateDiscovery - when a profile already exist (active), state should be InitUpdate",
-				profileState: "ACTIVE",
+				profileState: aws.String(eks.FargateProfileStatusActive),
 				isDeleting:   false,
 			},
 			want: v1alpha1.ReconcileInitUpdate,
@@ -263,7 +333,7 @@ func TestAllStateDiscovery(t *testing.T) {
 			name: "TestStateDiscoveryInitCreate",
 			args: args{
 				description:  "StateDiscovery - when a profile NOT exist , state should be ReconcileInitCreate",
-				profileState: "NONE",
+				profileState: nil,
 				isDeleting:   false,
 			},
 			want: v1alpha1.ReconcileInitCreate,
@@ -272,7 +342,7 @@ func TestAllStateDiscovery(t *testing.T) {
 			name: "TestStateDiscoveryReconcileModifying1",
 			args: args{
 				description:  "StateDiscovery - when a profile is CREATING, state should be ReconcileModifying",
-				profileState: "CREATING",
+				profileState: aws.String(eks.FargateProfileStatusCreating),
 				isDeleting:   false,
 			},
 			want: v1alpha1.ReconcileModifying,
@@ -281,7 +351,7 @@ func TestAllStateDiscovery(t *testing.T) {
 			name: "TestStateDiscoveryReconcileModifying2",
 			args: args{
 				description:  "StateDiscovery - when a profile is DELETING, state should be ReconcileModifying",
-				profileState: "DELETING",
+				profileState: aws.String(eks.FargateProfileStatusDeleting),
 				isDeleting:   false,
 			},
 			want: v1alpha1.ReconcileModifying,
@@ -290,7 +360,7 @@ func TestAllStateDiscovery(t *testing.T) {
 			name: "TestStateDiscoveryErr1",
 			args: args{
 				description:  "StateDiscovery - resource creation state and the profile is DELETE_FAILED, state should be ReconcileErr",
-				profileState: "DELETE_FAILED",
+				profileState: aws.String(eks.FargateProfileStatusDeleteFailed),
 				isDeleting:   false,
 			},
 			want: v1alpha1.ReconcileErr,
@@ -298,17 +368,17 @@ func TestAllStateDiscovery(t *testing.T) {
 		{
 			name: "TestStateDiscoveryReconcileRecoverableUpdate",
 			args: args{
-				description:  "StateDiscovery - resource creation state and the profile is CREATE_FAILED, state should be ReconcileInitUpdate",
-				profileState: "CREATE_FAILED",
+				description:  "StateDiscovery - resource creation state and the profile is CREATE_FAILED, state should be ReconcileErr",
+				profileState: aws.String(eks.FargateProfileStatusCreateFailed),
 				isDeleting:   false,
 			},
-			want: v1alpha1.ReconcileInitUpdate,
+			want: v1alpha1.ReconcileInitDelete,
 		},
 		{
 			name: "TestStateDiscoveryReconcileDeleted",
 			args: args{
 				description:  "StateDiscovery - resource is deleting state and no profile, state should be ReconcileDeleted",
-				profileState: "NONE",
+				profileState: nil,
 				isDeleting:   true,
 			},
 			want: v1alpha1.ReconcileDeleted,
@@ -317,7 +387,7 @@ func TestAllStateDiscovery(t *testing.T) {
 			name: "TestStateDiscoveryReconcileInitDelete",
 			args: args{
 				description:  "StateDiscovery - resource is deleting state and the profile is ACTIVE, state should be ReconcileInitDelete",
-				profileState: "ACTIVE",
+				profileState: aws.String(eks.FargateProfileStatusActive),
 				isDeleting:   true,
 			},
 			want: v1alpha1.ReconcileInitDelete,
@@ -326,7 +396,7 @@ func TestAllStateDiscovery(t *testing.T) {
 			name: "TestStateDiscoveryReconcileDeleting1",
 			args: args{
 				description:  "StateDiscovery - resource is deleting state and the profile is CREATING, state should be ReconcileDeleting",
-				profileState: "CREATING",
+				profileState: aws.String(eks.FargateProfileStatusCreating),
 				isDeleting:   true,
 			},
 			want: v1alpha1.ReconcileDeleting,
@@ -335,7 +405,7 @@ func TestAllStateDiscovery(t *testing.T) {
 			name: "TestStateDiscoveryReconcileDeleting2",
 			args: args{
 				description:  "StateDiscovery - resource is deleting state and the profile is DELETING, state should be ReconcileDeleting",
-				profileState: "DELETING",
+				profileState: aws.String(eks.FargateProfileStatusDeleting),
 				isDeleting:   true,
 			},
 			want: v1alpha1.ReconcileDeleting,
@@ -343,17 +413,17 @@ func TestAllStateDiscovery(t *testing.T) {
 		{
 			name: "TestStateDiscoveryDeleteWithRecoverableUpate",
 			args: args{
-				description:  "StateDiscovery - resource delete state and the profile is CREATE_FAILED, state should be ReconcileInitDelete",
-				profileState: "CREATE_FAILED",
+				description:  "StateDiscovery - resource delete state and the profile is CREATE_FAILED, state should be ReconcileErr",
+				profileState: aws.String(eks.FargateProfileStatusCreateFailed),
 				isDeleting:   true,
 			},
-			want: v1alpha1.ReconcileInitDelete,
+			want: v1alpha1.ReconcileErr,
 		},
 		{
 			name: "TestStateDiscoveryErr2",
 			args: args{
 				description:  "StateDiscovery - resource delete state and the profile is DELETE_FAILED, state should be ReconcileErr",
-				profileState: "DELETE_FAILED",
+				profileState: aws.String(eks.FargateProfileStatusDeleteFailed),
 				isDeleting:   true,
 			},
 			want: v1alpha1.ReconcileErr,
@@ -369,53 +439,57 @@ func TestAllStateDiscovery(t *testing.T) {
 
 	}
 }
-
-func TestIsReadyPass(t *testing.T) {
+func TestIsReadyPositive(t *testing.T) {
 	ig := FakeIG{}
 	testCase := EksFargateUnitTest{
 		InstanceGroup: ig.getInstanceGroup(),
-		ProfileFromDescribe: &eks.FargateProfile{
-			Status: aws.String("ACTIVE"),
-		},
 	}
 	ctx := testCase.BuildProvisioner(t)
+	instanceGroup := ctx.GetInstanceGroup()
+	instanceGroup.SetState(v1alpha1.ReconcileModified)
 	if !ctx.IsReady() {
-		t.Fatal("TestIsReadyPass: got false, expected: true")
+		t.Fatal("TestIsReadyPositive: got false, expected: true")
+	}
+	instanceGroup.SetState(v1alpha1.ReconcileDeleted)
+	if !ctx.IsReady() {
+		t.Fatal("TestIsReadyPositive: got false, expected: true")
 	}
 }
-func TestIsReadyFail(t *testing.T) {
+
+func TestIsReadyNegative(t *testing.T) {
 	ig := FakeIG{}
 	testCase := EksFargateUnitTest{
 		InstanceGroup: ig.getInstanceGroup(),
-		ProfileFromDescribe: &eks.FargateProfile{
-			Status: aws.String("CREATING"),
-		},
 	}
 	ctx := testCase.BuildProvisioner(t)
+	instanceGroup := ctx.GetInstanceGroup()
+	instanceGroup.SetState(v1alpha1.ReconcileInit)
 	if ctx.IsReady() {
-		t.Fatal("TestIsReadyFail: got positive, expected: false")
+		t.Fatal("TestIsReadyNegative: got true, expected: false")
+	}
+	instanceGroup.SetState(v1alpha1.ReconcileInitCreate)
+	if ctx.IsReady() {
+		t.Fatal("TestIsReadyNegative: got true, expected: false")
 	}
 }
-func TestCanCreateAndDelete(t *testing.T) {
+
+func TestCanDelete(t *testing.T) {
 	ig := FakeIG{CurrentState: string(v1alpha1.ReconcileInit)}
 	instanceGroup := ig.getInstanceGroup()
 	testCase := EksFargateUnitTest{
 		InstanceGroup: instanceGroup,
-		//ProfileFromDescribe: &eks.FargateProfile{
-		//	Status: aws.String("ACTIVE"),
-		//		},
 	}
 	ctx := testCase.BuildProvisioner(t)
-	canCreate, err := ctx.CanCreateAndDelete()
+	canCreate, err := ctx.CanDelete()
 	if err != nil {
-		t.Fatalf("TestCanCreateAndDelete: got unexpected exception: %v", err)
+		t.Fatalf("TestCanDelete: got unexpected exception: %v", err)
 	}
 	if !canCreate {
-		t.Fatal("TestCanCreateAndDelete: got false, expected: true")
+		t.Fatal("TestCanDelete: got false, expected: true")
 	}
 }
 
-func TestCanCreateAndDelete1(t *testing.T) {
+func TestCanDelete1(t *testing.T) {
 	ig := FakeIG{CurrentState: string(v1alpha1.ReconcileInit)}
 	instanceGroup := ig.getInstanceGroup()
 	testCase := EksFargateUnitTest{
@@ -426,126 +500,12 @@ func TestCanCreateAndDelete1(t *testing.T) {
 		ListOfProfiles: []*string{aws.String("profile1")},
 	}
 	ctx := testCase.BuildProvisioner(t)
-	canCreate, err := ctx.CanCreateAndDelete()
+	canCreate, err := ctx.CanDelete()
 	if err != nil {
-		t.Fatalf("TestCanCreateAndDelete: got unexpected exception: %v", err)
+		t.Fatalf("TestCanDelete1: got unexpected exception: %v", err)
 	}
 	if canCreate {
-		t.Fatal("TestCanCreateAndDelete: got true, expected: false")
-	}
-}
-func TestCreateWithSuppliedExecutionArn(t *testing.T) {
-	ig := FakeIG{}
-	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
-	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn(aws.String("a:b:c:d:e:f")) // no arn
-	testCase := EksFargateUnitTest{
-		InstanceGroup: instanceGroup,
-		ProfileBasic:  nil, // no existing profile
-	}
-	ctx := testCase.BuildProvisioner(t)
-	if ctx.Create() != nil {
-		t.Fatal("TestCreateWithSuppliedExecutionArn: got positive, expected: false")
-	}
-	if ctx.GetInstanceGroup().Status.GetFargateRoleName() != "" {
-		t.Fatal("TestCreateWithSuppliedExecutionArn: expect empty rolename")
-	}
-}
-func TestCreateWithOutSuppliedExecutionArn(t *testing.T) {
-	ig := FakeIG{}
-	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
-	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn(aws.String(""))
-	testCase := EksFargateUnitTest{
-		InstanceGroup: instanceGroup,
-		ProfileBasic:  nil, // no existing profile
-	}
-	ctx := testCase.BuildProvisioner(t)
-	if ctx.Create() != nil {
-		t.Fatal("TestCreateWithSuppliedExecutionArn: got positive, expected: false")
-	}
-	if ctx.GetInstanceGroup().Status.GetFargateRoleName() != *ctx.AwsFargateWorker.CreateDefaultRoleName() {
-		t.Fatal("TestCreateWithSuppliedExecutionArn: expect empty rolename")
-	}
-}
-func TestCreateWithFailure(t *testing.T) {
-	ig := FakeIG{}
-	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
-	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn(aws.String("a:b:c:d:e:f"))
-	testCase := EksFargateUnitTest{
-		InstanceGroup:    instanceGroup,
-		MakeDescribeFail: true,
-		MakeCreateFail:   true,
-	}
-	ctx := testCase.BuildProvisioner(t)
-	if ctx.Create() == nil {
-		t.Fatal("TestCreateWithFailure: expected an exception and didn't get one")
-	}
-}
-func TestCreateWithSuccess(t *testing.T) {
-	ig := FakeIG{}
-	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
-	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn(aws.String("a:b:c:d:e:f"))
-	testCase := EksFargateUnitTest{
-		InstanceGroup:  instanceGroup,
-		MakeCreateFail: false,
-		ProfileBasic:   nil, // no existing profile
-	}
-	ctx := testCase.BuildProvisioner(t)
-	if ctx.Create() != nil {
-		t.Fatal("TestCreateWithSuccess: got an exception when not expected")
-	}
-	if ctx.GetState() != v1alpha1.ReconcileModifying {
-		t.Fatalf("TestCreateWithSuccess: Expecting end state to be ReconcileModifying.  It was %s instead", ctx.GetState())
-	}
-
-}
-func TestDeleteWithSuccess(t *testing.T) {
-	ig := FakeIG{}
-	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
-	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn(aws.String("a:b:c:d:e:f"))
-	testCase := EksFargateUnitTest{
-		InstanceGroup:  instanceGroup,
-		MakeCreateFail: false,
-		ProfileBasic:   getProfile("ACTIVE"),
-	}
-	ctx := testCase.BuildProvisioner(t)
-	if ctx.Delete() != nil {
-		t.Fatal("TestDeleteWithSuccess: got an exception when not expected")
-	}
-	if ctx.GetState() != v1alpha1.ReconcileDeleting {
-		t.Fatalf("TestDeleteWithSuccess: Expecting end state to be ReconcileDeleting.  It was %s instead", ctx.GetState())
-	}
-}
-func TestUpdateWithChangesSuccess(t *testing.T) {
-	ig := FakeIG{}
-	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
-	instanceGroup.Spec.EKSFargateSpec.SetTags([]map[string]string{})
-	instanceGroup.Spec.EKSFargateSpec.SetSelectors([]*v1alpha1.EKSFargateSelectors{})
-	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn(aws.String("a:b:c:d:e:f"))
-	testCase := EksFargateUnitTest{
-		InstanceGroup:  instanceGroup,
-		MakeCreateFail: false,
-		ProfileFromDescribe: &eks.FargateProfile{
-			Status: aws.String("ACTIVE"),
-		},
-	}
-	ctx := testCase.BuildProvisioner(t)
-	if ctx.Update() != nil {
-		t.Fatal("TestUpdateWithSuccess: got an exception when not expected")
-	}
-	if ctx.GetState() != v1alpha1.ReconcileDeleting {
-		t.Fatalf("TestDeleteWithSuccess: Expecting end state to be ReconcileDeleting.  It was %s instead", ctx.GetState())
+		t.Fatal("TestCanDelete1: got true, expected: false")
 	}
 }
 func TestUpgradeNodes(t *testing.T) {
@@ -556,8 +516,8 @@ func TestUpgradeNodes(t *testing.T) {
 		ProfileBasic:  nil,
 	}
 	ctx := testCase.BuildProvisioner(t)
-	if ctx.UpgradeNodes() != nil {
-		t.Fatal("TestUpgradeNodes: got an exception when not expected")
+	if ctx.UpgradeNodes() == nil {
+		t.Fatal("TestUpgradeNodes: expected an exception but did not get one.")
 	}
 }
 func TestBootstrapNodes(t *testing.T) {
@@ -603,463 +563,406 @@ func TestCreateFargateTags(t *testing.T) {
 		t.Fatalf("TestCreateFargateTags: output is %v", output)
 	}
 }
-func TestEqualTagsSuccess(t *testing.T) {
-	tag1 := map[string]*string{"key2": aws.String("value2"), "key1": aws.String("value1")}
-	tag2 := map[string]*string{"key1": aws.String("value1"), "key2": aws.String("value2")}
-	b := equalTags(tag1, tag2)
-	if b != true {
-		t.Fatalf("TestEqualTagsSuccess1: expected true and got a false")
-	}
-	b = equalTags(tag2, tag1)
-	if b != true {
-		t.Fatalf("TestEqualTagsSuccess2: expected true and got a false")
-	}
-}
-func TestEqualTagsFalse1(t *testing.T) {
-	tag1 := map[string]*string{"key2": aws.String("value2"), "key1": aws.String("value1"), "key3": aws.String("blsh")}
-	tag2 := map[string]*string{"key1": aws.String("value1"), "key2": aws.String("value2")}
-	b := equalTags(tag1, tag2)
-	if b != false {
-		t.Fatalf("TestEqualTagsSuccess1: expected false and got a true")
-	}
-}
-func TestEqualTagsFalse2(t *testing.T) {
-	tag1 := map[string]*string{"key2": aws.String("value2"), "key1": aws.String("value1"), "key3": aws.String("blsh")}
-	tag2 := map[string]*string{"key3": aws.String("somethingelse"), "key1": aws.String("value1"), "key2": aws.String("value2")}
-	b := equalTags(tag1, tag2)
-	if b != false {
-		t.Fatalf("TestEqualTagsSuccess1: expected false and got a true")
-	}
-}
-func TestEqualSubnetSlicesSuccess(t *testing.T) {
-	oldSubnets := []*string{aws.String("subnet-12331"), aws.String("subnet-xl3823"), aws.String("subnet-vlieo12")}
-	newSubnets := []*string{aws.String("subnet-12331"), aws.String("subnet-xl3823"), aws.String("subnet-vlieo12")}
-	b := equalSubnetSlices(oldSubnets, newSubnets)
-	if !b {
-		t.Fatal("TestEqualSubnetSlicesSuccess: get false, expected true")
-	}
-}
-func TestEqualSubnetSlicesFailure1(t *testing.T) {
-	oldSubnets := []*string{aws.String("subnet-xl3823"), aws.String("subnet-vlieo12")}
-	newSubnets := []*string{aws.String("subnet-12331"), aws.String("subnet-xl3823"), aws.String("subnet-vlieo12")}
-	b := equalSubnetSlices(oldSubnets, newSubnets)
-	if b {
-		t.Fatal("TestEqualSubnetSlicesFailure1: got true, expected false")
-	}
-}
-func TestEqualSubnetSlicesFailure2(t *testing.T) {
-	oldSubnets := []*string{aws.String("subnet-xl3823"), aws.String("subnet-vlieo12")}
-	newSubnets := []*string{aws.String("subnet-xl3823"), aws.String("subnet-vxxxo12")}
-	b := equalSubnetSlices(oldSubnets, newSubnets)
-	if b {
-		t.Fatal("TestEqualSubnetSlicesFailure1: got true, expected false")
-	}
-}
-func TestEqualSelectorsSuccess1(t *testing.T) {
-	selectors1 := []*eks.FargateProfileSelector{
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace1"),
-			Labels:    map[string]*string{"l11": aws.String("v11"), "l12": aws.String("v12")},
-		},
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace2"),
-			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
-		},
-	}
-	selectors2 := []*eks.FargateProfileSelector{
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace1"),
-			Labels:    map[string]*string{"l11": aws.String("v11"), "l12": aws.String("v12")},
-		},
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace2"),
-			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
-		},
-	}
-	b := equalSelectors(selectors1, selectors2)
-	if !b {
-		t.Fatal("TestEqualSelectorsSuccess: got false, expected true")
-	}
-}
-func TestEqualSelectorsSuccess2(t *testing.T) {
-	selectors1 := []*eks.FargateProfileSelector{
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace1"),
-			Labels:    map[string]*string{"l11": aws.String("v11"), "l12": aws.String("v12")},
-		},
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace2"),
-			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
-		},
-	}
-	selectors2 := []*eks.FargateProfileSelector{
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace2"),
-			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
-		},
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace1"),
-			Labels:    map[string]*string{"l12": aws.String("v12"), "l11": aws.String("v11")},
-		},
-	}
-	b := equalSelectors(selectors1, selectors2)
-	if !b {
-		t.Fatal("TestEqualSelectorsSuccess: got false, expected true")
-	}
-}
-func TestEqualSelectorsFailure1(t *testing.T) {
-	selectors1 := []*eks.FargateProfileSelector{
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace1"),
-			Labels:    map[string]*string{"l11": aws.String("v11"), "l12": aws.String("v12")},
-		},
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace2"),
-			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
-		},
-	}
-	selectors2 := []*eks.FargateProfileSelector{
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace2"),
-			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
-		},
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace1"),
-			Labels:    map[string]*string{"l12": aws.String("v12"), "l11": aws.String("v11")},
-		},
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace3"),
-			Labels:    map[string]*string{"l12": aws.String("v12"), "l11": aws.String("v11")},
-		},
-	}
-	b := equalSelectors(selectors1, selectors2)
-	if b {
-		t.Fatal("TestEqualSelectorsFailure1: got true, expected false")
-	}
-}
-func TestEqualSelectorsFailure2(t *testing.T) {
-	selectors1 := []*eks.FargateProfileSelector{
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace1"),
-			Labels:    map[string]*string{"l11": aws.String("v11"), "l12": aws.String("v12")},
-		},
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace2"),
-			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
-		},
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace3"),
-			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
-		},
-	}
-	selectors2 := []*eks.FargateProfileSelector{
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace2"),
-			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
-		},
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace1"),
-			Labels:    map[string]*string{"l12": aws.String("v12"), "l11": aws.String("v11")},
-		},
-	}
-	b := equalSelectors(selectors1, selectors2)
-	if b {
-		t.Fatal("TestEqualSelectorsFailure2: got true, expected false")
-	}
-}
-func TestEqualSelectorsFailure3(t *testing.T) {
-	selectors1 := []*eks.FargateProfileSelector{
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace1"),
-			Labels:    map[string]*string{"l11": aws.String("v11"), "l12": aws.String("v12")},
-		},
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace2"),
-			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22"), "xyz": aws.String("xyx")},
-		},
-	}
-	selectors2 := []*eks.FargateProfileSelector{
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace2"),
-			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
-		},
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace1"),
-			Labels:    map[string]*string{"l12": aws.String("v12"), "l11": aws.String("v11")},
-		},
-	}
-	b := equalSelectors(selectors1, selectors2)
-	if b {
-		t.Fatal("TestEqualSelectorsFailure3: got true, expected false")
-	}
-}
-func TestEqualSelectorsFailure4(t *testing.T) {
-	selectors1 := []*eks.FargateProfileSelector{
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace1"),
-			Labels:    map[string]*string{"l11": aws.String("v11")},
-		},
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace2"),
-			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
-		},
-	}
-	selectors2 := []*eks.FargateProfileSelector{
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace2"),
-			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
-		},
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace1"),
-			Labels:    map[string]*string{"l12": aws.String("v12"), "l11": aws.String("v11")},
-		},
-	}
-	b := equalSelectors(selectors1, selectors2)
-	if b {
-		t.Fatal("TestEqualSelectorsFailure4: got true, expected false")
-	}
-}
-func TestEqualSelectorsFailure5(t *testing.T) {
-	selectors1 := []*eks.FargateProfileSelector{
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace1"),
-			Labels:    map[string]*string{"l11": aws.String("v11")},
-		},
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace2"),
-			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
-		},
-	}
-	selectors2 := []*eks.FargateProfileSelector{
-		&eks.FargateProfileSelector{
-			Namespace: aws.String("namespace2"),
-			Labels:    map[string]*string{"l21": aws.String("v21"), "l22": aws.String("v22")},
-		},
-	}
-	b := equalSelectors(selectors1, selectors2)
-	if b {
-		t.Fatal("TestEqualSelectorsFailure5: got true, expected false")
-	}
-}
-func TestHasChangedSimpleTagSuccess(t *testing.T) {
+func TestGetStateFailureGettingProfile(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetTags([]map[string]string{{"key2": "value2"}, {"key1": "value1"}})
-	instanceGroup.Spec.EKSFargateSpec.SetSelectors([]*v1alpha1.EKSFargateSelectors{})
-	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn(aws.String("a:b:c:d:e:f"))
-	instanceGroup.Spec.EKSFargateSpec.SetSubnets([]*string{})
-	testCase := EksFargateUnitTest{
-		InstanceGroup: instanceGroup,
+	testCase := EksFargateUnitTest{InstanceGroup: instanceGroup,
+		MakeDescribeProfileFail: true,
+	}
+	ctx := testCase.BuildProvisioner(t)
+	state := ctx.AwsFargateWorker.GetState()
+	if state.Profile.Status != nil {
+		t.Fatalf("TestGetStateFailureGettingProfile: expected nil but got a status")
+	}
+}
+func TestGetStateSuccessGettingProfile(t *testing.T) {
+	ig := FakeIG{}
+	instanceGroup := ig.getInstanceGroup()
+	testCase := EksFargateUnitTest{InstanceGroup: instanceGroup,
 		ProfileFromDescribe: &eks.FargateProfile{
-			Tags:                map[string]*string{"key1": aws.String("value1"), "key2": aws.String("value2")},
-			Selectors:           []*eks.FargateProfileSelector{},
-			PodExecutionRoleArn: aws.String("a:b:c:d:e:f"),
-			Subnets:             []*string{},
+			Status: aws.String(eks.FargateProfileStatusActive),
 		},
 	}
 	ctx := testCase.BuildProvisioner(t)
-	b := ctx.HasChanged()
-	if b != false {
-		t.Fatal("TestHasChangedSimpleTagSuccess: get a true but expected a false")
+	state := ctx.AwsFargateWorker.GetState()
+	if state.Profile.Status == nil {
+		t.Fatalf("TestGetStateSuccessGettingProfile: expected profile but got a nil")
 	}
 }
-func TestHasChangedSimpleTagFailureOnValue(t *testing.T) {
+func TestCreateWithProfileDeletesInProgress(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetTags([]map[string]string{{"key2": "value2"}, {"key1": "value2"}})
-	instanceGroup.Spec.EKSFargateSpec.SetSelectors([]*v1alpha1.EKSFargateSelectors{})
-	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn(aws.String("a:b:c:d:e:f"))
-	instanceGroup.Spec.EKSFargateSpec.SetSubnets([]*string{})
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
+	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
+	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn(aws.String("a:b:c:d:e:f")) // no arn
 	testCase := EksFargateUnitTest{
 		InstanceGroup: instanceGroup,
 		ProfileFromDescribe: &eks.FargateProfile{
-			Tags:                map[string]*string{"key1": aws.String("value1"), "key2": aws.String("value2")},
-			Selectors:           []*eks.FargateProfileSelector{},
-			PodExecutionRoleArn: aws.String("a:b:c:d:e:f"),
-			Subnets:             []*string{},
+			Status: aws.String("DELETING"),
 		},
+		ListOfProfiles: []*string{aws.String("profile1")}, // profiles being created/deleted
 	}
 	ctx := testCase.BuildProvisioner(t)
-	b := ctx.HasChanged()
-	if b != true {
-		t.Fatal("TestHasChangedSimpleTagFailureOnValue: get a false but expected a true")
+	err := ctx.Create()
+	if err != nil {
+		t.Fatalf("TestCreateWithProfileCreatesDeletesInProgress: expected: nil but got: . %v", err)
 	}
 }
-func TestHasChangedSimpleTagFailureOnKey(t *testing.T) {
+func TestCreateWithSuppliedArnSuccessProfileCreation(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetTags([]map[string]string{{"key2": "value2"}, {"key3": "value1"}})
-	instanceGroup.Spec.EKSFargateSpec.SetSelectors([]*v1alpha1.EKSFargateSelectors{})
-	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn(aws.String("a:b:c:d:e:f"))
-	instanceGroup.Spec.EKSFargateSpec.SetSubnets([]*string{})
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
+	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
+	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn(aws.String("a:b:c:d:e:f")) // no arn
+	testCase := EksFargateUnitTest{
+		InstanceGroup: instanceGroup,
+		CheckArnFor:   "a:b:c:d:e:f",
+	}
+	ctx := testCase.BuildProvisioner(t)
+	if ctx.Create() != nil {
+		t.Fatal("TestCreateWithSuppliedArnSuccessProfileCreation: got error, expected: nil")
+	}
+}
+func TestCreateWithoutArnCreateRoleFail(t *testing.T) {
+	ig := FakeIG{}
+	instanceGroup := ig.getInstanceGroup()
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
+	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
+	testCase := EksFargateUnitTest{
+		InstanceGroup:      instanceGroup,
+		MakeCreateRoleFail: true,
+	}
+	ctx := testCase.BuildProvisioner(t)
+	err := ctx.Create()
+	if err == nil {
+		t.Fatal("TestCreateWithoutArnProfileCreation: expected error got nil")
+	}
+	if err.Error() != "create role failed" {
+		t.Fatalf("TestCreateWithoutArnProfileCreation: Unexpected error. Got %v", err)
+	}
+}
+func TestCreateWithoutArnCreateRoleFindsDup(t *testing.T) {
+	ig := FakeIG{}
+	instanceGroup := ig.getInstanceGroup()
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
+	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
+	testCase := EksFargateUnitTest{
+		InstanceGroup:      instanceGroup,
+		CreateRoleDupFound: true,
+	}
+	ctx := testCase.BuildProvisioner(t)
+	err := ctx.Create()
+	if err != nil {
+		t.Fatal("TestCreateWithoutArnCreateRoleFindsDup: expected nil")
+	}
+}
+func TestCreateWithoutArnAttachRolePolicyFails(t *testing.T) {
+	ig := FakeIG{}
+	instanceGroup := ig.getInstanceGroup()
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
+	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
+	testCase := EksFargateUnitTest{
+		InstanceGroup:            instanceGroup,
+		CreateRoleDupFound:       true,
+		MakeAttachRolePolicyFail: true,
+	}
+	ctx := testCase.BuildProvisioner(t)
+	err := ctx.Create()
+	if err == nil {
+		t.Fatal("TestCreateWithoutArnAttachRolePolicyFails: expected error")
+	}
+	if err.Error() != "attach role policy failed" {
+		t.Fatalf("TestCreateWithoutArnAttachRolePolicyFails: bad error message.  Got %v", err.Error())
+	}
+}
+func TestCreateWithoutArnGetRoleFailed(t *testing.T) {
+	ig := FakeIG{}
+	instanceGroup := ig.getInstanceGroup()
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
+	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
+	testCase := EksFargateUnitTest{
+		InstanceGroup:      instanceGroup,
+		CreateRoleDupFound: true,
+		MakeGetRoleFail:    true,
+	}
+	ctx := testCase.BuildProvisioner(t)
+	err := ctx.Create()
+	if err == nil {
+		t.Fatal("TestCreateWithoutArnGetRoleFailed: expected error got nil")
+	}
+	if err.Error() != "get role failed" {
+		t.Fatalf("TestCreateWithoutArnGetRoleFailed: bad error message.  Got %v", err.Error())
+	}
+}
+func TestCreateWithoutArnCreateProfileSucceeds(t *testing.T) {
+	ig := FakeIG{}
+	instanceGroup := ig.getInstanceGroup()
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
+	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
+	testCase := EksFargateUnitTest{
+		InstanceGroup:      instanceGroup,
+		CreateRoleDupFound: true,
+	}
+	ctx := testCase.BuildProvisioner(t)
+	err := ctx.Create()
+	if err != nil {
+		t.Fatal("TestCreateWithoutArnCreateProfileSucceeds: expected nil")
+	}
+	if instanceGroup.GetState() != v1alpha1.ReconcileModifying {
+		t.Fatalf("TestCreateWithoutArnCreateProfileSucceeds: expected ReconcileModifying state.  Got %v", instanceGroup.GetState())
+	}
+}
+func TestCreateWithoutArnCreateProfileFails(t *testing.T) {
+	ig := FakeIG{}
+	instanceGroup := ig.getInstanceGroup()
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
+	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
+	testCase := EksFargateUnitTest{
+		InstanceGroup:         instanceGroup,
+		CreateRoleDupFound:    true,
+		MakeCreateProfileFail: true,
+	}
+	ctx := testCase.BuildProvisioner(t)
+	err := ctx.Create()
+	if err == nil {
+		t.Fatal("TestCreateWithoutArnCreateProfileFails: expected nil")
+	}
+	if err.Error() != "create profile failed" {
+		t.Fatalf("TestCreateWithoutArnCreateProfileFails: Bad error message.  Got %v", err.Error())
+	}
+	if instanceGroup.GetState() != v1alpha1.ReconcileInit {
+		t.Fatalf("TestCreateWithoutArnCreateProfileFails: expected ReconcileInit state.  Got %v", instanceGroup.GetState())
+	}
+}
+func TestUpdate(t *testing.T) {
+	ig := FakeIG{}
+	instanceGroup := ig.getInstanceGroup()
+	testCase := EksFargateUnitTest{
+		InstanceGroup: instanceGroup,
+	}
+	ctx := testCase.BuildProvisioner(t)
+	err := ctx.Update()
+	if err != nil {
+		t.Fatalf("TestUpdate: expected nil but got error: %v", err)
+	}
+}
+func TestUpdate1(t *testing.T) {
+	ig := FakeIG{}
+	instanceGroup := ig.getInstanceGroup()
+	instanceGroup.SetAnnotations(map[string]string{LastAppliedConfigurationKey: "blah"})
+	testCase := EksFargateUnitTest{
+		InstanceGroup: instanceGroup,
+	}
+	ctx := testCase.BuildProvisioner(t)
+	err := ctx.Update()
+	if err == nil {
+		t.Fatal("TestUpdate1: error but got nil")
+	}
+	if err.Error() != "update not supported" {
+		t.Fatalf("TestUpdate1: bad error message.  Got %v", err.Error())
+	}
+}
+func TestDeleteWithDescribeProfileFail(t *testing.T) {
+	ig := FakeIG{}
+	instanceGroup := ig.getInstanceGroup()
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
+	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
+	testCase := EksFargateUnitTest{
+		InstanceGroup:           instanceGroup,
+		MakeDescribeProfileFail: true,
+		ListOfProfiles:          []*string{aws.String("profile1")},
+	}
+	ctx := testCase.BuildProvisioner(t)
+	err := ctx.Delete()
+	if err == nil {
+		t.Fatal("TestDeleteWithDescribeProfileFail: expected error got nil")
+	}
+	if instanceGroup.GetState() != v1alpha1.ReconcileInit {
+		t.Fatalf("TestDeleteWithDescribeProfileFail: expected ReconcileInit state.  Got %v", instanceGroup.GetState())
+	}
+}
+func TestDeleteWithCanDeleteFailure(t *testing.T) {
+	ig := FakeIG{}
+	instanceGroup := ig.getInstanceGroup()
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
+	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
 	testCase := EksFargateUnitTest{
 		InstanceGroup: instanceGroup,
 		ProfileFromDescribe: &eks.FargateProfile{
-			Tags:                map[string]*string{"key1": aws.String("value1"), "key2": aws.String("value2")},
-			Selectors:           []*eks.FargateProfileSelector{},
-			PodExecutionRoleArn: aws.String("a:b:c:d:e:f"),
-			Subnets:             []*string{},
+			Status: aws.String("DELETING"),
 		},
+		ListOfProfiles: []*string{aws.String("profile1")},
 	}
 	ctx := testCase.BuildProvisioner(t)
-	b := ctx.HasChanged()
-	if b != true {
-		t.Fatal("TestHasChangedSimpleTagFailureOnKey: get a false but expected a true")
+	err := ctx.Delete()
+	if err != nil {
+		t.Fatalf("TestDeleteWithCanDeleteFailure: expected nil.  Got %v", err)
+	}
+	if instanceGroup.GetState() != v1alpha1.ReconcileInit {
+		t.Fatalf("TestDeleteWithCanDeleteFailure: expected ReconcileInit state.  Got %v", instanceGroup.GetState())
 	}
 }
-func TestHasChangedSimpleTagFailureOnLength(t *testing.T) {
+func TestDeleteWithArnDeleteProfileSuccess(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetTags([]map[string]string{{"key2": "value2"}, {"key3": "value1"}})
-	instanceGroup.Spec.EKSFargateSpec.SetSelectors([]*v1alpha1.EKSFargateSelectors{})
-	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn(aws.String("a:b:c:d:e:f"))
-	instanceGroup.Spec.EKSFargateSpec.SetSubnets([]*string{})
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
+	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
+	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn(aws.String("a:b:c:d:e:f")) // no arn
 	testCase := EksFargateUnitTest{
 		InstanceGroup: instanceGroup,
-		ProfileFromDescribe: &eks.FargateProfile{
-			Tags:                map[string]*string{"key3": aws.String("value1"), "key1": aws.String("value1"), "key2": aws.String("value2")},
-			Selectors:           []*eks.FargateProfileSelector{},
-			PodExecutionRoleArn: aws.String("a:b:c:d:e:f"),
-			Subnets:             []*string{},
-		},
 	}
 	ctx := testCase.BuildProvisioner(t)
-	b := ctx.HasChanged()
-	if b != true {
-		t.Fatal("TestHasChangedSimpleTagFailureOnLength: get a false but expected a true")
+	err := ctx.Delete()
+	if err != nil {
+		t.Fatalf("TestDeleteWithArnDeleteProfileSuccess: expected nil.  Got %v", err)
+	}
+	if instanceGroup.GetState() != v1alpha1.ReconcileDeleting {
+		t.Fatalf("TestDeleteWithArnDeleteProfileSuccess: expected ReconcileDeleting state.  Got %v", instanceGroup.GetState())
 	}
 }
-func TestHasChangedArnFail(t *testing.T) {
+func TestDeleteWithArnDeleteProfileFail(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetTags([]map[string]string{})
-	instanceGroup.Spec.EKSFargateSpec.SetSelectors([]*v1alpha1.EKSFargateSelectors{})
-	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn(aws.String("a:b:c:d:e:f"))
-	instanceGroup.Spec.EKSFargateSpec.SetSubnets([]*string{})
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
+	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
+	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn(aws.String("a:b:c:d:e:f")) // no arn
 	testCase := EksFargateUnitTest{
-		InstanceGroup: instanceGroup,
-		ProfileFromDescribe: &eks.FargateProfile{
-			Tags:                map[string]*string{},
-			Selectors:           []*eks.FargateProfileSelector{},
-			PodExecutionRoleArn: aws.String("a:b:c:d:e:g"),
-			Subnets:             []*string{},
-		},
+		InstanceGroup:         instanceGroup,
+		MakeDeleteProfileFail: true,
 	}
 	ctx := testCase.BuildProvisioner(t)
-	b := ctx.HasChanged()
-	if b != true {
-		t.Fatal("TestHasChangedArnFail: get a false but expected a true")
+	err := ctx.Delete()
+	if err == nil {
+		t.Fatal("TestDeleteWithArnDeleteProfileFail: expected error.  Got nil")
+	}
+	if err.Error() != "delete profile failed" {
+		t.Fatalf("TestDeleteWithArnDeleteProfileFail: bad error message.  Got %v", err.Error())
+	}
+
+	if instanceGroup.GetState() != v1alpha1.ReconcileInit {
+		t.Fatalf("TestDeleteWithArnDeleteProfileFail: expected ReconcileInit state.  Got %v", instanceGroup.GetState())
 	}
 }
-func TestHasChangedArnFailOnDefaultArn(t *testing.T) {
+func TestDeleteWithoutArnDetachPolicyFromRoleCreated(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("ClusterXYZ"))
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("ProfileABC"))
-	instanceGroup.Spec.EKSFargateSpec.SetTags([]map[string]string{})
-	instanceGroup.Spec.EKSFargateSpec.SetSelectors([]*v1alpha1.EKSFargateSelectors{})
-	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn(aws.String(""))
-	instanceGroup.Spec.EKSFargateSpec.SetSubnets([]*string{})
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
+	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
 	testCase := EksFargateUnitTest{
-		InstanceGroup: instanceGroup,
-		ProfileFromDescribe: &eks.FargateProfile{
-			Tags:                map[string]*string{},
-			Selectors:           []*eks.FargateProfileSelector{},
-			PodExecutionRoleArn: aws.String("ClusterXYZ_ProfileABC_Role"),
-			Subnets:             []*string{},
-		},
+		InstanceGroup:         instanceGroup,
+		DetachRolePolicyFound: true,
 	}
 	ctx := testCase.BuildProvisioner(t)
-	b := ctx.HasChanged()
-	if b != false {
-		t.Fatal("TestHasChangedArnFailOnDefaultArn: get a true but expected a false")
+	err := ctx.Delete()
+	if err != nil {
+		t.Fatalf("TestDeleteWithoutArnDetachPolicyFromRoleCreated: expected nil.  Got %v", err)
+	}
+	if instanceGroup.GetState() != v1alpha1.ReconcileInit {
+		t.Fatalf("TestDeleteWithoutArnDetachPolicyFromRoleCreated: expected ReconcileInit state.  Got %v", instanceGroup.GetState())
 	}
 }
-func TestHasChangedArnSuccess(t *testing.T) {
+func TestDeleteWithoutArnDetachPolicyFromRoleFailed(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetTags([]map[string]string{})
-	instanceGroup.Spec.EKSFargateSpec.SetSelectors([]*v1alpha1.EKSFargateSelectors{})
-	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn(aws.String("a:b:c:d:e:f"))
-	instanceGroup.Spec.EKSFargateSpec.SetSubnets([]*string{})
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
+	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
 	testCase := EksFargateUnitTest{
-		InstanceGroup: instanceGroup,
-		ProfileFromDescribe: &eks.FargateProfile{
-			Tags:                map[string]*string{},
-			Selectors:           []*eks.FargateProfileSelector{},
-			PodExecutionRoleArn: aws.String("a:b:c:d:e:f"),
-			Subnets:             []*string{},
-		},
+		InstanceGroup:        instanceGroup,
+		DetachRolePolicyFail: true,
 	}
 	ctx := testCase.BuildProvisioner(t)
-	b := ctx.HasChanged()
-	if b != false {
-		t.Fatal("TestHasChangedSuccess: get a false but expected a true")
+	err := ctx.Delete()
+	if err == nil {
+		t.Fatal("TestDeleteWithoutArnDetachPolicyFromRoleFailed: expected error.  Got nil")
+	}
+	if err.Error() != "detach role policy failed" {
+		t.Fatalf("TestDeleteWithoutArnDetachPolicyFromRoleFailed: bad error.  Got %v", err.Error())
+	}
+	if instanceGroup.GetState() != v1alpha1.ReconcileInit {
+		t.Fatalf("TestDeleteWithoutArnDetachPolicyFromRoleFailed: expected ReconcileInit state.  Got %v", instanceGroup.GetState())
 	}
 }
-func TestHasChangedSubnetsFailureByValue(t *testing.T) {
+func TestDeleteWithoutArnDeleteRoleFailed(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetTags([]map[string]string{})
-	instanceGroup.Spec.EKSFargateSpec.SetSelectors([]*v1alpha1.EKSFargateSelectors{})
-	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn(aws.String("a:b:c:d:e:f"))
-	instanceGroup.Spec.EKSFargateSpec.SetSubnets([]*string{aws.String("subnet-123"), aws.String("subnet-abcea")})
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
+	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
 	testCase := EksFargateUnitTest{
-		InstanceGroup: instanceGroup,
-		ProfileFromDescribe: &eks.FargateProfile{
-			Tags:                map[string]*string{},
-			Selectors:           []*eks.FargateProfileSelector{},
-			PodExecutionRoleArn: aws.String("a:b:c:d:e:f"),
-			Subnets:             []*string{aws.String("subnet-123"), aws.String("subnet-abc")},
-		},
+		InstanceGroup:         instanceGroup,
+		DetachRolePolicyFound: false,
+		MakeDeleteRoleFail:    true,
 	}
 	ctx := testCase.BuildProvisioner(t)
-	b := ctx.HasChanged()
-	if b != true {
-		t.Fatal("TestHasChangedSubnetsFailureByValue: get a false but expected a true")
+	err := ctx.Delete()
+	if err == nil {
+		t.Fatal("TestDeleteWithoutArnDeleteRoleFailed: expected error.  Got nil")
+	}
+	if err.Error() != "delete role failed" {
+		t.Fatalf("TestDeleteWithoutArnDeleteRoleFailed: bad error.  Got %v", err.Error())
+	}
+	if instanceGroup.GetState() != v1alpha1.ReconcileInit {
+		t.Fatalf("TestDeleteWithoutArnDeleteRoleFailed: expected ReconcileInit state.  Got %v", instanceGroup.GetState())
 	}
 }
-func TestHasChangedSubnetsFailureByLength(t *testing.T) {
+func TestDeleteWithoutArnDeleteRoleCreated(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetTags([]map[string]string{})
-	instanceGroup.Spec.EKSFargateSpec.SetSelectors([]*v1alpha1.EKSFargateSelectors{})
-	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn(aws.String("a:b:c:d:e:f"))
-	instanceGroup.Spec.EKSFargateSpec.SetSubnets([]*string{aws.String("subnet-123"), aws.String("subnet-abc"), aws.String("subnet-000")})
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
+	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
 	testCase := EksFargateUnitTest{
-		InstanceGroup: instanceGroup,
-		ProfileFromDescribe: &eks.FargateProfile{
-			Tags:                map[string]*string{},
-			Selectors:           []*eks.FargateProfileSelector{},
-			PodExecutionRoleArn: aws.String("a:b:c:d:e:f"),
-			Subnets:             []*string{aws.String("subnet-123"), aws.String("subnet-abc")},
-		},
+		InstanceGroup:         instanceGroup,
+		DetachRolePolicyFound: false,
+		DeleteRoleFound:       true,
 	}
 	ctx := testCase.BuildProvisioner(t)
-	b := ctx.HasChanged()
-	if b != true {
-		t.Fatal("TestHasChangedSubnetsFailureByLength")
+	err := ctx.Delete()
+	if err != nil {
+		t.Fatalf("TestDeleteWithoutArnDeleteRoleCreated: expected nil.  Got %v", err)
+	}
+	if instanceGroup.GetState() != v1alpha1.ReconcileInit {
+		t.Fatalf("TestDeleteWithoutArnDeleteRoleCreated: expected ReconcileInit state.  Got %v", instanceGroup.GetState())
 	}
 }
-func TestHasChangedSubnetsSuccess(t *testing.T) {
+func TestDeleteWithoutArnDeleteProfileFailed(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetTags([]map[string]string{})
-	instanceGroup.Spec.EKSFargateSpec.SetSelectors([]*v1alpha1.EKSFargateSelectors{})
-	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn(aws.String("a:b:c:d:e:f"))
-	instanceGroup.Spec.EKSFargateSpec.SetSubnets([]*string{})
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
+	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
 	testCase := EksFargateUnitTest{
-		InstanceGroup: instanceGroup,
-		ProfileFromDescribe: &eks.FargateProfile{
-			Tags:                map[string]*string{},
-			Selectors:           []*eks.FargateProfileSelector{},
-			PodExecutionRoleArn: aws.String("a:b:c:d:e:f"),
-			Subnets:             []*string{},
-		},
+		InstanceGroup:         instanceGroup,
+		DetachRolePolicyFound: false,
+		DeleteRoleFound:       false,
+		MakeDeleteProfileFail: true,
 	}
 	ctx := testCase.BuildProvisioner(t)
-	b := ctx.HasChanged()
-	if b == true {
-		t.Fatal("TestHasChangedSubnetsSuccess: get a true but expected a false")
+	err := ctx.Delete()
+	if err == nil {
+		t.Fatal("TestDeleteWithoutArnDeleteProfileFailed: expected error.  Got nil")
+	}
+	if err.Error() != "delete profile failed" {
+		t.Fatalf("TestDeleteWithoutArnDeleteProfileFailed: bad error message.  Got %v", err.Error())
+	}
+	if instanceGroup.GetState() != v1alpha1.ReconcileInit {
+		t.Fatalf("TestDeleteWithoutArnDeleteProfileFailed: expected ReconcileInit state.  Got %v", instanceGroup.GetState())
+	}
+}
+func TestDeleteWithoutArnDeleteProfileSuccess(t *testing.T) {
+	ig := FakeIG{}
+	instanceGroup := ig.getInstanceGroup()
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName(aws.String("DinahCluster"))
+	instanceGroup.Spec.EKSFargateSpec.SetProfileName(aws.String("DinahProfile"))
+	testCase := EksFargateUnitTest{
+		InstanceGroup:         instanceGroup,
+		DetachRolePolicyFound: false,
+		DeleteRoleFound:       false,
+		MakeDeleteProfileFail: false,
+	}
+	ctx := testCase.BuildProvisioner(t)
+	err := ctx.Delete()
+	if err != nil {
+		t.Fatalf("TestDeleteWithoutArnDeleteProfileSuccess: expected nil.  Got %v", err)
+	}
+	if instanceGroup.GetState() != v1alpha1.ReconcileDeleting {
+		t.Fatalf("TestDeleteWithoutArnDeleteProfileSuccess: expected ReconcileDeleting state.  Got %v", instanceGroup.GetState())
 	}
 }

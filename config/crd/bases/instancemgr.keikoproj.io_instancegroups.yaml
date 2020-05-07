@@ -160,7 +160,9 @@ spec:
               required:
               - clusterName
               - fargateProfileName
+              - selectors
               - subnets
+              - tags
               type: object
             eks-managed:
               properties:
@@ -272,8 +274,6 @@ spec:
             currentMin:
               type: integer
             currentState:
-              type: string
-            fargateRoleName:
               type: string
             lifecycle:
               type: string

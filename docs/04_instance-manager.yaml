@@ -703,8 +703,7 @@ spec:
         app: instance-manager
     spec:
       containers:
-      # image: keikoproj/instance-manager:master
-      - image: givt002/instance-manager:latest
+      - image: keikoproj/instance-manager:master
         imagePullPolicy: Always
         name: instance-manager
         resources:

@@ -187,15 +187,13 @@ func (r *InstanceGroupReconciler) ReconcileEKSFargate(instanceGroup *v1alpha.Ins
 	}
 	spec := instanceGroup.Spec.EKSFargateSpec
 	worker := &aws.AwsFargateWorker{
-		IamClient:    aws.GetAwsIAMClient(awsRegion),
-		EksClient:    aws.GetAwsEksClient(awsRegion),
-		ClusterName:  spec.GetClusterName(),
-		ProfileName:  spec.GetProfileName(),
-		ExecutionArn: spec.GetPodExecutionRoleArn(),
-		Selectors:    eksfargate.CreateFargateSelectors(spec.GetSelectors()),
-		Tags:         eksfargate.CreateFargateTags(spec.GetTags()),
-		Subnets:      spec.GetSubnets(),
-		RoleName:     addressOf(instanceGroup.Status.GetFargateRoleName()),
+		IamClient:   aws.GetAwsIAMClient(awsRegion),
+		EksClient:   aws.GetAwsEksClient(awsRegion),
+		ClusterName: spec.GetClusterName(),
+		ProfileName: spec.GetProfileName(),
+		Selectors:   eksfargate.CreateFargateSelectors(spec.GetSelectors()),
+		Tags:        eksfargate.CreateFargateTags(spec.GetTags()),
+		Subnets:     spec.GetSubnets(),
 	}
 	ctx, err := eksfargate.New(instanceGroup, worker)
 	if err != nil {
@@ -415,8 +413,6 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	log.Infof("resource name: %v", ig.ObjectMeta.Name)
 	log.Infof("resource provisioner: %v", strings.ToLower(ig.Spec.Provisioner))
 
-	// Add Finalizer if not present, and set the initial state
-	// Provisioner EKS-Cloudformation Reconciler
 	finalizerName := fmt.Sprintf("finalizers.%v.instancegroups.keikoproj.io", ig.Spec.Provisioner)
 	r.SetFinalizer(ig, finalizerName)
 
