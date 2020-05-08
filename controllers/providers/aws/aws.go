@@ -280,7 +280,6 @@ func (w *AwsWorker) CreateUpdateScalingGroupRole(name string, managedPolicies []
 		createdRole    = &iam.Role{}
 		createdProfile = &iam.InstanceProfile{}
 	)
-
 	if role, ok := w.RoleExist(name); !ok {
 		out, err := w.IamClient.CreateRole(&iam.CreateRoleInput{
 			RoleName:                 aws.String(name),

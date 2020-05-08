@@ -131,7 +131,10 @@ func (d *DiscoveredState) SetScalingGroup(asg *autoscaling.Group) {
 	}
 }
 func (d *DiscoveredState) GetScalingGroup() *autoscaling.Group {
-	return d.ScalingGroup
+	if d.ScalingGroup != nil {
+		return d.ScalingGroup
+	}
+	return &autoscaling.Group{}
 }
 func (d *DiscoveredState) SetOwnedScalingGroups(groups []*autoscaling.Group) {
 	d.OwnedScalingGroups = groups
@@ -176,10 +179,16 @@ func (d *DiscoveredState) SetInstanceProfile(profile *iam.InstanceProfile) {
 	}
 }
 func (d *DiscoveredState) GetInstanceProfile() *iam.InstanceProfile {
-	return d.InstanceProfile
+	if d.InstanceProfile != nil {
+		return d.InstanceProfile
+	}
+	return &iam.InstanceProfile{}
 }
 func (d *DiscoveredState) GetRole() *iam.Role {
-	return d.IAMRole
+	if d.IAMRole != nil {
+		return d.IAMRole
+	}
+	return &iam.Role{}
 }
 func (d *DiscoveredState) SetProvisioned(provisioned bool) {
 	d.Provisioned = provisioned

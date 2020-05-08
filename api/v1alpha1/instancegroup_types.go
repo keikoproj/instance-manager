@@ -317,6 +317,9 @@ func (c *EKSConfiguration) HasExistingRole() bool {
 func (c *EKSConfiguration) SetRoleName(role string) {
 	c.ExistingRoleName = role
 }
+func (c *EKSConfiguration) SetInstanceProfileName(profile string) {
+	c.ExistingInstanceProfileName = profile
+}
 func (c *EKSConfiguration) GetClusterName() string {
 	return c.EksClusterName
 }
@@ -337,6 +340,9 @@ func (c *EKSConfiguration) SetTaints(taints []corev1.Taint) {
 }
 func (c *EKSConfiguration) GetManagedPolicies() []string {
 	return c.ManagedPolicies
+}
+func (c *EKSConfiguration) SetManagedPolicies(policies []string) {
+	c.ManagedPolicies = policies
 }
 func (c *EKSConfiguration) GetVolumes() []NodeVolume {
 	return c.Volumes

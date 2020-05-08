@@ -16,6 +16,8 @@ limitations under the License.
 package eks
 
 import (
+	"reflect"
+
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
@@ -81,14 +83,14 @@ func (ctx *EksInstanceGroupContext) Update() error {
 
 func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 	var (
-		tags          = ctx.GetAddedTags()
-		rmTags        = ctx.GetRemovedTags()
 		instanceGroup = ctx.GetInstanceGroup()
 		spec          = instanceGroup.GetEKSSpec()
 		configuration = instanceGroup.GetEKSConfiguration()
 		state         = ctx.GetDiscoveredState()
 		scalingGroup  = state.GetScalingGroup()
 		asgName       = aws.StringValue(scalingGroup.AutoScalingGroupName)
+		tags          = ctx.GetAddedTags(asgName)
+		rmTags        = ctx.GetRemovedTags(asgName)
 	)
 
 	log.Infof("updating scaling group %s", asgName)
@@ -114,4 +116,116 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 	}
 
 	return nil
+}
+
+func (ctx *EksInstanceGroupContext) RotationNeeded() bool {
+	var (
+		state        = ctx.GetDiscoveredState()
+		scalingGroup = state.GetScalingGroup()
+	)
+
+	if len(scalingGroup.Instances) == 0 {
+		return false
+	}
+
+	for _, instance := range scalingGroup.Instances {
+		if aws.StringValue(instance.LaunchConfigurationName) != state.GetActiveLaunchConfigurationName() {
+			log.Info("upgrade required: scaling instances with different launch-config")
+			return true
+		}
+	}
+	return false
+}
+
+func (ctx *EksInstanceGroupContext) LaunchConfigurationDrifted() bool {
+	var (
+		state = ctx.GetDiscoveredState()
+		// only used for comparison, no need to generate a name
+		newConfig      = ctx.GetLaunchConfigurationInput("")
+		existingConfig = state.GetLaunchConfiguration()
+		drift          bool
+	)
+
+	if state.LaunchConfiguration == nil {
+		log.Info("detected drift in launch configuration: launch config does not exist")
+		return true
+	}
+
+	if aws.StringValue(existingConfig.ImageId) != aws.StringValue(newConfig.ImageId) {
+		log.Infof(
+			"detected drift in launch configuration: image-id has changed, %s -> %s",
+			aws.StringValue(existingConfig.ImageId),
+			aws.StringValue(newConfig.ImageId),
+		)
+		drift = true
+	}
+
+	if aws.StringValue(existingConfig.InstanceType) != aws.StringValue(newConfig.InstanceType) {
+		log.Infof(
+			"detected drift in launch configuration: instance-type has changed, %s -> %s",
+			aws.StringValue(existingConfig.InstanceType),
+			aws.StringValue(newConfig.InstanceType),
+		)
+		drift = true
+	}
+
+	if aws.StringValue(existingConfig.IamInstanceProfile) != aws.StringValue(newConfig.IamInstanceProfile) {
+		log.Infof(
+			"detected drift in launch configuration: instance-profile has changed, %s -> %s",
+			aws.StringValue(existingConfig.IamInstanceProfile),
+			aws.StringValue(newConfig.IamInstanceProfile),
+		)
+		drift = true
+	}
+
+	if !common.StringSliceEquals(aws.StringValueSlice(existingConfig.SecurityGroups), aws.StringValueSlice(newConfig.SecurityGroups)) {
+		log.Infof(
+			"detected drift in launch configuration: security-groups have changed, %v -> %v",
+			aws.StringValueSlice(existingConfig.SecurityGroups),
+			aws.StringValueSlice(newConfig.SecurityGroups),
+		)
+		drift = true
+	}
+
+	if aws.StringValue(existingConfig.SpotPrice) != aws.StringValue(newConfig.SpotPrice) {
+		log.Infof(
+			"detected drift in launch configuration: spot-price has changed, '%s' -> '%s'",
+			aws.StringValue(existingConfig.SpotPrice),
+			aws.StringValue(newConfig.SpotPrice),
+		)
+		drift = true
+	}
+
+	if aws.StringValue(existingConfig.KeyName) != aws.StringValue(newConfig.KeyName) {
+		log.Infof(
+			"detected drift in launch configuration: key-pair-name has changed, %s -> %s",
+			aws.StringValue(existingConfig.KeyName),
+			aws.StringValue(newConfig.KeyName),
+		)
+		drift = true
+	}
+
+	if aws.StringValue(existingConfig.UserData) != aws.StringValue(newConfig.UserData) {
+		log.Infof(
+			"detected drift in launch configuration: user-data has changed, %s -> %s",
+			aws.StringValue(existingConfig.UserData),
+			aws.StringValue(newConfig.UserData),
+		)
+		drift = true
+	}
+
+	if !reflect.DeepEqual(existingConfig.BlockDeviceMappings, newConfig.BlockDeviceMappings) {
+		log.Infof(
+			"detected drift in launch configuration: block-device-mappings has changed;\n < %v\n---\n> %v",
+			existingConfig.BlockDeviceMappings,
+			newConfig.BlockDeviceMappings,
+		)
+		drift = true
+	}
+
+	if !drift {
+		log.Info("no drift detected")
+	}
+
+	return drift
 }

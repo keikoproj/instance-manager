@@ -17,10 +17,8 @@ package eks
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
-	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
@@ -63,13 +61,13 @@ func (ctx *EksInstanceGroupContext) Create() error {
 
 func (ctx EksInstanceGroupContext) CreateScalingGroup() error {
 	var (
-		tags          = ctx.GetAddedTags()
 		instanceGroup = ctx.GetInstanceGroup()
 		spec          = instanceGroup.GetEKSSpec()
 		configuration = instanceGroup.GetEKSConfiguration()
 		clusterName   = configuration.GetClusterName()
 		state         = ctx.GetDiscoveredState()
 		asgName       = fmt.Sprintf("%v-%v-%v", clusterName, instanceGroup.GetNamespace(), instanceGroup.GetName())
+		tags          = ctx.GetAddedTags(asgName)
 	)
 
 	if state.HasScalingGroup() {
@@ -104,13 +102,14 @@ func (ctx EksInstanceGroupContext) CreateScalingGroup() error {
 
 func (ctx *EksInstanceGroupContext) CreateLaunchConfiguration() error {
 	var (
-		lcInput       = ctx.GetLaunchConfigurationInput()
 		state         = ctx.GetDiscoveredState()
 		instanceGroup = ctx.GetInstanceGroup()
+		configuration = instanceGroup.GetEKSConfiguration()
 		status        = instanceGroup.GetStatus()
+		clusterName   = configuration.GetClusterName()
+		lcName        = fmt.Sprintf("%v-%v-%v-%v", clusterName, instanceGroup.GetNamespace(), instanceGroup.GetName(), common.GetTimeString())
+		lcInput       = ctx.GetLaunchConfigurationInput(lcName)
 	)
-
-	lcName := aws.StringValue(lcInput.LaunchConfigurationName)
 	log.Infof("creating new launch configuration %s", lcName)
 
 	err := ctx.AwsWorker.CreateLaunchConfig(lcInput)
@@ -123,10 +122,12 @@ func (ctx *EksInstanceGroupContext) CreateLaunchConfiguration() error {
 		return err
 	}
 
-	state.SetActiveLaunchConfigurationName(lcName)
-	status.SetActiveLaunchConfigurationName(lcName)
 	if len(lcOut.LaunchConfigurations) == 1 {
-		state.SetLaunchConfiguration(lcOut.LaunchConfigurations[0])
+		createdLaunchConfiguration := lcOut.LaunchConfigurations[0]
+		name := aws.StringValue(createdLaunchConfiguration.LaunchConfigurationName)
+		status.SetActiveLaunchConfigurationName(name)
+		state.SetActiveLaunchConfigurationName(name)
+		state.SetLaunchConfiguration(createdLaunchConfiguration)
 	}
 
 	return nil
@@ -148,18 +149,7 @@ func (ctx *EksInstanceGroupContext) CreateManagedRole() error {
 
 	// create a controller-owned role for the instancegroup
 	log.Infof("updating managed role %s", roleName)
-	managedPolicies := make([]string, 0)
-	for _, name := range additionalPolicies {
-		if strings.HasPrefix(name, awsprovider.IAMPolicyPrefix) {
-			managedPolicies = append(managedPolicies, name)
-		} else {
-			managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, name))
-		}
-	}
-
-	for _, name := range DefaultManagedPolicies {
-		managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, name))
-	}
+	managedPolicies := ctx.GetManagedPoliciesList(additionalPolicies)
 
 	role, profile, err := ctx.AwsWorker.CreateUpdateScalingGroupRole(roleName, managedPolicies)
 	if err != nil {
@@ -169,19 +159,5 @@ func (ctx *EksInstanceGroupContext) CreateManagedRole() error {
 	state.SetRole(role)
 	state.SetInstanceProfile(profile)
 
-	return nil
-}
-
-func (ctx *EksInstanceGroupContext) BootstrapNodes() error {
-	var (
-		state   = ctx.GetDiscoveredState()
-		role    = state.GetRole()
-		roleARN = aws.StringValue(role.Arn)
-	)
-
-	err := common.UpsertAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{roleARN})
-	if err != nil {
-		return err
-	}
 	return nil
 }

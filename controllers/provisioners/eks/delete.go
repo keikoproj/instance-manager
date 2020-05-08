@@ -16,12 +16,8 @@ limitations under the License.
 package eks
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
-	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
@@ -66,8 +62,9 @@ func (ctx *EksInstanceGroupContext) Delete() error {
 
 func (ctx *EksInstanceGroupContext) DeleteScalingGroup() error {
 	var (
-		state   = ctx.GetDiscoveredState()
-		asgName = aws.StringValue(state.ScalingGroup.AutoScalingGroupName)
+		state        = ctx.GetDiscoveredState()
+		scalingGroup = state.GetScalingGroup()
+		asgName      = aws.StringValue(scalingGroup.AutoScalingGroupName)
 	)
 	if !state.HasScalingGroup() {
 		return nil
@@ -115,18 +112,7 @@ func (ctx *EksInstanceGroupContext) DeleteManagedRole() error {
 
 	log.Infof("deleting managed role %s", roleName)
 
-	managedPolicies := make([]string, 0)
-	for _, name := range additionalPolicies {
-		if strings.HasPrefix(name, awsprovider.IAMPolicyPrefix) {
-			managedPolicies = append(managedPolicies, name)
-		} else {
-			managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, name))
-		}
-	}
-
-	for _, name := range DefaultManagedPolicies {
-		managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, name))
-	}
+	managedPolicies := ctx.GetManagedPoliciesList(additionalPolicies)
 
 	err := ctx.AwsWorker.DeleteScalingGroupRole(roleName, managedPolicies)
 	if err != nil {

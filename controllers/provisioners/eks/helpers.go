@@ -24,7 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
-	"github.com/keikoproj/instance-manager/controllers/common"
+	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	log "github.com/sirupsen/logrus"
 	yaml "gopkg.in/yaml.v2"
@@ -32,7 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput() *autoscaling.CreateLaunchConfigurationInput {
+func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput(name string) *autoscaling.CreateLaunchConfigurationInput {
 	var (
 		instanceGroup   = ctx.GetInstanceGroup()
 		configuration   = instanceGroup.GetEKSConfiguration()
@@ -44,7 +44,6 @@ func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput() *autoscaling.C
 		userData        = ctx.AwsWorker.GetBasicUserData(clusterName, args)
 	)
 
-	name := fmt.Sprintf("%v-%v-%v-%v", clusterName, instanceGroup.GetNamespace(), instanceGroup.GetName(), common.GetTimeString())
 	input := &autoscaling.CreateLaunchConfigurationInput{
 		LaunchConfigurationName: aws.String(name),
 		IamInstanceProfile:      instanceProfile.Arn,
@@ -63,15 +62,12 @@ func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput() *autoscaling.C
 	return input
 }
 
-func (ctx *EksInstanceGroupContext) GetAddedTags() []*autoscaling.Tag {
+func (ctx *EksInstanceGroupContext) GetAddedTags(asgName string) []*autoscaling.Tag {
 	var (
 		tags          []*autoscaling.Tag
 		instanceGroup = ctx.GetInstanceGroup()
 		configuration = instanceGroup.GetEKSConfiguration()
 		clusterName   = configuration.GetClusterName()
-		state         = ctx.GetDiscoveredState()
-		scalingGroup  = state.GetScalingGroup()
-		asgName       = aws.StringValue(scalingGroup.AutoScalingGroupName)
 	)
 
 	tags = append(tags, ctx.AwsWorker.NewTag(TagName, asgName, asgName))
@@ -87,14 +83,13 @@ func (ctx *EksInstanceGroupContext) GetAddedTags() []*autoscaling.Tag {
 	return tags
 }
 
-func (ctx *EksInstanceGroupContext) GetRemovedTags() []*autoscaling.Tag {
+func (ctx *EksInstanceGroupContext) GetRemovedTags(asgName string) []*autoscaling.Tag {
 	var (
 		existingTags []*autoscaling.Tag
 		removal      []*autoscaling.Tag
-		addedTags    = ctx.GetAddedTags()
 		state        = ctx.GetDiscoveredState()
 		scalingGroup = state.GetScalingGroup()
-		asgName      = aws.StringValue(scalingGroup.AutoScalingGroupName)
+		addedTags    = ctx.GetAddedTags(asgName)
 	)
 
 	// get existing tags
@@ -183,110 +178,6 @@ func (ctx *EksInstanceGroupContext) GetBootstrapArgs() string {
 	labelsFlag := fmt.Sprintf("--node-labels=%v", strings.Join(ctx.GetLabelList(), ","))
 	taintsFlag := fmt.Sprintf("--register-with-taints=%v", strings.Join(ctx.GetTaintList(), ","))
 	return fmt.Sprintf("--kubelet-extra-args '%v %v %v'", labelsFlag, taintsFlag, bootstrapArgs)
-}
-
-func (ctx *EksInstanceGroupContext) RotationNeeded() bool {
-	var (
-		state        = ctx.GetDiscoveredState()
-		scalingGroup = state.GetScalingGroup()
-	)
-
-	for _, instance := range scalingGroup.Instances {
-		if aws.StringValue(instance.LaunchConfigurationName) != state.GetActiveLaunchConfigurationName() {
-			log.Info("upgrade required: scaling instances with different launch-config")
-			return true
-		}
-	}
-	return false
-}
-
-func (ctx *EksInstanceGroupContext) LaunchConfigurationDrifted() bool {
-	var (
-		state          = ctx.GetDiscoveredState()
-		newConfig      = ctx.GetLaunchConfigurationInput()
-		existingConfig = state.GetLaunchConfiguration()
-		drift          bool
-	)
-
-	if state.LaunchConfiguration == nil {
-		log.Info("detected drift in launch configuration: launch config does not exist")
-		return true
-	}
-
-	if aws.StringValue(existingConfig.ImageId) != aws.StringValue(newConfig.ImageId) {
-		log.Infof(
-			"detected drift in launch configuration: image-id has changed, %s -> %s",
-			aws.StringValue(existingConfig.ImageId),
-			aws.StringValue(newConfig.ImageId),
-		)
-		drift = true
-	}
-
-	if aws.StringValue(existingConfig.InstanceType) != aws.StringValue(newConfig.InstanceType) {
-		log.Infof(
-			"detected drift in launch configuration: instance-type has changed, %s -> %s",
-			aws.StringValue(existingConfig.InstanceType),
-			aws.StringValue(newConfig.InstanceType),
-		)
-		drift = true
-	}
-
-	if aws.StringValue(existingConfig.IamInstanceProfile) != aws.StringValue(newConfig.IamInstanceProfile) {
-		log.Infof(
-			"detected drift in launch configuration: instance-profile has changed, %s -> %s",
-			aws.StringValue(existingConfig.IamInstanceProfile),
-			aws.StringValue(newConfig.IamInstanceProfile),
-		)
-		drift = true
-	}
-
-	if !common.StringSliceEquals(aws.StringValueSlice(existingConfig.SecurityGroups), aws.StringValueSlice(newConfig.SecurityGroups)) {
-		log.Infof(
-			"detected drift in launch configuration: security-groups have changed, %v -> %v",
-			aws.StringValueSlice(existingConfig.SecurityGroups),
-			aws.StringValueSlice(newConfig.SecurityGroups),
-		)
-		drift = true
-	}
-
-	if aws.StringValue(existingConfig.SpotPrice) != aws.StringValue(newConfig.SpotPrice) {
-		log.Infof(
-			"detected drift in launch configuration: spot-price has changed, '%s' -> '%s'",
-			aws.StringValue(existingConfig.SpotPrice),
-			aws.StringValue(newConfig.SpotPrice),
-		)
-		drift = true
-	}
-
-	if aws.StringValue(existingConfig.KeyName) != aws.StringValue(newConfig.KeyName) {
-		log.Infof(
-			"detected drift in launch configuration: key-pair-name has changed, %s -> %s",
-			aws.StringValue(existingConfig.KeyName),
-			aws.StringValue(newConfig.KeyName),
-		)
-		drift = true
-	}
-
-	if aws.StringValue(existingConfig.UserData) != aws.StringValue(newConfig.UserData) {
-		log.Infof(
-			"detected drift in launch configuration: user-data has changed, %s -> %s",
-			aws.StringValue(existingConfig.UserData),
-			aws.StringValue(newConfig.UserData),
-		)
-		drift = true
-	}
-
-	if !reflect.DeepEqual(existingConfig.BlockDeviceMappings, newConfig.BlockDeviceMappings) {
-		log.Infof(
-			"detected drift in launch configuration: block-device-mappings has changed;\n < %v\n---\n> %v",
-			existingConfig.BlockDeviceMappings,
-			newConfig.BlockDeviceMappings,
-		)
-		drift = true
-	}
-
-	log.Info("no drift detected")
-	return drift
 }
 
 func (ctx *EksInstanceGroupContext) discoverSpotPrice() error {
@@ -475,4 +366,20 @@ func LoadControllerConfiguration(instanceGroup *v1alpha1.InstanceGroup, controll
 	}
 
 	return defaultConfig, nil
+}
+
+func (ctx *EksInstanceGroupContext) GetManagedPoliciesList(additionalPolicies []string) []string {
+	managedPolicies := make([]string, 0)
+	for _, name := range additionalPolicies {
+		if strings.HasPrefix(name, awsprovider.IAMPolicyPrefix) {
+			managedPolicies = append(managedPolicies, name)
+		} else {
+			managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, name))
+		}
+	}
+
+	for _, name := range DefaultManagedPolicies {
+		managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, name))
+	}
+	return managedPolicies
 }
