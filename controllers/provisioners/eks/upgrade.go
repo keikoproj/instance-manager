@@ -18,10 +18,11 @@ package eks
 import (
 	"strings"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/controllers/common"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 )
 
 func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
@@ -62,12 +63,23 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 		return errors.Errorf("'%v' is not an implemented upgrade type, will not process upgrade", strategy.GetType())
 	}
 
-	ok, err := ctx.UpdateNodeReadyCondition()
-	if err != nil {
-		log.Warnf("could not update instance group conditions: %v", err)
-	}
-	if ok {
+	if ctx.UpdateNodeReadyCondition() {
 		instanceGroup.SetState(v1alpha1.ReconcileModified)
+	}
+
+	return nil
+}
+
+func (ctx *EksInstanceGroupContext) BootstrapNodes() error {
+	var (
+		state   = ctx.GetDiscoveredState()
+		role    = state.GetRole()
+		roleARN = aws.StringValue(role.Arn)
+	)
+
+	err := common.UpsertAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{roleARN})
+	if err != nil {
+		return err
 	}
 	return nil
 }

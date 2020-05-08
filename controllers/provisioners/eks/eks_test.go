@@ -27,6 +27,7 @@ import (
 	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	dynamic "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
@@ -100,6 +101,40 @@ func MockLaunchConfigFromInput(input *autoscaling.CreateLaunchConfigurationInput
 		KeyName:                 input.KeyName,
 		UserData:                input.UserData,
 		BlockDeviceMappings:     input.BlockDeviceMappings,
+	}
+}
+
+func MockCustomResourceSpec() *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "instancemgr.keikoproj.io/v1alpha1",
+			"kind":       "Dog",
+			"metadata": map[string]interface{}{
+				"creationTimestamp": nil,
+				"name":              "captain",
+				"namespace":         "default",
+			},
+			"spec": map[string]interface{}{
+				"hostname": "example.com",
+			},
+			"status": map[string]interface{}{},
+		},
+	}
+}
+
+func MockCustomResourceDefinition() *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "apiextensions.k8s.io/v1beta1",
+			"kind":       "CustomResourceDefinition",
+			"metadata": map[string]interface{}{
+				"name": "dogs.instancemgr.keikoproj.io",
+			},
+			"spec": map[string]interface{}{
+				"group":   "instancemgr.keikoproj.io",
+				"version": "v1alpha1",
+			},
+		},
 	}
 }
 

@@ -66,11 +66,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	}
 
 	// update readiness conditions
-	ok, err := ctx.UpdateNodeReadyCondition()
-	if err != nil {
-		log.Warnf("could not update instance group conditions: %v", err)
-	}
-	if ok {
+	if ctx.UpdateNodeReadyCondition() {
 		instanceGroup.SetState(v1alpha1.ReconcileModified)
 	}
 

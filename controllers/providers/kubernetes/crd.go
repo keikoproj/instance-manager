@@ -114,7 +114,7 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 		return false, err
 	}
 
-	log.Infof("rollup status: %v", resourceStatus)
+	log.Infof("resource status: %v", resourceStatus)
 	switch strings.ToLower(resourceStatus) {
 	case strings.ToLower(strategy.GetStatusSuccessString()):
 		log.Infof("custom resource %v/%v completed successfully", customResource.GetNamespace(), customResource.GetName())
@@ -197,6 +197,6 @@ func SubmitCustomResource(kube dynamic.Interface, customResource *unstructured.U
 		return err
 	}
 
-	log.Infof("submitted custom resource %v/%v", customResourceNamespace, customResourceName)
+	log.Infof("submitted custom resource %v/%v (%v)", customResourceNamespace, customResourceName, GVR)
 	return nil
 }

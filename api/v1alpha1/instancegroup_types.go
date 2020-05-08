@@ -305,6 +305,9 @@ func (ig *InstanceGroup) GetStatus() *InstanceGroupStatus {
 func (ig *InstanceGroup) GetUpgradeStrategy() *AwsUpgradeStrategy {
 	return &ig.Spec.AwsUpgradeStrategy
 }
+func (ig *InstanceGroup) SetUpgradeStrategy(strategy AwsUpgradeStrategy) {
+	ig.Spec.AwsUpgradeStrategy = strategy
+}
 func (c *EKSConfiguration) GetRoleName() string {
 	return c.ExistingRoleName
 }

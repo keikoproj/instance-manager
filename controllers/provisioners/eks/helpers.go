@@ -315,7 +315,7 @@ func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *kubeprovider.Roll
 	}
 }
 
-func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() (bool, error) {
+func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 	var (
 		state         = ctx.GetDiscoveredState()
 		instanceGroup = ctx.GetInstanceGroup()
@@ -333,17 +333,18 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() (bool, error) {
 	var conditions []v1alpha1.InstanceGroupCondition
 	ok, err := kubeprovider.IsDesiredNodesReady(ctx.KubernetesClient.Kubernetes, instanceIds, desiredCount)
 	if err != nil {
-		return false, err
+		log.Warnf("could not update instance group conditions: %v", err)
+		return false
 	}
 
 	if ok {
 		conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionTrue))
 		status.SetConditions(conditions)
-		return true, nil
+		return true
 	}
 	conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionFalse))
 	status.SetConditions(conditions)
-	return false, nil
+	return false
 }
 
 func LoadControllerConfiguration(instanceGroup *v1alpha1.InstanceGroup, controllerConfig []byte) (EksDefaultConfiguration, error) {

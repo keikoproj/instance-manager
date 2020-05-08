@@ -39,6 +39,9 @@ func (ctx *EksInstanceGroupContext) Delete() error {
 		return errors.Wrap(err, "failed to delete scaling group")
 	}
 
+	// if scaling group is deleted, defer removal from aws-auth
+	defer common.RemoveAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{roleARN})
+
 	// delete launchconfig
 	err = ctx.DeleteLaunchConfiguration()
 	if err != nil {
@@ -49,12 +52,6 @@ func (ctx *EksInstanceGroupContext) Delete() error {
 	err = ctx.DeleteManagedRole()
 	if err != nil {
 		return errors.Wrap(err, "failed to delete scaling group role")
-	}
-
-	// remove IAM role from aws-auth configmap
-	err = common.RemoveAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{roleARN})
-	if err != nil {
-		return errors.Wrap(err, "failed to remove ARN from aws-auth")
 	}
 
 	return nil
