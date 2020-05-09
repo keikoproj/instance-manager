@@ -19,8 +19,8 @@ spec:
         test: bdd-test-rolling
       taints:
       - key: node-role.kubernetes.io/bdd-test
-         value: bdd-test
-         effect: NoSchedule
+        value: bdd-test
+        effect: NoSchedule
       clusterName: {{ .ClusterName }}
       subnets: {{range $element := .Subnets}}
         - {{$element}}

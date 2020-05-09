@@ -472,7 +472,6 @@ func (r *InstanceGroupReconciler) spotEventReconciler(obj handler.MapObject) []c
 
 	tags, err := aws.GetScalingGroupTagsByName(involvedObjectName, r.ScalingGroups)
 	if err != nil {
-		log.Warnf("failed to process event '%v': could not find scaling group", obj.Meta.GetName())
 		return nil
 	}
 	instanceGroup := types.NamespacedName{}

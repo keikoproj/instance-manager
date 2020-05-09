@@ -23,7 +23,6 @@ spec:
         spec:
           postDrainDelaySeconds: 30
           nodeIntervalSeconds: 60
-          region: {{`{{ .ControllerRegion }}`}}
           asgName: {{`{{ .InstanceGroup.Status.ActiveScalingGroupName }}`}}
   eks:
     maxSize: 4
@@ -33,8 +32,8 @@ spec:
         test: bdd-test-crd
       taints:
       - key: node-role.kubernetes.io/bdd-test
-         value: bdd-test
-         effect: NoSchedule
+        value: bdd-test
+        effect: NoSchedule
       clusterName: {{ .ClusterName }}
       subnets: {{range $element := .Subnets}}
         - {{$element}}

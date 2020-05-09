@@ -63,6 +63,10 @@ func (ctx *EksManagedInstanceGroupContext) CloudDiscovery() error {
 		status.SetCurrentMin(int(aws.Int64Value(createdResource.ScalingConfig.MinSize)))
 		status.SetLifecycle("normal")
 
+		if createdResource.Resources == nil {
+			return nil
+		}
+
 		for _, asg := range createdResource.Resources.AutoScalingGroups {
 			groups = append(groups, aws.StringValue(asg.Name))
 		}
