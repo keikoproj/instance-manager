@@ -140,9 +140,6 @@ spec:
                         - key
                         type: object
                       type: array
-                    volSize:
-                      format: int64
-                      type: integer
                     volumes:
                       items:
                         properties:

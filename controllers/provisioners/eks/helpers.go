@@ -123,9 +123,8 @@ func (ctx *EksInstanceGroupContext) GetBlockDeviceList() []*autoscaling.BlockDev
 		for _, v := range customVolumes {
 			devices = append(devices, ctx.AwsWorker.GetBasicBlockDevice(v.Name, v.Type, v.Size))
 		}
-	} else {
-		devices = append(devices, ctx.AwsWorker.GetBasicBlockDevice("/dev/xvda", "gp2", configuration.GetVolumeSize()))
 	}
+
 	return devices
 }
 

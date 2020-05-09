@@ -94,6 +94,38 @@ func TestCloudDiscoveryPositive(t *testing.T) {
 	g.Expect(status.GetCurrentMax()).To(gomega.Equal(6))
 }
 
+func TestCloudDiscoveryExistingRole(t *testing.T) {
+	var (
+		g       = gomega.NewGomegaWithT(t)
+		k       = MockKubernetesClientSet()
+		ig      = MockInstanceGroup()
+		asgMock = NewAutoScalingMocker()
+		iamMock = NewIamMocker()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock)
+	ctx := New(ig, k, w)
+	configuration := ig.GetEKSConfiguration()
+	state := ctx.GetDiscoveredState()
+
+	iamMock.Role = &iam.Role{
+		RoleName: aws.String("some-role"),
+		Arn:      aws.String("some-arn"),
+	}
+
+	iamMock.InstanceProfile = &iam.InstanceProfile{
+		InstanceProfileName: aws.String("some-profile"),
+	}
+
+	configuration.SetRoleName("some-role")
+	configuration.SetInstanceProfileName("some-profile")
+
+	err := ctx.CloudDiscovery()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	g.Expect(state.GetRole()).To(gomega.Equal(iamMock.Role))
+	g.Expect(state.GetInstanceProfile()).To(gomega.Equal(iamMock.InstanceProfile))
+}
+
 func TestCloudDiscoverySpotPrice(t *testing.T) {
 	var (
 		g       = gomega.NewGomegaWithT(t)
@@ -105,7 +137,6 @@ func TestCloudDiscoverySpotPrice(t *testing.T) {
 
 	w := MockAwsWorker(asgMock, iamMock)
 	ctx := New(ig, k, w)
-	// state := ctx.GetDiscoveredState()
 	status := ig.GetStatus()
 	configuration := ig.GetEKSConfiguration()
 

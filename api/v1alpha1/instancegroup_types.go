@@ -211,7 +211,6 @@ type EKSConfiguration struct {
 	Image                       string              `json:"image"`
 	InstanceType                string              `json:"instanceType"`
 	NodeSecurityGroups          []string            `json:"securityGroups,omitempty"`
-	VolSize                     int64               `json:"volSize,omitempty"`
 	Volumes                     []NodeVolume        `json:"volumes,omitempty"`
 	Subnets                     []string            `json:"subnets"`
 	BootstrapArguments          string              `json:"bootstrapArguments,omitempty"`
@@ -308,6 +307,36 @@ func (ig *InstanceGroup) GetUpgradeStrategy() *AwsUpgradeStrategy {
 func (ig *InstanceGroup) SetUpgradeStrategy(strategy AwsUpgradeStrategy) {
 	ig.Spec.AwsUpgradeStrategy = strategy
 }
+func (c *EKSConfiguration) Validate() error {
+	if c.EksClusterName == "" {
+		return errors.Errorf("validation failed, 'eksClusterName' is a required parameter")
+	}
+	if len(c.Subnets) == 0 {
+		return errors.Errorf("validation failed, 'subnets' is a required parameter")
+	}
+	if len(c.NodeSecurityGroups) == 0 {
+		return errors.Errorf("validation failed, 'securityGroups' is a required parameter")
+	}
+	if c.Image == "" {
+		return errors.Errorf("validation failed, 'image' is a required parameter")
+	}
+	if c.InstanceType == "" {
+		return errors.Errorf("validation failed, 'instanceType' is a required parameter")
+	}
+	if c.KeyPairName == "" {
+		return errors.Errorf("validation failed, 'keyPair' is a required parameter")
+	}
+	if len(c.Volumes) == 0 {
+		c.Volumes = []NodeVolume{
+			{
+				Name: "/dev/xvda",
+				Type: "gp2",
+				Size: 32,
+			},
+		}
+	}
+	return nil
+}
 func (c *EKSConfiguration) GetRoleName() string {
 	return c.ExistingRoleName
 }
@@ -349,12 +378,6 @@ func (c *EKSConfiguration) SetManagedPolicies(policies []string) {
 }
 func (c *EKSConfiguration) GetVolumes() []NodeVolume {
 	return c.Volumes
-}
-func (c *EKSConfiguration) GetVolumeSize() int64 {
-	if c.VolSize == 0 {
-		c.VolSize = DefaultVolSize
-	}
-	return c.VolSize
 }
 func (c *EKSConfiguration) GetBootstrapArguments() string {
 	return c.BootstrapArguments

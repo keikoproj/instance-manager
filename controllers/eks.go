@@ -66,6 +66,12 @@ func (r *InstanceGroupReconciler) ReconcileEKS(instanceGroup *v1alpha.InstanceGr
 		return err
 	}
 
+	configuration := instanceGroup.GetEKSConfiguration()
+	err = configuration.Validate()
+	if err != nil {
+		return err
+	}
+
 	awsWorker := aws.AwsWorker{
 		AsgClient: aws.GetAwsAsgClient(awsRegion),
 		EksClient: aws.GetAwsEksClient(awsRegion),
