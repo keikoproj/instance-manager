@@ -292,7 +292,7 @@ The instance-manager configmap contains two file which configure the behavior of
 - `cloudformation.template` - the actual cloudformation template that is used to create instance groups.
 Several parts of the template contain golang templating blocks and should not be modified, other parts (such as tags) can be customized.
 
-### Create an IntanceGroup object
+### Create an InstanceGroup object
 
 Time to submit our first InstanceGroup.
 
