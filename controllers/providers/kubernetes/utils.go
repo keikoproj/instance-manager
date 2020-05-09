@@ -53,14 +53,14 @@ func IsMinNodesReady(kube kubernetes.Interface, instanceIds []string, minCount i
 	}
 
 	// if count of instances in scaling group is not over min, requeue
-	if len(instanceIds) <= minCount {
+	if len(instanceIds) < minCount {
 		return false, nil
 	}
 
 	readyInstances := GetReadyNodesByInstance(instanceIds, nodes)
 
 	// if discovered nodes match provided instance ids, condition is ready
-	if common.StringSliceEquals(readyInstances, instanceIds) {
+	if common.StringSliceContains(readyInstances, instanceIds) {
 		return true, nil
 	}
 

@@ -31,40 +31,45 @@ func (ctx *EksInstanceGroupContext) StateDiscovery() {
 		provisioned   = state.IsProvisioned()
 		group         = state.GetScalingGroup()
 	)
-
 	// only discover state if it's a new reconcile
-	if instanceGroup.GetState() == v1alpha1.ReconcileInit {
-		if ctx.InstanceGroup.ObjectMeta.DeletionTimestamp.IsZero() {
-			// resource is not being deleted
-			if provisioned {
-				// scaling group exists
-				instanceGroup.SetState(v1alpha1.ReconcileInitUpdate)
+	if instanceGroup.GetState() != v1alpha1.ReconcileInit {
+		return
+	}
+
+	var deleted bool
+	if !ctx.InstanceGroup.ObjectMeta.DeletionTimestamp.IsZero() {
+		deleted = true
+	}
+
+	if deleted {
+		// resource is being deleted
+		if provisioned {
+			// scaling group still provisioned
+			if aws.StringValue(group.Status) == ScalingGroupDeletionStatus {
+				// scaling group is being deleted
+				instanceGroup.SetState(v1alpha1.ReconcileDeleting)
 			} else {
-				// stack does not exist
-				instanceGroup.SetState(v1alpha1.ReconcileInitCreate)
+				// scaling group still exists
+				instanceGroup.SetState(v1alpha1.ReconcileInitDelete)
 			}
 		} else {
-			// resource is being deleted
-			if provisioned {
-				if aws.StringValue(group.Status) == ScalingGroupDeletionStatus {
-					// scaling group is being deleted
-					instanceGroup.SetState(v1alpha1.ReconcileDeleting)
-				} else {
-					// scaling group still exists
-					instanceGroup.SetState(v1alpha1.ReconcileInitDelete)
-				}
-			} else {
-				// Stack does not exist
-				instanceGroup.SetState(v1alpha1.ReconcileDeleted)
-			}
+			// scaling group does not exist
+			instanceGroup.SetState(v1alpha1.ReconcileDeleted)
+		}
+	} else {
+		// resource is not being deleted
+		if provisioned {
+			// scaling group exists
+			instanceGroup.SetState(v1alpha1.ReconcileInitUpdate)
+		} else {
+			// scaling group does not exist
+			instanceGroup.SetState(v1alpha1.ReconcileInitCreate)
 		}
 	}
+
 }
 
 func (ctx *EksInstanceGroupContext) IsReady() bool {
 	instanceGroup := ctx.GetInstanceGroup()
-	if instanceGroup.GetState() == v1alpha1.ReconcileModified {
-		return true
-	}
-	return false
+	return instanceGroup.GetState() == v1alpha1.ReconcileModified
 }

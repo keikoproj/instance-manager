@@ -29,7 +29,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput(name string) *autoscaling.CreateLaunchConfigurationInput {
@@ -272,47 +271,6 @@ func (ctx *EksInstanceGroupContext) findTargetScalingGroup(groups []*autoscaling
 	}
 
 	return nil
-}
-
-func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *kubeprovider.RollingUpdateRequest {
-	var (
-		needsUpdate        []string
-		allInstances       []string
-		instanceGroup      = ctx.GetInstanceGroup()
-		scalingGroup       = ctx.GetDiscoveredState().GetScalingGroup()
-		activeLaunchConfig = aws.StringValue(scalingGroup.LaunchConfigurationName)
-		desiredCount       = int(aws.Int64Value(scalingGroup.DesiredCapacity))
-		strategy           = instanceGroup.GetUpgradeStrategy().GetRollingUpdateType()
-		maxUnavailable     = strategy.GetMaxUnavailable()
-	)
-
-	// Get all Autoscaling Instances that needs update
-	for _, instance := range scalingGroup.Instances {
-		allInstances = append(allInstances, aws.StringValue(instance.InstanceId))
-		if aws.StringValue(instance.LaunchConfigurationName) != activeLaunchConfig {
-			needsUpdate = append(needsUpdate, aws.StringValue(instance.InstanceId))
-		}
-	}
-	allCount := len(allInstances)
-
-	var unavailableInt int
-	if maxUnavailable.Type == intstr.String {
-		unavailableInt, _ = intstr.GetValueFromIntOrPercent(maxUnavailable, allCount, true)
-		if unavailableInt == 0 {
-			unavailableInt = 1
-		}
-	} else {
-		unavailableInt = maxUnavailable.IntValue()
-	}
-
-	return &kubeprovider.RollingUpdateRequest{
-		AwsWorker:       ctx.AwsWorker,
-		Kubernetes:      ctx.KubernetesClient.Kubernetes,
-		MaxUnavailable:  unavailableInt,
-		DesiredCapacity: desiredCount,
-		AllInstances:    allInstances,
-		UpdateTargets:   needsUpdate,
-	}
 }
 
 func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {

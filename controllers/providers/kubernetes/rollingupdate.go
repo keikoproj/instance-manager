@@ -20,7 +20,6 @@ import (
 	// awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 )
@@ -40,14 +39,17 @@ type RollingUpdateRequest struct {
 
 func ProcessRollingUpgradeStrategy(req *RollingUpdateRequest) (bool, error) {
 
+	log.Infof("starting rolling update on %v", req.UpdateTargets)
+
 	if len(req.UpdateTargets) == 0 {
 		log.Info("no updatable instances")
 		return true, nil
 	}
 
-	// cannot rotate if maxUnavailable is greater/equal to number of desired
-	if req.DesiredCapacity <= req.MaxUnavailable {
-		return false, errors.Errorf("maxUnavailable cannot be greater or equal to desired nodes")
+	// cannot rotate if maxUnavailable is greater than number of desired
+	if req.MaxUnavailable > req.DesiredCapacity {
+		log.Warnf("maxUnavailable '%v' exceeds desired capacity, setting maxUnavailable to '%v'", req.MaxUnavailable, req.DesiredCapacity)
+		req.MaxUnavailable = req.DesiredCapacity
 	}
 
 	ok, err := IsMinNodesReady(req.Kubernetes, req.AllInstances, req.MaxUnavailable)
@@ -60,7 +62,6 @@ func ProcessRollingUpgradeStrategy(req *RollingUpdateRequest) (bool, error) {
 		return false, nil
 	}
 
-	log.Infof("targets: %+v, MaxUnavailable: %v", req.UpdateTargets, req.MaxUnavailable)
 	var terminateTargets []string
 	if req.MaxUnavailable <= len(req.UpdateTargets) {
 		terminateTargets = req.UpdateTargets[:req.MaxUnavailable]

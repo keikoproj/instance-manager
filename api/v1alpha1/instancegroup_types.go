@@ -424,7 +424,7 @@ func (s *AwsUpgradeStrategy) SetCRDType(crd *CRDUpgradeStrategy) {
 }
 
 func (c *CRDUpgradeStrategy) Validate() error {
-	if c.Spec == "" {
+	if c.GetSpec() == "" {
 		return errors.New("spec is empty")
 	}
 
