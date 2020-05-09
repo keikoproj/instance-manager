@@ -21,8 +21,8 @@ spec:
           name: rollup-nodes
           namespace: instance-manager
         spec:
-          postDrainDelaySeconds: 30
-          nodeIntervalSeconds: 60
+          postDrainDelaySeconds: 10
+          nodeIntervalSeconds: 30
           asgName: {{`{{ .InstanceGroup.Status.ActiveScalingGroupName }}`}}
   eks:
     maxSize: 4
