@@ -3,5 +3,7 @@ coverage.html
 test-bdd/*.xml
 bin
 bin/*
+vendor
+vendor/*
 .DS_Store
 *.idea
