@@ -245,6 +245,9 @@ func (spec *EKSManagedSpec) GetMinSize() int64 {
 }
 
 func (s *AwsUpgradeStrategy) GetRollingUpgradeStrategy() *RollingUpgradeStrategy {
+	if s.RollingUpgradeType == nil{
+		s.RollingUpgradeType = &RollingUpgradeStrategy{}
+	}
 	return s.RollingUpgradeType
 }
 
