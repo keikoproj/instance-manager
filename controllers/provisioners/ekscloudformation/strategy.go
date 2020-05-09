@@ -87,7 +87,7 @@ func (ctx *EksCfInstanceGroupContext) setRollingStrategyConfigurationDefaults() 
 		return
 	}
 
-	strategyConfiguration := instanceGroup.Spec.AwsUpgradeStrategy.RollingUpgradeType
+	strategyConfiguration := instanceGroup.Spec.AwsUpgradeStrategy.RollingUpdateType
 	maxBatchSize := strategyConfiguration.GetMaxBatchSize()
 	minInService := strategyConfiguration.GetMinInstancesInService()
 	minSuccessfulPercent := strategyConfiguration.GetMinSuccessfulInstancesPercent()

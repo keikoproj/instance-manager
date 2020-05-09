@@ -16,8 +16,6 @@ limitations under the License.
 package ekscloudformation
 
 import (
-	"time"
-
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
@@ -210,25 +208,4 @@ func (d *DiscoveredInstanceGroup) GetARN() string {
 		return d.ARN
 	}
 	return ""
-}
-
-type SpotRecommendation struct {
-	APIVersion string `yaml:"apiVersion"`
-	SpotPrice  string `yaml:"spotPrice"`
-	UseSpot    bool   `yaml:"useSpot"`
-	EventTime  time.Time
-}
-
-type SpotReccomendations []SpotRecommendation
-
-func (p SpotReccomendations) Len() int {
-	return len(p)
-}
-
-func (p SpotReccomendations) Less(i, j int) bool {
-	return p[i].EventTime.Before(p[j].EventTime)
-}
-
-func (p SpotReccomendations) Swap(i, j int) {
-	p[i], p[j] = p[j], p[i]
 }

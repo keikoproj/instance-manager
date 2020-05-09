@@ -27,6 +27,8 @@ import (
 	v1alpha "github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/keikoproj/instance-manager/controllers/providers/aws"
+	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
+	"github.com/keikoproj/instance-manager/controllers/provisioners/eks"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/ekscloudformation"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/eksmanaged"
 	log "github.com/sirupsen/logrus"
@@ -340,8 +342,9 @@ func (r *InstanceGroupReconciler) ReconcileEKSCF(instanceGroup *v1alpha.Instance
 	return nil
 }
 
+// +kubebuilder:rbac:groups=core,resources=nodes,verbs=list
 // +kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch;create
-// +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;create;update;patch
 // +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=instancemgr.keikoproj.io,resources=instancegroups,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=instancemgr.keikoproj.io,resources=instancegroups/status,verbs=get;update;patch
@@ -414,6 +417,22 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 			log.Infoln("reconcile completed with requeue")
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
+	case eks.ProvisionerName:
+		err := r.ReconcileEKS(ig, finalizerName)
+		if err != nil {
+			log.Errorln(err)
+		}
+		currentState := ig.GetState()
+		if currentState == v1alpha.ReconcileErr {
+			log.Errorln("reconcile failed")
+			return ctrl.Result{}, nil
+		} else if currentState == v1alpha.ReconcileDeleted || currentState == v1alpha.ReconcileReady {
+			log.Infoln("reconcile completed")
+			return ctrl.Result{}, nil
+		} else {
+			log.Infoln("reconcile completed with requeue")
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+		}
 	default:
 		log.Errorln("provisioner not implemented")
 		return ctrl.Result{}, fmt.Errorf("provisioner '%v' not implemented", ig.Spec.Provisioner)
@@ -439,7 +458,7 @@ func (r *InstanceGroupReconciler) spotEventReconciler(obj handler.MapObject) []c
 	if !exists || err != nil {
 		return nil
 	}
-	if reason != ekscloudformation.SpotRecommendationReason {
+	if reason != kubeprovider.SpotRecommendationReason {
 		return nil
 	}
 
@@ -453,7 +472,6 @@ func (r *InstanceGroupReconciler) spotEventReconciler(obj handler.MapObject) []c
 
 	tags, err := aws.GetScalingGroupTagsByName(involvedObjectName, r.ScalingGroups)
 	if err != nil {
-		log.Warnf("failed to process event '%v': could not find scaling group", obj.Meta.GetName())
 		return nil
 	}
 	instanceGroup := types.NamespacedName{}

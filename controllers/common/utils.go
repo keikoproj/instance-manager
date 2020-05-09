@@ -16,11 +16,16 @@ limitations under the License.
 package common
 
 import (
+	"bytes"
 	"fmt"
+	"html/template"
 	"io/ioutil"
 	"os"
 	"os/user"
+	"reflect"
+	"sort"
 	"strings"
+	"time"
 
 	yaml "github.com/ghodss/yaml"
 	"github.com/sirupsen/logrus"
@@ -54,6 +59,26 @@ func ContainsString(slice []string, s string) bool {
 		}
 	}
 	return false
+}
+
+func StringSliceEquals(x, y []string) bool {
+	sort.Strings(x)
+	sort.Strings(y)
+	return reflect.DeepEqual(x, y)
+}
+
+func StringSliceContains(x, y []string) bool {
+	for _, s := range x {
+		if !ContainsString(y, s) {
+			return false
+		}
+	}
+	return true
+}
+
+func GetLastElementBy(s, sep string) string {
+	sp := strings.Split(s, sep)
+	return sp[len(sp)-1]
 }
 
 // RemoveString removes a string 's' from slice 'slice'
@@ -126,6 +151,19 @@ func GetKubernetesConfig() (*rest.Config, error) {
 	return config, nil
 }
 
+func RenderCustomResource(tpl string, params interface{}) (string, error) {
+	var renderBuffer bytes.Buffer
+	template, err := template.New("Template").Parse(tpl)
+	if err != nil {
+		return "", err
+	}
+	err = template.Execute(&renderBuffer, params)
+	if err != nil {
+		return "", err
+	}
+	return renderBuffer.String(), nil
+}
+
 func GetKubernetesLocalConfig() (*rest.Config, error) {
 	var kubePath string
 	if os.Getenv("KUBECONFIG") != "" {
@@ -171,4 +209,9 @@ func ParseCustomResourceYaml(raw string) (*unstructured.Unstructured, error) {
 		return &cr, err
 	}
 	return &cr, nil
+}
+
+func GetTimeString() string {
+	n := time.Now().UTC()
+	return fmt.Sprintf("%v%v%v%v%v%v", n.Year(), int(n.Month()), n.Day(), n.Hour(), n.Minute(), n.Second())
 }
