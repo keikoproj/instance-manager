@@ -380,7 +380,7 @@ func (ctx *EksCfInstanceGroupContext) reloadDiscoveryCache() error {
 		return err
 	}
 
-	asgOutput, err := ctx.AwsWorker.DescribeAutoscalingGroups()
+	scalingGroups, err := ctx.AwsWorker.DescribeAutoscalingGroups()
 	if err != nil {
 		log.Errorf("failed to DescribeAutoscalingGroups: %v", err)
 		return err
@@ -392,7 +392,7 @@ func (ctx *EksCfInstanceGroupContext) reloadDiscoveryCache() error {
 		return err
 	}
 
-	discovery.SetScalingGroups(asgOutput.AutoScalingGroups)
+	discovery.SetScalingGroups(scalingGroups)
 	discovery.SetCloudformationStacks(stacksOutput.Stacks)
 	discovery.SetLaunchConfigurations(launchConfigOutput.LaunchConfigurations)
 	ctx.SetDiscoveredState(discovery)

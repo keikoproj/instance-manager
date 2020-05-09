@@ -6,7 +6,7 @@ metadata:
   name: bdd-test-crd
   namespace: instance-manager
 spec:
-  provisioner: eks-cf
+  provisioner: eks
   strategy:
     type: crd
     crd:
@@ -21,24 +21,30 @@ spec:
           name: rollup-nodes
           namespace: instance-manager
         spec:
-          postDrainDelaySeconds: 30
-          nodeIntervalSeconds: 60
-          region: {{`{{ .ControllerRegion }}`}}
+          postDrainDelaySeconds: 10
+          nodeIntervalSeconds: 30
           asgName: {{`{{ .InstanceGroup.Status.ActiveScalingGroupName }}`}}
-  eks-cf:
+  eks:
     maxSize: 4
     minSize: 2
     configuration:
-      bootstrapArguments: --register-with-taints=node-role.kubernetes.io/bdd-test=bdd-test:NoSchedule --node-labels=test=bdd-test-crd
+      labels:
+        test: bdd-test-crd
+      taints:
+      - key: node-role.kubernetes.io/bdd-test
+        value: bdd-test
+        effect: NoSchedule
       clusterName: {{ .ClusterName }}
       subnets: {{range $element := .Subnets}}
         - {{$element}}
       {{ end }}
       keyPairName: {{ .KeyPairName }}
-      vpcId: {{ .VpcID }}
       image: {{ .AmiID }}
       instanceType: t2.small
-      volSize: 20
+      volumes:
+      - name: /dev/xvda
+        type: gp2
+        size: 30
       securityGroups: {{range $element := .NodeSecurityGroups}}
         - {{$element}}
       {{ end }}

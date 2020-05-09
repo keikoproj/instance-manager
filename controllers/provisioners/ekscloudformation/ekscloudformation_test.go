@@ -257,6 +257,17 @@ func (s *stubCF) DeleteStack(*cloudformation.DeleteStackInput) (*cloudformation.
 	return &cloudformation.DeleteStackOutput{}, nil
 }
 
+func (s *stubASG) DescribeAutoScalingGroupsPages(input *autoscaling.DescribeAutoScalingGroupsInput, callback func(*autoscaling.DescribeAutoScalingGroupsOutput, bool) bool) error {
+	page, err := s.DescribeAutoScalingGroups(input)
+	if err != nil {
+		return err
+	}
+
+	callback(page, false)
+
+	return nil
+}
+
 func (s *stubASG) DescribeAutoScalingGroups(*autoscaling.DescribeAutoScalingGroupsInput) (*autoscaling.DescribeAutoScalingGroupsOutput, error) {
 	var groups []*autoscaling.Group
 	for _, group := range s.ExistingGroups {
@@ -460,7 +471,7 @@ func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 					StatusSuccessString: f.UpgradeStrategyCRDStatusSuccess,
 					StatusFailureString: f.UpgradeStrategyCRDStatusFail,
 				},
-				RollingUpgradeType: &v1alpha1.RollingUpgradeStrategy{},
+				RollingUpdateType: &v1alpha1.RollingUpdateStrategy{},
 			},
 		},
 		Status: v1alpha1.InstanceGroupStatus{

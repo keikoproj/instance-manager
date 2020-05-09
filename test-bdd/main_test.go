@@ -100,6 +100,12 @@ func FeatureContext(s *godog.Suite) {
 		t.deleteAll()
 	})
 
+	s.AfterSuite(func() {
+		log.Info("BDD >> trying to delete any existing test instance-groups")
+		t.anEKSCluster()
+		t.deleteAll()
+	})
+
 	s.AfterStep(func(f *gherkin.Step, err error) {
 		time.Sleep(time.Second * 5)
 	})
