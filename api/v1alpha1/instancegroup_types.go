@@ -61,9 +61,6 @@ var (
 	log = ctrl.Log.WithName("v1alpha1")
 )
 
-type InstanceGroupReconciler struct {
-}
-
 // InstanceGroup is the Schema for the instancegroups API
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:path=instancegroups,scope=Namespaced,shortName=ig
