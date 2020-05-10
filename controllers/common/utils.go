@@ -28,7 +28,6 @@ import (
 	"time"
 
 	yaml "github.com/ghodss/yaml"
-	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -38,17 +37,9 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-var log = logrus.New()
-
 type KubernetesClientSet struct {
 	Kubernetes  kubernetes.Interface
 	KubeDynamic dynamic.Interface
-}
-
-func init() {
-	log.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp: true,
-	})
 }
 
 // ContainsString returns true if a given slice 'slice' contains string 's', otherwise return false
@@ -100,7 +91,6 @@ func ConcatonateList(list []string, delimiter string) string {
 func ReadFile(path string) ([]byte, error) {
 	f, err := ioutil.ReadFile(path)
 	if err != nil {
-		log.Errorf("failed to read file %v", path)
 		return nil, err
 	}
 	return f, nil
@@ -110,12 +100,10 @@ func GetKubernetesClient() (kubernetes.Interface, error) {
 	var config *rest.Config
 	config, err := GetKubernetesConfig()
 	if err != nil {
-		log.Errorf("failed to create kubernetes client config")
 		return nil, err
 	}
 	client, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		log.Errorf("failed to create kubernetes client")
 		return nil, err
 	}
 	return client, nil
@@ -125,12 +113,10 @@ func GetKubernetesDynamicClient() (dynamic.Interface, error) {
 	var config *rest.Config
 	config, err := GetKubernetesConfig()
 	if err != nil {
-		log.Errorf("failed to create kubernetes client config")
 		return nil, err
 	}
 	client, err := dynamic.NewForConfig(config)
 	if err != nil {
-		log.Errorf("failed to create kubernetes dynamic client")
 		return nil, err
 	}
 	return client, nil
@@ -142,7 +128,6 @@ func GetKubernetesConfig() (*rest.Config, error) {
 	if err != nil {
 		config, err = GetKubernetesLocalConfig()
 		if err != nil {
-			log.Errorf("failed to get local kubernetes auth")
 			return nil, err
 		}
 		return config, nil
@@ -182,7 +167,6 @@ func GetKubernetesLocalConfig() (*rest.Config, error) {
 
 	config, err := clientcmd.BuildConfigFromFlags("", kubePath)
 	if err != nil {
-		log.Errorf("failed to get local kubernetes auth")
 		return nil, err
 	}
 	return config, nil

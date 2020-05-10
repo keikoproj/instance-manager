@@ -34,7 +34,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
+	ctrl "sigs.k8s.io/controller-runtime"
+)
+
+var (
+	log = ctrl.Log.WithName("aws-provider")
 )
 
 type AwsWorker struct {
@@ -251,7 +255,7 @@ func (w *AwsWorker) DeleteScalingGroupRole(name string, managedPolicies []string
 		if err != nil {
 			if aerr, ok := err.(awserr.Error); ok {
 				if aerr.Code() != iam.ErrCodeNoSuchEntityException {
-					log.Warn(err)
+					log.Error(err, "failed to delete role")
 					return false
 				}
 			}
@@ -350,7 +354,7 @@ func (w *AwsWorker) IsNodeGroupExist() bool {
 				return false
 			}
 		}
-		log.Errorln(err)
+		log.Error(err, "failed to describe nodegroup")
 		return false
 	}
 
@@ -498,7 +502,6 @@ func (w *AwsWorker) CreateCloudformationStack() error {
 		if awsErr, ok := err.(awserr.Error); ok {
 			return awsErr
 		}
-		log.Errorln(err)
 		return err
 	}
 	return nil
@@ -519,7 +522,6 @@ func (w *AwsWorker) UpdateCloudformationStack() (error, bool) {
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok {
 			if awsErr.Code() == "ValidationError" && awsErr.Message() == "No updates are to be performed." {
-				log.Infof("update not required")
 				return nil, false
 			}
 			return awsErr, false
