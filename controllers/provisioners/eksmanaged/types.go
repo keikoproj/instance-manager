@@ -17,6 +17,7 @@ package eksmanaged
 
 import (
 	"github.com/aws/aws-sdk-go/service/eks"
+	"github.com/go-logr/logr"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/keikoproj/instance-manager/controllers/providers/aws"
@@ -32,14 +33,8 @@ type EksManagedInstanceGroupContext struct {
 	KubernetesClient common.KubernetesClientSet
 	AwsWorker        aws.AwsWorker
 	DiscoveredState  *DiscoveredState
-	TemplatePath     string
-	StackExists      bool
-	InstanceArn      string
-	ControllerRegion string
-	VpcID            string
-	DefaultARNList   []string
+	Log              logr.Logger
 }
-
 type DiscoveredState struct {
 	Provisioned   bool
 	SelfNodeGroup *eks.Nodegroup

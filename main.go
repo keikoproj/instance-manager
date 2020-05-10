@@ -93,13 +93,13 @@ func main() {
 
 	err = (&controllers.InstanceGroupReconciler{
 		Client:                 mgr.GetClient(),
-		Log:                    ctrl.Log.WithName("controllers").WithName("InstanceGroup"),
+		Log:                    ctrl.Log.WithName("controllers").WithName("instancegroup"),
 		ControllerConfPath:     controllerConfPath,
 		ControllerTemplatePath: controllerTemplatePath,
 		ScalingGroups:          awsprovider.GetAwsAsgClient(region),
 	}).SetupWithManager(mgr)
 	if err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "InstanceGroup")
+		setupLog.Error(err, "unable to create controller", "controller", "instancegroup")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder

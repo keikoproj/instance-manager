@@ -63,6 +63,7 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 	default:
 		return errors.Errorf("'%v' is not an implemented upgrade type, will not process upgrade", strategy.GetType())
 	}
+	ctx.Log.Info("strategy processing completed", "instancegroup", instanceGroup.GetName(), "strategy", strategy.GetType())
 
 	if ctx.UpdateNodeReadyCondition() {
 		instanceGroup.SetState(v1alpha1.ReconcileModified)
@@ -91,6 +92,7 @@ func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *kubeprovider.Roll
 		desiredCount       = int(aws.Int64Value(scalingGroup.DesiredCapacity))
 		strategy           = instanceGroup.GetUpgradeStrategy().GetRollingUpdateType()
 		maxUnavailable     = strategy.GetMaxUnavailable()
+		asgName            = aws.StringValue(scalingGroup.AutoScalingGroupName)
 	)
 
 	// Get all Autoscaling Instances that needs update
@@ -114,11 +116,12 @@ func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *kubeprovider.Roll
 	}
 
 	return &kubeprovider.RollingUpdateRequest{
-		AwsWorker:       ctx.AwsWorker,
-		Kubernetes:      ctx.KubernetesClient.Kubernetes,
-		MaxUnavailable:  unavailableInt,
-		DesiredCapacity: desiredCount,
-		AllInstances:    allInstances,
-		UpdateTargets:   needsUpdate,
+		AwsWorker:        ctx.AwsWorker,
+		Kubernetes:       ctx.KubernetesClient.Kubernetes,
+		MaxUnavailable:   unavailableInt,
+		DesiredCapacity:  desiredCount,
+		AllInstances:     allInstances,
+		UpdateTargets:    needsUpdate,
+		ScalingGroupName: asgName,
 	}
 }

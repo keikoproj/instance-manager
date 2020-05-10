@@ -24,7 +24,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 )
 
 func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
@@ -78,7 +77,7 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 
 	err = ctx.discoverSpotPrice()
 	if err != nil {
-		log.Warnf("failed to discover spot price: %v", err)
+		ctx.Log.Error(err, "failed to discover spot price")
 	}
 
 	// update status with scaling group info

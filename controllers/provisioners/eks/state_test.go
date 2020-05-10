@@ -37,7 +37,7 @@ func TestStateDiscovery(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	tests := []struct {
 		crDeleted            bool
@@ -86,7 +86,7 @@ func TestIsReady(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	tests := []struct {
 		initialState  v1alpha1.ReconcileState

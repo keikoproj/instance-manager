@@ -43,7 +43,7 @@ func TestUpgradeCRDStrategyValidation(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	// assume initial state of modifying
 	ig.SetState(v1alpha1.ReconcileModifying)
@@ -112,7 +112,7 @@ func TestUpgradeInvalidStrategy(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	// assume initial state of modifying
 	ig.SetState(v1alpha1.ReconcileModifying)
@@ -133,7 +133,7 @@ func TestBootstrapNodes(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	// assume initial state of modifying
 	ig.SetState(v1alpha1.ReconcileModifying)
@@ -153,7 +153,7 @@ func TestUpgradeCRDStrategy(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	// get custom resource yaml
 	crYAML, err := yaml.Marshal(cr.Object)
@@ -212,7 +212,7 @@ func TestUpgradeRollingUpdateStrategyPositive(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	tests := []struct {
 		maxUnavailable   intstr.IntOrString

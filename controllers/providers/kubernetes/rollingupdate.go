@@ -16,39 +16,48 @@ limitations under the License.
 package kubernetes
 
 import (
-
-	// awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
-
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
-	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 const (
 	RollingUpdateStrategyName = "rollingupdate"
 )
 
+var (
+	log = ctrl.Log.WithName("kubernetes-provider")
+)
+
 type RollingUpdateRequest struct {
-	AwsWorker       awsprovider.AwsWorker
-	Kubernetes      kubernetes.Interface
-	MaxUnavailable  int
-	DesiredCapacity int
-	AllInstances    []string
-	UpdateTargets   []string
+	AwsWorker        awsprovider.AwsWorker
+	Kubernetes       kubernetes.Interface
+	ScalingGroupName string
+	MaxUnavailable   int
+	DesiredCapacity  int
+	AllInstances     []string
+	UpdateTargets    []string
 }
 
 func ProcessRollingUpgradeStrategy(req *RollingUpdateRequest) (bool, error) {
 
-	log.Infof("starting rolling update on %v", req.UpdateTargets)
-
+	log.Info("starting rolling update",
+		"scalinggroup", req.ScalingGroupName,
+		"targets", req.UpdateTargets,
+		"maxunavailable", req.MaxUnavailable,
+	)
 	if len(req.UpdateTargets) == 0 {
-		log.Info("no updatable instances")
+		log.Info("no updatable instances", "scalinggroup", req.ScalingGroupName)
 		return true, nil
 	}
 
 	// cannot rotate if maxUnavailable is greater than number of desired
 	if req.MaxUnavailable > req.DesiredCapacity {
-		log.Warnf("maxUnavailable '%v' exceeds desired capacity, setting maxUnavailable to '%v'", req.MaxUnavailable, req.DesiredCapacity)
+		log.Info("maxUnavailable exceeds desired capacity, setting maxUnavailable match desired",
+			"scalinggroup", req.ScalingGroupName,
+			"maxunavailable", req.MaxUnavailable,
+			"desiredcapacity", req.DesiredCapacity,
+		)
 		req.MaxUnavailable = req.DesiredCapacity
 	}
 
@@ -58,7 +67,7 @@ func ProcessRollingUpgradeStrategy(req *RollingUpdateRequest) (bool, error) {
 	}
 
 	if !ok {
-		log.Info("desired nodes are not ready")
+		log.Info("desired nodes are not ready", "scalinggroup", req.ScalingGroupName)
 		return false, nil
 	}
 
@@ -69,7 +78,7 @@ func ProcessRollingUpgradeStrategy(req *RollingUpdateRequest) (bool, error) {
 		terminateTargets = req.UpdateTargets
 	}
 
-	log.Infof("terminating %v targets -> %v", len(terminateTargets), terminateTargets)
+	log.Info("terminating targets", "scalinggroup", req.ScalingGroupName, "targets", terminateTargets)
 	if err := req.AwsWorker.TerminateScalingInstances(terminateTargets); err != nil {
 		return false, err
 	}

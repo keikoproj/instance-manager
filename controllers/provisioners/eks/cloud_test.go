@@ -35,7 +35,7 @@ func TestCloudDiscoveryPositive(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 	state := ctx.GetDiscoveredState()
 	status := ig.GetStatus()
 	configuration := ig.GetEKSConfiguration()
@@ -104,7 +104,7 @@ func TestCloudDiscoveryExistingRole(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 	configuration := ig.GetEKSConfiguration()
 	state := ctx.GetDiscoveredState()
 
@@ -136,7 +136,7 @@ func TestCloudDiscoverySpotPrice(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 	status := ig.GetStatus()
 	configuration := ig.GetEKSConfiguration()
 

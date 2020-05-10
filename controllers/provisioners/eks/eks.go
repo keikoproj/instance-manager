@@ -16,11 +16,14 @@ limitations under the License.
 package eks
 
 import (
+	ctrl "sigs.k8s.io/controller-runtime"
+
+	"github.com/go-logr/logr"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
-	"github.com/sirupsen/logrus"
-	log "github.com/sirupsen/logrus"
+	"github.com/keikoproj/instance-manager/controllers/provisioners"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 const (
@@ -40,22 +43,40 @@ var (
 )
 
 func init() {
-	log.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp: true,
-	})
+	ctrl.SetLogger(zap.Logger(true))
 }
 
 // New constructs a new instance group provisioner of EKS type
-func New(instanceGroup *v1alpha1.InstanceGroup, k common.KubernetesClientSet, w awsprovider.AwsWorker) *EksInstanceGroupContext {
+func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 
 	ctx := &EksInstanceGroupContext{
-		InstanceGroup:    instanceGroup,
-		KubernetesClient: k,
-		AwsWorker:        w,
+		InstanceGroup:    p.InstanceGroup,
+		KubernetesClient: p.Kubernetes,
+		AwsWorker:        p.AwsWorker,
+		Log:              p.Log,
+	}
+	instanceGroup := ctx.GetInstanceGroup()
+	configuration := instanceGroup.GetEKSConfiguration()
+	instanceGroup.SetState(v1alpha1.ReconcileInit)
+
+	if len(p.Configuration.DefaultSubnets) != 0 {
+		configuration.SetSubnets(p.Configuration.DefaultSubnets)
 	}
 
-	instanceGroup.SetState(v1alpha1.ReconcileInit)
+	if p.Configuration.DefaultClusterName != "" {
+		configuration.SetClusterName(p.Configuration.DefaultClusterName)
+	}
+
 	return ctx
+}
+
+func IsRetryable(instanceGroup *v1alpha1.InstanceGroup) bool {
+	for _, state := range RetryableStates {
+		if instanceGroup.GetState() == state {
+			return true
+		}
+	}
+	return false
 }
 
 type EksDefaultConfiguration struct {
@@ -68,7 +89,7 @@ type EksInstanceGroupContext struct {
 	KubernetesClient common.KubernetesClientSet
 	AwsWorker        awsprovider.AwsWorker
 	DiscoveredState  *DiscoveredState
-	ControllerRegion string
+	Log              logr.Logger
 }
 
 func (ctx *EksInstanceGroupContext) GetInstanceGroup() *v1alpha1.InstanceGroup {

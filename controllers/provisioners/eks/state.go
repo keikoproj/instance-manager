@@ -24,6 +24,10 @@ const (
 	ScalingGroupDeletionStatus = "Delete in progress"
 )
 
+var (
+	RetryableStates = []v1alpha1.ReconcileState{v1alpha1.ReconcileErr, v1alpha1.ReconcileReady, v1alpha1.ReconcileDeleted}
+)
+
 func (ctx *EksInstanceGroupContext) StateDiscovery() {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()

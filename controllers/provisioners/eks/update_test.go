@@ -36,7 +36,7 @@ func TestUpdateScalingGroupPositive(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	// avoid drift / rotation
 	input := ctx.GetLaunchConfigurationInput("some-launch-config")
@@ -91,7 +91,7 @@ func TestUpdateWithDriftRotationPositive(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	mockScalingGroup := &autoscaling.Group{
 		AutoScalingGroupName: aws.String("some-scaling-group"),
@@ -143,7 +143,7 @@ func TestUpdateWithRotationPositive(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	// avoid drift / rotation
 	input := ctx.GetLaunchConfigurationInput("some-launch-config")
@@ -200,7 +200,7 @@ func TestLaunchConfigurationDrifted(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 	input := ctx.GetLaunchConfigurationInput("some-launch-config")
 
 	var (
@@ -259,7 +259,7 @@ func TestUpdateScalingGroupNegative(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	mockScalingGroup := &autoscaling.Group{
 		AutoScalingGroupName: aws.String("some-scaling-group"),

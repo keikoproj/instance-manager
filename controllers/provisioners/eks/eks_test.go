@@ -29,6 +29,7 @@ import (
 	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
+	"github.com/keikoproj/instance-manager/controllers/provisioners"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -36,6 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	dynamic "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 var (
@@ -69,6 +71,16 @@ func MockKubernetesClientSet() common.KubernetesClientSet {
 		Kubernetes:  fake.NewSimpleClientset(),
 		KubeDynamic: dynamic.NewSimpleDynamicClient(runtime.NewScheme()),
 	}
+}
+
+func MockContext(instanceGroup *v1alpha1.InstanceGroup, kube common.KubernetesClientSet, w awsprovider.AwsWorker) *EksInstanceGroupContext {
+	input := provisioners.ProvisionerInput{
+		AwsWorker:     w,
+		Kubernetes:    kube,
+		InstanceGroup: instanceGroup,
+		Log:           ctrl.Log.WithName("unit-test").WithName("InstanceGroup"),
+	}
+	return New(input)
 }
 
 func MockInstanceGroup() *v1alpha1.InstanceGroup {

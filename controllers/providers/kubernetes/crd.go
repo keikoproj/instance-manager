@@ -22,8 +22,8 @@ import (
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
-	log "github.com/sirupsen/logrus"
+
+	// log "github.com/sirupsen/logrus"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -37,12 +37,6 @@ const (
 	OwnershipAnnotationValue = "instance-manager"
 	DefaultConcurrencyPolicy = "forbid"
 )
-
-func init() {
-	log.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp: true,
-	})
-}
 
 func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGroup) (bool, error) {
 
@@ -88,41 +82,53 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 	}
 
 	if len(activeResources) > 0 && strings.ToLower(strategy.GetConcurrencyPolicy()) == "forbid" {
-		log.Infoln("custom resource/s still active, will requeue")
+		log.Info("custom resource/s still active, will requeue", "instancegroup", instanceGroup.GetName())
 		instanceGroup.SetState(v1alpha1.ReconcileModifying)
 		return false, nil
 	}
 
-	log.Infoln("submitting custom resource")
 	err = SubmitCustomResource(kube, customResource, strategy.GetCRDName())
 	if err != nil {
 		return false, errors.Wrap(err, "failed to submit custom resource")
 	}
+	log.Info("submitted custom resource", "instancegroup", instanceGroup.GetName())
 
 	customResource, err = kube.Resource(GVR).Namespace(customResource.GetNamespace()).Get(customResource.GetName(), metav1.GetOptions{})
 	if kerr.IsNotFound(err) {
-		log.Infoln("custom resource did not propagate yet")
+		log.Info("custom resource did not propagate, will requeue", "instancegroup", instanceGroup.GetName())
 		instanceGroup.SetState(v1alpha1.ReconcileModifying)
 		return false, nil
 	}
-
-	log.Infof("waiting for custom resource %v/%v success status", customResource.GetNamespace(), customResource.GetName())
-	log.Infof("custom resource status path: %v", strategy.GetStatusJSONPath())
 
 	resourceStatus, err := GetUnstructuredPath(customResource, strategy.GetStatusJSONPath())
 	if err != nil {
 		return false, err
 	}
 
-	log.Infof("resource status: %v", resourceStatus)
+	log.Info("watching custom resource status",
+		"instancegroup", instanceGroup.GetName(),
+		"resource", customResource.GetName(),
+		"statuspath", strategy.GetStatusJSONPath(),
+		"status", resourceStatus,
+	)
 	switch strings.ToLower(resourceStatus) {
 	case strings.ToLower(strategy.GetStatusSuccessString()):
-		log.Infof("custom resource %v/%v completed successfully", customResource.GetNamespace(), customResource.GetName())
+		log.Info("custom resource succeeded",
+			"instancegroup", instanceGroup.GetName(),
+			"resource", customResource.GetName(),
+			"statuspath", strategy.GetStatusJSONPath(),
+			"status", resourceStatus,
+		)
 		return true, nil
 	case strings.ToLower(strategy.GetStatusFailureString()):
 		return false, errors.Errorf("custom resource failed to converge, %v status is %v", strategy.GetStatusJSONPath(), resourceStatus)
 	default:
-		log.Infof("custom resource %v/%v still converging", customResource.GetNamespace(), customResource.GetName())
+		log.Info("custom resource still converging",
+			"instancegroup", instanceGroup.GetName(),
+			"resource", customResource.GetName(),
+			"statuspath", strategy.GetStatusJSONPath(),
+			"status", resourceStatus,
+		)
 		return false, nil
 	}
 }
@@ -177,7 +183,6 @@ func GetActiveResources(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 
 		if val != completedStatus && val != errorStatus {
 			// if resource is not completed and not failed, it must be still active
-			log.Infof("found active owned resource in scope: %v", resource.GetName())
 			activeResources = append(activeResources, &r)
 		}
 	}
@@ -187,7 +192,6 @@ func GetActiveResources(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 
 func SubmitCustomResource(kube dynamic.Interface, customResource *unstructured.Unstructured, CRDName string) error {
 	var (
-		customResourceName      = customResource.GetName()
 		customResourceNamespace = customResource.GetNamespace()
 		GVR                     = GetGVR(customResource, CRDName)
 	)
@@ -196,7 +200,5 @@ func SubmitCustomResource(kube dynamic.Interface, customResource *unstructured.U
 	if !kerr.IsAlreadyExists(err) {
 		return err
 	}
-
-	log.Infof("submitted custom resource %v/%v (%v)", customResourceNamespace, customResourceName, GVR)
 	return nil
 }

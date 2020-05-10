@@ -20,7 +20,6 @@ import (
 
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
@@ -74,7 +73,6 @@ func (ctx EksInstanceGroupContext) CreateScalingGroup() error {
 		return nil
 	}
 
-	log.Infof("creating scaling group %s", asgName)
 	err := ctx.AwsWorker.CreateScalingGroup(&autoscaling.CreateAutoScalingGroupInput{
 		AutoScalingGroupName:    aws.String(asgName),
 		DesiredCapacity:         aws.Int64(spec.GetMinSize()),
@@ -87,6 +85,7 @@ func (ctx EksInstanceGroupContext) CreateScalingGroup() error {
 	if err != nil {
 		return err
 	}
+	ctx.Log.Info("creating scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 
 	out, err := ctx.AwsWorker.GetAutoscalingGroup(asgName)
 	if err != nil {
@@ -110,12 +109,13 @@ func (ctx *EksInstanceGroupContext) CreateLaunchConfiguration() error {
 		lcName        = fmt.Sprintf("%v-%v-%v-%v", clusterName, instanceGroup.GetNamespace(), instanceGroup.GetName(), common.GetTimeString())
 		lcInput       = ctx.GetLaunchConfigurationInput(lcName)
 	)
-	log.Infof("creating new launch configuration %s", lcName)
 
 	err := ctx.AwsWorker.CreateLaunchConfig(lcInput)
 	if err != nil {
 		return err
 	}
+
+	ctx.Log.Info("created launchconfig", "instancegroup", instanceGroup.GetName(), "launchconfig", lcName)
 
 	lcOut, err := ctx.AwsWorker.GetAutoscalingLaunchConfig(lcName)
 	if err != nil {
@@ -148,13 +148,13 @@ func (ctx *EksInstanceGroupContext) CreateManagedRole() error {
 	}
 
 	// create a controller-owned role for the instancegroup
-	log.Infof("updating managed role %s", roleName)
 	managedPolicies := ctx.GetManagedPoliciesList(additionalPolicies)
 
 	role, profile, err := ctx.AwsWorker.CreateUpdateScalingGroupRole(roleName, managedPolicies)
 	if err != nil {
 		return err
 	}
+	ctx.Log.Info("creating or updating managed role", "instancegroup", instanceGroup.GetName(), "iamrole", roleName)
 
 	state.SetRole(role)
 	state.SetInstanceProfile(profile)

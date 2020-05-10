@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	ctrl "sigs.k8s.io/controller-runtime"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/eks"
@@ -28,12 +30,14 @@ import (
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
+	"github.com/keikoproj/instance-manager/controllers/provisioners"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	fakedynamic "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 type EksManagedUnitTest struct {
@@ -202,13 +206,16 @@ func (u *EksManagedUnitTest) Run(t *testing.T) {
 	unstructuredInstanceGroup := &unstructured.Unstructured{
 		Object: obj,
 	}
+	ctrl.SetLogger(zap.Logger(true))
 	kube.KubeDynamic.Resource(v1alpha1.GroupVersionResource).Namespace(u.InstanceGroup.GetNamespace()).Create(unstructuredInstanceGroup, metav1.CreateOptions{})
-
-	provisioner, err := New(u.InstanceGroup, kube, aws)
-	if err != nil {
-		t.Fatal(err)
+	input := provisioners.ProvisionerInput{
+		AwsWorker:     aws,
+		Kubernetes:    kube,
+		InstanceGroup: u.InstanceGroup,
+		Log:           ctrl.Log.WithName("unit-test").WithName("InstanceGroup"),
 	}
-	u.Provisioner = provisioner
+
+	u.Provisioner = New(input)
 
 	if err := u.Provisioner.CloudDiscovery(); err != nil {
 		t.Fatal(err)
