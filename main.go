@@ -17,13 +17,13 @@ package main
 
 import (
 	"flag"
-	"log"
 	"os"
 	runt "runtime"
 
 	instancemgrv1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers"
-	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
+	"github.com/keikoproj/instance-manager/controllers/providers/aws"
+	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -62,7 +62,6 @@ func main() {
 		enableLeaderElection   bool
 		controllerConfPath     string
 		controllerTemplatePath string
-		region                 string
 		maxParallel            int
 		err                    error
 	)
@@ -76,11 +75,6 @@ func main() {
 	flag.Parse()
 	ctrl.SetLogger(zap.Logger(true))
 
-	region, err = awsprovider.GetRegion()
-	if err != nil {
-		log.Fatalf("failed to detect region: %v", err)
-	}
-
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
 		MetricsBindAddress: metricsAddr,
@@ -91,13 +85,46 @@ func main() {
 		os.Exit(1)
 	}
 
+	awsRegion, err := aws.GetRegion()
+	if err != nil {
+		setupLog.Error(err, "unable to get AWS region")
+		os.Exit(1)
+	}
+
+	client, err := kubeprovider.GetKubernetesClient()
+	if err != nil {
+		setupLog.Error(err, "unable to create kubernetes client")
+		os.Exit(1)
+	}
+
+	dynClient, err := kubeprovider.GetKubernetesDynamicClient()
+	if err != nil {
+		setupLog.Error(err, "unable to create kubernetes dynamic client")
+		os.Exit(1)
+	}
+
+	awsWorker := aws.AwsWorker{
+		IamClient: aws.GetAwsIamClient(awsRegion),
+		CfClient:  aws.GetAwsCloudformationClient(awsRegion),
+		AsgClient: aws.GetAwsAsgClient(awsRegion),
+		EksClient: aws.GetAwsEksClient(awsRegion),
+	}
+
+	kube := kubeprovider.KubernetesClientSet{
+		Kubernetes:  client,
+		KubeDynamic: dynClient,
+	}
+
 	err = (&controllers.InstanceGroupReconciler{
 		Client:                 mgr.GetClient(),
 		Log:                    ctrl.Log.WithName("controllers").WithName("instancegroup"),
 		ControllerConfPath:     controllerConfPath,
 		ControllerTemplatePath: controllerTemplatePath,
-		ScalingGroups:          awsprovider.GetAwsAsgClient(region),
 		MaxParallel:            maxParallel,
+		Auth: &controllers.InstanceGroupAuthenticator{
+			Aws:        awsWorker,
+			Kubernetes: kube,
+		},
 	}).SetupWithManager(mgr)
 	if err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "instancegroup")

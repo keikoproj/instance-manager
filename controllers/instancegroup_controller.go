@@ -22,12 +22,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
 	"github.com/ghodss/yaml"
 	"github.com/go-logr/logr"
 	v1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/keikoproj/instance-manager/controllers/providers/aws"
+	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/eks"
@@ -49,11 +49,16 @@ import (
 // InstanceGroupReconciler reconciles an InstanceGroup object
 type InstanceGroupReconciler struct {
 	client.Client
-	ScalingGroups          autoscalingiface.AutoScalingAPI
 	Log                    logr.Logger
 	ControllerConfPath     string
 	ControllerTemplatePath string
 	MaxParallel            int
+	Auth                   *InstanceGroupAuthenticator
+}
+
+type InstanceGroupAuthenticator struct {
+	Aws        awsprovider.AwsWorker
+	Kubernetes kubeprovider.KubernetesClientSet
 }
 
 func (r *InstanceGroupReconciler) Finalize(instanceGroup *v1alpha1.InstanceGroup, finalizerName string) {
@@ -84,33 +89,6 @@ func (r *InstanceGroupReconciler) SetFinalizer(instanceGroup *v1alpha1.InstanceG
 
 func (r *InstanceGroupReconciler) NewProvisionerInput(instanceGroup *v1alpha1.InstanceGroup) (provisioners.ProvisionerInput, error) {
 	var input provisioners.ProvisionerInput
-	client, err := kubeprovider.GetKubernetesClient()
-	if err != nil {
-		return input, err
-	}
-
-	dynClient, err := kubeprovider.GetKubernetesDynamicClient()
-	if err != nil {
-		return input, err
-	}
-
-	awsRegion, err := aws.GetRegion()
-	if err != nil {
-		return input, err
-	}
-
-	awsWorker := aws.AwsWorker{
-		IamClient: aws.GetAwsIamClient(awsRegion),
-		CfClient:  aws.GetAwsCloudformationClient(awsRegion),
-		AsgClient: aws.GetAwsAsgClient(awsRegion),
-		EksClient: aws.GetAwsEksClient(awsRegion),
-	}
-
-	kube := kubeprovider.KubernetesClientSet{
-		Kubernetes:  client,
-		KubeDynamic: dynClient,
-	}
-
 	config := provisioners.ProvisionerConfiguration{}
 	if _, err := os.Stat(r.ControllerConfPath); os.IsExist(err) {
 		ctrlConfig, err := common.ReadFile(r.ControllerConfPath)
@@ -125,8 +103,8 @@ func (r *InstanceGroupReconciler) NewProvisionerInput(instanceGroup *v1alpha1.In
 	}
 
 	input = provisioners.ProvisionerInput{
-		AwsWorker:     awsWorker,
-		Kubernetes:    kube,
+		AwsWorker:     r.Auth.Aws,
+		Kubernetes:    r.Auth.Kubernetes,
 		InstanceGroup: instanceGroup,
 		Configuration: config,
 		Log:           r.Log,
@@ -268,10 +246,11 @@ func (r *InstanceGroupReconciler) spotEventReconciler(obj handler.MapObject) []c
 		return nil
 	}
 
-	tags, err := aws.GetScalingGroupTagsByName(involvedObjectName, r.ScalingGroups)
+	tags, err := aws.GetScalingGroupTagsByName(involvedObjectName, r.Auth.Aws.AsgClient)
 	if err != nil {
 		return nil
 	}
+
 	instanceGroup := types.NamespacedName{}
 	instanceGroup.Name = aws.GetTagValueByKey(tags, ekscloudformation.TagInstanceGroupName)
 	instanceGroup.Namespace = aws.GetTagValueByKey(tags, ekscloudformation.TagClusterNamespace)
