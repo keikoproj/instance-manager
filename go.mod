@@ -7,22 +7,28 @@ require (
 	github.com/cucumber/godog v0.8.1
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v0.1.0
-	github.com/keikoproj/aws-auth v0.0.0-20190910182258-c705a9d52f92
+	github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef // indirect
+	github.com/golang/protobuf v1.4.1 // indirect
+	github.com/googleapis/gnostic v0.4.1 // indirect
+	github.com/imdario/mergo v0.3.9 // indirect
+	github.com/json-iterator/go v1.1.9 // indirect
+	github.com/keikoproj/aws-auth v0.0.0-20200510193503-dcb7aa6350e1
 	github.com/onsi/gomega v1.9.0
 	github.com/pkg/errors v0.9.1
+	github.com/prometheus/client_golang v0.9.3 // indirect
 	github.com/sirupsen/logrus v1.4.2
-	golang.org/x/crypto v0.0.0-20190820162420-60c769a6c586 // indirect
-	golang.org/x/sys v0.0.0-20191026070338-33540a1f6037 // indirect
+	go.uber.org/atomic v1.4.0 // indirect
+	go.uber.org/zap v1.10.0 // indirect
+	golang.org/x/crypto v0.0.0-20200429183012-4b2356b1ed79 // indirect
+	golang.org/x/net v0.0.0-20200506145744-7e3656a0809f // indirect
+	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d // indirect
+	golang.org/x/sys v0.0.0-20200509044756-6aff5f38e54f // indirect
+	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1 // indirect
+	google.golang.org/appengine v1.6.6 // indirect
 	gopkg.in/yaml.v2 v2.2.8
-	k8s.io/api v0.0.0-20190918155943-95b840bb6a1f
-	k8s.io/apimachinery v0.0.0-20190913080033-27d36303b655
-	k8s.io/client-go v11.0.0+incompatible
-	k8s.io/utils v0.0.0-20191114184206-e782cd3c129f // indirect
+	k8s.io/api v0.17.0
+	k8s.io/apimachinery v0.17.0
+	k8s.io/client-go v0.17.0
+	k8s.io/utils v0.0.0-20200414100711-2df71ebbae66 // indirect
 	sigs.k8s.io/controller-runtime v0.4.0
-)
-
-replace (
-	k8s.io/api => k8s.io/api v0.0.0-20190918155943-95b840bb6a1f
-	k8s.io/apimachinery => k8s.io/apimachinery v0.0.0-20190913080033-27d36303b655
-	k8s.io/client-go => k8s.io/client-go v0.0.0-20190918160344-1fbdaa4c8d90
 )
