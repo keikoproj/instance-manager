@@ -16,8 +16,6 @@ limitations under the License.
 package eksmanaged
 
 import (
-	"flag"
-	"io/ioutil"
 	"testing"
 	"time"
 
@@ -88,12 +86,6 @@ func (s *stubEKS) UpdateNodegroupConfig(input *eks.UpdateNodegroupConfigInput) (
 func (s *stubEKS) DeleteNodegroup(input *eks.DeleteNodegroupInput) (*eks.DeleteNodegroupOutput, error) {
 	output := &eks.DeleteNodegroupOutput{}
 	return output, nil
-}
-
-var loggingEnabled bool
-
-func init() {
-	flag.BoolVar(&loggingEnabled, "logging-enabled", false, "Enable Logging")
 }
 
 func getNodeGroup(state string) *eks.Nodegroup {
@@ -183,10 +175,6 @@ func (u *EksManagedUnitTest) Run(t *testing.T) {
 		dynScheme = runtime.NewScheme()
 		dynClient = fakedynamic.NewSimpleDynamicClient(dynScheme)
 	)
-
-	if !loggingEnabled {
-		log.Out = ioutil.Discard
-	}
 
 	kube := common.KubernetesClientSet{
 		Kubernetes:  client,

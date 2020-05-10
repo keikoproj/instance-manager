@@ -288,7 +288,6 @@ func (w *AwsWorker) CreateUpdateScalingGroupRole(name string, managedPolicies []
 		if err != nil {
 			return createdRole, createdProfile, errors.Wrap(err, "failed to create role")
 		}
-		log.Infof("created IAM role %s", aws.StringValue(createdRole.RoleName))
 		createdRole = out.Role
 	} else {
 		createdRole = role
@@ -301,7 +300,6 @@ func (w *AwsWorker) CreateUpdateScalingGroupRole(name string, managedPolicies []
 		if err != nil {
 			return createdRole, createdProfile, errors.Wrap(err, "failed to create instance-profile")
 		}
-		log.Infof("created instance-profile %s", aws.StringValue(createdProfile.InstanceProfileName))
 		createdProfile = out.InstanceProfile
 
 		err = w.IamClient.WaitUntilInstanceProfileExists(&iam.GetInstanceProfileInput{

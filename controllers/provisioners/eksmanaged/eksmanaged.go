@@ -23,7 +23,6 @@ import (
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -35,11 +34,10 @@ const (
 )
 
 var (
-	log                  = logrus.New()
 	TagClusterName       = "instancegroups.keikoproj.io/ClusterName"
 	TagInstanceGroupName = "instancegroups.keikoproj.io/InstanceGroup"
 	TagClusterNamespace  = "instancegroups.keikoproj.io/Namespace"
-	RetryableStates      = []v1alpha1.ReconcileState{v1alpha1.ReconcileErr, v1alpha1.ReconcileReady, v1alpha1.ReconcileDeleted}
+	NonRetryableStates   = []v1alpha1.ReconcileState{v1alpha1.ReconcileErr, v1alpha1.ReconcileReady, v1alpha1.ReconcileDeleted}
 )
 
 func (ctx *EksManagedInstanceGroupContext) CloudDiscovery() error {
@@ -228,7 +226,7 @@ func New(p provisioners.ProvisionerInput) *EksManagedInstanceGroupContext {
 		InstanceGroup:    p.InstanceGroup,
 		KubernetesClient: p.Kubernetes,
 		AwsWorker:        p.AwsWorker,
-		Log:              p.Log,
+		Log:              p.Log.WithName("eks-managed"),
 		DiscoveredState:  &DiscoveredState{},
 	}
 
@@ -276,10 +274,10 @@ func (ctx *EksManagedInstanceGroupContext) processParameters() {
 }
 
 func IsRetryable(instanceGroup *v1alpha1.InstanceGroup) bool {
-	for _, state := range RetryableStates {
-		if instanceGroup.GetState() == state {
-			return true
+	for _, state := range NonRetryableStates {
+		if state == instanceGroup.GetState() {
+			return false
 		}
 	}
-	return false
+	return true
 }

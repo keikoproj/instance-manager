@@ -25,7 +25,7 @@ const (
 )
 
 var (
-	RetryableStates = []v1alpha1.ReconcileState{v1alpha1.ReconcileErr, v1alpha1.ReconcileReady, v1alpha1.ReconcileDeleted}
+	NonRetryableStates = []v1alpha1.ReconcileState{v1alpha1.ReconcileErr, v1alpha1.ReconcileReady, v1alpha1.ReconcileDeleted}
 )
 
 func (ctx *EksInstanceGroupContext) StateDiscovery() {

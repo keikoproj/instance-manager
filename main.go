@@ -17,13 +17,13 @@ package main
 
 import (
 	"flag"
+	"log"
 	"os"
 	runt "runtime"
 
 	instancemgrv1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -47,16 +47,15 @@ func init() {
 }
 
 func printVersion() {
-	log.Printf("Go Version: %s", runt.Version())
-	log.Printf("Go OS/Arch: %s/%s", runt.GOOS, runt.GOARCH)
-	log.Printf("Controller Version: %s", controllerVersion)
-	log.Println()
+	setupLog.Info("controller starting",
+		"go-version", runt.Version(),
+		"os", runt.GOOS,
+		"arch", runt.GOARCH,
+		"version", controllerVersion,
+	)
 }
 
 func main() {
-	log.SetFormatter(&log.TextFormatter{
-		FullTimestamp: true,
-	})
 	printVersion()
 
 	var (

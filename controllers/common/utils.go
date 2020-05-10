@@ -145,7 +145,6 @@ func GetKubernetesConfig() (*rest.Config, error) {
 			log.Errorf("failed to get local kubernetes auth")
 			return nil, err
 		}
-		log.Warnf("using local kubernetes config")
 		return config, nil
 	}
 	return config, nil

@@ -16,14 +16,11 @@ limitations under the License.
 package eks
 
 import (
-	ctrl "sigs.k8s.io/controller-runtime"
-
 	"github.com/go-logr/logr"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 const (
@@ -42,10 +39,6 @@ var (
 	DefaultManagedPolicies    = []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}
 )
 
-func init() {
-	ctrl.SetLogger(zap.Logger(true))
-}
-
 // New constructs a new instance group provisioner of EKS type
 func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 
@@ -53,7 +46,7 @@ func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 		InstanceGroup:    p.InstanceGroup,
 		KubernetesClient: p.Kubernetes,
 		AwsWorker:        p.AwsWorker,
-		Log:              p.Log,
+		Log:              p.Log.WithName("eks"),
 	}
 	instanceGroup := ctx.GetInstanceGroup()
 	configuration := instanceGroup.GetEKSConfiguration()
@@ -71,12 +64,12 @@ func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 }
 
 func IsRetryable(instanceGroup *v1alpha1.InstanceGroup) bool {
-	for _, state := range RetryableStates {
-		if instanceGroup.GetState() == state {
-			return true
+	for _, state := range NonRetryableStates {
+		if state == instanceGroup.GetState() {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 type EksDefaultConfiguration struct {

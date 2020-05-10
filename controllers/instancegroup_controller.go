@@ -25,7 +25,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
 	"github.com/ghodss/yaml"
 	"github.com/go-logr/logr"
-	v1alpha "github.com/keikoproj/instance-manager/api/v1alpha1"
 	v1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/keikoproj/instance-manager/controllers/providers/aws"
@@ -157,7 +156,6 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	// Add Finalizer if not present, and set the initial state
 	finalizerName := fmt.Sprintf("finalizers.%v.instancegroups.keikoproj.io", instanceGroup.Spec.Provisioner)
 	r.SetFinalizer(instanceGroup, finalizerName)
-	defer r.Finalize(instanceGroup, finalizerName)
 
 	input, err := r.NewProvisionerInput(instanceGroup)
 	if err != nil {
@@ -166,7 +164,7 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	}
 	provisionerKind := strings.ToLower(instanceGroup.Spec.Provisioner)
 	r.Log.Info(
-		"reconcile event",
+		"reconcile event started",
 		"instancegroup", req.Name,
 		"namespace", req.Namespace,
 		"provisioner", provisionerKind,
@@ -184,9 +182,16 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 				"instancegroup", instanceGroup.GetName(),
 				"provisioner", provisionerKind,
 			)
-			ctx.SetState(v1alpha.ReconcileErr)
+			ctx.SetState(v1alpha1.ReconcileErr)
 		}
 		if eks.IsRetryable(instanceGroup) {
+			r.Log.Info(
+				"reconcile event ended with requeue",
+				"instancegroup", req.Name,
+				"namespace", req.Namespace,
+				"provisioner", provisionerKind,
+				"resourceVersion", instanceGroup.GetResourceVersion(),
+			)
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
 	case eksmanaged.ProvisionerName:
@@ -199,15 +204,30 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 				"instancegroup", instanceGroup.GetName(),
 				"provisioner", provisionerKind,
 			)
-			ctx.SetState(v1alpha.ReconcileErr)
+			ctx.SetState(v1alpha1.ReconcileErr)
 		}
 		if eksmanaged.IsRetryable(instanceGroup) {
+			r.Log.Info(
+				"reconcile event ended with requeue",
+				"instancegroup", req.Name,
+				"namespace", req.Namespace,
+				"provisioner", provisionerKind,
+				"resourceVersion", instanceGroup.GetResourceVersion(),
+			)
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
 	default:
 		return ctrl.Result{}, errors.Errorf("provisioner '%v' does not exist", provisionerKind)
 	}
 
+	r.Finalize(instanceGroup, finalizerName)
+	r.Log.Info(
+		"reconcile event ended",
+		"instancegroup", req.Name,
+		"namespace", req.Namespace,
+		"provisioner", provisionerKind,
+		"resourceVersion", instanceGroup.GetResourceVersion(),
+	)
 	return ctrl.Result{}, nil
 }
 

@@ -85,7 +85,7 @@ func (ctx EksInstanceGroupContext) CreateScalingGroup() error {
 	if err != nil {
 		return err
 	}
-	ctx.Log.Info("creating scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
+	ctx.Log.Info("created scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 
 	out, err := ctx.AwsWorker.GetAutoscalingGroup(asgName)
 	if err != nil {
@@ -154,7 +154,7 @@ func (ctx *EksInstanceGroupContext) CreateManagedRole() error {
 	if err != nil {
 		return err
 	}
-	ctx.Log.Info("creating or updating managed role", "instancegroup", instanceGroup.GetName(), "iamrole", roleName)
+	ctx.Log.Info("created managed role", "instancegroup", instanceGroup.GetName(), "iamrole", roleName)
 
 	state.SetRole(role)
 	state.SetInstanceProfile(profile)
