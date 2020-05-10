@@ -26,8 +26,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
-	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
+	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -176,7 +176,7 @@ func (u *EksManagedUnitTest) Run(t *testing.T) {
 		dynClient = fakedynamic.NewSimpleDynamicClient(dynScheme)
 	)
 
-	kube := common.KubernetesClientSet{
+	kube := kubeprovider.KubernetesClientSet{
 		Kubernetes:  client,
 		KubeDynamic: dynClient,
 	}

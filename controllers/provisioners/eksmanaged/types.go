@@ -19,8 +19,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/go-logr/logr"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
-	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/keikoproj/instance-manager/controllers/providers/aws"
+	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 )
 
 type EksManagedDefaultConfiguration struct {
@@ -30,7 +30,7 @@ type EksManagedDefaultConfiguration struct {
 
 type EksManagedInstanceGroupContext struct {
 	InstanceGroup    *v1alpha1.InstanceGroup
-	KubernetesClient common.KubernetesClientSet
+	KubernetesClient kubeprovider.KubernetesClientSet
 	AwsWorker        aws.AwsWorker
 	DiscoveredState  *DiscoveredState
 	Log              logr.Logger

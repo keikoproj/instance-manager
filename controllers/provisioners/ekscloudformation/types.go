@@ -19,15 +19,15 @@ import (
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
-	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/keikoproj/instance-manager/controllers/providers/aws"
+	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 // EksCfInstanceGroupContext defines the main type of an EKS Cloudformation provisioner
 type EksCfInstanceGroupContext struct {
 	InstanceGroup    *v1alpha1.InstanceGroup
-	KubernetesClient common.KubernetesClientSet
+	KubernetesClient kubeprovider.KubernetesClientSet
 	AwsWorker        aws.AwsWorker
 	DiscoveredState  *DiscoveredState
 	TemplatePath     string

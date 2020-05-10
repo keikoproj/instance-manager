@@ -26,7 +26,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
-	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
@@ -66,14 +65,14 @@ func MockAwsWorker(asgClient *MockAutoScalingClient, iamClient *MockIamClient) a
 	}
 }
 
-func MockKubernetesClientSet() common.KubernetesClientSet {
-	return common.KubernetesClientSet{
+func MockKubernetesClientSet() kubeprovider.KubernetesClientSet {
+	return kubeprovider.KubernetesClientSet{
 		Kubernetes:  fake.NewSimpleClientset(),
 		KubeDynamic: dynamic.NewSimpleDynamicClient(runtime.NewScheme()),
 	}
 }
 
-func MockContext(instanceGroup *v1alpha1.InstanceGroup, kube common.KubernetesClientSet, w awsprovider.AwsWorker) *EksInstanceGroupContext {
+func MockContext(instanceGroup *v1alpha1.InstanceGroup, kube kubeprovider.KubernetesClientSet, w awsprovider.AwsWorker) *EksInstanceGroupContext {
 	input := provisioners.ProvisionerInput{
 		AwsWorker:     w,
 		Kubernetes:    kube,

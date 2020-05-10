@@ -82,12 +82,12 @@ func (r *InstanceGroupReconciler) SetFinalizer(instanceGroup *v1alpha1.InstanceG
 
 func (r *InstanceGroupReconciler) NewProvisionerInput(instanceGroup *v1alpha1.InstanceGroup) (provisioners.ProvisionerInput, error) {
 	var input provisioners.ProvisionerInput
-	client, err := common.GetKubernetesClient()
+	client, err := kubeprovider.GetKubernetesClient()
 	if err != nil {
 		return input, err
 	}
 
-	dynClient, err := common.GetKubernetesDynamicClient()
+	dynClient, err := kubeprovider.GetKubernetesDynamicClient()
 	if err != nil {
 		return input, err
 	}
@@ -104,7 +104,7 @@ func (r *InstanceGroupReconciler) NewProvisionerInput(instanceGroup *v1alpha1.In
 		EksClient: aws.GetAwsEksClient(awsRegion),
 	}
 
-	kube := common.KubernetesClientSet{
+	kube := kubeprovider.KubernetesClientSet{
 		Kubernetes:  client,
 		KubeDynamic: dynClient,
 	}

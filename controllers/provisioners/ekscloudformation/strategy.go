@@ -24,6 +24,7 @@ import (
 
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
+	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -155,7 +156,7 @@ func (ctx *EksCfInstanceGroupContext) processCRDStrategy() error {
 		return err
 	}
 
-	customResource, err := common.ParseCustomResourceYaml(templatedCustomResource)
+	customResource, err := kubeprovider.ParseCustomResourceYaml(templatedCustomResource)
 	if err != nil {
 		log.Errorf("failed to parse: %v", templatedCustomResource)
 		return err
@@ -221,7 +222,7 @@ func (ctx *EksCfInstanceGroupContext) processCRDStrategy() error {
 
 	customResourceDefinitionFullName := strings.Join([]string{customResourceKind, customResourceDefinitionGroup}, ".")
 
-	if !common.CRDExists(ctx.KubernetesClient.KubeDynamic, customResourceDefinitionFullName) {
+	if !kubeprovider.CRDExists(ctx.KubernetesClient.KubeDynamic, customResourceDefinitionFullName) {
 		err := fmt.Errorf("custom resource definition '%v' is missing, could not upgrade", customResourceDefinitionFullName)
 		return err
 	}

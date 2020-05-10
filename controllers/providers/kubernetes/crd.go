@@ -51,12 +51,12 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 		InstanceGroup: instanceGroup,
 	}
 
-	templatedCustomResource, err := common.RenderCustomResource(strategy.GetSpec(), renderParams)
+	templatedCustomResource, err := RenderCustomResource(strategy.GetSpec(), renderParams)
 	if err != nil {
 		return false, errors.Wrap(err, "failed to render custom resource templating")
 	}
 
-	customResource, err := common.ParseCustomResourceYaml(templatedCustomResource)
+	customResource, err := ParseCustomResourceYaml(templatedCustomResource)
 	if err != nil {
 		return false, errors.Wrap(err, "failed to parse custom resource yaml")
 
@@ -75,7 +75,7 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 
 	crdFullName := strings.Join([]string{GVR.Resource, GVR.Group}, ".")
 
-	if !common.CRDExists(kube, crdFullName) {
+	if !CRDExists(kube, crdFullName) {
 		return false, errors.Errorf("custom resource definition '%v' is missing, could not upgrade", crdFullName)
 	}
 
