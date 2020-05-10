@@ -40,7 +40,6 @@ var (
 const controllerVersion = "instancemgr-0.5.0"
 
 func init() {
-
 	instancemgrv1alpha1.AddToScheme(scheme)
 	corev1.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
@@ -64,9 +63,11 @@ func main() {
 		controllerConfPath     string
 		controllerTemplatePath string
 		region                 string
+		maxParallel            int
 		err                    error
 	)
 
+	flag.IntVar(&maxParallel, "max-workers", 5, "The number of maximum parallel reconciles")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&controllerConfPath, "controller-config", "/etc/config/controller.conf", "The controller config file")
 	flag.StringVar(&controllerTemplatePath, "controller-template", "/etc/config/cloudformation.template", "The controller template file")
@@ -96,6 +97,7 @@ func main() {
 		ControllerConfPath:     controllerConfPath,
 		ControllerTemplatePath: controllerTemplatePath,
 		ScalingGroups:          awsprovider.GetAwsAsgClient(region),
+		MaxParallel:            maxParallel,
 	}).SetupWithManager(mgr)
 	if err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "instancegroup")

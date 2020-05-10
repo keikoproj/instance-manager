@@ -41,6 +41,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
@@ -52,6 +53,7 @@ type InstanceGroupReconciler struct {
 	Log                    logr.Logger
 	ControllerConfPath     string
 	ControllerTemplatePath string
+	MaxParallel            int
 }
 
 func (r *InstanceGroupReconciler) Finalize(instanceGroup *v1alpha1.InstanceGroup, finalizerName string) {
@@ -237,6 +239,7 @@ func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&source.Kind{Type: &corev1.Event{}}, &handler.EnqueueRequestsFromMapFunc{
 			ToRequests: handler.ToRequestsFunc(r.spotEventReconciler),
 		}).
+		WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
 		Complete(r)
 }
 
