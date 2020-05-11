@@ -20,6 +20,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
+	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/onsi/gomega"
 	"github.com/pkg/errors"
@@ -109,6 +110,9 @@ func TestUpdateWithDriftRotationPositive(t *testing.T) {
 	ctx.SetDiscoveredState(&DiscoveredState{
 		ScalingGroup:                  mockScalingGroup,
 		ActiveLaunchConfigurationName: "some-launch-config",
+		InstanceProfile: &iam.InstanceProfile{
+			Arn: aws.String("some-instance-arn"),
+		},
 	})
 
 	// create matching node object
