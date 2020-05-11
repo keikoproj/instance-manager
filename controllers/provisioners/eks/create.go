@@ -110,6 +110,10 @@ func (ctx *EksInstanceGroupContext) CreateLaunchConfiguration() error {
 		lcInput       = ctx.GetLaunchConfigurationInput(lcName)
 	)
 
+	if aws.StringValue(lcInput.IamInstanceProfile) == "" {
+		return errors.Errorf("cannot create a launchconfiguration without iam instance profile")
+	}
+
 	err := ctx.AwsWorker.CreateLaunchConfig(lcInput)
 	if err != nil {
 		return err
