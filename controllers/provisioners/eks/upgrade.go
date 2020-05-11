@@ -54,7 +54,7 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 		ok, err := kubeprovider.ProcessRollingUpgradeStrategy(req)
 		if err != nil {
 			instanceGroup.SetState(v1alpha1.ReconcileErr)
-			return errors.Wrap(err, "failed to process CRD strategy")
+			return errors.Wrap(err, "failed to process rolling-update strategy")
 		}
 		if ok {
 			break
