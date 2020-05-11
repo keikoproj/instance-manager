@@ -13,9 +13,13 @@ Feature: CRUD Upgrade
     When I update a resource instance-group.yaml with .spec.eks.configuration.instanceType set to t2.medium
     Then 3 nodes should be ready with label beta.kubernetes.io/instance-type set to t2.medium
     And the resource should converge to selector .status.currentState=ready
+    And the resource condition NodesReady should be true
+    And 3 nodes should be ready
 
   Scenario: Update an instance-group with CRD strategy
     Given an EKS cluster
     When I update a resource instance-group-crd.yaml with .spec.eks.configuration.instanceType set to t2.medium
     Then 3 nodes should be ready with label beta.kubernetes.io/instance-type set to t2.medium
     And the resource should converge to selector .status.currentState=ready
+    And the resource condition NodesReady should be true
+    And 3 nodes should be ready
