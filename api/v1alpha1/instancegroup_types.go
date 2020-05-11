@@ -531,6 +531,10 @@ func init() {
 	SchemeBuilder.Register(&InstanceGroup{}, &InstanceGroupList{})
 }
 
+func (ig *InstanceGroup) GetEKSFargateSpec() *EKSFargateSpec {
+	return ig.Spec.EKSFargateSpec
+}
+
 func (spec *EKSFargateSpec) GetProfileName() string {
 	return spec.ProfileName
 }

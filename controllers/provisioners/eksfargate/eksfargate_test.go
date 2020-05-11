@@ -252,7 +252,7 @@ func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 	return instanceGroup
 }
 func (u *EksFargateUnitTest) BuildProvisioner(t *testing.T) *InstanceGroupContext {
-	aws := &awsprovider.AwsFargateWorker{
+	aws := &awsprovider.AwsWorker{
 		EksClient: &stubEKS{
 			ProfileBasic:            u.ProfileBasic,
 			ProfileFromDescribe:     u.ProfileFromDescribe,
@@ -274,11 +274,8 @@ func (u *EksFargateUnitTest) BuildProvisioner(t *testing.T) *InstanceGroupContex
 			MakeDeleteRoleFail:       u.MakeDeleteRoleFail,
 			DeleteRoleFound:          u.DeleteRoleFound,
 		},
-		ProfileName: u.InstanceGroup.Spec.EKSFargateSpec.GetProfileName(),
-		ClusterName: u.InstanceGroup.Spec.EKSFargateSpec.GetClusterName(),
 	}
 	provisioner, err := New(u.InstanceGroup, *aws)
-	aws.RetryLimit = 1
 
 	if err != nil {
 		t.Fatal(err)
@@ -582,7 +579,11 @@ func TestGetStateFailureGettingProfile(t *testing.T) {
 		MakeDescribeProfileFail: true,
 	}
 	ctx := testCase.BuildProvisioner(t)
-	state := ctx.AwsFargateWorker.GetState()
+	commonInput := awsprovider.CreateCommonInput{
+		ClusterName: "clustername",
+		ProfileName: "profilename",
+	}
+	state := ctx.AwsWorker.GetState(commonInput)
 	if state.Profile.Status != nil {
 		t.Fatalf("TestGetStateFailureGettingProfile: expected nil but got a status")
 	}
@@ -596,7 +597,12 @@ func TestGetStateSuccessGettingProfile(t *testing.T) {
 		},
 	}
 	ctx := testCase.BuildProvisioner(t)
-	state := ctx.AwsFargateWorker.GetState()
+
+	commonInput := awsprovider.CreateCommonInput{
+		ClusterName: "clustername",
+		ProfileName: "profilename",
+	}
+	state := ctx.AwsWorker.GetState(commonInput)
 	if state.Profile.Status == nil {
 		t.Fatalf("TestGetStateSuccessGettingProfile: expected profile but got a nil")
 	}

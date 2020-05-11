@@ -38,11 +38,25 @@ type AwsWorker struct {
 	CfClient        cloudformationiface.CloudFormationAPI
 	AsgClient       autoscalingiface.AutoScalingAPI
 	EksClient       eksiface.EKSAPI
+	IamClient       iamiface.IAMAPI
 	TemplateBody    string
 	StackName       string
 	StackTags       []*cloudformation.Tag
 	StackParameters []*cloudformation.Parameter
 	Parameters      map[string]interface{}
+}
+
+type CreateProfileInput struct {
+	ClusterName string
+	ProfileName string
+	Arn         string
+	Selectors   []*eks.FargateProfileSelector
+	Tags        map[string]*string
+	Subnets     []*string
+}
+type CreateCommonInput struct {
+	ClusterName string
+	ProfileName string
 }
 
 func (w *AwsWorker) IsNodeGroupExist() bool {
@@ -186,17 +200,6 @@ func (w *AwsWorker) compactTags(tags []map[string]string) map[string]string {
 		compacted[key] = value
 	}
 	return compacted
-}
-
-type AwsFargateWorker struct {
-	EksClient   eksiface.EKSAPI
-	IamClient   iamiface.IAMAPI
-	ProfileName string
-	ClusterName string
-	RetryLimit  int
-	Selectors   []*eks.FargateProfileSelector
-	Subnets     []*string
-	Tags        map[string]*string
 }
 
 func (w *AwsWorker) CreateCloudformationStack() error {
@@ -576,9 +579,9 @@ func (state *ResourceState) IsProvisioned() bool {
 	return state.GetProfileState() != nil
 }
 
-func (w *AwsFargateWorker) GetState() *ResourceState {
+func (w *AwsWorker) GetState(input CreateCommonInput) *ResourceState {
 	state := ResourceState{}
-	profile, err := w.DescribeProfile()
+	profile, err := w.DescribeProfile(input)
 	if err != nil {
 		profile = &eks.FargateProfile{
 			Status: nil,
@@ -591,10 +594,10 @@ func (w *AwsFargateWorker) GetState() *ResourceState {
 
 const defaultPolicyArn = "arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy"
 
-func (w *AwsFargateWorker) DetachDefaultPolicyFromDefaultRole() (bool, error) {
+func (w *AwsWorker) DetachDefaultPolicyFromDefaultRole(input CreateCommonInput) (bool, error) {
 	rolePolicy := &iam.DetachRolePolicyInput{
 		PolicyArn: aws.String(defaultPolicyArn),
-		RoleName:  w.CreateDefaultRoleName(),
+		RoleName:  w.CreateDefaultRoleName(input),
 	}
 	_, err := w.IamClient.DetachRolePolicy(rolePolicy)
 	if err != nil {
@@ -608,9 +611,9 @@ func (w *AwsFargateWorker) DetachDefaultPolicyFromDefaultRole() (bool, error) {
 	return true, nil
 }
 
-func (w *AwsFargateWorker) DeleteDefaultRole() (bool, error) {
+func (w *AwsWorker) DeleteDefaultRole(input CreateCommonInput) (bool, error) {
 	role := &iam.DeleteRoleInput{
-		RoleName: w.CreateDefaultRoleName(),
+		RoleName: w.CreateDefaultRoleName(input),
 	}
 	_, err := w.IamClient.DeleteRole(role)
 	if err != nil {
@@ -623,13 +626,13 @@ func (w *AwsFargateWorker) DeleteDefaultRole() (bool, error) {
 	}
 	return true, nil
 }
-func (w *AwsFargateWorker) CreateDefaultRoleName() *string {
-	s := fmt.Sprintf("%v_%v_Role", w.ClusterName, w.ProfileName)
+func (w *AwsWorker) CreateDefaultRoleName(input CreateCommonInput) *string {
+	s := fmt.Sprintf("%v_%v_Role", input.ClusterName, input.ProfileName)
 	return &s
 }
 
-func (w *AwsFargateWorker) GetDefaultRole() (*iam.Role, error) {
-	var roleName = w.CreateDefaultRoleName()
+func (w *AwsWorker) GetDefaultRole(input CreateCommonInput) (*iam.Role, error) {
+	var roleName = w.CreateDefaultRoleName(input)
 	role := &iam.GetRoleInput{
 		RoleName: roleName,
 	}
@@ -640,8 +643,8 @@ func (w *AwsFargateWorker) GetDefaultRole() (*iam.Role, error) {
 
 	return resp.Role, nil
 }
-func (w *AwsFargateWorker) CreateDefaultRole() (bool, error) {
-	var roleName = w.CreateDefaultRoleName()
+func (w *AwsWorker) CreateDefaultRole(input CreateCommonInput) (bool, error) {
+	var roleName = w.CreateDefaultRoleName(input)
 	var template = `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"eks-fargate-pods.amazonaws.com"},"Action":"sts:AssumeRole"}]}`
 	role := &iam.CreateRoleInput{
 		AssumeRolePolicyDocument: &template,
@@ -660,42 +663,46 @@ func (w *AwsFargateWorker) CreateDefaultRole() (bool, error) {
 	return true, nil
 }
 
-func (w *AwsFargateWorker) AttachDefaultPolicyToDefaultRole() error {
+func (w *AwsWorker) AttachDefaultPolicyToDefaultRole(input CreateCommonInput) error {
 	rolePolicy := &iam.AttachRolePolicyInput{
 		PolicyArn: aws.String(defaultPolicyArn),
-		RoleName:  w.CreateDefaultRoleName(),
+		RoleName:  w.CreateDefaultRoleName(input),
 	}
 	_, err := w.IamClient.AttachRolePolicy(rolePolicy)
 	return err
 }
 
-func (w *AwsFargateWorker) CreateProfile(arn string) error {
-	input := &eks.CreateFargateProfileInput{
-		ClusterName:         &w.ClusterName,
-		FargateProfileName:  &w.ProfileName,
-		PodExecutionRoleArn: &arn,
-		Selectors:           w.Selectors,
-		Subnets:             w.Subnets,
-		Tags:                w.Tags,
+func (w *AwsWorker) CreateProfile(input CreateProfileInput) error {
+	fargateInput := &eks.CreateFargateProfileInput{
+		ClusterName:         &input.ClusterName,
+		FargateProfileName:  &input.ProfileName,
+		PodExecutionRoleArn: &input.Arn,
+		Selectors:           input.Selectors,
+		Subnets:             input.Subnets,
+		Tags:                input.Tags,
 	}
 
-	_, err := w.EksClient.CreateFargateProfile(input)
+	_, err := w.EksClient.CreateFargateProfile(fargateInput)
 	return err
 }
 
-func (w *AwsFargateWorker) DeleteProfile() error {
-	input := &eks.DeleteFargateProfileInput{
-		ClusterName:        &w.ClusterName,
-		FargateProfileName: &w.ProfileName,
+func (w *AwsWorker) DeleteProfile(input CreateCommonInput) error {
+	deleteInput := &eks.DeleteFargateProfileInput{
+		ClusterName:        &input.ClusterName,
+		FargateProfileName: &input.ProfileName,
 	}
-	_, err := w.EksClient.DeleteFargateProfile(input)
+	_, err := w.EksClient.DeleteFargateProfile(deleteInput)
 	return err
 }
 
-func (w *AwsFargateWorker) DescribeAllProfiles(profiles []string) ([]eks.FargateProfile, error) {
+func (w *AwsWorker) DescribeAllProfiles(input CreateCommonInput, profiles []string) ([]eks.FargateProfile, error) {
 	fargateProfiles := []eks.FargateProfile{}
 	for _, profile := range profiles {
-		x, err := DescribeProfileWithParms(w.EksClient, w.ClusterName, profile)
+		temp := CreateCommonInput{
+			ClusterName: input.ClusterName,
+			ProfileName: profile,
+		}
+		x, err := DescribeProfileWithParms(w.EksClient, temp)
 		if err != nil {
 			return nil, err
 		} else {
@@ -705,12 +712,12 @@ func (w *AwsFargateWorker) DescribeAllProfiles(profiles []string) ([]eks.Fargate
 	return fargateProfiles, nil
 }
 
-func (w *AwsFargateWorker) ListAllProfiles() ([]string, error) {
+func (w *AwsWorker) ListAllProfiles(input CreateCommonInput) ([]string, error) {
 	profiles := []string{}
-	input := &eks.ListFargateProfilesInput{
-		ClusterName: &w.ClusterName,
+	listInput := &eks.ListFargateProfilesInput{
+		ClusterName: &input.ClusterName,
 	}
-	err := w.EksClient.ListFargateProfilesPages(input,
+	err := w.EksClient.ListFargateProfilesPages(listInput,
 		func(page *eks.ListFargateProfilesOutput, lastPage bool) bool {
 			for _, fp := range page.FargateProfileNames {
 				profiles = append(profiles, *fp)
@@ -719,23 +726,23 @@ func (w *AwsFargateWorker) ListAllProfiles() ([]string, error) {
 			return !lastPage
 		})
 	if err != nil {
-		log.Errorf("ListAllProfiles - Failed on cluster: %s with error: %v", w.ClusterName, err)
+		log.Errorf("ListAllProfiles - Failed on cluster: %s with error: %v", input.ClusterName, err)
 		return nil, err
 	}
 	return profiles, nil
 }
 
-func DescribeProfileWithParms(client eksiface.EKSAPI, clusterName string, profileName string) (*eks.FargateProfile, error) {
-	input := &eks.DescribeFargateProfileInput{
-		ClusterName:        &clusterName,
-		FargateProfileName: &profileName,
+func DescribeProfileWithParms(client eksiface.EKSAPI, input CreateCommonInput) (*eks.FargateProfile, error) {
+	describeInput := &eks.DescribeFargateProfileInput{
+		ClusterName:        &input.ClusterName,
+		FargateProfileName: &input.ProfileName,
 	}
-	output, err := client.DescribeFargateProfile(input)
+	output, err := client.DescribeFargateProfile(describeInput)
 	if err != nil {
 		return nil, err
 	}
 	return output.FargateProfile, nil
 }
-func (w *AwsFargateWorker) DescribeProfile() (*eks.FargateProfile, error) {
-	return DescribeProfileWithParms(w.EksClient, w.ClusterName, w.ProfileName)
+func (w *AwsWorker) DescribeProfile(input CreateCommonInput) (*eks.FargateProfile, error) {
+	return DescribeProfileWithParms(w.EksClient, input)
 }
