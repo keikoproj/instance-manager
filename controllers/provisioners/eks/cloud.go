@@ -19,12 +19,12 @@ import (
 	"fmt"
 
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 )
 
 func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
@@ -76,11 +76,6 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	state.SetProvisioned(true)
 	state.SetScalingGroup(targetScalingGroup)
 
-	err = ctx.discoverSpotPrice()
-	if err != nil {
-		log.Warnf("failed to discover spot price: %v", err)
-	}
-
 	// update status with scaling group info
 	status.SetActiveScalingGroupName(aws.StringValue(targetScalingGroup.AutoScalingGroupName))
 	status.SetCurrentMin(int(aws.Int64Value(targetScalingGroup.MinSize)))
@@ -112,11 +107,23 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		status.SetActiveLaunchConfigurationName(lcName)
 	}
 
+	if status.GetNodesReadyCondition() == corev1.ConditionTrue {
+		state.SetNodesReady(true)
+	} else {
+		state.SetNodesReady(false)
+	}
+
+	err = ctx.discoverSpotPrice()
+	if err != nil {
+		ctx.Log.Error(err, "failed to discover spot price")
+	}
+
 	return nil
 }
 
 type DiscoveredState struct {
 	Provisioned                   bool
+	NodesReady                    bool
 	OwnedScalingGroups            []*autoscaling.Group
 	ScalingGroup                  *autoscaling.Group
 	LaunchConfiguration           *autoscaling.LaunchConfiguration
@@ -195,4 +202,10 @@ func (d *DiscoveredState) SetProvisioned(provisioned bool) {
 }
 func (d *DiscoveredState) IsProvisioned() bool {
 	return d.Provisioned
+}
+func (d *DiscoveredState) SetNodesReady(condition bool) {
+	d.NodesReady = condition
+}
+func (d *DiscoveredState) IsNodesReady() bool {
+	return d.NodesReady
 }

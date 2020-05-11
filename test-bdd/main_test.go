@@ -31,6 +31,7 @@ import (
 	"github.com/keikoproj/instance-manager/test-bdd/testutil"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -59,7 +60,7 @@ const (
 	NodeStateFound = "found"
 
 	DefaultWaiterInterval = time.Second * 30
-	DefaultWaiterRetries  = 24
+	DefaultWaiterRetries  = 40
 )
 
 var InstanceGroupSchema = schema.GroupVersionResource{
@@ -115,6 +116,7 @@ func FeatureContext(s *godog.Suite) {
 	s.Step(`^(\d+) nodes should be (found|ready) with label ([^"]*) set to ([^"]*)$`, t.nodesShouldBeWithLabel)
 	s.Step(`^the resource should be (created|deleted)$`, t.theResourceShouldBe)
 	s.Step(`^the resource should converge to selector ([^"]*)$`, t.theResourceShouldConvergeToSelector)
+	s.Step(`^the resource condition ([^"]*) should be (true|false)$`, t.theResourceConditionShouldBe)
 	s.Step(`^I (create|delete) a resource ([^"]*)$`, t.iOperateOnResource)
 	s.Step(`^I update a resource ([^"]*) with ([^"]*) set to ([^"]*)$`, t.iUpdateResourceWithField)
 
@@ -234,8 +236,54 @@ func (t *FunctionalTest) iUpdateResourceWithField(resource, key string, value st
 	if err != nil {
 		return err
 	}
-
+	time.Sleep(3 * time.Second)
 	return nil
+}
+
+func (t *FunctionalTest) theResourceConditionShouldBe(cType string, cond string) error {
+	var (
+		counter int
+	)
+
+	for {
+		if counter >= DefaultWaiterRetries {
+			return errors.New("waiter timed out waiting for resource state")
+		}
+		log.Infof("BDD >> waiting for resource %v/%v to meet condition %v=%v", t.ResourceNamespace, t.ResourceName, cType, cond)
+		resource, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Get(t.ResourceName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		if conditions, ok, err := unstructured.NestedSlice(resource.UnstructuredContent(), "status", "conditions"); ok {
+			if err != nil {
+				return err
+			}
+
+			for _, c := range conditions {
+				condition, ok := c.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				tp, found := condition["type"]
+				if !found {
+					continue
+				}
+				condType, ok := tp.(string)
+				if !ok {
+					continue
+				}
+				if condType == cType {
+					status := condition["status"].(string)
+					if corev1.ConditionStatus(status) == corev1.ConditionTrue {
+						return nil
+					}
+				}
+			}
+		}
+		counter++
+		time.Sleep(DefaultWaiterInterval)
+	}
 }
 
 func (t *FunctionalTest) theResourceShouldBe(state string) error {

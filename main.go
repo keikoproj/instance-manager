@@ -22,8 +22,8 @@ import (
 
 	instancemgrv1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers"
-	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
-	log "github.com/sirupsen/logrus"
+	"github.com/keikoproj/instance-manager/controllers/providers/aws"
+	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -40,23 +40,21 @@ var (
 const controllerVersion = "instancemgr-0.5.0"
 
 func init() {
-
 	instancemgrv1alpha1.AddToScheme(scheme)
 	corev1.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
 func printVersion() {
-	log.Printf("Go Version: %s", runt.Version())
-	log.Printf("Go OS/Arch: %s/%s", runt.GOOS, runt.GOARCH)
-	log.Printf("Controller Version: %s", controllerVersion)
-	log.Println()
+	setupLog.Info("controller starting",
+		"go-version", runt.Version(),
+		"os", runt.GOOS,
+		"arch", runt.GOARCH,
+		"version", controllerVersion,
+	)
 }
 
 func main() {
-	log.SetFormatter(&log.TextFormatter{
-		FullTimestamp: true,
-	})
 	printVersion()
 
 	var (
@@ -64,10 +62,11 @@ func main() {
 		enableLeaderElection   bool
 		controllerConfPath     string
 		controllerTemplatePath string
-		region                 string
+		maxParallel            int
 		err                    error
 	)
 
+	flag.IntVar(&maxParallel, "max-workers", 5, "The number of maximum parallel reconciles")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&controllerConfPath, "controller-config", "/etc/config/controller.conf", "The controller config file")
 	flag.StringVar(&controllerTemplatePath, "controller-template", "/etc/config/cloudformation.template", "The controller template file")
@@ -75,11 +74,6 @@ func main() {
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	flag.Parse()
 	ctrl.SetLogger(zap.Logger(true))
-
-	region, err = awsprovider.GetRegion()
-	if err != nil {
-		log.Fatalf("failed to detect region: %v", err)
-	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
@@ -91,15 +85,49 @@ func main() {
 		os.Exit(1)
 	}
 
+	awsRegion, err := aws.GetRegion()
+	if err != nil {
+		setupLog.Error(err, "unable to get AWS region")
+		os.Exit(1)
+	}
+
+	client, err := kubeprovider.GetKubernetesClient()
+	if err != nil {
+		setupLog.Error(err, "unable to create kubernetes client")
+		os.Exit(1)
+	}
+
+	dynClient, err := kubeprovider.GetKubernetesDynamicClient()
+	if err != nil {
+		setupLog.Error(err, "unable to create kubernetes dynamic client")
+		os.Exit(1)
+	}
+
+	awsWorker := aws.AwsWorker{
+		IamClient: aws.GetAwsIamClient(awsRegion),
+		CfClient:  aws.GetAwsCloudformationClient(awsRegion),
+		AsgClient: aws.GetAwsAsgClient(awsRegion),
+		EksClient: aws.GetAwsEksClient(awsRegion),
+	}
+
+	kube := kubeprovider.KubernetesClientSet{
+		Kubernetes:  client,
+		KubeDynamic: dynClient,
+	}
+
 	err = (&controllers.InstanceGroupReconciler{
 		Client:                 mgr.GetClient(),
-		Log:                    ctrl.Log.WithName("controllers").WithName("InstanceGroup"),
+		Log:                    ctrl.Log.WithName("controllers").WithName("instancegroup"),
 		ControllerConfPath:     controllerConfPath,
 		ControllerTemplatePath: controllerTemplatePath,
-		ScalingGroups:          awsprovider.GetAwsAsgClient(region),
+		MaxParallel:            maxParallel,
+		Auth: &controllers.InstanceGroupAuthenticator{
+			Aws:        awsWorker,
+			Kubernetes: kube,
+		},
 	}).SetupWithManager(mgr)
 	if err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "InstanceGroup")
+		setupLog.Error(err, "unable to create controller", "controller", "instancegroup")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder

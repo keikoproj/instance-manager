@@ -54,4 +54,7 @@ jobs:
       script:
       - export SECURITY_GROUPS=$(aws cloudformation describe-stacks --stack-name $PREFIX-eks-node-security-group --query "Stacks[0].Outputs[?OutputKey=='SecurityGroup'].OutputValue" --output text)
       - aws eks update-kubeconfig --name $EKS_CLUSTER
+      # make sure we use the right CRD/Controller for test
+      - make install
+      - kubectl set image deployment/instance-manager instance-manager=keikoproj/instance-manager:master
       - make bdd

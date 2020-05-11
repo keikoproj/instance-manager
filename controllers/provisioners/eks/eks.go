@@ -16,11 +16,11 @@ limitations under the License.
 package eks
 
 import (
+	"github.com/go-logr/logr"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
-	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
-	"github.com/sirupsen/logrus"
-	log "github.com/sirupsen/logrus"
+	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
+	"github.com/keikoproj/instance-manager/controllers/provisioners"
 )
 
 const (
@@ -39,23 +39,37 @@ var (
 	DefaultManagedPolicies    = []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}
 )
 
-func init() {
-	log.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp: true,
-	})
-}
-
 // New constructs a new instance group provisioner of EKS type
-func New(instanceGroup *v1alpha1.InstanceGroup, k common.KubernetesClientSet, w awsprovider.AwsWorker) *EksInstanceGroupContext {
+func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 
 	ctx := &EksInstanceGroupContext{
-		InstanceGroup:    instanceGroup,
-		KubernetesClient: k,
-		AwsWorker:        w,
+		InstanceGroup:    p.InstanceGroup,
+		KubernetesClient: p.Kubernetes,
+		AwsWorker:        p.AwsWorker,
+		Log:              p.Log.WithName("eks"),
+	}
+	instanceGroup := ctx.GetInstanceGroup()
+	configuration := instanceGroup.GetEKSConfiguration()
+	instanceGroup.SetState(v1alpha1.ReconcileInit)
+
+	if len(p.Configuration.DefaultSubnets) != 0 {
+		configuration.SetSubnets(p.Configuration.DefaultSubnets)
 	}
 
-	instanceGroup.SetState(v1alpha1.ReconcileInit)
+	if p.Configuration.DefaultClusterName != "" {
+		configuration.SetClusterName(p.Configuration.DefaultClusterName)
+	}
+
 	return ctx
+}
+
+func IsRetryable(instanceGroup *v1alpha1.InstanceGroup) bool {
+	for _, state := range NonRetryableStates {
+		if state == instanceGroup.GetState() {
+			return false
+		}
+	}
+	return true
 }
 
 type EksDefaultConfiguration struct {
@@ -65,10 +79,10 @@ type EksDefaultConfiguration struct {
 
 type EksInstanceGroupContext struct {
 	InstanceGroup    *v1alpha1.InstanceGroup
-	KubernetesClient common.KubernetesClientSet
+	KubernetesClient kubeprovider.KubernetesClientSet
 	AwsWorker        awsprovider.AwsWorker
 	DiscoveredState  *DiscoveredState
-	ControllerRegion string
+	Log              logr.Logger
 }
 
 func (ctx *EksInstanceGroupContext) GetInstanceGroup() *v1alpha1.InstanceGroup {

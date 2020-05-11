@@ -16,15 +16,14 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 type ReconcileState string
@@ -59,6 +58,7 @@ var (
 		Version:  "v1alpha1",
 		Resource: "instancegroups",
 	}
+	log = ctrl.Log.WithName("v1alpha1")
 )
 
 // InstanceGroup is the Schema for the instancegroups API
@@ -533,6 +533,15 @@ func (status *InstanceGroupStatus) SetActiveLaunchConfigurationName(name string)
 	status.ActiveLaunchConfigurationName = name
 }
 
+func (status *InstanceGroupStatus) GetNodesReadyCondition() corev1.ConditionStatus {
+	for _, c := range status.Conditions {
+		if c.Type == NodesReady {
+			return c.Status
+		}
+	}
+	return corev1.ConditionFalse
+}
+
 func (status *InstanceGroupStatus) GetStackName() string {
 	return status.StackName
 }
@@ -738,8 +747,12 @@ func (ig *InstanceGroup) GetState() ReconcileState {
 }
 
 func (ig *InstanceGroup) SetState(s ReconcileState) {
-	ig.Status.CurrentState = fmt.Sprintf("%v", s)
-	log.Printf("state transitioned to: %v", s)
+	log.Info("state transition occured",
+		"instancegroup", ig.GetName(),
+		"state", s,
+		"previousState", ig.Status.CurrentState,
+	)
+	ig.Status.CurrentState = string(s)
 }
 
 func init() {

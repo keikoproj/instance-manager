@@ -21,10 +21,8 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
-	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
-	"github.com/sirupsen/logrus"
-	yaml "gopkg.in/yaml.v2"
+	"github.com/keikoproj/instance-manager/controllers/provisioners"
 )
 
 const (
@@ -32,13 +30,14 @@ const (
 	FiniteStateString              = "FiniteState"
 	UnrecoverableErrorString       = "UnrecoverableError"
 	UnrecoverableDeleteErrorString = "UnrecoverableDeleteError"
+	ProvisionerName                = "eks-managed"
 )
 
 var (
-	log                  = logrus.New()
 	TagClusterName       = "instancegroups.keikoproj.io/ClusterName"
 	TagInstanceGroupName = "instancegroups.keikoproj.io/InstanceGroup"
 	TagClusterNamespace  = "instancegroups.keikoproj.io/Namespace"
+	NonRetryableStates   = []v1alpha1.ReconcileState{v1alpha1.ReconcileErr, v1alpha1.ReconcileReady, v1alpha1.ReconcileDeleted}
 )
 
 func (ctx *EksManagedInstanceGroupContext) CloudDiscovery() error {
@@ -137,6 +136,7 @@ func (ctx *EksManagedInstanceGroupContext) Create() error {
 	if err != nil {
 		return err
 	}
+	ctx.Log.Info("created managed node group", "instancegroup", instanceGroup.GetName())
 	instanceGroup.SetState(v1alpha1.ReconcileModifying)
 	return nil
 }
@@ -183,6 +183,7 @@ func (ctx *EksManagedInstanceGroupContext) Update() error {
 		if err != nil {
 			return err
 		}
+		ctx.Log.Info("updated managed node group", "instancegroup", instanceGroup.GetName())
 		instanceGroup.SetState(v1alpha1.ReconcileModifying)
 	} else {
 		instanceGroup.SetState(v1alpha1.ReconcileModified)
@@ -199,6 +200,7 @@ func (ctx *EksManagedInstanceGroupContext) Delete() error {
 	if err != nil {
 		return err
 	}
+	ctx.Log.Info("deleted managed node group", "instancegroup", instanceGroup.GetName())
 	instanceGroup.SetState(v1alpha1.ReconcileDeleting)
 	return nil
 }
@@ -221,23 +223,33 @@ func (ctx *EksManagedInstanceGroupContext) IsReady() bool {
 	return false
 }
 
-func New(instanceGroup *v1alpha1.InstanceGroup, k common.KubernetesClientSet, w awsprovider.AwsWorker) (*EksManagedInstanceGroupContext, error) {
-	log.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp: true,
-	})
+func New(p provisioners.ProvisionerInput) *EksManagedInstanceGroupContext {
 
 	ctx := &EksManagedInstanceGroupContext{
-		InstanceGroup:    instanceGroup,
-		KubernetesClient: k,
-		AwsWorker:        w,
+		InstanceGroup:    p.InstanceGroup,
+		KubernetesClient: p.Kubernetes,
+		AwsWorker:        p.AwsWorker,
+		Log:              p.Log.WithName("eks-managed"),
 		DiscoveredState:  &DiscoveredState{},
+	}
+
+	instanceGroup := ctx.GetInstanceGroup()
+	configuration := instanceGroup.GetEKSManagedConfiguration()
+
+	if len(p.Configuration.DefaultSubnets) != 0 {
+		configuration.SetSubnets(p.Configuration.DefaultSubnets)
+	}
+
+	if p.Configuration.DefaultClusterName != "" {
+		configuration.SetClusterName(p.Configuration.DefaultClusterName)
 	}
 
 	instanceGroup.SetState(v1alpha1.ReconcileInit)
 	ctx.processParameters()
 
-	return ctx, nil
+	return ctx
 }
+
 func (ctx *EksManagedInstanceGroupContext) processParameters() {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
@@ -264,24 +276,11 @@ func (ctx *EksManagedInstanceGroupContext) processParameters() {
 	ctx.AwsWorker.Parameters = params
 }
 
-func LoadControllerConfiguration(ig *v1alpha1.InstanceGroup, controllerConfig []byte) (EksManagedDefaultConfiguration, error) {
-	var (
-		defaultConfig EksManagedDefaultConfiguration
-		specConfig    = ig.Spec.EKSManagedSpec.EKSManagedConfiguration
-	)
-
-	err := yaml.Unmarshal(controllerConfig, &defaultConfig)
-	if err != nil {
-		return defaultConfig, err
+func IsRetryable(instanceGroup *v1alpha1.InstanceGroup) bool {
+	for _, state := range NonRetryableStates {
+		if state == instanceGroup.GetState() {
+			return false
+		}
 	}
-
-	if len(defaultConfig.DefaultSubnets) != 0 {
-		specConfig.SetSubnets(defaultConfig.DefaultSubnets)
-	}
-
-	if defaultConfig.EksClusterName != "" {
-		specConfig.SetClusterName(defaultConfig.EksClusterName)
-	}
-
-	return defaultConfig, nil
+	return true
 }

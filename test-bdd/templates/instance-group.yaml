@@ -36,5 +36,5 @@ spec:
         - {{$element}}
       {{ end }}
       tags:
-        - key: mykey
-          value: myvalue
+      - key: k8s-minion-manager
+        value: use-spot

@@ -26,7 +26,6 @@ import (
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
-	log "github.com/sirupsen/logrus"
 	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -188,6 +187,11 @@ func (ctx *EksInstanceGroupContext) discoverSpotPrice() error {
 		scalingGroupName = aws.StringValue(scalingGroup.AutoScalingGroupName)
 	)
 
+	// Ignore recommendations until instance group is provisioned
+	if !state.IsNodesReady() {
+		return nil
+	}
+
 	// get latest spot recommendations from events
 	recommendation, err := kubeprovider.GetSpotRecommendation(ctx.KubernetesClient.Kubernetes, scalingGroupName)
 	if err != nil {
@@ -199,7 +203,7 @@ func (ctx *EksInstanceGroupContext) discoverSpotPrice() error {
 	if reflect.DeepEqual(recommendation, kubeprovider.SpotRecommendation{}) {
 		// if it was not using a recommendation before and spec has a spot price it means it was manually configured
 		if !status.GetUsingSpotRecommendation() && configuration.GetSpotPrice() != "" {
-			log.Warnf("using manually configured spot price %v", configuration.GetSpotPrice())
+			ctx.Log.Info("using manually configured spot price", "instancegroup", instanceGroup.GetName(), "spotPrice", configuration.GetSpotPrice())
 		} else {
 			// if recommendation was used, set flag to false
 			status.SetUsingSpotRecommendation(false)
@@ -211,10 +215,10 @@ func (ctx *EksInstanceGroupContext) discoverSpotPrice() error {
 	status.SetUsingSpotRecommendation(true)
 
 	if recommendation.UseSpot {
-		log.Infof("spot enabled with current bid price: %v", recommendation.SpotPrice)
+		ctx.Log.Info("spot enabled with spot price recommendation", "instancegroup", instanceGroup.GetName(), "spotPrice", recommendation.SpotPrice)
 		configuration.SetSpotPrice(recommendation.SpotPrice)
 	} else {
-		log.Infoln("spot disabled by recommendation")
+		ctx.Log.Info("spot disabled due to recommendation", "instancegroup", instanceGroup.GetName())
 		configuration.SetSpotPrice("")
 	}
 	return nil
@@ -278,11 +282,16 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 		instanceGroup = ctx.GetInstanceGroup()
 		status        = instanceGroup.GetStatus()
 		scalingGroup  = state.GetScalingGroup()
+		desiredCount  = int(aws.Int64Value(scalingGroup.DesiredCapacity))
 	)
-	log.Info("waiting for node readiness conditions")
+
+	ctx.Log.Info("waiting for node readiness conditions", "instancegroup", instanceGroup.GetName())
+	if len(scalingGroup.Instances) != desiredCount {
+		// if instances don't match desired, a scaling activity is in progress
+		return false
+	}
 
 	instanceIds := make([]string, 0)
-	desiredCount := int(aws.Int64Value(scalingGroup.DesiredCapacity))
 	for _, instance := range scalingGroup.Instances {
 		instanceIds = append(instanceIds, aws.StringValue(instance.InstanceId))
 	}
@@ -290,15 +299,18 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 	var conditions []v1alpha1.InstanceGroupCondition
 	ok, err := kubeprovider.IsDesiredNodesReady(ctx.KubernetesClient.Kubernetes, instanceIds, desiredCount)
 	if err != nil {
-		log.Warnf("could not update instance group conditions: %v", err)
+		ctx.Log.Error(err, "could not update node conditions", "instancegroup", instanceGroup.GetName())
 		return false
 	}
 
 	if ok {
+		state.SetNodesReady(true)
 		conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionTrue))
 		status.SetConditions(conditions)
 		return true
 	}
+
+	state.SetNodesReady(false)
 	conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionFalse))
 	status.SetConditions(conditions)
 	return false

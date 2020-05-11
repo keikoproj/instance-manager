@@ -43,7 +43,7 @@ func TestUpgradeCRDStrategyValidation(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	// assume initial state of modifying
 	ig.SetState(v1alpha1.ReconcileModifying)
@@ -112,7 +112,7 @@ func TestUpgradeInvalidStrategy(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	// assume initial state of modifying
 	ig.SetState(v1alpha1.ReconcileModifying)
@@ -133,7 +133,7 @@ func TestBootstrapNodes(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	// assume initial state of modifying
 	ig.SetState(v1alpha1.ReconcileModifying)
@@ -153,7 +153,7 @@ func TestUpgradeCRDStrategy(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	// get custom resource yaml
 	crYAML, err := yaml.Marshal(cr.Object)
@@ -212,12 +212,11 @@ func TestUpgradeRollingUpdateStrategyPositive(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	tests := []struct {
 		maxUnavailable   intstr.IntOrString
 		scalingInstances []*autoscaling.Instance
-		shouldErr        bool
 		withTerminateErr bool
 		expectedState    v1alpha1.ReconcileState
 		readyNodes       int
@@ -230,7 +229,7 @@ func TestUpgradeRollingUpdateStrategyPositive(t *testing.T) {
 		{maxUnavailable: intstr.FromInt(3), readyNodes: 3, scalingInstances: MockScalingInstances(0, 3), expectedState: v1alpha1.ReconcileModifying},
 		{maxUnavailable: intstr.FromInt(5), readyNodes: 3, scalingInstances: MockScalingInstances(0, 3), expectedState: v1alpha1.ReconcileModifying},
 		{maxUnavailable: intstr.FromInt(0), readyNodes: 3, scalingInstances: MockScalingInstances(0, 3), expectedState: v1alpha1.ReconcileModifying},
-		{maxUnavailable: intstr.FromString("60%"), readyNodes: 2, scalingInstances: MockScalingInstances(1, 2), shouldErr: true, withTerminateErr: true, expectedState: v1alpha1.ReconcileErr},
+		{maxUnavailable: intstr.FromString("60%"), readyNodes: 2, scalingInstances: MockScalingInstances(1, 2), withTerminateErr: true, expectedState: v1alpha1.ReconcileModifying},
 	}
 
 	for i, tc := range tests {
@@ -270,13 +269,9 @@ func TestUpgradeRollingUpdateStrategyPositive(t *testing.T) {
 			},
 		})
 
-		var errOccured bool
 		ig.SetState(v1alpha1.ReconcileModifying)
 		err = ctx.UpgradeNodes()
-		if err != nil {
-			errOccured = true
-		}
-		g.Expect(errOccured).To(gomega.Equal(tc.shouldErr))
+		g.Expect(err).NotTo(gomega.HaveOccurred())
 		g.Expect(ctx.GetState()).To(gomega.Equal(tc.expectedState))
 	}
 }

@@ -16,15 +16,29 @@ limitations under the License.
 package kubernetes
 
 import (
+	"bytes"
+	"fmt"
+	"html/template"
+	"os"
+	"os/user"
 	"strings"
 
+	"github.com/ghodss/yaml"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
+
+type KubernetesClientSet struct {
+	Kubernetes  kubernetes.Interface
+	KubeDynamic dynamic.Interface
+}
 
 func IsDesiredNodesReady(kube kubernetes.Interface, instanceIds []string, desiredCount int) (bool, error) {
 	nodes, err := kube.CoreV1().Nodes().List(metav1.ListOptions{})
@@ -136,4 +150,102 @@ func GetGVR(customResource *unstructured.Unstructured, CRDName string) schema.Gr
 		Version:  GVK.Version,
 		Resource: resourceName,
 	}
+}
+
+func GetKubernetesClient() (kubernetes.Interface, error) {
+	var config *rest.Config
+	config, err := GetKubernetesConfig()
+	if err != nil {
+		return nil, err
+	}
+	client, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
+}
+
+func GetKubernetesDynamicClient() (dynamic.Interface, error) {
+	var config *rest.Config
+	config, err := GetKubernetesConfig()
+	if err != nil {
+		return nil, err
+	}
+	client, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
+}
+
+func GetKubernetesConfig() (*rest.Config, error) {
+	var config *rest.Config
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		config, err = GetKubernetesLocalConfig()
+		if err != nil {
+			return nil, err
+		}
+		return config, nil
+	}
+	return config, nil
+}
+
+func RenderCustomResource(tpl string, params interface{}) (string, error) {
+	var renderBuffer bytes.Buffer
+	template, err := template.New("Template").Parse(tpl)
+	if err != nil {
+		return "", err
+	}
+	err = template.Execute(&renderBuffer, params)
+	if err != nil {
+		return "", err
+	}
+	return renderBuffer.String(), nil
+}
+
+func GetKubernetesLocalConfig() (*rest.Config, error) {
+	var kubePath string
+	if os.Getenv("KUBECONFIG") != "" {
+		kubePath = os.Getenv("KUBECONFIG")
+	} else {
+		usr, err := user.Current()
+		if err != nil {
+			return nil, err
+		}
+		kubePath = usr.HomeDir + "/.kube/config"
+	}
+
+	if kubePath == "" {
+		err := fmt.Errorf("failed to get kubeconfig path")
+		return nil, err
+	}
+
+	config, err := clientcmd.BuildConfigFromFlags("", kubePath)
+	if err != nil {
+		return nil, err
+	}
+	return config, nil
+}
+
+func CRDExists(kubeClient dynamic.Interface, name string) bool {
+	CRDSchema := schema.GroupVersionResource{Group: "apiextensions.k8s.io", Version: "v1beta1", Resource: "customresourcedefinitions"}
+	_, err := kubeClient.Resource(CRDSchema).Get(name, metav1.GetOptions{})
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+	return true
+}
+
+func ParseCustomResourceYaml(raw string) (*unstructured.Unstructured, error) {
+	var err error
+	cr := unstructured.Unstructured{}
+	data := []byte(raw)
+	err = yaml.Unmarshal(data, &cr.Object)
+	if err != nil {
+		fmt.Println(err)
+		return &cr, err
+	}
+	return &cr, nil
 }

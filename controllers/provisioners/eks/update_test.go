@@ -20,6 +20,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
+	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/onsi/gomega"
 	"github.com/pkg/errors"
@@ -36,7 +37,7 @@ func TestUpdateScalingGroupPositive(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	// avoid drift / rotation
 	input := ctx.GetLaunchConfigurationInput("some-launch-config")
@@ -91,7 +92,7 @@ func TestUpdateWithDriftRotationPositive(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	mockScalingGroup := &autoscaling.Group{
 		AutoScalingGroupName: aws.String("some-scaling-group"),
@@ -109,6 +110,9 @@ func TestUpdateWithDriftRotationPositive(t *testing.T) {
 	ctx.SetDiscoveredState(&DiscoveredState{
 		ScalingGroup:                  mockScalingGroup,
 		ActiveLaunchConfigurationName: "some-launch-config",
+		InstanceProfile: &iam.InstanceProfile{
+			Arn: aws.String("some-instance-arn"),
+		},
 	})
 
 	// create matching node object
@@ -143,7 +147,7 @@ func TestUpdateWithRotationPositive(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	// avoid drift / rotation
 	input := ctx.GetLaunchConfigurationInput("some-launch-config")
@@ -200,7 +204,7 @@ func TestLaunchConfigurationDrifted(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 	input := ctx.GetLaunchConfigurationInput("some-launch-config")
 
 	var (
@@ -259,7 +263,7 @@ func TestUpdateScalingGroupNegative(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	mockScalingGroup := &autoscaling.Group{
 		AutoScalingGroupName: aws.String("some-scaling-group"),

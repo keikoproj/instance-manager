@@ -19,7 +19,6 @@ import (
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/aws/aws-sdk-go/aws"
 )
@@ -59,37 +58,40 @@ func (ctx *EksInstanceGroupContext) Delete() error {
 
 func (ctx *EksInstanceGroupContext) DeleteScalingGroup() error {
 	var (
-		state        = ctx.GetDiscoveredState()
-		scalingGroup = state.GetScalingGroup()
-		asgName      = aws.StringValue(scalingGroup.AutoScalingGroupName)
+		state         = ctx.GetDiscoveredState()
+		scalingGroup  = state.GetScalingGroup()
+		instanceGroup = ctx.GetInstanceGroup()
+		asgName       = aws.StringValue(scalingGroup.AutoScalingGroupName)
 	)
+
 	if !state.HasScalingGroup() {
 		return nil
 	}
-	log.Infof("deleting scaling group %s", asgName)
 
 	err := ctx.AwsWorker.DeleteScalingGroup(asgName)
 	if err != nil {
 		return err
 	}
+	ctx.Log.Info("deleted scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 	return nil
 }
 
 func (ctx *EksInstanceGroupContext) DeleteLaunchConfiguration() error {
 	var (
-		state  = ctx.GetDiscoveredState()
-		lcName = state.GetActiveLaunchConfigurationName()
+		state         = ctx.GetDiscoveredState()
+		instanceGroup = ctx.GetInstanceGroup()
+		lcName        = state.GetActiveLaunchConfigurationName()
 	)
 
 	if !state.HasLaunchConfiguration() {
 		return nil
 	}
-	log.Infof("deleting launch configuration %s", lcName)
 
 	err := ctx.AwsWorker.DeleteLaunchConfig(lcName)
 	if err != nil {
 		return err
 	}
+	ctx.Log.Info("deleted launch config", "instancegroup", instanceGroup.GetName(), "launchconfig", lcName)
 	return nil
 }
 
@@ -107,13 +109,12 @@ func (ctx *EksInstanceGroupContext) DeleteManagedRole() error {
 		return nil
 	}
 
-	log.Infof("deleting managed role %s", roleName)
-
 	managedPolicies := ctx.GetManagedPoliciesList(additionalPolicies)
 
 	err := ctx.AwsWorker.DeleteScalingGroupRole(roleName, managedPolicies)
 	if err != nil {
 		return err
 	}
+	ctx.Log.Info("deleted scaling group role", "instancegroup", instanceGroup.GetName(), "iamrole", roleName)
 	return nil
 }

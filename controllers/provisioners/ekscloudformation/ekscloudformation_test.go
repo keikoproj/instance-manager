@@ -36,8 +36,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
-	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
+	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -505,7 +505,7 @@ func getBasicContext(t *testing.T, awsMocker awsprovider.AwsWorker) *EksCfInstan
 	dynScheme := runtime.NewScheme()
 	dynClient := fakedynamic.NewSimpleDynamicClient(dynScheme)
 	ig := FakeIG{}
-	kube := common.KubernetesClientSet{
+	kube := kubeprovider.KubernetesClientSet{
 		Kubernetes:  client,
 		KubeDynamic: dynClient,
 	}
@@ -525,7 +525,7 @@ func (u *EksCfUnitTest) Run(t *testing.T) {
 	dynScheme := runtime.NewScheme()
 	dynClient := fakedynamic.NewSimpleDynamicClient(dynScheme)
 
-	kube := common.KubernetesClientSet{
+	kube := kubeprovider.KubernetesClientSet{
 		Kubernetes:  client,
 		KubeDynamic: dynClient,
 	}
@@ -535,7 +535,7 @@ func (u *EksCfUnitTest) Run(t *testing.T) {
 	u.InstanceGroup.Spec.EKSCFSpec.EKSCFConfiguration.SetClusterName("EKS-Test")
 	if u.LoadCRD == "rollingupgrade" {
 		CRDSchema := schema.GroupVersionResource{Group: "apiextensions.k8s.io", Version: "v1beta1", Resource: "customresourcedefinitions"}
-		CRDSpec, _ := common.ParseCustomResourceYaml(rollupCrd)
+		CRDSpec, _ := kubeprovider.ParseCustomResourceYaml(rollupCrd)
 
 		_, err := kube.KubeDynamic.Resource(CRDSchema).Create(CRDSpec, metav1.CreateOptions{})
 		if err != nil {
@@ -655,7 +655,7 @@ func (u *EksCfUnitTest) Run(t *testing.T) {
 	}
 
 	if u.LoadCRD == "rollingupgrade" {
-		CRDSpec, _ := common.ParseCustomResourceYaml(getRollupSpec("rollup"))
+		CRDSpec, _ := kubeprovider.ParseCustomResourceYaml(getRollupSpec("rollup"))
 		apiVersionSplit := strings.Split(CRDSpec.GetAPIVersion(), "/")
 		CRDSchema := schema.GroupVersionResource{Group: apiVersionSplit[0], Version: apiVersionSplit[1], Resource: "rollingupgrade"}
 		rollupResult, _ = kube.KubeDynamic.Resource(CRDSchema).List(metav1.ListOptions{})
@@ -1345,7 +1345,7 @@ func TestGetNodeAutoScalingGroupMetrics(t *testing.T) {
 }
 
 func TestParseCustomResourceYamlEmptyString(t *testing.T) {
-	empty, err := common.ParseCustomResourceYaml("")
+	empty, err := kubeprovider.ParseCustomResourceYaml("")
 	if len(empty.Object) > 0 {
 		t.Fatalf("Expected ParseCustomResourceYaml to return Unstructured whose Unstructured.object is of length: 0 but"+
 			" instead object is of length %d", len(empty.Object))

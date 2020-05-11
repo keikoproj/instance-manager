@@ -36,7 +36,7 @@ func TestDeletePositive(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	ctx.SetDiscoveredState(&DiscoveredState{
 		ScalingGroup:        &autoscaling.Group{},
@@ -60,7 +60,7 @@ func TestDeleteManagedRoleNegative(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	ctx.SetDiscoveredState(&DiscoveredState{
 		IAMRole: &iam.Role{},
@@ -88,7 +88,7 @@ func TestDeleteLaunchConfigurationNegative(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	ctx.SetDiscoveredState(&DiscoveredState{
 		LaunchConfiguration: &autoscaling.LaunchConfiguration{},
@@ -111,7 +111,7 @@ func TestDeleteAutoScalingGroupNegative(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	ctx.SetDiscoveredState(&DiscoveredState{
 		ScalingGroup: &autoscaling.Group{},

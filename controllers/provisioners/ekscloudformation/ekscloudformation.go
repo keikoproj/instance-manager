@@ -28,6 +28,7 @@ import (
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
+	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/sirupsen/logrus"
 )
 
@@ -51,7 +52,7 @@ const (
 )
 
 // New constructs a new instance group provisioner of EKS Cloudformation type
-func New(instanceGroup *v1alpha1.InstanceGroup, k common.KubernetesClientSet, w awsprovider.AwsWorker) (*EksCfInstanceGroupContext, error) {
+func New(instanceGroup *v1alpha1.InstanceGroup, k kubeprovider.KubernetesClientSet, w awsprovider.AwsWorker) (*EksCfInstanceGroupContext, error) {
 	log.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp: true,
 	})

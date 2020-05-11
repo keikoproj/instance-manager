@@ -37,7 +37,7 @@ func TestCreateManagedRolePositive(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 	state := ctx.GetDiscoveredState()
 
 	// Mock role/profile do not exist so they are always created
@@ -70,7 +70,7 @@ func TestCreateLaunchConfigurationPositive(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	// Skip role creation
 	ig.GetEKSConfiguration().SetInstanceProfileName("some-profile")
@@ -105,7 +105,7 @@ func TestCreateScalingGroupPositive(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	// skip role creation
 	ig.GetEKSConfiguration().SetInstanceProfileName("some-profile")
@@ -141,7 +141,7 @@ func TestCreateNoOp(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	// skip role creation
 	ig.GetEKSConfiguration().SetInstanceProfileName("some-profile")
@@ -177,7 +177,7 @@ func TestCreateManagedRoleNegative(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	// Mock role/profile do not exist so they are always created
 	iamMock.GetRoleErr = errors.New("not found")
@@ -224,7 +224,7 @@ func TestCreateLaunchConfigNegative(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	ig.GetEKSConfiguration().SetRoleName("some-role")
 	ig.GetEKSConfiguration().SetInstanceProfileName("some-profile")
@@ -269,7 +269,7 @@ func TestCreateAutoScalingGroupNegative(t *testing.T) {
 	)
 
 	w := MockAwsWorker(asgMock, iamMock)
-	ctx := New(ig, k, w)
+	ctx := MockContext(ig, k, w)
 
 	ig.GetEKSConfiguration().SetRoleName("some-role")
 	ig.GetEKSConfiguration().SetInstanceProfileName("some-profile")
