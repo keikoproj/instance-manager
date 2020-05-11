@@ -282,11 +282,16 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 		instanceGroup = ctx.GetInstanceGroup()
 		status        = instanceGroup.GetStatus()
 		scalingGroup  = state.GetScalingGroup()
+		desiredCount  = int(aws.Int64Value(scalingGroup.DesiredCapacity))
 	)
+
 	ctx.Log.Info("waiting for node readiness conditions", "instancegroup", instanceGroup.GetName())
+	if len(scalingGroup.Instances) != desiredCount {
+		// if instances don't match desired, a scaling activity is in progress
+		return false
+	}
 
 	instanceIds := make([]string, 0)
-	desiredCount := int(aws.Int64Value(scalingGroup.DesiredCapacity))
 	for _, instance := range scalingGroup.Instances {
 		instanceIds = append(instanceIds, aws.StringValue(instance.InstanceId))
 	}

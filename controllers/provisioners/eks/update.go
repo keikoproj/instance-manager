@@ -64,12 +64,13 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	}
 
 	// update readiness conditions
-	if ctx.UpdateNodeReadyCondition() {
+	nodesReady := ctx.UpdateNodeReadyCondition()
+	if nodesReady {
 		instanceGroup.SetState(v1alpha1.ReconcileModified)
-	}
-
-	if rotationNeeded {
-		instanceGroup.SetState(v1alpha1.ReconcileInitUpgrade)
+		// only allow upgrades when all desired nodes are ready
+		if rotationNeeded {
+			instanceGroup.SetState(v1alpha1.ReconcileInitUpgrade)
+		}
 	}
 
 	return nil

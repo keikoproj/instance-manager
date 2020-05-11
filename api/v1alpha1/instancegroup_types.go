@@ -533,6 +533,15 @@ func (status *InstanceGroupStatus) SetActiveLaunchConfigurationName(name string)
 	status.ActiveLaunchConfigurationName = name
 }
 
+func (status *InstanceGroupStatus) GetNodesReadyCondition() corev1.ConditionStatus {
+	for _, c := range status.Conditions {
+		if c.Type == NodesReady {
+			return c.Status
+		}
+	}
+	return corev1.ConditionFalse
+}
+
 func (status *InstanceGroupStatus) GetStackName() string {
 	return status.StackName
 }

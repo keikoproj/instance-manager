@@ -19,9 +19,12 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/onsi/gomega"
 )
 
@@ -167,6 +170,12 @@ func TestCloudDiscoverySpotPrice(t *testing.T) {
 		MockScalingGroup(ownedScalingGroupName, ownershipTag, nameTag, namespaceTag),
 	}
 
+	asgMock.LaunchConfigurations = []*autoscaling.LaunchConfiguration{
+		{
+			LaunchConfigurationName: aws.String("some-launch-configuration"),
+		},
+	}
+
 	configuration.SetSpotPrice("0.67")
 
 	err := ctx.CloudDiscovery()
@@ -176,6 +185,17 @@ func TestCloudDiscoverySpotPrice(t *testing.T) {
 	status.SetUsingSpotRecommendation(true)
 	_, err = k.Kubernetes.CoreV1().Events("").Create(MockSpotEvent("1", ownedScalingGroupName, "0.80", true, time.Now()))
 	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	// recommendation should not be used if nodes are not ready
+	err = ctx.CloudDiscovery()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	g.Expect(configuration.GetSpotPrice()).To(gomega.Equal("0.67"))
+
+	// recommendation should be accepted if nodes are ready
+	status.Conditions = append(status.Conditions, v1alpha1.InstanceGroupCondition{
+		Type:   v1alpha1.NodesReady,
+		Status: corev1.ConditionTrue,
+	})
 
 	err = ctx.CloudDiscovery()
 	g.Expect(err).NotTo(gomega.HaveOccurred())

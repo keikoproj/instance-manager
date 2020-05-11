@@ -12,10 +12,6 @@ all: manager
 test: generate fmt vet manifests
 	go test -v ./controllers/... -coverprofile coverage.txt
 
-# Run verbose tests
-vtest: generate fmt vet manifests
-	go test -v ./controllers/... -coverprofile coverage.txt --logging-enabled
-
 env-create:
 	./test-bdd/setup/setup.sh \
 	--region $(AWS_REGION) \
