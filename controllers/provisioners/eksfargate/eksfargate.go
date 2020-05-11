@@ -41,13 +41,22 @@ const (
 	UnrecoverableDeleteErrorString = "UnrecoverableDeleteError"
 )
 
-func New(instanceGroup *v1alpha1.InstanceGroup, worker *aws.AwsFargateWorker) (*InstanceGroupContext, error) {
+func New(instanceGroup *v1alpha1.InstanceGroup, worker aws.AwsFargateWorker) (InstanceGroupContext, error) {
 	ctx := InstanceGroupContext{
 		InstanceGroup:    instanceGroup,
 		AwsFargateWorker: worker,
 	}
 	instanceGroup.SetState(v1alpha1.ReconcileInit)
-	return &ctx, nil
+	return ctx, nil
+}
+func CreateFargateSubnets(subnets []string) []*string {
+	stringReferences := []*string{}
+	for _, s := range subnets {
+		temp := new(string)
+		*temp = s
+		stringReferences = append(stringReferences, temp)
+	}
+	return stringReferences
 }
 func CreateFargateTags(tagArray []map[string]string) map[string]*string {
 	tags := make(map[string]*string)
@@ -62,7 +71,7 @@ func CreateFargateTags(tagArray []map[string]string) map[string]*string {
 }
 
 // Convienence function to convert from json to API.
-func CreateFargateSelectors(selectors []*v1alpha1.EKSFargateSelectors) []*eks.FargateProfileSelector {
+func CreateFargateSelectors(selectors []v1alpha1.EKSFargateSelectors) []*eks.FargateProfileSelector {
 	var eksSelectors []*eks.FargateProfileSelector
 	for _, selector := range selectors {
 		m := make(map[string]*string)
@@ -71,7 +80,7 @@ func CreateFargateSelectors(selectors []*v1alpha1.EKSFargateSelectors) []*eks.Fa
 			*vv = v
 			m[k] = vv
 		}
-		eksSelectors = append(eksSelectors, &eks.FargateProfileSelector{Namespace: selector.Namespace, Labels: m})
+		eksSelectors = append(eksSelectors, &eks.FargateProfileSelector{Namespace: &selector.Namespace, Labels: m})
 	}
 	return eksSelectors
 }
@@ -80,9 +89,9 @@ func (ctx *InstanceGroupContext) Create() error {
 	log.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp: true,
 	})
-	var arn *string
+	var arn string
 	instanceGroup := ctx.GetInstanceGroup()
-	if *instanceGroup.Spec.EKSFargateSpec.GetPodExecutionRoleArn() == "" {
+	if instanceGroup.Spec.EKSFargateSpec.GetPodExecutionRoleArn() == "" {
 		created, err := ctx.AwsFargateWorker.CreateDefaultRole()
 		if created || err != nil {
 			log.Infof("Creating default role: %v", err)
@@ -93,7 +102,7 @@ func (ctx *InstanceGroupContext) Create() error {
 			log.Errorf("Failed to get default role: %v", err)
 			return err
 		}
-		arn = role.Arn
+		arn = *role.Arn
 
 		err = ctx.AwsFargateWorker.AttachDefaultPolicyToDefaultRole()
 		if err != nil {
@@ -106,12 +115,12 @@ func (ctx *InstanceGroupContext) Create() error {
 		arn = instanceGroup.Spec.EKSFargateSpec.GetPodExecutionRoleArn()
 	}
 
-	log.Infof("Creating a profile with %s", *arn)
+	log.Infof("Creating a profile with %s", arn)
 	err := ctx.AwsFargateWorker.CreateProfile(arn)
 	if err != nil {
 		log.Errorf("Creation of the fargate profile for cluster %v and name %v failed: %v",
-			*instanceGroup.Spec.EKSFargateSpec.GetClusterName(),
-			*instanceGroup.Spec.EKSFargateSpec.GetProfileName(),
+			instanceGroup.Spec.EKSFargateSpec.GetClusterName(),
+			instanceGroup.Spec.EKSFargateSpec.GetProfileName(),
 			err)
 	} else {
 		instanceGroup.SetState(v1alpha1.ReconcileModifying)
@@ -136,7 +145,7 @@ func (ctx *InstanceGroupContext) Delete() error {
 		return nil
 	}
 	worker := ctx.AwsFargateWorker
-	if *instanceGroup.Spec.EKSFargateSpec.GetPodExecutionRoleArn() == "" {
+	if instanceGroup.Spec.EKSFargateSpec.GetPodExecutionRoleArn() == "" {
 		found, err := worker.DetachDefaultPolicyFromDefaultRole()
 		if found || err != nil {
 			log.Infof("Detaching the default policy: %v", err)
@@ -153,8 +162,8 @@ func (ctx *InstanceGroupContext) Delete() error {
 	err = worker.DeleteProfile()
 	if err != nil {
 		log.Errorf("Deletion of the fargate profile for cluster %v and name %v failed: %v",
-			*instanceGroup.Spec.EKSFargateSpec.GetClusterName(),
-			*instanceGroup.Spec.EKSFargateSpec.GetProfileName(),
+			instanceGroup.Spec.EKSFargateSpec.GetClusterName(),
+			instanceGroup.Spec.EKSFargateSpec.GetProfileName(),
 			err)
 		return err
 	}
@@ -239,9 +248,9 @@ func (ctx *InstanceGroupContext) GetState() v1alpha1.ReconcileState {
 }
 
 func (ctx *InstanceGroupContext) CanDelete() (bool, error) {
-	var profileNames []*string
+	var profileNames []string
 	var err error
-	var profiles []*eks.FargateProfile
+	var profiles []eks.FargateProfile
 
 	profileNames, err = ctx.AwsFargateWorker.ListAllProfiles()
 	if err == nil {
@@ -252,7 +261,7 @@ func (ctx *InstanceGroupContext) CanDelete() (bool, error) {
 	}
 	return false, err
 }
-func IsDeleting(fargateProfiles []*eks.FargateProfile) bool {
+func IsDeleting(fargateProfiles []eks.FargateProfile) bool {
 	for _, profile := range fargateProfiles {
 		if *profile.Status == eks.FargateProfileStatusDeleting {
 			return true

@@ -23,7 +23,7 @@ import (
 // EksCfInstanceGroupContext defines the main type of an EKS Cloudformation provisioner
 type InstanceGroupContext struct {
 	InstanceGroup             *v1alpha1.InstanceGroup
-	AwsFargateWorker          *aws.AwsFargateWorker
+	AwsFargateWorker          aws.AwsFargateWorker
 	ExecutionPodRoleStackName string
 }
 

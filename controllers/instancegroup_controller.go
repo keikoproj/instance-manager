@@ -186,14 +186,14 @@ func (r *InstanceGroupReconciler) ReconcileEKSFargate(instanceGroup *v1alpha.Ins
 		return err
 	}
 	spec := instanceGroup.Spec.EKSFargateSpec
-	worker := &aws.AwsFargateWorker{
+	worker := aws.AwsFargateWorker{
 		IamClient:   aws.GetAwsIAMClient(awsRegion),
 		EksClient:   aws.GetAwsEksClient(awsRegion),
 		ClusterName: spec.GetClusterName(),
 		ProfileName: spec.GetProfileName(),
 		Selectors:   eksfargate.CreateFargateSelectors(spec.GetSelectors()),
 		Tags:        eksfargate.CreateFargateTags(spec.GetTags()),
-		Subnets:     spec.GetSubnets(),
+		Subnets:     eksfargate.CreateFargateSubnets(spec.GetSubnets()),
 	}
 	ctx, err := eksfargate.New(instanceGroup, worker)
 	if err != nil {
@@ -202,7 +202,7 @@ func (r *InstanceGroupReconciler) ReconcileEKSFargate(instanceGroup *v1alpha.Ins
 		r.Update(context.Background(), ctx.GetInstanceGroup())
 		return err
 	}
-	err = HandleReconcileRequest(ctx)
+	err = HandleReconcileRequest(&ctx)
 	if err != nil {
 		ctx.SetState(v1alpha.ReconcileErr)
 		r.Update(context.Background(), ctx.GetInstanceGroup())

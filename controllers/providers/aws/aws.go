@@ -191,8 +191,8 @@ func (w *AwsWorker) compactTags(tags []map[string]string) map[string]string {
 type AwsFargateWorker struct {
 	EksClient   eksiface.EKSAPI
 	IamClient   iamiface.IAMAPI
-	ProfileName *string
-	ClusterName *string
+	ProfileName string
+	ClusterName string
 	RetryLimit  int
 	Selectors   []*eks.FargateProfileSelector
 	Subnets     []*string
@@ -624,7 +624,7 @@ func (w *AwsFargateWorker) DeleteDefaultRole() (bool, error) {
 	return true, nil
 }
 func (w *AwsFargateWorker) CreateDefaultRoleName() *string {
-	s := fmt.Sprintf("%v_%v_Role", *w.ClusterName, *w.ProfileName)
+	s := fmt.Sprintf("%v_%v_Role", w.ClusterName, w.ProfileName)
 	return &s
 }
 
@@ -669,11 +669,11 @@ func (w *AwsFargateWorker) AttachDefaultPolicyToDefaultRole() error {
 	return err
 }
 
-func (w *AwsFargateWorker) CreateProfile(arn *string) error {
+func (w *AwsFargateWorker) CreateProfile(arn string) error {
 	input := &eks.CreateFargateProfileInput{
-		ClusterName:         w.ClusterName,
-		FargateProfileName:  w.ProfileName,
-		PodExecutionRoleArn: arn,
+		ClusterName:         &w.ClusterName,
+		FargateProfileName:  &w.ProfileName,
+		PodExecutionRoleArn: &arn,
 		Selectors:           w.Selectors,
 		Subnets:             w.Subnets,
 		Tags:                w.Tags,
@@ -685,47 +685,50 @@ func (w *AwsFargateWorker) CreateProfile(arn *string) error {
 
 func (w *AwsFargateWorker) DeleteProfile() error {
 	input := &eks.DeleteFargateProfileInput{
-		ClusterName:        w.ClusterName,
-		FargateProfileName: w.ProfileName,
+		ClusterName:        &w.ClusterName,
+		FargateProfileName: &w.ProfileName,
 	}
 	_, err := w.EksClient.DeleteFargateProfile(input)
 	return err
 }
 
-func (w *AwsFargateWorker) DescribeAllProfiles(profiles []*string) ([]*eks.FargateProfile, error) {
-	fargateProfiles := []*eks.FargateProfile{}
+func (w *AwsFargateWorker) DescribeAllProfiles(profiles []string) ([]eks.FargateProfile, error) {
+	fargateProfiles := []eks.FargateProfile{}
 	for _, profile := range profiles {
 		x, err := DescribeProfileWithParms(w.EksClient, w.ClusterName, profile)
 		if err != nil {
 			return nil, err
 		} else {
-			fargateProfiles = append(fargateProfiles, x)
+			fargateProfiles = append(fargateProfiles, *x)
 		}
 	}
 	return fargateProfiles, nil
 }
 
-func (w *AwsFargateWorker) ListAllProfiles() ([]*string, error) {
-	profiles := []*string{}
+func (w *AwsFargateWorker) ListAllProfiles() ([]string, error) {
+	profiles := []string{}
 	input := &eks.ListFargateProfilesInput{
-		ClusterName: w.ClusterName,
+		ClusterName: &w.ClusterName,
 	}
 	err := w.EksClient.ListFargateProfilesPages(input,
 		func(page *eks.ListFargateProfilesOutput, lastPage bool) bool {
-			profiles = append(profiles, page.FargateProfileNames...)
+			for _, fp := range page.FargateProfileNames {
+				profiles = append(profiles, *fp)
+			}
+
 			return !lastPage
 		})
 	if err != nil {
-		log.Errorf("ListAllProfiles - Failed on cluster: %s with error: %v", *w.ClusterName, err)
+		log.Errorf("ListAllProfiles - Failed on cluster: %s with error: %v", w.ClusterName, err)
 		return nil, err
 	}
 	return profiles, nil
 }
 
-func DescribeProfileWithParms(client eksiface.EKSAPI, clusterName *string, profileName *string) (*eks.FargateProfile, error) {
+func DescribeProfileWithParms(client eksiface.EKSAPI, clusterName string, profileName string) (*eks.FargateProfile, error) {
 	input := &eks.DescribeFargateProfileInput{
-		ClusterName:        clusterName,
-		FargateProfileName: profileName,
+		ClusterName:        &clusterName,
+		FargateProfileName: &profileName,
 	}
 	output, err := client.DescribeFargateProfile(input)
 	if err != nil {
