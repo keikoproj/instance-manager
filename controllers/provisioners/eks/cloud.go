@@ -116,6 +116,7 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 
 type DiscoveredState struct {
 	Provisioned                   bool
+	NodesReady                    bool
 	OwnedScalingGroups            []*autoscaling.Group
 	ScalingGroup                  *autoscaling.Group
 	LaunchConfiguration           *autoscaling.LaunchConfiguration
@@ -194,4 +195,10 @@ func (d *DiscoveredState) SetProvisioned(provisioned bool) {
 }
 func (d *DiscoveredState) IsProvisioned() bool {
 	return d.Provisioned
+}
+func (d *DiscoveredState) SetNodesReady(condition bool) {
+	d.NodesReady = condition
+}
+func (d *DiscoveredState) IsNodesReady() bool {
+	return d.NodesReady
 }
