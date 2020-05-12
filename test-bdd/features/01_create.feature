@@ -13,8 +13,8 @@ Feature: CRUD Create
     Given an EKS cluster
     When I create a resource instance-group.yaml
     Then the resource should be created
-    And the resource should converge to selector .status.currentState=ready
     And the resource should converge to selector .status.lifecycle=spot
+    And the resource should converge to selector .status.currentState=ready
     And the resource condition NodesReady should be true
     And 2 nodes should be ready
 
@@ -22,8 +22,8 @@ Feature: CRUD Create
     Given an EKS cluster
     When I create a resource instance-group-crd.yaml
     Then the resource should be created
-    And the resource should converge to selector .status.currentState=ready
     And the resource should converge to selector .status.lifecycle=spot
+    And the resource should converge to selector .status.currentState=ready
     And the resource condition NodesReady should be true
     And 2 nodes should be ready
 
