@@ -105,7 +105,6 @@ func main() {
 
 	awsWorker := aws.AwsWorker{
 		IamClient: aws.GetAwsIamClient(awsRegion),
-		CfClient:  aws.GetAwsCloudformationClient(awsRegion),
 		AsgClient: aws.GetAwsAsgClient(awsRegion),
 		EksClient: aws.GetAwsEksClient(awsRegion),
 	}

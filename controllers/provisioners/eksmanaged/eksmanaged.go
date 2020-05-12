@@ -34,10 +34,7 @@ const (
 )
 
 var (
-	TagClusterName       = "instancegroups.keikoproj.io/ClusterName"
-	TagInstanceGroupName = "instancegroups.keikoproj.io/InstanceGroup"
-	TagClusterNamespace  = "instancegroups.keikoproj.io/Namespace"
-	NonRetryableStates   = []v1alpha1.ReconcileState{v1alpha1.ReconcileErr, v1alpha1.ReconcileReady, v1alpha1.ReconcileDeleted}
+	NonRetryableStates = []v1alpha1.ReconcileState{v1alpha1.ReconcileErr, v1alpha1.ReconcileReady, v1alpha1.ReconcileDeleted}
 )
 
 func (ctx *EksManagedInstanceGroupContext) CloudDiscovery() error {
@@ -255,7 +252,7 @@ func (ctx *EksManagedInstanceGroupContext) processParameters() {
 		instanceGroup = ctx.GetInstanceGroup()
 		spec          = instanceGroup.GetEKSManagedSpec()
 		configuration = instanceGroup.GetEKSManagedConfiguration()
-		params        = make(map[string]interface{}, 0)
+		params        = make(map[string]interface{})
 	)
 
 	params["AmiType"] = configuration.AmiType

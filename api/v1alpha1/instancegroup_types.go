@@ -44,8 +44,6 @@ const (
 	ReconcileReady ReconcileState = "Ready"
 	ReconcileErr   ReconcileState = "Error"
 
-	DefaultVolSize int64 = 32
-
 	LifecycleStateNormal = "normal"
 	LifecycleStateSpot   = "spot"
 
@@ -91,20 +89,12 @@ type InstanceGroupList struct {
 // AwsUpgradeStrategy defines the upgrade strategy of an AWS Instance Group
 type AwsUpgradeStrategy struct {
 	Type              string                 `json:"type"`
-	CRDType           *CRDUpgradeStrategy    `json:"crd,omitempty"`
+	CRDType           *CRDUpdateStrategy     `json:"crd,omitempty"`
 	RollingUpdateType *RollingUpdateStrategy `json:"rollingUpdate,omitempty"`
 }
 
 type RollingUpdateStrategy struct {
-	// EKS provisioner
 	MaxUnavailable *intstr.IntOrString `json:"maxUnavailable,omitempty"`
-	// EKSCF Only
-	MaxBatchSize                  int      `json:"maxBatchSize,omitempty"`
-	MinInstancesInService         int      `json:"minInstancesInService,omitempty"`
-	MinSuccessfulInstancesPercent int      `json:"minSuccessfulInstancesPercent,omitempty"`
-	PauseTime                     string   `json:"pauseTime,omitempty"`
-	SuspendProcesses              []string `json:"suspendProcesses,omitempty"`
-	WaitOnResourceSignals         bool     `json:"waitOnResourceSignals,omitempty"`
 }
 
 func (s *RollingUpdateStrategy) GetMaxUnavailable() *intstr.IntOrString {
@@ -115,61 +105,7 @@ func (s *RollingUpdateStrategy) SetMaxUnavailable(value *intstr.IntOrString) {
 	s.MaxUnavailable = value
 }
 
-func (s *RollingUpdateStrategy) GetMaxBatchSize() int {
-	return s.MaxBatchSize
-}
-
-func (s *RollingUpdateStrategy) SetMaxBatchSize(value int) {
-	s.MaxBatchSize = value
-}
-
-func (s *RollingUpdateStrategy) GetMinInstancesInService() int {
-	return s.MinInstancesInService
-}
-
-func (s *RollingUpdateStrategy) SetMinInstancesInService(value int) {
-	s.MinInstancesInService = value
-}
-
-func (s *RollingUpdateStrategy) GetMinSuccessfulInstancesPercent() int {
-	return s.MinSuccessfulInstancesPercent
-}
-
-func (s *RollingUpdateStrategy) SetMinSuccessfulInstancesPercent(value int) {
-	s.MinSuccessfulInstancesPercent = value
-}
-
-func (s *RollingUpdateStrategy) GetPauseTime() string {
-	return s.PauseTime
-}
-
-func (s *RollingUpdateStrategy) SetPauseTime(pauseTime string) {
-	s.PauseTime = pauseTime
-}
-
-func (s *RollingUpdateStrategy) GetWaitOnResourceSignals() bool {
-	return s.WaitOnResourceSignals
-}
-
-func (s *RollingUpdateStrategy) SetWaitOnResourceSignals(wait bool) {
-	s.WaitOnResourceSignals = wait
-}
-
-func (s *RollingUpdateStrategy) GetSuspendProcesses() []string {
-	if s.SuspendProcesses == nil {
-		s.SuspendProcesses = make([]string, 0)
-	}
-	return s.SuspendProcesses
-}
-
-func (s *RollingUpdateStrategy) SetSuspendProcesses(processes []string) {
-	if s.SuspendProcesses == nil {
-		s.SuspendProcesses = make([]string, 0)
-	}
-	s.SuspendProcesses = processes
-}
-
-type CRDUpgradeStrategy struct {
+type CRDUpdateStrategy struct {
 	Spec                string `json:"spec,omitempty"`
 	CRDName             string `json:"crdName,omitempty"`
 	ConcurrencyPolicy   string `json:"concurrencyPolicy,omitempty"`
@@ -181,7 +117,6 @@ type CRDUpgradeStrategy struct {
 // InstanceGroupSpec defines the schema of resource Spec
 type InstanceGroupSpec struct {
 	Provisioner        string             `json:"provisioner"`
-	EKSCFSpec          *EKSCFSpec         `json:"eks-cf,omitempty"`
 	EKSManagedSpec     *EKSManagedSpec    `json:"eks-managed,omitempty"`
 	EKSSpec            *EKSSpec           `json:"eks,omitempty"`
 	AwsUpgradeStrategy AwsUpgradeStrategy `json:"strategy"`
@@ -199,12 +134,6 @@ type EKSSpec struct {
 	EKSConfiguration *EKSConfiguration `json:"configuration"`
 }
 
-type EKSCFSpec struct {
-	MaxSize            int32               `json:"maxSize,omitempty"`
-	MinSize            int32               `json:"minSize,omitempty"`
-	EKSCFConfiguration *EKSCFConfiguration `json:"configuration,omitempty"`
-}
-
 type EKSConfiguration struct {
 	EksClusterName              string              `json:"clusterName"`
 	KeyPairName                 string              `json:"keyPairName"`
@@ -216,8 +145,8 @@ type EKSConfiguration struct {
 	BootstrapArguments          string              `json:"bootstrapArguments,omitempty"`
 	SpotPrice                   string              `json:"spotPrice,omitempty"`
 	Tags                        []map[string]string `json:"tags,omitempty"`
-	Labels                      map[string]string   `json:"labels,labels,omitempty"`
-	Taints                      []corev1.Taint      `json:"taints,taints,omitempty"`
+	Labels                      map[string]string   `json:"labels,omitempty"`
+	Taints                      []corev1.Taint      `json:"taints,omitempty"`
 	ExistingRoleName            string              `json:"roleName,omitempty"`
 	ExistingInstanceProfileName string              `json:"instanceProfileName,omitempty"`
 	ManagedPolicies             []string            `json:"managedPolicies,omitempty"`
@@ -244,27 +173,8 @@ type EKSManagedConfiguration struct {
 	Version            string              `json:"version,omitempty"`
 }
 
-// EKSCFConfiguration defines the context of an AWS Instance Group using EKSCF
-type EKSCFConfiguration struct {
-	EksClusterName              string              `json:"clusterName,omitempty"`
-	KeyPairName                 string              `json:"keyPairName,omitempty"`
-	Image                       string              `json:"image,omitempty"`
-	InstanceType                string              `json:"instanceType,omitempty"`
-	NodeSecurityGroups          []string            `json:"securityGroups,omitempty"`
-	VolSize                     int32               `json:"volSize,omitempty"`
-	Subnets                     []string            `json:"subnets,omitempty"`
-	BootstrapArguments          string              `json:"bootstrapArguments,omitempty"`
-	SpotPrice                   string              `json:"spotPrice,omitempty"`
-	Tags                        []map[string]string `json:"tags,omitempty"`
-	ExistingRoleName            string              `json:"roleName,omitempty"`
-	ExistingInstanceProfileName string              `json:"instanceProfileName,omitempty"`
-	ManagedPolicies             []string            `json:"managedPolicies,omitempty"`
-	MetricsCollection           []string            `json:"metricsCollection,omitempty"`
-}
-
 // InstanceGroupStatus defines the schema of resource Status
 type InstanceGroupStatus struct {
-	StackName                     string                   `json:"stackName,omitempty"`
 	CurrentState                  string                   `json:"currentState,omitempty"`
 	CurrentMin                    int                      `json:"currentMin,omitempty"`
 	CurrentMax                    int                      `json:"currentMax,omitempty"`
@@ -410,9 +320,17 @@ func (spec *EKSSpec) GetMinSize() int64 {
 	return spec.MinSize
 }
 
-func (conf *EKSManagedConfiguration) SetSubnets(subnets []string)  { conf.Subnets = subnets }
-func (conf *EKSManagedConfiguration) SetClusterName(name string)   { conf.EksClusterName = name }
-func (conf *EKSManagedConfiguration) GetLabels() map[string]string { return conf.NodeLabels }
+func (conf *EKSManagedConfiguration) SetSubnets(subnets []string) {
+	conf.Subnets = subnets
+}
+
+func (conf *EKSManagedConfiguration) SetClusterName(name string) {
+	conf.EksClusterName = name
+}
+
+func (conf *EKSManagedConfiguration) GetLabels() map[string]string {
+	return conf.NodeLabels
+}
 
 func (ig *InstanceGroup) GetEKSManagedConfiguration() *EKSManagedConfiguration {
 	return ig.Spec.EKSManagedSpec.EKSManagedConfiguration
@@ -438,15 +356,15 @@ func (s *AwsUpgradeStrategy) SetRollingUpdateType(ru *RollingUpdateStrategy) {
 	s.RollingUpdateType = ru
 }
 
-func (s *AwsUpgradeStrategy) GetCRDType() *CRDUpgradeStrategy {
+func (s *AwsUpgradeStrategy) GetCRDType() *CRDUpdateStrategy {
 	return s.CRDType
 }
 
-func (s *AwsUpgradeStrategy) SetCRDType(crd *CRDUpgradeStrategy) {
+func (s *AwsUpgradeStrategy) SetCRDType(crd *CRDUpdateStrategy) {
 	s.CRDType = crd
 }
 
-func (c *CRDUpgradeStrategy) Validate() error {
+func (c *CRDUpdateStrategy) Validate() error {
 	if c.GetSpec() == "" {
 		return errors.New("spec is empty")
 	}
@@ -477,51 +395,51 @@ func (c *CRDUpgradeStrategy) Validate() error {
 	return nil
 }
 
-func (c *CRDUpgradeStrategy) GetSpec() string {
+func (c *CRDUpdateStrategy) GetSpec() string {
 	return c.Spec
 }
 
-func (c *CRDUpgradeStrategy) SetSpec(body string) {
+func (c *CRDUpdateStrategy) SetSpec(body string) {
 	c.Spec = body
 }
 
-func (c *CRDUpgradeStrategy) GetCRDName() string {
+func (c *CRDUpdateStrategy) GetCRDName() string {
 	return c.CRDName
 }
 
-func (c *CRDUpgradeStrategy) SetCRDName(name string) {
+func (c *CRDUpdateStrategy) SetCRDName(name string) {
 	c.CRDName = name
 }
 
-func (c *CRDUpgradeStrategy) GetConcurrencyPolicy() string {
+func (c *CRDUpdateStrategy) GetConcurrencyPolicy() string {
 	return c.ConcurrencyPolicy
 }
 
-func (c *CRDUpgradeStrategy) SetConcurrencyPolicy(policy string) {
+func (c *CRDUpdateStrategy) SetConcurrencyPolicy(policy string) {
 	c.ConcurrencyPolicy = policy
 }
 
-func (c *CRDUpgradeStrategy) GetStatusJSONPath() string {
+func (c *CRDUpdateStrategy) GetStatusJSONPath() string {
 	return c.StatusJSONPath
 }
 
-func (c *CRDUpgradeStrategy) SetStatusJSONPath(path string) {
+func (c *CRDUpdateStrategy) SetStatusJSONPath(path string) {
 	c.StatusJSONPath = path
 }
 
-func (c *CRDUpgradeStrategy) GetStatusSuccessString() string {
+func (c *CRDUpdateStrategy) GetStatusSuccessString() string {
 	return c.StatusSuccessString
 }
 
-func (c *CRDUpgradeStrategy) SetStatusSuccessString(str string) {
+func (c *CRDUpdateStrategy) SetStatusSuccessString(str string) {
 	c.StatusSuccessString = str
 }
 
-func (c *CRDUpgradeStrategy) GetStatusFailureString() string {
+func (c *CRDUpdateStrategy) GetStatusFailureString() string {
 	return c.StatusFailureString
 }
 
-func (c *CRDUpgradeStrategy) SetStatusFailureString(str string) {
+func (c *CRDUpdateStrategy) SetStatusFailureString(str string) {
 	c.StatusFailureString = str
 }
 
@@ -540,14 +458,6 @@ func (status *InstanceGroupStatus) GetNodesReadyCondition() corev1.ConditionStat
 		}
 	}
 	return corev1.ConditionFalse
-}
-
-func (status *InstanceGroupStatus) GetStackName() string {
-	return status.StackName
-}
-
-func (status *InstanceGroupStatus) SetStackName(name string) {
-	status.StackName = name
 }
 
 func (status *InstanceGroupStatus) GetActiveScalingGroupName() string {
@@ -620,126 +530,6 @@ func (strategy *AwsUpgradeStrategy) GetType() string {
 
 func (strategy *AwsUpgradeStrategy) SetType(strategyType string) {
 	strategy.Type = strategyType
-}
-
-func (spec *EKSCFSpec) GetMinSize() int32 {
-	return spec.MinSize
-}
-
-func (spec *EKSCFSpec) SetMinSize(size int32) {
-	spec.MinSize = size
-}
-
-func (spec *EKSCFSpec) GetMaxSize() int32 {
-	return spec.MaxSize
-}
-
-func (spec *EKSCFSpec) SetMaxSize(size int32) {
-	spec.MaxSize = size
-}
-
-func (conf *EKSCFConfiguration) GetKeyName() string {
-	return conf.KeyPairName
-}
-
-func (conf *EKSCFConfiguration) SetKeyName(keypairName string) {
-	conf.KeyPairName = keypairName
-}
-
-func (conf *EKSCFConfiguration) SetSpotPrice(price string) {
-	conf.SpotPrice = price
-}
-
-func (conf *EKSCFConfiguration) GetSpotPrice() string {
-	return conf.SpotPrice
-}
-
-func (conf *EKSCFConfiguration) GetImage() string {
-	return conf.Image
-}
-
-func (conf *EKSCFConfiguration) SetImage(image string) {
-	conf.Image = image
-}
-
-func (conf *EKSCFConfiguration) GetInstanceType() string {
-	return conf.InstanceType
-}
-
-func (conf *EKSCFConfiguration) setInstanceType(instanceType string) {
-	conf.InstanceType = instanceType
-}
-
-func (conf *EKSCFConfiguration) GetSubnets() []string {
-	return conf.Subnets
-}
-
-func (conf *EKSCFConfiguration) SetSubnets(subnets []string) {
-	conf.Subnets = subnets
-}
-
-func (conf *EKSCFConfiguration) GetSecurityGroups() []string {
-	return conf.NodeSecurityGroups
-}
-
-func (conf *EKSCFConfiguration) SetSecurityGroups(securityGroups []string) {
-	conf.NodeSecurityGroups = securityGroups
-}
-
-func (conf *EKSCFConfiguration) GetVolSize() int32 {
-	return conf.VolSize
-}
-
-func (conf *EKSCFConfiguration) SetVolSize(s int32) {
-	conf.VolSize = s
-}
-
-func (conf *EKSCFConfiguration) GetClusterName() string {
-	return conf.EksClusterName
-}
-
-func (conf *EKSCFConfiguration) SetClusterName(clusterName string) {
-	conf.EksClusterName = clusterName
-}
-
-func (conf *EKSCFConfiguration) GetBootstrapArgs() string {
-	return conf.BootstrapArguments
-}
-
-func (conf *EKSCFConfiguration) SetBootstrapArgs(args string) {
-	conf.BootstrapArguments = args
-}
-
-func (conf *EKSCFConfiguration) GetRoleName() string {
-	return conf.ExistingRoleName
-}
-
-func (conf *EKSCFConfiguration) SetRoleName(role string) {
-	conf.ExistingRoleName = role
-}
-
-func (conf *EKSCFConfiguration) GetInstanceProfileName() string {
-	return conf.ExistingInstanceProfileName
-}
-
-func (conf *EKSCFConfiguration) SetInstanceProfileName(profile string) {
-	conf.ExistingInstanceProfileName = profile
-}
-
-func (conf *EKSCFConfiguration) GetTags() []map[string]string {
-	return conf.Tags
-}
-
-func (conf *EKSCFConfiguration) SetTags(tags []map[string]string) {
-	conf.Tags = tags
-}
-
-func (conf *EKSCFConfiguration) GetMetricsCollection() []string {
-	return conf.MetricsCollection
-}
-
-func (conf *EKSCFConfiguration) SetMetricsCollection(metricsCollection []string) {
-	conf.MetricsCollection = metricsCollection
 }
 
 func (ig *InstanceGroup) GetState() ReconcileState {

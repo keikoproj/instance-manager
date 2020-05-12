@@ -28,15 +28,8 @@ const (
 )
 
 var (
-	TagClusterName            = "instancegroups.keikoproj.io/ClusterName"
-	TagInstanceGroupName      = "instancegroups.keikoproj.io/InstanceGroup"
-	TagInstanceGroupNamespace = "instancegroups.keikoproj.io/Namespace"
-	TagClusterOwnershipFmt    = "kubernetes.io/cluster/%s"
-	TagKubernetesCluster      = "KubernetesCluster"
-	TagClusterOwned           = "owned"
-	TagName                   = "Name"
-	RoleLabelsFmt             = []string{"node.kubernetes.io/role=%s", "node-role.kubernetes.io/%s=\"\""}
-	DefaultManagedPolicies    = []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}
+	RoleLabelsFmt          = []string{"node.kubernetes.io/role=%s", "node-role.kubernetes.io/%s=\"\""}
+	DefaultManagedPolicies = []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}
 )
 
 // New constructs a new instance group provisioner of EKS type

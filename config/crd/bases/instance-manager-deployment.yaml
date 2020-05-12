@@ -34,8 +34,6 @@ spec:
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
         volumeMounts:
-        - name: config-volume
-          mountPath: /etc/config
         - name: ssl-certs
           mountPath: /etc/ssl/certs/ca-certificates.crt
           readOnly: true
@@ -47,6 +45,3 @@ spec:
         - name: ssl-certs
           hostPath:
             path: /etc/ssl/certs/ca-bundle.crt
-        - name: config-volume
-          configMap:
-            name: instance-manager

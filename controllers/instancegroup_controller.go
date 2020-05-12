@@ -26,12 +26,10 @@ import (
 	"github.com/go-logr/logr"
 	v1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
-	"github.com/keikoproj/instance-manager/controllers/providers/aws"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/eks"
-	"github.com/keikoproj/instance-manager/controllers/provisioners/ekscloudformation"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/eksmanaged"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -246,14 +244,14 @@ func (r *InstanceGroupReconciler) spotEventReconciler(obj handler.MapObject) []c
 		return nil
 	}
 
-	tags, err := aws.GetScalingGroupTagsByName(involvedObjectName, r.Auth.Aws.AsgClient)
+	tags, err := awsprovider.GetScalingGroupTagsByName(involvedObjectName, r.Auth.Aws.AsgClient)
 	if err != nil {
 		return nil
 	}
 
 	instanceGroup := types.NamespacedName{}
-	instanceGroup.Name = aws.GetTagValueByKey(tags, ekscloudformation.TagInstanceGroupName)
-	instanceGroup.Namespace = aws.GetTagValueByKey(tags, ekscloudformation.TagClusterNamespace)
+	instanceGroup.Name = awsprovider.GetTagValueByKey(tags, provisioners.TagInstanceGroupName)
+	instanceGroup.Namespace = awsprovider.GetTagValueByKey(tags, provisioners.TagInstanceGroupNamespace)
 	if instanceGroup.Name == "" || instanceGroup.Namespace == "" {
 		r.Log.Error(err,
 			"failed to map v1.event to scalinggroup",
