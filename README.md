@@ -237,7 +237,7 @@ spec:
       labels:
         example.label.com/label: some-value
       volSize: 20
-      nodeRole: arn:aws:iam::791561901490:role/basic-eks-role
+      nodeRole: arn:aws:iam::012345678910:role/basic-eks-role
       amiType: AL2_x86_64
       instanceType: m5.large
       keyPairName: my-ec2-key-pair
