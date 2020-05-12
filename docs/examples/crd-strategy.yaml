@@ -2,8 +2,9 @@ apiVersion: instancemgr.keikoproj.io/v1alpha1
 kind: InstanceGroup
 metadata:
   name: hello-world
+  namespace: instance-manager
 spec:
-  provisioner: eks-cf
+  provisioner: eks
   strategy:
     type: crd
     crd:
@@ -31,23 +32,31 @@ spec:
             container:
               image: docker/whalesay
               command: [cowsay]
-              args: ["{{`{{inputs.parameters.message}}`}}"]
-  eks-cf:
-    minSize: 1
-    maxSize: 3
+              args: ["echo", "{{ .InstanceGroup.Status.ActiveScalingGroupName }}"]
+  eks:
+    minSize: 3
+    maxSize: 6
     configuration:
-      bootstrapArguments: --register-with-taints=my-taint-key=my-taint-value:NoSchedule --node-labels=my-label=true
-      keyPairName: my-key
-      image: ami-089d3b6350c1769a6
-      instanceType: m5.large
-      volSize: 20
       clusterName: my-eks-cluster
+      taints:
+      - key: node-role.kubernetes.io/some-taint
+        value: some-value
+        effect: NoSchedule
+      labels:
+        example.label.com/label: some-value
+      keyPairName: my-ec2-key-pair
+      image: ami-076c743acc3ec4159
+      instanceType: m5.large
+      volumes:
+      - name: /dev/xvda
+        type: gp2
+        size: 32
       subnets:
-      - subnet-1a2b3c4d
-      - subnet-4d3c2b1a
-      - subnet-0w9x8y7z
+      - subnet-0bf9bc85fd80af561
+      - subnet-0130025d2673de5e4
+      - subnet-01a5c28e074c46580
       securityGroups:
-      - sg-q1w2e3r4t5y6u7i8
+      - sg-04adb6343b07c7914
       tags:
-        - key: mykey
-          value: myvalue
+      - key: my-ec2-tag
+        value: some-value
