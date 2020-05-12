@@ -20,12 +20,7 @@ instance-manager provides this Kubernetes native mechanism for CRUD operations o
 
 You must first have atleast one instance group that was manually created, in order to host the instance-manager pod.
 
-```sh
-kubectl create namespace instance-manager
-kubectl apply -n instance-manager -f https://raw.githubusercontent.com/keikoproj/instance-manager/master/docs/04_instance-manager.yaml
-```
-
-_For more examples and usage, please refer to the [Installation Reference Walkthrough][install]._
+_For installation instructions and more examples of usage, please refer to the [Installation Reference Walkthrough][install]._
 
 ## Usage example
 
