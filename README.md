@@ -33,7 +33,7 @@ _For installation instructions and more examples of usage, please refer to the [
 
 To create an instance group, submit an InstanceGroup custom resource in your cluster, and the controller will provision and bootstrap it to your cluster, and allow you to modify it from within the cluster.
 
-### EKS sample spec
+### EKS sample spec (alpha-2)
 
 ```yaml
 apiVersion: instancemgr.keikoproj.io/v1alpha1
@@ -109,7 +109,7 @@ ip-10-10-10-40.us-west-2.compute.internal   Ready    hello-world   32s    v1.14.
 
 #### Features
 
-##### Spot instance support (alpha-2)
+##### Spot instance support
 
 You can manually specify a spot price directly in the spec of an instance group
 
