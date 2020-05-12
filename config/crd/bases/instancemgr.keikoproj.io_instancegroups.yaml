@@ -170,61 +170,6 @@ spec:
               - maxSize
               - minSize
               type: object
-            eks-cf:
-              properties:
-                configuration:
-                  description: EKSCFConfiguration defines the context of an AWS Instance
-                    Group using EKSCF
-                  properties:
-                    bootstrapArguments:
-                      type: string
-                    clusterName:
-                      type: string
-                    image:
-                      type: string
-                    instanceProfileName:
-                      type: string
-                    instanceType:
-                      type: string
-                    keyPairName:
-                      type: string
-                    managedPolicies:
-                      items:
-                        type: string
-                      type: array
-                    metricsCollection:
-                      items:
-                        type: string
-                      type: array
-                    roleName:
-                      type: string
-                    securityGroups:
-                      items:
-                        type: string
-                      type: array
-                    spotPrice:
-                      type: string
-                    subnets:
-                      items:
-                        type: string
-                      type: array
-                    tags:
-                      items:
-                        additionalProperties:
-                          type: string
-                        type: object
-                      type: array
-                    volSize:
-                      format: int32
-                      type: integer
-                  type: object
-                maxSize:
-                  format: int32
-                  type: integer
-                minSize:
-                  format: int32
-                  type: integer
-              type: object
             eks-managed:
               properties:
                 configuration:
@@ -299,27 +244,11 @@ spec:
                   type: object
                 rollingUpdate:
                   properties:
-                    maxBatchSize:
-                      description: EKSCF Only
-                      type: integer
                     maxUnavailable:
                       anyOf:
                       - type: integer
                       - type: string
-                      description: EKS provisioner
                       x-kubernetes-int-or-string: true
-                    minInstancesInService:
-                      type: integer
-                    minSuccessfulInstancesPercent:
-                      type: integer
-                    pauseTime:
-                      type: string
-                    suspendProcesses:
-                      items:
-                        type: string
-                      type: array
-                    waitOnResourceSignals:
-                      type: boolean
                   type: object
                 type:
                   type: string
@@ -357,8 +286,6 @@ spec:
             lifecycle:
               type: string
             nodesInstanceRoleArn:
-              type: string
-            stackName:
               type: string
             strategyResourceName:
               type: string
