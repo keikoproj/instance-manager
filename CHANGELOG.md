@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - General fixes, refactor, and code improvements (#93, #92, #75, #80)
 - Documentation improvements (#96)
 
+### BREAKING CHANGES
+
+If you are migrating from 0.5.0 and lower, you MUST delete all instance groups, update CRD, RBAC and controller, and re-create your instance groups using the new `eks` API. make sure to review the new API spec [here](https://github.com/keikoproj/instance-manager#eks-sample-spec-alpha-2).
+
 ## [v0.5.0-alpha] - 2019-3-03
 
 ### Added
