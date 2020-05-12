@@ -94,7 +94,7 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 		LaunchConfigurationName: aws.String(state.GetActiveLaunchConfigurationName()),
 		MinSize:                 aws.Int64(spec.GetMinSize()),
 		MaxSize:                 aws.Int64(spec.GetMaxSize()),
-		VPCZoneIdentifier:       aws.String(common.ConcatonateList(configuration.GetSubnets(), ",")),
+		VPCZoneIdentifier:       aws.String(common.ConcatenateList(configuration.GetSubnets(), ",")),
 	}, tags, rmTags)
 	if err != nil {
 		return err

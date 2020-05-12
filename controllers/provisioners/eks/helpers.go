@@ -26,6 +26,7 @@ import (
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
+	"github.com/keikoproj/instance-manager/controllers/provisioners"
 	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -68,11 +69,11 @@ func (ctx *EksInstanceGroupContext) GetAddedTags(asgName string) []*autoscaling.
 		clusterName   = configuration.GetClusterName()
 	)
 
-	tags = append(tags, ctx.AwsWorker.NewTag(TagName, asgName, asgName))
-	tags = append(tags, ctx.AwsWorker.NewTag(TagKubernetesCluster, clusterName, asgName))
-	tags = append(tags, ctx.AwsWorker.NewTag(TagClusterName, clusterName, asgName))
-	tags = append(tags, ctx.AwsWorker.NewTag(TagInstanceGroupNamespace, instanceGroup.GetNamespace(), asgName))
-	tags = append(tags, ctx.AwsWorker.NewTag(TagInstanceGroupName, instanceGroup.GetName(), asgName))
+	tags = append(tags, ctx.AwsWorker.NewTag("Name", asgName, asgName))
+	tags = append(tags, ctx.AwsWorker.NewTag(provisioners.TagKubernetesCluster, clusterName, asgName))
+	tags = append(tags, ctx.AwsWorker.NewTag(provisioners.TagClusterName, clusterName, asgName))
+	tags = append(tags, ctx.AwsWorker.NewTag(provisioners.TagInstanceGroupNamespace, instanceGroup.GetNamespace(), asgName))
+	tags = append(tags, ctx.AwsWorker.NewTag(provisioners.TagInstanceGroupName, instanceGroup.GetName(), asgName))
 
 	// custom tags
 	for _, tagSlice := range configuration.GetTags() {
@@ -239,7 +240,7 @@ func (ctx *EksInstanceGroupContext) findOwnedScalingGroups(groups []*autoscaling
 				value = aws.StringValue(tag.Value)
 			)
 			// if group has the same cluster tag it's owned by the controller
-			if key == TagClusterName && strings.ToLower(value) == strings.ToLower(clusterName) {
+			if key == provisioners.TagClusterName && strings.ToLower(value) == strings.ToLower(clusterName) {
 				filteredGroups = append(filteredGroups, group)
 			}
 		}
@@ -261,10 +262,10 @@ func (ctx *EksInstanceGroupContext) findTargetScalingGroup(groups []*autoscaling
 				value = aws.StringValue(tag.Value)
 			)
 			// must match both name and namespace tag
-			if key == TagInstanceGroupName && value == instanceGroup.GetName() {
+			if key == provisioners.TagInstanceGroupName && value == instanceGroup.GetName() {
 				nameMatch = true
 			}
-			if key == TagInstanceGroupNamespace && value == instanceGroup.GetNamespace() {
+			if key == provisioners.TagInstanceGroupNamespace && value == instanceGroup.GetNamespace() {
 				namespaceMatch = true
 			}
 		}

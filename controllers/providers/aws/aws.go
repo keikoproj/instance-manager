@@ -27,8 +27,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
-	"github.com/aws/aws-sdk-go/service/cloudformation"
-	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -42,15 +40,10 @@ var (
 )
 
 type AwsWorker struct {
-	CfClient        cloudformationiface.CloudFormationAPI
-	AsgClient       autoscalingiface.AutoScalingAPI
-	EksClient       eksiface.EKSAPI
-	IamClient       iamiface.IAMAPI
-	TemplateBody    string
-	StackName       string
-	StackTags       []*cloudformation.Tag
-	StackParameters []*cloudformation.Parameter
-	Parameters      map[string]interface{}
+	AsgClient  autoscalingiface.AutoScalingAPI
+	EksClient  eksiface.EKSAPI
+	IamClient  iamiface.IAMAPI
+	Parameters map[string]interface{}
 }
 
 var (
@@ -342,6 +335,7 @@ func (w *AwsWorker) CreateUpdateScalingGroupRole(name string, managedPolicies []
 	return createdRole, createdProfile, nil
 }
 
+// TODO: Move logic to provisioner
 func (w *AwsWorker) IsNodeGroupExist() bool {
 	input := &eks.DescribeNodegroupInput{
 		ClusterName:   aws.String(w.Parameters["ClusterName"].(string)),
@@ -361,6 +355,7 @@ func (w *AwsWorker) IsNodeGroupExist() bool {
 	return true
 }
 
+// TODO: Rename - GetNodeGroup
 func (w *AwsWorker) GetSelfNodeGroup() (error, *eks.Nodegroup) {
 	input := &eks.DescribeNodegroupInput{
 		ClusterName:   aws.String(w.Parameters["ClusterName"].(string)),
@@ -485,107 +480,6 @@ func (w *AwsWorker) compactTags(tags []map[string]string) map[string]string {
 	return compacted
 }
 
-func (w *AwsWorker) CreateCloudformationStack() error {
-	capabilities := []*string{
-		aws.String("CAPABILITY_IAM"),
-	}
-
-	input := &cloudformation.CreateStackInput{
-		TemplateBody: aws.String(w.TemplateBody),
-		StackName:    aws.String(w.StackName),
-		Parameters:   w.StackParameters,
-		Capabilities: capabilities,
-		Tags:         w.StackTags,
-	}
-	_, err := w.CfClient.CreateStack(input)
-	if err != nil {
-		if awsErr, ok := err.(awserr.Error); ok {
-			return awsErr
-		}
-		return err
-	}
-	return nil
-}
-
-func (w *AwsWorker) UpdateCloudformationStack() (error, bool) {
-	capabilities := []*string{
-		aws.String("CAPABILITY_IAM"),
-	}
-	input := &cloudformation.UpdateStackInput{
-		TemplateBody: aws.String(w.TemplateBody),
-		StackName:    aws.String(w.StackName),
-		Parameters:   w.StackParameters,
-		Capabilities: capabilities,
-		Tags:         w.StackTags,
-	}
-	_, err := w.CfClient.UpdateStack(input)
-	if err != nil {
-		if awsErr, ok := err.(awserr.Error); ok {
-			if awsErr.Code() == "ValidationError" && awsErr.Message() == "No updates are to be performed." {
-				return nil, false
-			}
-			return awsErr, false
-		}
-		return err, false
-	}
-	return nil, true
-}
-
-func (w *AwsWorker) DeleteCloudformationStack() error {
-	input := &cloudformation.DeleteStackInput{
-		StackName: aws.String(w.StackName),
-	}
-	_, err := w.CfClient.DeleteStack(input)
-	if err != nil {
-		if awsErr, ok := err.(awserr.Error); ok {
-			return awsErr
-		}
-		return err
-	}
-	return nil
-}
-
-func (w *AwsWorker) CloudformationStackExists() bool {
-	input := &cloudformation.DescribeStacksInput{
-		StackName: aws.String(w.StackName),
-	}
-	stacks, err := w.CfClient.DescribeStacks(input)
-	if err != nil {
-		return false
-	}
-
-	if len(stacks.Stacks) == 0 {
-		return false
-	}
-
-	return true
-}
-
-func (w *AwsWorker) GetStackState() (string, error) {
-	input := &cloudformation.DescribeStacksInput{
-		StackName: aws.String(w.StackName),
-	}
-
-	d, err := w.CfClient.DescribeStacks(input)
-	if err != nil {
-		return "", err
-	}
-
-	if len(d.Stacks) == 0 {
-		return "", fmt.Errorf("Could not find stack state for %v", w.StackName)
-	}
-
-	return *d.Stacks[0].StackStatus, nil
-}
-
-func (w *AwsWorker) DescribeCloudformationStacks() (cloudformation.DescribeStacksOutput, error) {
-	out, err := w.CfClient.DescribeStacks(&cloudformation.DescribeStacksInput{})
-	if err != nil {
-		return cloudformation.DescribeStacksOutput{}, err
-	}
-	return *out, nil
-}
-
 func (w *AwsWorker) DescribeAutoscalingGroups() ([]*autoscaling.Group, error) {
 	scalingGroups := []*autoscaling.Group{}
 	err := w.AsgClient.DescribeAutoScalingGroupsPages(&autoscaling.DescribeAutoScalingGroupsInput{}, func(page *autoscaling.DescribeAutoScalingGroupsOutput, lastPage bool) bool {
@@ -624,28 +518,6 @@ func (w *AwsWorker) GetAutoscalingGroup(name string) (*autoscaling.DescribeAutoS
 		return &autoscaling.DescribeAutoScalingGroupsOutput{}, err
 	}
 	return out, nil
-}
-
-func (w *AwsWorker) DetectScalingGroupDrift(scalingGroupName string) (bool, error) {
-	input := &autoscaling.DescribeAutoScalingGroupsInput{
-		AutoScalingGroupNames: aws.StringSlice([]string{scalingGroupName}),
-	}
-	out, err := w.AsgClient.DescribeAutoScalingGroups(input)
-	if err != nil {
-		return false, err
-	}
-	if len(out.AutoScalingGroups) != 1 {
-		err = fmt.Errorf("could not find active scaling group")
-		return false, err
-	}
-	for _, group := range out.AutoScalingGroups {
-		for _, instance := range group.Instances {
-			if instance.LaunchConfigurationName == nil {
-				return true, nil
-			}
-		}
-	}
-	return false, nil
 }
 
 func GetScalingGroupTagsByName(name string, client autoscalingiface.AutoScalingAPI) ([]*autoscaling.TagDescription, error) {
@@ -695,17 +567,6 @@ func GetRegion() (string, error) {
 	return region, nil
 }
 
-// GetAwsCloudformationClient returns a cloudformation client
-func GetAwsCloudformationClient(region string) cloudformationiface.CloudFormationAPI {
-	var config aws.Config
-	config.Region = aws.String(region)
-	sess := session.Must(session.NewSessionWithOptions(session.Options{
-		SharedConfigState: session.SharedConfigEnable,
-		Config:            config,
-	}))
-	return cloudformation.New(sess)
-}
-
 // GetAwsAsgClient returns an ASG client
 func GetAwsAsgClient(region string) autoscalingiface.AutoScalingAPI {
 	var config aws.Config
@@ -733,30 +594,6 @@ func GetAwsIamClient(region string) iamiface.IAMAPI {
 	mySession := session.Must(session.NewSession())
 	return iam.New(mySession, aws.NewConfig().WithRegion(region))
 }
-
-func (w *AwsWorker) DeriveEksVpcID(clusterName string) (string, error) {
-	out, err := w.EksClient.DescribeCluster(&eks.DescribeClusterInput{Name: aws.String(clusterName)})
-	if err != nil {
-		return "", err
-	}
-	return aws.StringValue(out.Cluster.ResourcesVpcConfig.VpcId), nil
-}
-
-type CloudformationReconcileState struct {
-	OngoingState             bool
-	FiniteState              bool
-	FiniteDeleted            bool
-	UpdateRecoverableError   bool
-	UnrecoverableError       bool
-	UnrecoverableDeleteError bool
-}
-
-var OngoingState = CloudformationReconcileState{OngoingState: true}
-var FiniteState = CloudformationReconcileState{FiniteState: true}
-var FiniteDeleted = CloudformationReconcileState{FiniteDeleted: true}
-var UpdateRecoverableError = CloudformationReconcileState{UpdateRecoverableError: true}
-var UnrecoverableError = CloudformationReconcileState{UnrecoverableError: true}
-var UnrecoverableDeleteError = CloudformationReconcileState{UnrecoverableDeleteError: true}
 
 type ManagedNodeGroupReconcileState struct {
 	OngoingState             bool
@@ -787,44 +624,6 @@ func IsNodeGroupInConditionState(key string, condition string) bool {
 		return state.OngoingState
 	case "FiniteState":
 		return state.FiniteState
-	case "UnrecoverableError":
-		return state.UnrecoverableError
-	case "UnrecoverableDeleteError":
-		return state.UnrecoverableDeleteError
-	default:
-		return false
-	}
-}
-
-func IsStackInConditionState(key string, condition string) bool {
-	conditionStates := map[string]CloudformationReconcileState{
-		"CREATE_COMPLETE":                              FiniteState,
-		"UPDATE_COMPLETE":                              FiniteState,
-		"DELETE_COMPLETE":                              FiniteDeleted,
-		"CREATE_IN_PROGRESS":                           OngoingState,
-		"DELETE_IN_PROGRESS":                           OngoingState,
-		"ROLLBACK_IN_PROGRESS":                         OngoingState,
-		"UPDATE_COMPLETE_CLEANUP_IN_PROGRESS":          OngoingState,
-		"UPDATE_IN_PROGRESS":                           OngoingState,
-		"UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS": OngoingState,
-		"UPDATE_ROLLBACK_IN_PROGRESS":                  OngoingState,
-		"UPDATE_ROLLBACK_COMPLETE":                     UpdateRecoverableError,
-		"UPDATE_ROLLBACK_FAILED":                       UnrecoverableError,
-		"CREATE_FAILED":                                UnrecoverableError,
-		"DELETE_FAILED":                                UnrecoverableDeleteError,
-		"ROLLBACK_COMPLETE":                            UnrecoverableError,
-	}
-	state := conditionStates[key]
-
-	switch condition {
-	case "OngoingState":
-		return state.OngoingState
-	case "FiniteState":
-		return state.FiniteState
-	case "FiniteDeleted":
-		return state.FiniteDeleted
-	case "UpdateRecoverableError":
-		return state.UpdateRecoverableError
 	case "UnrecoverableError":
 		return state.UnrecoverableError
 	case "UnrecoverableDeleteError":
