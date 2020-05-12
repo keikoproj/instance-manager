@@ -254,7 +254,7 @@ spec:
 
 ### Alpha-2 Version
 
-Please consider that this project is in alpha stages and breaking API changes may happen, we will do our best to not break backwards compatiblity without a depracation period going further.
+Please consider that this project is in alpha stages and breaking API changes may happen, we will do our best to not break backwards compatiblity without a deprecation period going further.
 
 The previous eks-cf provisioner have been discontinued in favor of the Alpha-2 eks provisioner, which does not use cloudformation as a mechanism to provision the required resources.
 
