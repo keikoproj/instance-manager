@@ -44,8 +44,6 @@ const (
 	ReconcileReady ReconcileState = "Ready"
 	ReconcileErr   ReconcileState = "Error"
 
-	DefaultVolSize int64 = 32
-
 	LifecycleStateNormal = "normal"
 	LifecycleStateSpot   = "spot"
 
@@ -147,8 +145,8 @@ type EKSConfiguration struct {
 	BootstrapArguments          string              `json:"bootstrapArguments,omitempty"`
 	SpotPrice                   string              `json:"spotPrice,omitempty"`
 	Tags                        []map[string]string `json:"tags,omitempty"`
-	Labels                      map[string]string   `json:"labels,labels,omitempty"`
-	Taints                      []corev1.Taint      `json:"taints,taints,omitempty"`
+	Labels                      map[string]string   `json:"labels,omitempty"`
+	Taints                      []corev1.Taint      `json:"taints,omitempty"`
 	ExistingRoleName            string              `json:"roleName,omitempty"`
 	ExistingInstanceProfileName string              `json:"instanceProfileName,omitempty"`
 	ManagedPolicies             []string            `json:"managedPolicies,omitempty"`

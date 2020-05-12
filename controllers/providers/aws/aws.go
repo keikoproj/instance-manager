@@ -399,7 +399,7 @@ func (w *AwsWorker) GetLabelsUpdatePayload(existing, new map[string]string) *eks
 		}
 	}
 
-	for k, _ := range existing {
+	for k := range existing {
 		// handle removals
 		if _, ok := new[k]; !ok {
 			removeLabels = append(removeLabels, k)
