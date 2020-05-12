@@ -98,7 +98,7 @@ func MockInstanceGroup() *v1alpha1.InstanceGroup {
 				},
 			},
 			AwsUpgradeStrategy: v1alpha1.AwsUpgradeStrategy{
-				CRDType:           &v1alpha1.CRDUpgradeStrategy{},
+				CRDType:           &v1alpha1.CRDUpdateStrategy{},
 				RollingUpdateType: &v1alpha1.RollingUpdateStrategy{},
 			},
 		},
@@ -174,7 +174,7 @@ func MockScalingGroup(name string, t ...*autoscaling.TagDescription) *autoscalin
 func MockAwsCRDStrategy(spec string) v1alpha1.AwsUpgradeStrategy {
 	return v1alpha1.AwsUpgradeStrategy{
 		Type: kubeprovider.CRDStrategyName,
-		CRDType: &v1alpha1.CRDUpgradeStrategy{
+		CRDType: &v1alpha1.CRDUpdateStrategy{
 			Spec:                spec,
 			CRDName:             "dogs",
 			StatusJSONPath:      ".status.dogStatus",

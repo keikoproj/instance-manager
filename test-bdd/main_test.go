@@ -349,7 +349,7 @@ func (t *FunctionalTest) theResourceShouldConvergeToSelector(selector string) er
 			if err != nil {
 				return err
 			}
-			if strings.ToLower(val) == strings.ToLower(value) {
+			if strings.EqualFold(val, value) {
 				break
 			}
 		}

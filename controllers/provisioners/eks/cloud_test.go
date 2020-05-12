@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/controllers/provisioners"
 	"github.com/onsi/gomega"
 )
 
@@ -58,9 +59,9 @@ func TestCloudDiscoveryPositive(t *testing.T) {
 		resourceNamespace     = "default"
 		launchConfigName      = "some-launch-configuration"
 		ownedScalingGroupName = "scaling-group-1"
-		ownershipTag          = MockTagDescription(TagClusterName, clusterName)
-		nameTag               = MockTagDescription(TagInstanceGroupName, resourceName)
-		namespaceTag          = MockTagDescription(TagInstanceGroupNamespace, resourceNamespace)
+		ownershipTag          = MockTagDescription(provisioners.TagClusterName, clusterName)
+		nameTag               = MockTagDescription(provisioners.TagInstanceGroupName, resourceName)
+		namespaceTag          = MockTagDescription(provisioners.TagInstanceGroupNamespace, resourceNamespace)
 		ownedScalingGroup     = MockScalingGroup(ownedScalingGroupName, ownershipTag, nameTag, namespaceTag)
 	)
 
@@ -157,9 +158,9 @@ func TestCloudDiscoverySpotPrice(t *testing.T) {
 		resourceName          = "some-instance-group"
 		resourceNamespace     = "default"
 		ownedScalingGroupName = "scaling-group-1"
-		ownershipTag          = MockTagDescription(TagClusterName, clusterName)
-		nameTag               = MockTagDescription(TagInstanceGroupName, resourceName)
-		namespaceTag          = MockTagDescription(TagInstanceGroupNamespace, resourceNamespace)
+		ownershipTag          = MockTagDescription(provisioners.TagClusterName, clusterName)
+		nameTag               = MockTagDescription(provisioners.TagInstanceGroupName, resourceName)
+		namespaceTag          = MockTagDescription(provisioners.TagInstanceGroupNamespace, resourceNamespace)
 	)
 
 	ig.SetName(resourceName)

@@ -26,7 +26,7 @@ import (
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
-	yaml "gopkg.in/yaml.v2"
+	"github.com/keikoproj/instance-manager/controllers/provisioners"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -68,11 +68,11 @@ func (ctx *EksInstanceGroupContext) GetAddedTags(asgName string) []*autoscaling.
 		clusterName   = configuration.GetClusterName()
 	)
 
-	tags = append(tags, ctx.AwsWorker.NewTag(TagName, asgName, asgName))
-	tags = append(tags, ctx.AwsWorker.NewTag(TagKubernetesCluster, clusterName, asgName))
-	tags = append(tags, ctx.AwsWorker.NewTag(TagClusterName, clusterName, asgName))
-	tags = append(tags, ctx.AwsWorker.NewTag(TagInstanceGroupNamespace, instanceGroup.GetNamespace(), asgName))
-	tags = append(tags, ctx.AwsWorker.NewTag(TagInstanceGroupName, instanceGroup.GetName(), asgName))
+	tags = append(tags, ctx.AwsWorker.NewTag("Name", asgName, asgName))
+	tags = append(tags, ctx.AwsWorker.NewTag(provisioners.TagKubernetesCluster, clusterName, asgName))
+	tags = append(tags, ctx.AwsWorker.NewTag(provisioners.TagClusterName, clusterName, asgName))
+	tags = append(tags, ctx.AwsWorker.NewTag(provisioners.TagInstanceGroupNamespace, instanceGroup.GetNamespace(), asgName))
+	tags = append(tags, ctx.AwsWorker.NewTag(provisioners.TagInstanceGroupName, instanceGroup.GetName(), asgName))
 
 	// custom tags
 	for _, tagSlice := range configuration.GetTags() {
@@ -118,10 +118,8 @@ func (ctx *EksInstanceGroupContext) GetBlockDeviceList() []*autoscaling.BlockDev
 	)
 
 	customVolumes := configuration.GetVolumes()
-	if customVolumes != nil {
-		for _, v := range customVolumes {
-			devices = append(devices, ctx.AwsWorker.GetBasicBlockDevice(v.Name, v.Type, v.Size))
-		}
+	for _, v := range customVolumes {
+		devices = append(devices, ctx.AwsWorker.GetBasicBlockDevice(v.Name, v.Type, v.Size))
 	}
 
 	return devices
@@ -239,7 +237,7 @@ func (ctx *EksInstanceGroupContext) findOwnedScalingGroups(groups []*autoscaling
 				value = aws.StringValue(tag.Value)
 			)
 			// if group has the same cluster tag it's owned by the controller
-			if key == TagClusterName && strings.ToLower(value) == strings.ToLower(clusterName) {
+			if key == provisioners.TagClusterName && strings.EqualFold(value, clusterName) {
 				filteredGroups = append(filteredGroups, group)
 			}
 		}
@@ -261,10 +259,10 @@ func (ctx *EksInstanceGroupContext) findTargetScalingGroup(groups []*autoscaling
 				value = aws.StringValue(tag.Value)
 			)
 			// must match both name and namespace tag
-			if key == TagInstanceGroupName && value == instanceGroup.GetName() {
+			if key == provisioners.TagInstanceGroupName && value == instanceGroup.GetName() {
 				nameMatch = true
 			}
-			if key == TagInstanceGroupNamespace && value == instanceGroup.GetNamespace() {
+			if key == provisioners.TagInstanceGroupNamespace && value == instanceGroup.GetNamespace() {
 				namespaceMatch = true
 			}
 		}
@@ -314,28 +312,6 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 	conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionFalse))
 	status.SetConditions(conditions)
 	return false
-}
-
-func LoadControllerConfiguration(instanceGroup *v1alpha1.InstanceGroup, controllerConfig []byte) (EksDefaultConfiguration, error) {
-	var (
-		defaultConfig EksDefaultConfiguration
-		configuration = instanceGroup.GetEKSConfiguration()
-	)
-
-	err := yaml.Unmarshal(controllerConfig, &defaultConfig)
-	if err != nil {
-		return defaultConfig, err
-	}
-
-	if len(defaultConfig.DefaultSubnets) != 0 {
-		configuration.SetSubnets(defaultConfig.DefaultSubnets)
-	}
-
-	if defaultConfig.EksClusterName != "" {
-		configuration.SetClusterName(defaultConfig.EksClusterName)
-	}
-
-	return defaultConfig, nil
 }
 
 func (ctx *EksInstanceGroupContext) GetManagedPoliciesList(additionalPolicies []string) []string {
