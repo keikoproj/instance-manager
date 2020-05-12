@@ -45,15 +45,12 @@ No resources found.
 
 In order to run the controller you need atleast one node that is created manually, in addition, the instance-manager controller requires IAM permissions in order to create the required resources in your account.
 
-The below are required to run the basic provisioners.
+The below are the minimum required policies needed to run the basic operations of provisioners.
 
 ```text
-# required roles
 iam:GetRole
 iam:GetInstanceProfile
 iam:PassRole
-# TODO: Check this
-ec2:Describe*
 autoscaling:DescribeLaunchConfigurations
 autoscaling:CreateLaunchConfigurations
 autoscaling:DeleteLaunchConfigurations
@@ -64,8 +61,11 @@ eks:DescribeNodegroup
 eks:CreateNodegroup
 eks:DeleteNodegroup
 eks:UpdateNodegroupConfig
+```
 
-# required if not using existing role
+The following are also required if you want the controller to be creating IAM roles for your instance groups, otherwise you can omit this and provide an existing role in the custom resource.
+
+```text
 iam:CreateRole
 iam:DeleteRole
 iam:CreateInstanceProfile
