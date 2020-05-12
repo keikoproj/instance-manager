@@ -32,7 +32,7 @@ _For more examples and usage, please refer to the [Installation Reference Walkth
 ### Currently supported provisioners
 
 | Provisioner | Description |
-| :--- | :--- | :---: |
+| :--- | :--- |
 | eks | provision nodes on EKS |
 | eks-managed | provision managed node groups on EKS |
 
