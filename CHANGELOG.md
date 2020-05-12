@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [v0.6.0-alpha2] - 2020-5-12
+
+### Added
+
+- **eks provisioner v2** (#83)
+
+### Changed
+
+- **eks-cf provisioner deprecated (#94)**
+- functional tests improvements (#79)
+- Removed vended code (#91)
+- Use golang 1.13.10 & update SDKs (#90)
+
+### Fixed
+
+- General fixes, refactor, and code improvements (#93, #92, #75, #80)
+- Documentation improvements (#96)
+
 ## [v0.5.0-alpha] - 2019-3-03
 
 ### Added
