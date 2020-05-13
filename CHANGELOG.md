@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [v0.6.1-alpha2] - 2020-5-13
+
+### Fixed
+
+- Bootstrapping of shared roles (#102)
+
 ## [v0.6.0-alpha2] - 2020-5-12
 
 ### Added
