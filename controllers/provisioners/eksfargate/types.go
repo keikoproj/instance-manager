@@ -16,17 +16,32 @@ limitations under the License.
 package eksfargate
 
 import (
+	"github.com/go-logr/logr"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	aws "github.com/keikoproj/instance-manager/controllers/providers/aws"
 )
 
-// EksCfInstanceGroupContext defines the main type of an EKS Cloudformation provisioner
-type InstanceGroupContext struct {
-	InstanceGroup             *v1alpha1.InstanceGroup
-	AwsWorker                 aws.AwsWorker
-	ExecutionPodRoleStackName string
+type DiscoveredState struct {
+	ProfileStatus string
 }
 
+func (ds *DiscoveredState) GetProfileStatus() string {
+	return ds.ProfileStatus
+}
+func (ds *DiscoveredState) IsProvisioned() bool {
+	return ds.GetProfileStatus() != aws.FargateProfileStatusMissing
+}
+
+type InstanceGroupContext struct {
+	InstanceGroup   *v1alpha1.InstanceGroup
+	AwsWorker       aws.AwsWorker
+	DiscoveredState DiscoveredState
+	Log             logr.Logger
+}
+
+func (ctx *InstanceGroupContext) GetDiscoveredState() *DiscoveredState {
+	return &ctx.DiscoveredState
+}
 func (ctx *InstanceGroupContext) GetInstanceGroup() *v1alpha1.InstanceGroup {
 	if ctx != nil {
 		return ctx.InstanceGroup

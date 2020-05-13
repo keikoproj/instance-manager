@@ -24,12 +24,10 @@ rules:
   - configmaps
   verbs:
   - create
-  - delete
   - get
   - list
   - patch
   - update
-  - watch
 - apiGroups:
   - ""
   resources:
@@ -39,6 +37,12 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - list
 - apiGroups:
   - instancemgr.keikoproj.io
   resources:

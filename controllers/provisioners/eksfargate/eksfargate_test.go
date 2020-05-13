@@ -16,7 +16,6 @@ limitations under the License.
 package eksfargate
 
 import (
-	//	"flag"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/eks"
@@ -45,10 +44,11 @@ type EksFargateUnitTest struct {
 	ProfileFromDescribe *eks.FargateProfile
 	ProfileFromCreate   *eks.FargateProfile
 	//UpdateNeeded        bool
-	ListOfProfiles           []*string
 	ProfileExists            bool
 	MakeCreateProfileFail    bool
+	MakeCreateProfileRetry   bool
 	MakeDeleteProfileFail    bool
+	MakeDeleteProfileRetry   bool
 	MakeDescribeProfileFail  bool
 	CheckArnFor              string
 	MakeCreateRoleFail       bool
@@ -75,9 +75,10 @@ type stubEKS struct {
 	ProfileFromCreate       *eks.FargateProfile
 	ProfileBasic            *eks.FargateProfile
 	ProfileExists           bool
-	ListOfProfiles          []*string
 	MakeCreateProfileFail   bool
+	MakeCreateProfileRetry  bool
 	MakeDeleteProfileFail   bool
+	MakeDeleteProfileRetry  bool
 	MakeDescribeProfileFail bool
 	CheckArnFor             string
 }
@@ -166,6 +167,10 @@ func (s *stubEKS) CreateFargateProfile(input *eks.CreateFargateProfileInput) (*e
 	output := &eks.CreateFargateProfileOutput{
 		FargateProfile: s.ProfileFromCreate,
 	}
+	if s.MakeCreateProfileRetry {
+		return nil, awserr.New(eks.ErrCodeResourceInUseException, "resource in use", errors.New("resource in use"))
+	}
+
 	if s.MakeCreateProfileFail {
 		return nil, errors.New("create profile failed")
 	}
@@ -177,19 +182,15 @@ func (s *stubEKS) CreateFargateProfile(input *eks.CreateFargateProfileInput) (*e
 }
 
 func (s *stubEKS) DeleteFargateProfile(input *eks.DeleteFargateProfileInput) (*eks.DeleteFargateProfileOutput, error) {
+	if s.MakeDeleteProfileRetry {
+		return nil, awserr.New(eks.ErrCodeResourceInUseException, "resource in use", errors.New("resource in use"))
+	}
 	if s.MakeDeleteProfileFail == false {
 		output := &eks.DeleteFargateProfileOutput{}
 		return output, nil
 	} else {
 		return nil, errors.New("delete profile failed")
 	}
-}
-
-func (s *stubEKS) ListFargateProfilesPages(input *eks.ListFargateProfilesInput, fn func(page *eks.ListFargateProfilesOutput, lastPage bool) bool) error {
-	fn(&eks.ListFargateProfilesOutput{
-		FargateProfileNames: s.ListOfProfiles,
-	}, true)
-	return nil
 }
 
 func init() {
@@ -259,9 +260,10 @@ func (u *EksFargateUnitTest) BuildProvisioner(t *testing.T) *InstanceGroupContex
 			ProfileFromCreate:       u.ProfileFromCreate,
 			ProfileExists:           u.ProfileExists,
 			MakeCreateProfileFail:   u.MakeCreateProfileFail,
+			MakeCreateProfileRetry:  u.MakeCreateProfileRetry,
 			MakeDeleteProfileFail:   u.MakeDeleteProfileFail,
+			MakeDeleteProfileRetry:  u.MakeDeleteProfileRetry,
 			MakeDescribeProfileFail: u.MakeDescribeProfileFail,
-			ListOfProfiles:          u.ListOfProfiles,
 			CheckArnFor:             u.CheckArnFor,
 		},
 		IamClient: &stubIAM{
@@ -470,41 +472,6 @@ func TestIsReadyNegative(t *testing.T) {
 	}
 }
 
-func TestCanDelete(t *testing.T) {
-	ig := FakeIG{CurrentState: string(v1alpha1.ReconcileInit)}
-	instanceGroup := ig.getInstanceGroup()
-	testCase := EksFargateUnitTest{
-		InstanceGroup: instanceGroup,
-	}
-	ctx := testCase.BuildProvisioner(t)
-	canCreate, err := ctx.CanDelete()
-	if err != nil {
-		t.Fatalf("TestCanDelete: got unexpected exception: %v", err)
-	}
-	if !canCreate {
-		t.Fatal("TestCanDelete: got false, expected: true")
-	}
-}
-
-func TestCanDelete1(t *testing.T) {
-	ig := FakeIG{CurrentState: string(v1alpha1.ReconcileInit)}
-	instanceGroup := ig.getInstanceGroup()
-	testCase := EksFargateUnitTest{
-		InstanceGroup: instanceGroup,
-		ProfileFromDescribe: &eks.FargateProfile{
-			Status: aws.String("DELETING"),
-		},
-		ListOfProfiles: []*string{aws.String("profile1")},
-	}
-	ctx := testCase.BuildProvisioner(t)
-	canCreate, err := ctx.CanDelete()
-	if err != nil {
-		t.Fatalf("TestCanDelete1: got unexpected exception: %v", err)
-	}
-	if canCreate {
-		t.Fatal("TestCanDelete1: got true, expected: false")
-	}
-}
 func TestUpgradeNodes(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
@@ -541,18 +508,6 @@ func TestIsUpgradeNeeded(t *testing.T) {
 		t.Fatal("TestIsUpgradeNeeded: got an true when false expected")
 	}
 }
-func TestCloudDiscovery(t *testing.T) {
-	ig := FakeIG{}
-	instanceGroup := ig.getInstanceGroup()
-	testCase := EksFargateUnitTest{
-		InstanceGroup: instanceGroup,
-		ProfileBasic:  nil,
-	}
-	ctx := testCase.BuildProvisioner(t)
-	if ctx.CloudDiscovery() != nil {
-		t.Fatal("TestCloudDiscovery: got an exception when none expected")
-	}
-}
 func TestCreateFargateTags(t *testing.T) {
 	input := []map[string]string{{"key1": "value1"}}
 	output := CreateFargateTags(input)
@@ -572,23 +527,19 @@ func TestCreateFargateSubnets(t *testing.T) {
 		}
 	}
 }
-func TestGetStateFailureGettingProfile(t *testing.T) {
+func TestCloudDiscoveryFailureGettingProfile(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
 	testCase := EksFargateUnitTest{InstanceGroup: instanceGroup,
 		MakeDescribeProfileFail: true,
 	}
 	ctx := testCase.BuildProvisioner(t)
-	commonInput := awsprovider.CreateCommonInput{
-		ClusterName: "clustername",
-		ProfileName: "profilename",
-	}
-	state := ctx.AwsWorker.GetState(commonInput)
-	if state.Profile.Status != nil {
+	ctx.CloudDiscovery()
+	if ctx.GetDiscoveredState().GetProfileStatus() != awsprovider.FargateProfileStatusMissing {
 		t.Fatalf("TestGetStateFailureGettingProfile: expected nil but got a status")
 	}
 }
-func TestGetStateSuccessGettingProfile(t *testing.T) {
+func TestCloudDiscoverySuccessGettingProfile(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
 	testCase := EksFargateUnitTest{InstanceGroup: instanceGroup,
@@ -597,33 +548,10 @@ func TestGetStateSuccessGettingProfile(t *testing.T) {
 		},
 	}
 	ctx := testCase.BuildProvisioner(t)
+	ctx.CloudDiscovery()
 
-	commonInput := awsprovider.CreateCommonInput{
-		ClusterName: "clustername",
-		ProfileName: "profilename",
-	}
-	state := ctx.AwsWorker.GetState(commonInput)
-	if state.Profile.Status == nil {
+	if ctx.GetDiscoveredState().GetProfileStatus() == awsprovider.FargateProfileStatusMissing {
 		t.Fatalf("TestGetStateSuccessGettingProfile: expected profile but got a nil")
-	}
-}
-func TestCreateWithProfileDeletesInProgress(t *testing.T) {
-	ig := FakeIG{}
-	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
-	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn("a:b:c:d:e:f") // no arn
-	testCase := EksFargateUnitTest{
-		InstanceGroup: instanceGroup,
-		ProfileFromDescribe: &eks.FargateProfile{
-			Status: aws.String("DELETING"),
-		},
-		ListOfProfiles: []*string{aws.String("profile1")}, // profiles being created/deleted
-	}
-	ctx := testCase.BuildProvisioner(t)
-	err := ctx.Create()
-	if err != nil {
-		t.Fatalf("TestCreateWithProfileCreatesDeletesInProgress: expected: nil but got: . %v", err)
 	}
 }
 func TestCreateWithSuppliedArnSuccessProfileCreation(t *testing.T) {
@@ -743,13 +671,29 @@ func TestCreateWithoutArnCreateProfileFails(t *testing.T) {
 	ctx := testCase.BuildProvisioner(t)
 	err := ctx.Create()
 	if err == nil {
-		t.Fatal("TestCreateWithoutArnCreateProfileFails: expected nil")
+		t.Fatal("TestCreateWithoutArnCreateProfileFails: expected error")
 	}
 	if err.Error() != "create profile failed" {
 		t.Fatalf("TestCreateWithoutArnCreateProfileFails: Bad error message.  Got %v", err.Error())
 	}
 	if instanceGroup.GetState() != v1alpha1.ReconcileInit {
 		t.Fatalf("TestCreateWithoutArnCreateProfileFails: expected ReconcileInit state.  Got %v", instanceGroup.GetState())
+	}
+}
+func TestCreateProfileWithRetry(t *testing.T) {
+	ig := FakeIG{}
+	instanceGroup := ig.getInstanceGroup()
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
+	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
+	testCase := EksFargateUnitTest{
+		InstanceGroup:          instanceGroup,
+		CreateRoleDupFound:     true,
+		MakeCreateProfileRetry: true,
+	}
+	ctx := testCase.BuildProvisioner(t)
+	err := ctx.Create()
+	if err != nil {
+		t.Fatalf("TestCreateProfileWithRetry: expected nil.  Got %v", err)
 	}
 }
 func TestUpdate(t *testing.T) {
@@ -778,46 +722,6 @@ func TestUpdate1(t *testing.T) {
 	}
 	if err.Error() != "update not supported" {
 		t.Fatalf("TestUpdate1: bad error message.  Got %v", err.Error())
-	}
-}
-func TestDeleteWithDescribeProfileFail(t *testing.T) {
-	ig := FakeIG{}
-	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
-	testCase := EksFargateUnitTest{
-		InstanceGroup:           instanceGroup,
-		MakeDescribeProfileFail: true,
-		ListOfProfiles:          []*string{aws.String("profile1")},
-	}
-	ctx := testCase.BuildProvisioner(t)
-	err := ctx.Delete()
-	if err == nil {
-		t.Fatal("TestDeleteWithDescribeProfileFail: expected error got nil")
-	}
-	if instanceGroup.GetState() != v1alpha1.ReconcileInit {
-		t.Fatalf("TestDeleteWithDescribeProfileFail: expected ReconcileInit state.  Got %v", instanceGroup.GetState())
-	}
-}
-func TestDeleteWithCanDeleteFailure(t *testing.T) {
-	ig := FakeIG{}
-	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
-	testCase := EksFargateUnitTest{
-		InstanceGroup: instanceGroup,
-		ProfileFromDescribe: &eks.FargateProfile{
-			Status: aws.String("DELETING"),
-		},
-		ListOfProfiles: []*string{aws.String("profile1")},
-	}
-	ctx := testCase.BuildProvisioner(t)
-	err := ctx.Delete()
-	if err != nil {
-		t.Fatalf("TestDeleteWithCanDeleteFailure: expected nil.  Got %v", err)
-	}
-	if instanceGroup.GetState() != v1alpha1.ReconcileInit {
-		t.Fatalf("TestDeleteWithCanDeleteFailure: expected ReconcileInit state.  Got %v", instanceGroup.GetState())
 	}
 }
 func TestDeleteWithArnDeleteProfileSuccess(t *testing.T) {
@@ -982,5 +886,22 @@ func TestDeleteWithoutArnDeleteProfileSuccess(t *testing.T) {
 	}
 	if instanceGroup.GetState() != v1alpha1.ReconcileDeleting {
 		t.Fatalf("TestDeleteWithoutArnDeleteProfileSuccess: expected ReconcileDeleting state.  Got %v", instanceGroup.GetState())
+	}
+}
+func TestDeleteWithRetry(t *testing.T) {
+	ig := FakeIG{}
+	instanceGroup := ig.getInstanceGroup()
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
+	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
+	testCase := EksFargateUnitTest{
+		InstanceGroup:          instanceGroup,
+		MakeDeleteProfileRetry: true,
+		DetachRolePolicyFound:  false,
+		DeleteRoleFound:        false,
+	}
+	ctx := testCase.BuildProvisioner(t)
+	err := ctx.Delete()
+	if err != nil {
+		t.Fatalf("TestDeleteWithRetry: expected nil.  Got %v", err)
 	}
 }

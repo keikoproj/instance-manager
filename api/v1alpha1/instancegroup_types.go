@@ -16,12 +16,14 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"fmt"
+	"strings"
 
-	log "github.com/sirupsen/logrus"
-
+	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 type ReconcileState string
@@ -41,6 +43,11 @@ const (
 	// End States
 	ReconcileReady ReconcileState = "Ready"
 	ReconcileErr   ReconcileState = "Error"
+
+	LifecycleStateNormal = "normal"
+	LifecycleStateSpot   = "spot"
+
+	NodesReady InstanceGroupConditionType = "NodesReady"
 )
 
 var (
@@ -49,6 +56,7 @@ var (
 		Version:  "v1alpha1",
 		Resource: "instancegroups",
 	}
+	log = ctrl.Log.WithName("v1alpha1")
 )
 
 // InstanceGroup is the Schema for the instancegroups API
@@ -80,75 +88,24 @@ type InstanceGroupList struct {
 
 // AwsUpgradeStrategy defines the upgrade strategy of an AWS Instance Group
 type AwsUpgradeStrategy struct {
-	Type               string                  `json:"type"`
-	CRDType            *CRDUpgradeStrategy     `json:"crd,omitempty"`
-	RollingUpgradeType *RollingUpgradeStrategy `json:"rollingUpdate,omitempty"`
+	Type              string                 `json:"type"`
+	CRDType           *CRDUpdateStrategy     `json:"crd,omitempty"`
+	RollingUpdateType *RollingUpdateStrategy `json:"rollingUpdate,omitempty"`
 }
 
-type RollingUpgradeStrategy struct {
-	MaxBatchSize                  int      `json:"maxBatchSize,omitempty"`
-	MinInstancesInService         int      `json:"minInstancesInService,omitempty"`
-	MinSuccessfulInstancesPercent int      `json:"minSuccessfulInstancesPercent,omitempty"`
-	PauseTime                     string   `json:"pauseTime,omitempty"`
-	SuspendProcesses              []string `json:"suspendProcesses,omitempty"`
-	WaitOnResourceSignals         bool     `json:"waitOnResourceSignals,omitempty"`
+type RollingUpdateStrategy struct {
+	MaxUnavailable *intstr.IntOrString `json:"maxUnavailable,omitempty"`
 }
 
-func (s *RollingUpgradeStrategy) GetMaxBatchSize() int {
-	return s.MaxBatchSize
+func (s *RollingUpdateStrategy) GetMaxUnavailable() *intstr.IntOrString {
+	return s.MaxUnavailable
 }
 
-func (s *RollingUpgradeStrategy) SetMaxBatchSize(value int) {
-	s.MaxBatchSize = value
+func (s *RollingUpdateStrategy) SetMaxUnavailable(value *intstr.IntOrString) {
+	s.MaxUnavailable = value
 }
 
-func (s *RollingUpgradeStrategy) GetMinInstancesInService() int {
-	return s.MinInstancesInService
-}
-
-func (s *RollingUpgradeStrategy) SetMinInstancesInService(value int) {
-	s.MinInstancesInService = value
-}
-
-func (s *RollingUpgradeStrategy) GetMinSuccessfulInstancesPercent() int {
-	return s.MinSuccessfulInstancesPercent
-}
-
-func (s *RollingUpgradeStrategy) SetMinSuccessfulInstancesPercent(value int) {
-	s.MinSuccessfulInstancesPercent = value
-}
-
-func (s *RollingUpgradeStrategy) GetPauseTime() string {
-	return s.PauseTime
-}
-
-func (s *RollingUpgradeStrategy) SetPauseTime(pauseTime string) {
-	s.PauseTime = pauseTime
-}
-
-func (s *RollingUpgradeStrategy) GetWaitOnResourceSignals() bool {
-	return s.WaitOnResourceSignals
-}
-
-func (s *RollingUpgradeStrategy) SetWaitOnResourceSignals(wait bool) {
-	s.WaitOnResourceSignals = wait
-}
-
-func (s *RollingUpgradeStrategy) GetSuspendProcesses() []string {
-	if s.SuspendProcesses == nil {
-		s.SuspendProcesses = make([]string, 0)
-	}
-	return s.SuspendProcesses
-}
-
-func (s *RollingUpgradeStrategy) SetSuspendProcesses(processes []string) {
-	if s.SuspendProcesses == nil {
-		s.SuspendProcesses = make([]string, 0)
-	}
-	s.SuspendProcesses = processes
-}
-
-type CRDUpgradeStrategy struct {
+type CRDUpdateStrategy struct {
 	Spec                string `json:"spec,omitempty"`
 	CRDName             string `json:"crdName,omitempty"`
 	ConcurrencyPolicy   string `json:"concurrencyPolicy,omitempty"`
@@ -160,9 +117,9 @@ type CRDUpgradeStrategy struct {
 // InstanceGroupSpec defines the schema of resource Spec
 type InstanceGroupSpec struct {
 	Provisioner        string             `json:"provisioner"`
-	EKSCFSpec          *EKSCFSpec         `json:"eks-cf,omitempty"`
 	EKSManagedSpec     *EKSManagedSpec    `json:"eks-managed,omitempty"`
 	EKSFargateSpec     *EKSFargateSpec    `json:"eks-fargate,omitempty"`
+	EKSSpec            *EKSSpec           `json:"eks,omitempty"`
 	AwsUpgradeStrategy AwsUpgradeStrategy `json:"strategy"`
 }
 
@@ -172,10 +129,34 @@ type EKSManagedSpec struct {
 	EKSManagedConfiguration *EKSManagedConfiguration `json:"configuration"`
 }
 
-type EKSCFSpec struct {
-	MaxSize            int32               `json:"maxSize,omitempty"`
-	MinSize            int32               `json:"minSize,omitempty"`
-	EKSCFConfiguration *EKSCFConfiguration `json:"configuration,omitempty"`
+type EKSSpec struct {
+	MaxSize          int64             `json:"maxSize"`
+	MinSize          int64             `json:"minSize"`
+	EKSConfiguration *EKSConfiguration `json:"configuration"`
+}
+
+type EKSConfiguration struct {
+	EksClusterName              string              `json:"clusterName"`
+	KeyPairName                 string              `json:"keyPairName"`
+	Image                       string              `json:"image"`
+	InstanceType                string              `json:"instanceType"`
+	NodeSecurityGroups          []string            `json:"securityGroups,omitempty"`
+	Volumes                     []NodeVolume        `json:"volumes,omitempty"`
+	Subnets                     []string            `json:"subnets"`
+	BootstrapArguments          string              `json:"bootstrapArguments,omitempty"`
+	SpotPrice                   string              `json:"spotPrice,omitempty"`
+	Tags                        []map[string]string `json:"tags,omitempty"`
+	Labels                      map[string]string   `json:"labels,omitempty"`
+	Taints                      []corev1.Taint      `json:"taints,omitempty"`
+	ExistingRoleName            string              `json:"roleName,omitempty"`
+	ExistingInstanceProfileName string              `json:"instanceProfileName,omitempty"`
+	ManagedPolicies             []string            `json:"managedPolicies,omitempty"`
+}
+
+type NodeVolume struct {
+	Name string `json:"name,omitempty"`
+	Type string `json:"type,omitempty"`
+	Size int64  `json:"size,omitempty"`
 }
 type EKSFargateSpec struct {
 	ProfileName         string                `json:"fargateProfileName"`
@@ -226,21 +207,162 @@ type EKSFargateSelectors struct {
 
 // InstanceGroupStatus defines the schema of resource Status
 type InstanceGroupStatus struct {
-	StackName                     string `json:"stackName,omitempty"`
-	CurrentState                  string `json:"currentState,omitempty"`
-	CurrentMin                    int    `json:"currentMin,omitempty"`
-	CurrentMax                    int    `json:"currentMax,omitempty"`
-	ActiveLaunchConfigurationName string `json:"activeLaunchConfigurationName,omitempty"`
-	ActiveScalingGroupName        string `json:"activeScalingGroupName,omitempty"`
-	NodesArn                      string `json:"nodesInstanceRoleArn,omitempty"`
-	StrategyResourceName          string `json:"strategyResourceName,omitempty"`
-	UsingSpotRecommendation       bool   `json:"usingSpotRecommendation,omitempty"`
-	Lifecycle                     string `json:"lifecycle,omitempty"`
+	CurrentState                  string                   `json:"currentState,omitempty"`
+	CurrentMin                    int                      `json:"currentMin,omitempty"`
+	CurrentMax                    int                      `json:"currentMax,omitempty"`
+	ActiveLaunchConfigurationName string                   `json:"activeLaunchConfigurationName,omitempty"`
+	ActiveScalingGroupName        string                   `json:"activeScalingGroupName,omitempty"`
+	NodesArn                      string                   `json:"nodesInstanceRoleArn,omitempty"`
+	StrategyResourceName          string                   `json:"strategyResourceName,omitempty"`
+	UsingSpotRecommendation       bool                     `json:"usingSpotRecommendation,omitempty"`
+	Lifecycle                     string                   `json:"lifecycle,omitempty"`
+	Conditions                    []InstanceGroupCondition `json:"conditions,omitempty"`
 }
 
-func (conf *EKSManagedConfiguration) SetSubnets(subnets []string)  { conf.Subnets = subnets }
-func (conf *EKSManagedConfiguration) SetClusterName(name string)   { conf.EksClusterName = name }
-func (conf *EKSManagedConfiguration) GetLabels() map[string]string { return conf.NodeLabels }
+type InstanceGroupConditionType string
+
+func NewInstanceGroupCondition(cType InstanceGroupConditionType, status corev1.ConditionStatus) InstanceGroupCondition {
+	return InstanceGroupCondition{
+		Type:   cType,
+		Status: status,
+	}
+}
+
+// InstanceGroupConditions describes the conditions of the InstanceGroup
+type InstanceGroupCondition struct {
+	Type   InstanceGroupConditionType `json:"type,omitempty"`
+	Status corev1.ConditionStatus     `json:"status,omitempty"`
+}
+
+func (ig *InstanceGroup) GetEKSConfiguration() *EKSConfiguration {
+	return ig.Spec.EKSSpec.EKSConfiguration
+}
+func (ig *InstanceGroup) GetEKSSpec() *EKSSpec {
+	return ig.Spec.EKSSpec
+}
+func (ig *InstanceGroup) GetStatus() *InstanceGroupStatus {
+	return &ig.Status
+}
+func (ig *InstanceGroup) GetUpgradeStrategy() *AwsUpgradeStrategy {
+	return &ig.Spec.AwsUpgradeStrategy
+}
+func (ig *InstanceGroup) SetUpgradeStrategy(strategy AwsUpgradeStrategy) {
+	ig.Spec.AwsUpgradeStrategy = strategy
+}
+func (c *EKSConfiguration) Validate() error {
+	if c.EksClusterName == "" {
+		return errors.Errorf("validation failed, 'eksClusterName' is a required parameter")
+	}
+	if len(c.Subnets) == 0 {
+		return errors.Errorf("validation failed, 'subnets' is a required parameter")
+	}
+	if len(c.NodeSecurityGroups) == 0 {
+		return errors.Errorf("validation failed, 'securityGroups' is a required parameter")
+	}
+	if c.Image == "" {
+		return errors.Errorf("validation failed, 'image' is a required parameter")
+	}
+	if c.InstanceType == "" {
+		return errors.Errorf("validation failed, 'instanceType' is a required parameter")
+	}
+	if c.KeyPairName == "" {
+		return errors.Errorf("validation failed, 'keyPair' is a required parameter")
+	}
+	if len(c.Volumes) == 0 {
+		c.Volumes = []NodeVolume{
+			{
+				Name: "/dev/xvda",
+				Type: "gp2",
+				Size: 32,
+			},
+		}
+	}
+	return nil
+}
+func (c *EKSConfiguration) GetRoleName() string {
+	return c.ExistingRoleName
+}
+func (c *EKSConfiguration) GetInstanceProfileName() string {
+	return c.ExistingInstanceProfileName
+}
+func (c *EKSConfiguration) HasExistingRole() bool {
+	return c.ExistingRoleName != ""
+}
+func (c *EKSConfiguration) SetRoleName(role string) {
+	c.ExistingRoleName = role
+}
+func (c *EKSConfiguration) SetInstanceProfileName(profile string) {
+	c.ExistingInstanceProfileName = profile
+}
+func (c *EKSConfiguration) GetClusterName() string {
+	return c.EksClusterName
+}
+func (c *EKSConfiguration) SetClusterName(name string) {
+	c.EksClusterName = name
+}
+func (c *EKSConfiguration) GetLabels() map[string]string {
+	return c.Labels
+}
+func (c *EKSConfiguration) SetLabels(labels map[string]string) {
+	c.Labels = labels
+}
+func (c *EKSConfiguration) GetTaints() []corev1.Taint {
+	return c.Taints
+}
+func (c *EKSConfiguration) SetTaints(taints []corev1.Taint) {
+	c.Taints = taints
+}
+func (c *EKSConfiguration) GetManagedPolicies() []string {
+	return c.ManagedPolicies
+}
+func (c *EKSConfiguration) SetManagedPolicies(policies []string) {
+	c.ManagedPolicies = policies
+}
+func (c *EKSConfiguration) GetVolumes() []NodeVolume {
+	return c.Volumes
+}
+func (c *EKSConfiguration) GetBootstrapArguments() string {
+	return c.BootstrapArguments
+}
+func (c *EKSConfiguration) GetTags() []map[string]string {
+	if c.Tags == nil {
+		return []map[string]string{}
+	}
+	return c.Tags
+}
+func (c *EKSConfiguration) GetSubnets() []string {
+	if c.Subnets == nil {
+		return []string{}
+	}
+	return c.Subnets
+}
+func (c *EKSConfiguration) GetSpotPrice() string {
+	return c.SpotPrice
+}
+func (c *EKSConfiguration) SetSpotPrice(price string) {
+	c.SpotPrice = price
+}
+func (c *EKSConfiguration) SetSubnets(subnets []string) {
+	c.Subnets = subnets
+}
+func (spec *EKSSpec) GetMaxSize() int64 {
+	return spec.MaxSize
+}
+func (spec *EKSSpec) GetMinSize() int64 {
+	return spec.MinSize
+}
+
+func (conf *EKSManagedConfiguration) SetSubnets(subnets []string) {
+	conf.Subnets = subnets
+}
+
+func (conf *EKSManagedConfiguration) SetClusterName(name string) {
+	conf.EksClusterName = name
+}
+
+func (conf *EKSManagedConfiguration) GetLabels() map[string]string {
+	return conf.NodeLabels
+}
 
 func (ig *InstanceGroup) GetEKSManagedConfiguration() *EKSManagedConfiguration {
 	return ig.Spec.EKSManagedSpec.EKSManagedConfiguration
@@ -258,63 +380,98 @@ func (spec *EKSManagedSpec) GetMinSize() int64 {
 	return spec.MinSize
 }
 
-func (s *AwsUpgradeStrategy) GetRollingUpgradeStrategy() *RollingUpgradeStrategy {
-	return s.RollingUpgradeType
+func (s *AwsUpgradeStrategy) GetRollingUpdateType() *RollingUpdateStrategy {
+	return s.RollingUpdateType
 }
 
-func (s *AwsUpgradeStrategy) GetCRDType() *CRDUpgradeStrategy {
+func (s *AwsUpgradeStrategy) SetRollingUpdateType(ru *RollingUpdateStrategy) {
+	s.RollingUpdateType = ru
+}
+
+func (s *AwsUpgradeStrategy) GetCRDType() *CRDUpdateStrategy {
 	return s.CRDType
 }
 
-func (s *AwsUpgradeStrategy) SetCRDType(crd *CRDUpgradeStrategy) {
+func (s *AwsUpgradeStrategy) SetCRDType(crd *CRDUpdateStrategy) {
 	s.CRDType = crd
 }
 
-func (c *CRDUpgradeStrategy) GetSpec() string {
+func (c *CRDUpdateStrategy) Validate() error {
+	if c.GetSpec() == "" {
+		return errors.New("spec is empty")
+	}
+
+	if strings.ToLower(c.ConcurrencyPolicy) != "forbid" && strings.ToLower(c.ConcurrencyPolicy) != "allow" {
+		c.SetConcurrencyPolicy("forbid")
+	}
+
+	if strings.ToLower(c.ConcurrencyPolicy) == "" {
+		c.SetConcurrencyPolicy("forbid")
+	}
+
+	if c.GetCRDName() == "" {
+		return errors.New("crdName is empty")
+	}
+
+	if c.GetStatusJSONPath() == "" {
+		return errors.New("statusJSONPath is empty")
+	}
+
+	if c.GetStatusSuccessString() == "" {
+		return errors.New("statusSuccessString is empty")
+	}
+
+	if c.GetStatusFailureString() == "" {
+		return errors.New("statusFailureString is empty")
+	}
+	return nil
+}
+
+func (c *CRDUpdateStrategy) GetSpec() string {
 	return c.Spec
 }
 
-func (c *CRDUpgradeStrategy) SetSpec(body string) {
+func (c *CRDUpdateStrategy) SetSpec(body string) {
 	c.Spec = body
 }
 
-func (c *CRDUpgradeStrategy) GetCRDName() string {
+func (c *CRDUpdateStrategy) GetCRDName() string {
 	return c.CRDName
 }
 
-func (c *CRDUpgradeStrategy) SetCRDName(name string) {
+func (c *CRDUpdateStrategy) SetCRDName(name string) {
 	c.CRDName = name
 }
 
-func (c *CRDUpgradeStrategy) GetConcurrencyPolicy() string {
+func (c *CRDUpdateStrategy) GetConcurrencyPolicy() string {
 	return c.ConcurrencyPolicy
 }
 
-func (c *CRDUpgradeStrategy) SetConcurrencyPolicy(policy string) {
+func (c *CRDUpdateStrategy) SetConcurrencyPolicy(policy string) {
 	c.ConcurrencyPolicy = policy
 }
 
-func (c *CRDUpgradeStrategy) GetStatusJSONPath() string {
+func (c *CRDUpdateStrategy) GetStatusJSONPath() string {
 	return c.StatusJSONPath
 }
 
-func (c *CRDUpgradeStrategy) SetStatusJSONPath(path string) {
+func (c *CRDUpdateStrategy) SetStatusJSONPath(path string) {
 	c.StatusJSONPath = path
 }
 
-func (c *CRDUpgradeStrategy) GetStatusSuccessString() string {
+func (c *CRDUpdateStrategy) GetStatusSuccessString() string {
 	return c.StatusSuccessString
 }
 
-func (c *CRDUpgradeStrategy) SetStatusSuccessString(str string) {
+func (c *CRDUpdateStrategy) SetStatusSuccessString(str string) {
 	c.StatusSuccessString = str
 }
 
-func (c *CRDUpgradeStrategy) GetStatusFailureString() string {
+func (c *CRDUpdateStrategy) GetStatusFailureString() string {
 	return c.StatusFailureString
 }
 
-func (c *CRDUpgradeStrategy) SetStatusFailureString(str string) {
+func (c *CRDUpdateStrategy) SetStatusFailureString(str string) {
 	c.StatusFailureString = str
 }
 
@@ -326,12 +483,13 @@ func (status *InstanceGroupStatus) SetActiveLaunchConfigurationName(name string)
 	status.ActiveLaunchConfigurationName = name
 }
 
-func (status *InstanceGroupStatus) GetStackName() string {
-	return status.StackName
-}
-
-func (status *InstanceGroupStatus) SetStackName(name string) {
-	status.StackName = name
+func (status *InstanceGroupStatus) GetNodesReadyCondition() corev1.ConditionStatus {
+	for _, c := range status.Conditions {
+		if c.Type == NodesReady {
+			return c.Status
+		}
+	}
+	return corev1.ConditionFalse
 }
 
 func (status *InstanceGroupStatus) GetActiveScalingGroupName() string {
@@ -390,6 +548,14 @@ func (status *InstanceGroupStatus) SetLifecycle(phase string) {
 	status.Lifecycle = phase
 }
 
+func (status *InstanceGroupStatus) GetConditions() []InstanceGroupCondition {
+	return status.Conditions
+}
+
+func (status *InstanceGroupStatus) SetConditions(conditions []InstanceGroupCondition) {
+	status.Conditions = conditions
+}
+
 func (strategy *AwsUpgradeStrategy) GetType() string {
 	return strategy.Type
 }
@@ -398,133 +564,17 @@ func (strategy *AwsUpgradeStrategy) SetType(strategyType string) {
 	strategy.Type = strategyType
 }
 
-func (spec *EKSCFSpec) GetMinSize() int32 {
-	return spec.MinSize
-}
-
-func (spec *EKSCFSpec) SetMinSize(size int32) {
-	spec.MinSize = size
-}
-
-func (spec *EKSCFSpec) GetMaxSize() int32 {
-	return spec.MaxSize
-}
-
-func (spec *EKSCFSpec) SetMaxSize(size int32) {
-	spec.MaxSize = size
-}
-
-func (conf *EKSCFConfiguration) GetKeyName() string {
-	return conf.KeyPairName
-}
-
-func (conf *EKSCFConfiguration) SetKeyName(keypairName string) {
-	conf.KeyPairName = keypairName
-}
-
-func (conf *EKSCFConfiguration) SetSpotPrice(price string) {
-	conf.SpotPrice = price
-}
-
-func (conf *EKSCFConfiguration) GetSpotPrice() string {
-	return conf.SpotPrice
-}
-
-func (conf *EKSCFConfiguration) GetImage() string {
-	return conf.Image
-}
-
-func (conf *EKSCFConfiguration) SetImage(image string) {
-	conf.Image = image
-}
-
-func (conf *EKSCFConfiguration) GetInstanceType() string {
-	return conf.InstanceType
-}
-
-func (conf *EKSCFConfiguration) setInstanceType(instanceType string) {
-	conf.InstanceType = instanceType
-}
-
-func (conf *EKSCFConfiguration) GetSubnets() []string {
-	return conf.Subnets
-}
-
-func (conf *EKSCFConfiguration) SetSubnets(subnets []string) {
-	conf.Subnets = subnets
-}
-
-func (conf *EKSCFConfiguration) GetSecurityGroups() []string {
-	return conf.NodeSecurityGroups
-}
-
-func (conf *EKSCFConfiguration) SetSecurityGroups(securityGroups []string) {
-	conf.NodeSecurityGroups = securityGroups
-}
-
-func (conf *EKSCFConfiguration) GetVolSize() int32 {
-	return conf.VolSize
-}
-
-func (conf *EKSCFConfiguration) SetVolSize(s int32) {
-	conf.VolSize = s
-}
-
-func (conf *EKSCFConfiguration) GetClusterName() string {
-	return conf.EksClusterName
-}
-
-func (conf *EKSCFConfiguration) SetClusterName(clusterName string) {
-	conf.EksClusterName = clusterName
-}
-
-func (conf *EKSCFConfiguration) GetBootstrapArgs() string {
-	return conf.BootstrapArguments
-}
-
-func (conf *EKSCFConfiguration) SetBootstrapArgs(args string) {
-	conf.BootstrapArguments = args
-}
-
-func (conf *EKSCFConfiguration) GetRoleName() string {
-	return conf.ExistingRoleName
-}
-
-func (conf *EKSCFConfiguration) SetRoleName(role string) {
-	conf.ExistingRoleName = role
-}
-
-func (conf *EKSCFConfiguration) GetInstanceProfileName() string {
-	return conf.ExistingInstanceProfileName
-}
-
-func (conf *EKSCFConfiguration) SetInstanceProfileName(profile string) {
-	conf.ExistingInstanceProfileName = profile
-}
-
-func (conf *EKSCFConfiguration) GetTags() []map[string]string {
-	return conf.Tags
-}
-
-func (conf *EKSCFConfiguration) SetTags(tags []map[string]string) {
-	conf.Tags = tags
-}
-
-func (conf *EKSCFConfiguration) GetMetricsCollection() []string {
-	return conf.MetricsCollection
-}
-
-func (conf *EKSCFConfiguration) SetMetricsCollection(metricsCollection []string) {
-	conf.MetricsCollection = metricsCollection
-}
-
 func (ig *InstanceGroup) GetState() ReconcileState {
 	return ReconcileState(ig.Status.CurrentState)
 }
 
 func (ig *InstanceGroup) SetState(s ReconcileState) {
-	ig.Status.CurrentState = fmt.Sprintf("%v", s)
-	log.Printf("state transitioned to: %v", s)
+	log.Info("state transition occured",
+		"instancegroup", ig.GetName(),
+		"state", s,
+		"previousState", ig.Status.CurrentState,
+	)
+	ig.Status.CurrentState = string(s)
 }
 
 func init() {

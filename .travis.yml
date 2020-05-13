@@ -1,7 +1,7 @@
 language: go
 
 go:
-- 1.12.x
+- 1.13.x
 
 git:
   depth: 1
@@ -35,7 +35,7 @@ jobs:
     - stage: unit-test
       if: type IN (push, pull_request)
       script:
-      - go test -v -mod=vendor ./controllers/... -coverprofile coverage.txt
+      - go test -v ./controllers/... -coverprofile coverage.txt
       - bash <(curl -s https://codecov.io/bash)
 
     - stage: publish-image
@@ -54,4 +54,7 @@ jobs:
       script:
       - export SECURITY_GROUPS=$(aws cloudformation describe-stacks --stack-name $PREFIX-eks-node-security-group --query "Stacks[0].Outputs[?OutputKey=='SecurityGroup'].OutputValue" --output text)
       - aws eks update-kubeconfig --name $EKS_CLUSTER
+      # make sure we use the right CRD/Controller for test
+      - make install
+      - kubectl set image -n instance-manager deployment/instance-manager instance-manager=keikoproj/instance-manager:master
       - make bdd

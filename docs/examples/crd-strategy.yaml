@@ -1,0 +1,62 @@
+apiVersion: instancemgr.keikoproj.io/v1alpha1
+kind: InstanceGroup
+metadata:
+  name: hello-world
+  namespace: instance-manager
+spec:
+  provisioner: eks
+  strategy:
+    type: crd
+    crd:
+      crdName: workflows
+      statusJSONPath: .status.phase
+      statusSuccessString: Succeeded
+      statusFailureString: Failed
+      concurrencyPolicy: Forbid
+      spec: |
+        apiVersion: argoproj.io/v1alpha1
+        kind: Workflow
+        metadata:
+          generateName: hello-world-parameters-
+        spec:
+          entrypoint: whalesay
+          arguments:
+            parameters:
+            - name: message
+              value: hello world
+          templates:
+          - name: whalesay
+            inputs:
+              parameters:
+              - name: message
+            container:
+              image: docker/whalesay
+              command: [cowsay]
+              args: ["echo", "{{ .InstanceGroup.Status.ActiveScalingGroupName }}"]
+  eks:
+    minSize: 3
+    maxSize: 6
+    configuration:
+      clusterName: my-eks-cluster
+      taints:
+      - key: node-role.kubernetes.io/some-taint
+        value: some-value
+        effect: NoSchedule
+      labels:
+        example.label.com/label: some-value
+      keyPairName: my-ec2-key-pair
+      image: ami-076c743acc3ec4159
+      instanceType: m5.large
+      volumes:
+      - name: /dev/xvda
+        type: gp2
+        size: 32
+      subnets:
+      - subnet-0bf9bc85fd80af561
+      - subnet-0130025d2673de5e4
+      - subnet-01a5c28e074c46580
+      securityGroups:
+      - sg-04adb6343b07c7914
+      tags:
+      - key: my-ec2-tag
+        value: some-value

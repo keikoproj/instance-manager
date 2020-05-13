@@ -58,23 +58,21 @@ spec:
         apiVersion:
           description: 'APIVersion defines the versioned schema of this representation
             of an object. Servers should convert recognized schemas to the latest
-            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources'
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
           type: string
         kind:
           description: 'Kind is a string value representing the REST resource this
             object represents. Servers may infer this from the endpoint the client
-            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds'
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
           type: string
         metadata:
           type: object
         spec:
           description: InstanceGroupSpec defines the schema of resource Spec
           properties:
-            eks-cf:
+            eks:
               properties:
                 configuration:
-                  description: EKSCFConfiguration defines the context of an AWS Instance
-                    Group using EKSCF
                   properties:
                     bootstrapArguments:
                       type: string
@@ -88,11 +86,11 @@ spec:
                       type: string
                     keyPairName:
                       type: string
-                    managedPolicies:
-                      items:
+                    labels:
+                      additionalProperties:
                         type: string
-                      type: array
-                    metricsCollection:
+                      type: object
+                    managedPolicies:
                       items:
                         type: string
                       type: array
@@ -114,16 +112,63 @@ spec:
                           type: string
                         type: object
                       type: array
-                    volSize:
-                      format: int32
-                      type: integer
+                    taints:
+                      items:
+                        description: The node this Taint is attached to has the "effect"
+                          on any pod that does not tolerate the Taint.
+                        properties:
+                          effect:
+                            description: Required. The effect of the taint on pods
+                              that do not tolerate the taint. Valid effects are NoSchedule,
+                              PreferNoSchedule and NoExecute.
+                            type: string
+                          key:
+                            description: Required. The taint key to be applied to
+                              a node.
+                            type: string
+                          timeAdded:
+                            description: TimeAdded represents the time at which the
+                              taint was added. It is only written for NoExecute taints.
+                            format: date-time
+                            type: string
+                          value:
+                            description: Required. The taint value corresponding to
+                              the taint key.
+                            type: string
+                        required:
+                        - effect
+                        - key
+                        type: object
+                      type: array
+                    volumes:
+                      items:
+                        properties:
+                          name:
+                            type: string
+                          size:
+                            format: int64
+                            type: integer
+                          type:
+                            type: string
+                        type: object
+                      type: array
+                  required:
+                  - clusterName
+                  - image
+                  - instanceType
+                  - keyPairName
+                  - subnets
                   type: object
                 maxSize:
-                  format: int32
+                  format: int64
                   type: integer
                 minSize:
-                  format: int32
+                  format: int64
                   type: integer
+              required:
+              - configuration
+              - maxSize
+              - minSize
               type: object
             eks-fargate:
               properties:
@@ -238,20 +283,11 @@ spec:
                   type: object
                 rollingUpdate:
                   properties:
-                    maxBatchSize:
-                      type: integer
-                    minInstancesInService:
-                      type: integer
-                    minSuccessfulInstancesPercent:
-                      type: integer
-                    pauseTime:
-                      type: string
-                    suspendProcesses:
-                      items:
-                        type: string
-                      type: array
-                    waitOnResourceSignals:
-                      type: boolean
+                    maxUnavailable:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      x-kubernetes-int-or-string: true
                   type: object
                 type:
                   type: string
@@ -269,6 +305,17 @@ spec:
               type: string
             activeScalingGroupName:
               type: string
+            conditions:
+              items:
+                description: InstanceGroupConditions describes the conditions of the
+                  InstanceGroup
+                properties:
+                  status:
+                    type: string
+                  type:
+                    type: string
+                type: object
+              type: array
             currentMax:
               type: integer
             currentMin:
@@ -278,8 +325,6 @@ spec:
             lifecycle:
               type: string
             nodesInstanceRoleArn:
-              type: string
-            stackName:
               type: string
             strategyResourceName:
               type: string

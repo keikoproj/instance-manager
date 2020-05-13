@@ -23,12 +23,19 @@ Parameters:
     Description: The Kubernetes server version for the cluster.
     Type: String
     AllowedValues:
+<<<<<<< HEAD
       - '1.10'
       - '1.11'
       - '1.12'
       - '1.13'
       - '1.14'
     Default: '1.14'
+=======
+      - '1.14'
+      - '1.15'
+      - '1.16'
+    Default: '1.15'
+>>>>>>> master
 Resources:
   Cluster:
     Type: 'AWS::EKS::Cluster'

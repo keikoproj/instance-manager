@@ -16,35 +16,24 @@ limitations under the License.
 package aws
 
 import (
-	"errors"
+	"encoding/base64"
 	"fmt"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
-	"github.com/aws/aws-sdk-go/service/cloudformation"
-	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
-	log "github.com/sirupsen/logrus"
+	"github.com/pkg/errors"
 	"os"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
-
-type AwsWorker struct {
-	CfClient        cloudformationiface.CloudFormationAPI
-	AsgClient       autoscalingiface.AutoScalingAPI
-	EksClient       eksiface.EKSAPI
-	IamClient       iamiface.IAMAPI
-	TemplateBody    string
-	StackName       string
-	StackTags       []*cloudformation.Tag
-	StackParameters []*cloudformation.Parameter
-	Parameters      map[string]interface{}
-}
 
 type CreateProfileInput struct {
 	ClusterName string
@@ -59,6 +48,308 @@ type CreateCommonInput struct {
 	ProfileName string
 }
 
+var (
+	log = ctrl.Log.WithName("aws-provider")
+)
+
+type AwsWorker struct {
+	AsgClient  autoscalingiface.AutoScalingAPI
+	EksClient  eksiface.EKSAPI
+	IamClient  iamiface.IAMAPI
+	Parameters map[string]interface{}
+}
+
+var (
+	DefaultInstanceProfilePropagationDelay = time.Second * 20
+	DefaultWaiterDuration                  = time.Second * 5
+	DefaultWaiterRetries                   = 12
+)
+
+const (
+	IAMPolicyPrefix             = "arn:aws:iam::aws:policy"
+	FargateProfileStatusMissing = "MISSING"
+)
+
+func DefaultEksUserDataFmt() string {
+	return `#!/bin/bash
+set -o xtrace
+/etc/eks/bootstrap.sh %s %s`
+}
+
+func (w *AwsWorker) RoleExist(name string) (*iam.Role, bool) {
+	var role *iam.Role
+	input := &iam.GetRoleInput{
+		RoleName: aws.String(name),
+	}
+	out, err := w.IamClient.GetRole(input)
+	if err != nil {
+		return role, false
+	}
+	return out.Role, true
+}
+
+func (w *AwsWorker) InstanceProfileExist(name string) (*iam.InstanceProfile, bool) {
+	var (
+		instanceProfile *iam.InstanceProfile
+		input           = &iam.GetInstanceProfileInput{
+			InstanceProfileName: aws.String(name),
+		}
+	)
+
+	out, err := w.IamClient.GetInstanceProfile(input)
+	if err != nil {
+		return instanceProfile, false
+	}
+	return out.InstanceProfile, true
+}
+
+func (w *AwsWorker) GetBasicBlockDevice(name, volType string, volSize int64) *autoscaling.BlockDeviceMapping {
+	return &autoscaling.BlockDeviceMapping{
+		DeviceName: aws.String(name),
+		Ebs: &autoscaling.Ebs{
+			VolumeSize:          aws.Int64(volSize),
+			VolumeType:          aws.String(volType),
+			DeleteOnTermination: aws.Bool(true),
+		},
+	}
+}
+
+func (w *AwsWorker) CreateLaunchConfig(input *autoscaling.CreateLaunchConfigurationInput) error {
+	_, err := w.AsgClient.CreateLaunchConfiguration(input)
+	if err != nil {
+		return err
+	}
+	return err
+}
+
+func (w *AwsWorker) DeleteLaunchConfig(name string) error {
+	input := &autoscaling.DeleteLaunchConfigurationInput{
+		LaunchConfigurationName: aws.String(name),
+	}
+	_, err := w.AsgClient.DeleteLaunchConfiguration(input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) CreateScalingGroup(input *autoscaling.CreateAutoScalingGroupInput) error {
+	_, err := w.AsgClient.CreateAutoScalingGroup(input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) UpdateScalingGroup(input *autoscaling.UpdateAutoScalingGroupInput, upTags []*autoscaling.Tag, rmTags []*autoscaling.Tag) error {
+	_, err := w.AsgClient.CreateOrUpdateTags(&autoscaling.CreateOrUpdateTagsInput{
+		Tags: upTags,
+	})
+	if err != nil {
+		return err
+	}
+
+	if len(rmTags) > 0 {
+		_, err = w.AsgClient.DeleteTags(&autoscaling.DeleteTagsInput{
+			Tags: rmTags,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err = w.AsgClient.UpdateAutoScalingGroup(input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) DeleteScalingGroup(name string) error {
+	input := &autoscaling.DeleteAutoScalingGroupInput{
+		AutoScalingGroupName: aws.String(name),
+		ForceDelete:          aws.Bool(true),
+	}
+	_, err := w.AsgClient.DeleteAutoScalingGroup(input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) GetBasicUserData(clusterName, bootstrapArgs string) string {
+	userData := fmt.Sprintf(DefaultEksUserDataFmt(), clusterName, bootstrapArgs)
+	return base64.StdEncoding.EncodeToString([]byte(userData))
+}
+
+func (w *AwsWorker) NewTag(key, val, resource string) *autoscaling.Tag {
+	return &autoscaling.Tag{
+		Key:               aws.String(key),
+		Value:             aws.String(val),
+		PropagateAtLaunch: aws.Bool(true),
+		ResourceId:        aws.String(resource),
+		ResourceType:      aws.String("auto-scaling-group"),
+	}
+}
+
+func (w *AwsWorker) WithRetries(f func() bool) error {
+	var counter int
+	for {
+		if counter >= DefaultWaiterRetries {
+			break
+		}
+		if f() {
+			return nil
+		}
+		time.Sleep(DefaultWaiterDuration)
+		counter++
+	}
+	return errors.New("waiter timed out")
+}
+
+func (w *AwsWorker) TerminateScalingInstances(instanceIds []string) error {
+	for _, instance := range instanceIds {
+		_, err := w.AsgClient.TerminateInstanceInAutoScalingGroup(&autoscaling.TerminateInstanceInAutoScalingGroupInput{
+			InstanceId:                     aws.String(instance),
+			ShouldDecrementDesiredCapacity: aws.Bool(false),
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (w *AwsWorker) DeleteScalingGroupRole(name string, managedPolicies []string) error {
+	for _, policy := range managedPolicies {
+		_, err := w.IamClient.DetachRolePolicy(&iam.DetachRolePolicyInput{
+			RoleName:  aws.String(name),
+			PolicyArn: aws.String(policy),
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err := w.IamClient.RemoveRoleFromInstanceProfile(&iam.RemoveRoleFromInstanceProfileInput{
+		InstanceProfileName: aws.String(name),
+		RoleName:            aws.String(name),
+	})
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			if aerr.Code() != iam.ErrCodeNoSuchEntityException {
+				return err
+			}
+		}
+	}
+
+	_, err = w.IamClient.DeleteInstanceProfile(&iam.DeleteInstanceProfileInput{
+		InstanceProfileName: aws.String(name),
+	})
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			if aerr.Code() != iam.ErrCodeNoSuchEntityException {
+				return err
+			}
+		}
+	}
+
+	// must wait until all policies are detached
+	err = w.WithRetries(func() bool {
+		_, err := w.IamClient.DeleteRole(&iam.DeleteRoleInput{
+			RoleName: aws.String(name),
+		})
+		if err != nil {
+			if aerr, ok := err.(awserr.Error); ok {
+				if aerr.Code() != iam.ErrCodeNoSuchEntityException {
+					log.Error(err, "failed to delete role")
+					return false
+				}
+			}
+		}
+		return true
+	})
+	if err != nil {
+		return errors.Wrap(err, "role deletion failed")
+	}
+
+	return nil
+}
+
+func (w *AwsWorker) CreateUpdateScalingGroupRole(name string, managedPolicies []string) (*iam.Role, *iam.InstanceProfile, error) {
+	var (
+		assumeRolePolicyDocument = `{
+			"Version": "2012-10-17",
+			"Statement": [{
+				"Effect": "Allow",
+				"Principal": {
+					"Service": "ec2.amazonaws.com"
+				},
+				"Action": "sts:AssumeRole"
+			}]
+		}`
+		createdRole    = &iam.Role{}
+		createdProfile = &iam.InstanceProfile{}
+	)
+	if role, ok := w.RoleExist(name); !ok {
+		out, err := w.IamClient.CreateRole(&iam.CreateRoleInput{
+			RoleName:                 aws.String(name),
+			AssumeRolePolicyDocument: aws.String(assumeRolePolicyDocument),
+		})
+		if err != nil {
+			return createdRole, createdProfile, errors.Wrap(err, "failed to create role")
+		}
+		createdRole = out.Role
+	} else {
+		createdRole = role
+	}
+
+	if instanceProfile, ok := w.InstanceProfileExist(name); !ok {
+		out, err := w.IamClient.CreateInstanceProfile(&iam.CreateInstanceProfileInput{
+			InstanceProfileName: aws.String(name),
+		})
+		if err != nil {
+			return createdRole, createdProfile, errors.Wrap(err, "failed to create instance-profile")
+		}
+		createdProfile = out.InstanceProfile
+
+		err = w.IamClient.WaitUntilInstanceProfileExists(&iam.GetInstanceProfileInput{
+			InstanceProfileName: aws.String(name),
+		})
+		if err != nil {
+			return createdRole, createdProfile, errors.Wrap(err, "instance-profile propogation waiter timed out")
+		}
+		time.Sleep(DefaultInstanceProfilePropagationDelay)
+	} else {
+		createdProfile = instanceProfile
+	}
+
+	_, err := w.IamClient.AddRoleToInstanceProfile(&iam.AddRoleToInstanceProfileInput{
+		InstanceProfileName: aws.String(name),
+		RoleName:            aws.String(name),
+	})
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			if aerr.Code() != iam.ErrCodeLimitExceededException {
+				return createdRole, createdProfile, errors.Wrap(err, "failed to attach instance-profile")
+			}
+		}
+	}
+
+	for _, policy := range managedPolicies {
+		_, err = w.IamClient.AttachRolePolicy(&iam.AttachRolePolicyInput{
+			RoleName:  aws.String(name),
+			PolicyArn: aws.String(policy),
+		})
+		if err != nil {
+			return createdRole, createdProfile, errors.Wrap(err, "failed to attach policies")
+		}
+	}
+
+	return createdRole, createdProfile, nil
+}
+
+// TODO: Move logic to provisioner
 func (w *AwsWorker) IsNodeGroupExist() bool {
 	input := &eks.DescribeNodegroupInput{
 		ClusterName:   aws.String(w.Parameters["ClusterName"].(string)),
@@ -71,13 +362,14 @@ func (w *AwsWorker) IsNodeGroupExist() bool {
 				return false
 			}
 		}
-		log.Errorln(err)
+		log.Error(err, "failed to describe nodegroup")
 		return false
 	}
 
 	return true
 }
 
+// TODO: Rename - GetNodeGroup
 func (w *AwsWorker) GetSelfNodeGroup() (error, *eks.Nodegroup) {
 	input := &eks.DescribeNodegroupInput{
 		ClusterName:   aws.String(w.Parameters["ClusterName"].(string)),
@@ -121,7 +413,7 @@ func (w *AwsWorker) GetLabelsUpdatePayload(existing, new map[string]string) *eks
 		}
 	}
 
-	for k, _ := range existing {
+	for k := range existing {
 		// handle removals
 		if _, ok := new[k]; !ok {
 			removeLabels = append(removeLabels, k)
@@ -202,114 +494,16 @@ func (w *AwsWorker) compactTags(tags []map[string]string) map[string]string {
 	return compacted
 }
 
-func (w *AwsWorker) CreateCloudformationStack() error {
-	capabilities := []*string{
-		aws.String("CAPABILITY_IAM"),
-	}
-
-	input := &cloudformation.CreateStackInput{
-		TemplateBody: aws.String(w.TemplateBody),
-		StackName:    aws.String(w.StackName),
-		Parameters:   w.StackParameters,
-		Capabilities: capabilities,
-		Tags:         w.StackTags,
-	}
-	_, err := w.CfClient.CreateStack(input)
+func (w *AwsWorker) DescribeAutoscalingGroups() ([]*autoscaling.Group, error) {
+	scalingGroups := []*autoscaling.Group{}
+	err := w.AsgClient.DescribeAutoScalingGroupsPages(&autoscaling.DescribeAutoScalingGroupsInput{}, func(page *autoscaling.DescribeAutoScalingGroupsOutput, lastPage bool) bool {
+		scalingGroups = append(scalingGroups, page.AutoScalingGroups...)
+		return page.NextToken != nil
+	})
 	if err != nil {
-		if awsErr, ok := err.(awserr.Error); ok {
-			return awsErr
-		}
-		log.Errorln(err)
-		return err
+		return scalingGroups, err
 	}
-	return nil
-}
-func (w *AwsWorker) UpdateCloudformationStack() (error, bool) {
-	capabilities := []*string{
-		aws.String("CAPABILITY_IAM"),
-	}
-	input := &cloudformation.UpdateStackInput{
-		TemplateBody: aws.String(w.TemplateBody),
-		StackName:    aws.String(w.StackName),
-		Parameters:   w.StackParameters,
-		Capabilities: capabilities,
-		Tags:         w.StackTags,
-	}
-	_, err := w.CfClient.UpdateStack(input)
-	if err != nil {
-		if awsErr, ok := err.(awserr.Error); ok {
-			if awsErr.Code() == "ValidationError" && awsErr.Message() == "No updates are to be performed." {
-				log.Infof("update not required")
-				return nil, false
-			}
-			return awsErr, false
-		}
-		return err, false
-	}
-	return nil, true
-}
-
-func (w *AwsWorker) DeleteCloudformationStack() error {
-	input := &cloudformation.DeleteStackInput{
-		StackName: aws.String(w.StackName),
-	}
-	_, err := w.CfClient.DeleteStack(input)
-	if err != nil {
-		if awsErr, ok := err.(awserr.Error); ok {
-			return awsErr
-		}
-		return err
-	}
-	return nil
-}
-
-func (w *AwsWorker) CloudformationStackExists() bool {
-	input := &cloudformation.DescribeStacksInput{
-		StackName: aws.String(w.StackName),
-	}
-	stacks, err := w.CfClient.DescribeStacks(input)
-	if err != nil {
-		return false
-	}
-
-	if len(stacks.Stacks) == 0 {
-		return false
-	}
-
-	return true
-}
-
-func (w *AwsWorker) GetStackState() (string, error) {
-	input := &cloudformation.DescribeStacksInput{
-		StackName: aws.String(w.StackName),
-	}
-
-	d, err := w.CfClient.DescribeStacks(input)
-	if err != nil {
-		return "", err
-	}
-
-	if len(d.Stacks) == 0 {
-		return "", fmt.Errorf("Could not find stack state for %v", w.StackName)
-	}
-
-	return *d.Stacks[0].StackStatus, nil
-}
-
-func (w *AwsWorker) DescribeCloudformationStacks() (cloudformation.DescribeStacksOutput, error) {
-	out, err := w.CfClient.DescribeStacks(&cloudformation.DescribeStacksInput{})
-	if err != nil {
-		return cloudformation.DescribeStacksOutput{}, err
-	}
-	return *out, nil
-}
-
-func (w *AwsWorker) DescribeAutoscalingGroups() (autoscaling.DescribeAutoScalingGroupsOutput, error) {
-	out, err := w.AsgClient.DescribeAutoScalingGroups(&autoscaling.DescribeAutoScalingGroupsInput{})
-	if err != nil {
-		return autoscaling.DescribeAutoScalingGroupsOutput{}, err
-	}
-	return *out, nil
+	return scalingGroups, nil
 }
 
 func (w *AwsWorker) DescribeAutoscalingLaunchConfigs() (autoscaling.DescribeLaunchConfigurationsOutput, error) {
@@ -320,26 +514,24 @@ func (w *AwsWorker) DescribeAutoscalingLaunchConfigs() (autoscaling.DescribeLaun
 	return *out, nil
 }
 
-func (w *AwsWorker) DetectScalingGroupDrift(scalingGroupName string) (bool, error) {
-	input := &autoscaling.DescribeAutoScalingGroupsInput{
-		AutoScalingGroupNames: aws.StringSlice([]string{scalingGroupName}),
-	}
-	out, err := w.AsgClient.DescribeAutoScalingGroups(input)
+func (w *AwsWorker) GetAutoscalingLaunchConfig(name string) (*autoscaling.DescribeLaunchConfigurationsOutput, error) {
+	out, err := w.AsgClient.DescribeLaunchConfigurations(&autoscaling.DescribeLaunchConfigurationsInput{
+		LaunchConfigurationNames: aws.StringSlice([]string{name}),
+	})
 	if err != nil {
-		return false, err
+		return &autoscaling.DescribeLaunchConfigurationsOutput{}, err
 	}
-	if len(out.AutoScalingGroups) != 1 {
-		err = fmt.Errorf("could not find active scaling group")
-		return false, err
+	return out, nil
+}
+
+func (w *AwsWorker) GetAutoscalingGroup(name string) (*autoscaling.DescribeAutoScalingGroupsOutput, error) {
+	out, err := w.AsgClient.DescribeAutoScalingGroups(&autoscaling.DescribeAutoScalingGroupsInput{
+		AutoScalingGroupNames: aws.StringSlice([]string{name}),
+	})
+	if err != nil {
+		return &autoscaling.DescribeAutoScalingGroupsOutput{}, err
 	}
-	for _, group := range out.AutoScalingGroups {
-		for _, instance := range group.Instances {
-			if instance.LaunchConfigurationName == nil {
-				return true, nil
-			}
-		}
-	}
-	return false, nil
+	return out, nil
 }
 
 func GetScalingGroupTagsByName(name string, client autoscalingiface.AutoScalingAPI) ([]*autoscaling.TagDescription, error) {
@@ -389,17 +581,6 @@ func GetRegion() (string, error) {
 	return region, nil
 }
 
-// GetAwsCloudformationClient returns a cloudformation client
-func GetAwsCloudformationClient(region string) cloudformationiface.CloudFormationAPI {
-	var config aws.Config
-	config.Region = aws.String(region)
-	sess := session.Must(session.NewSessionWithOptions(session.Options{
-		SharedConfigState: session.SharedConfigEnable,
-		Config:            config,
-	}))
-	return cloudformation.New(sess)
-}
-
 // GetAwsAsgClient returns an ASG client
 func GetAwsAsgClient(region string) autoscalingiface.AutoScalingAPI {
 	var config aws.Config
@@ -411,7 +592,7 @@ func GetAwsAsgClient(region string) autoscalingiface.AutoScalingAPI {
 	return autoscaling.New(sess)
 }
 
-// GetAwsAsgClient returns an ASG client
+// GetAwsEksClient returns an EKS client
 func GetAwsEksClient(region string) eksiface.EKSAPI {
 	var config aws.Config
 	config.Region = aws.String(region)
@@ -420,17 +601,6 @@ func GetAwsEksClient(region string) eksiface.EKSAPI {
 		Config:            config,
 	}))
 	return eks.New(sess)
-}
-
-// GetAwsAsgClient returns an ASG client
-func GetAwsIAMClient(region string) iamiface.IAMAPI {
-	var config aws.Config
-	config.Region = aws.String(region)
-	sess := session.Must(session.NewSessionWithOptions(session.Options{
-		SharedConfigState: session.SharedConfigEnable,
-		Config:            config,
-	}))
-	return iam.New(sess)
 }
 
 func (w *AwsWorker) DeriveEksVpcID(clusterName string) (string, error) {
@@ -456,6 +626,12 @@ var FiniteDeleted = CloudResourceReconcileState{FiniteDeleted: true}
 var UpdateRecoverableError = CloudResourceReconcileState{UpdateRecoverableError: true}
 var UnrecoverableError = CloudResourceReconcileState{UnrecoverableError: true}
 var UnrecoverableDeleteError = CloudResourceReconcileState{UnrecoverableDeleteError: true}
+
+// GetAwsIAMClient returns an IAM client
+func GetAwsIamClient(region string) iamiface.IAMAPI {
+	mySession := session.Must(session.NewSession())
+	return iam.New(mySession, aws.NewConfig().WithRegion(region))
+}
 
 type ManagedNodeGroupReconcileState struct {
 	OngoingState             bool
@@ -532,23 +708,18 @@ func IsStackInConditionState(key string, condition string) bool {
 		return false
 	}
 }
-func IsProfileInConditionState(key *string, condition string) bool {
-	const NONE = "NONE"
-	xkey := key
-	// Map the nil into a string domain
-	if xkey == nil {
-		xkey = aws.String(NONE)
-	}
+
+func IsProfileInConditionState(key string, condition string) bool {
 
 	conditionStates := map[string]CloudResourceReconcileState{
-		NONE:                                 FiniteDeleted,
+		FargateProfileStatusMissing:          FiniteDeleted,
 		eks.FargateProfileStatusCreating:     OngoingState,
 		eks.FargateProfileStatusActive:       FiniteState,
 		eks.FargateProfileStatusDeleting:     OngoingState,
 		eks.FargateProfileStatusCreateFailed: UpdateRecoverableError,
 		eks.FargateProfileStatusDeleteFailed: UnrecoverableDeleteError,
 	}
-	state := conditionStates[*xkey]
+	state := conditionStates[key]
 	switch condition {
 	case "OngoingState":
 		return state.OngoingState
@@ -565,31 +736,6 @@ func IsProfileInConditionState(key *string, condition string) bool {
 	default:
 		return false
 	}
-}
-
-type ResourceState struct {
-	Profile *eks.FargateProfile
-}
-
-func (state *ResourceState) GetProfileState() *string {
-	return state.Profile.Status
-
-}
-func (state *ResourceState) IsProvisioned() bool {
-	return state.GetProfileState() != nil
-}
-
-func (w *AwsWorker) GetState(input CreateCommonInput) *ResourceState {
-	state := ResourceState{}
-	profile, err := w.DescribeProfile(input)
-	if err != nil {
-		profile = &eks.FargateProfile{
-			Status: nil,
-		}
-	}
-	state.Profile = profile
-	return &state
-
 }
 
 const defaultPolicyArn = "arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy"
@@ -672,7 +818,7 @@ func (w *AwsWorker) AttachDefaultPolicyToDefaultRole(input CreateCommonInput) er
 	return err
 }
 
-func (w *AwsWorker) CreateProfile(input CreateProfileInput) error {
+func (w *AwsWorker) CreateProfile(input CreateProfileInput) (bool, error) {
 	fargateInput := &eks.CreateFargateProfileInput{
 		ClusterName:         &input.ClusterName,
 		FargateProfileName:  &input.ProfileName,
@@ -683,53 +829,30 @@ func (w *AwsWorker) CreateProfile(input CreateProfileInput) error {
 	}
 
 	_, err := w.EksClient.CreateFargateProfile(fargateInput)
-	return err
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			if aerr.Code() == eks.ErrCodeResourceInUseException {
+				return true, nil
+			}
+		}
+	}
+	return false, err
 }
 
-func (w *AwsWorker) DeleteProfile(input CreateCommonInput) error {
+func (w *AwsWorker) DeleteProfile(input CreateCommonInput) (bool, error) {
 	deleteInput := &eks.DeleteFargateProfileInput{
 		ClusterName:        &input.ClusterName,
 		FargateProfileName: &input.ProfileName,
 	}
 	_, err := w.EksClient.DeleteFargateProfile(deleteInput)
-	return err
-}
-
-func (w *AwsWorker) DescribeAllProfiles(input CreateCommonInput, profiles []string) ([]eks.FargateProfile, error) {
-	fargateProfiles := []eks.FargateProfile{}
-	for _, profile := range profiles {
-		temp := CreateCommonInput{
-			ClusterName: input.ClusterName,
-			ProfileName: profile,
-		}
-		x, err := DescribeProfileWithParms(w.EksClient, temp)
-		if err != nil {
-			return nil, err
-		} else {
-			fargateProfiles = append(fargateProfiles, *x)
-		}
-	}
-	return fargateProfiles, nil
-}
-
-func (w *AwsWorker) ListAllProfiles(input CreateCommonInput) ([]string, error) {
-	profiles := []string{}
-	listInput := &eks.ListFargateProfilesInput{
-		ClusterName: &input.ClusterName,
-	}
-	err := w.EksClient.ListFargateProfilesPages(listInput,
-		func(page *eks.ListFargateProfilesOutput, lastPage bool) bool {
-			for _, fp := range page.FargateProfileNames {
-				profiles = append(profiles, *fp)
-			}
-
-			return !lastPage
-		})
 	if err != nil {
-		log.Errorf("ListAllProfiles - Failed on cluster: %s with error: %v", input.ClusterName, err)
-		return nil, err
+		if aerr, ok := err.(awserr.Error); ok {
+			if aerr.Code() == eks.ErrCodeResourceInUseException {
+				return true, nil
+			}
+		}
 	}
-	return profiles, nil
+	return false, err
 }
 
 func DescribeProfileWithParms(client eksiface.EKSAPI, input CreateCommonInput) (*eks.FargateProfile, error) {

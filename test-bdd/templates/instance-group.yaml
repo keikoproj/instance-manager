@@ -6,31 +6,35 @@ metadata:
   name: bdd-test-rolling
   namespace: instance-manager
 spec:
-  provisioner: eks-cf
+  provisioner: eks
   strategy:
     type: rollingUpdate
     rollingUpdate:
-      maxBatchSize: 1
-      minInstancesInService: 1
-      minSuccessfulInstancesPercent: 100
-      pauseTime: PT2M
-  eks-cf:
+      maxUnavailable: 1
+  eks:
     maxSize: 4
     minSize: 2
     configuration:
-      bootstrapArguments: --register-with-taints=node-role.kubernetes.io/bdd-test=bdd-test:NoSchedule --node-labels=test=bdd-test-rolling
+      labels:
+        test: bdd-test-rolling
+      taints:
+      - key: node-role.kubernetes.io/bdd-test
+        value: bdd-test
+        effect: NoSchedule
       clusterName: {{ .ClusterName }}
       subnets: {{range $element := .Subnets}}
         - {{$element}}
       {{ end }}
       keyPairName: {{ .KeyPairName }}
-      vpcId: {{ .VpcID }}
       image: {{ .AmiID }}
       instanceType: t2.small
-      volSize: 20
+      volumes:
+      - name: /dev/xvda
+        type: gp2
+        size: 30
       securityGroups: {{range $element := .NodeSecurityGroups}}
         - {{$element}}
       {{ end }}
       tags:
-        - key: mykey
-          value: myvalue
+      - key: k8s-minion-manager
+        value: use-spot
