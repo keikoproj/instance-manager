@@ -44,7 +44,6 @@ func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 		KubernetesClient: p.Kubernetes,
 		AwsWorker:        p.AwsWorker,
 		Log:              p.Log.WithName("eks"),
-		RuntimeClient:    p.Client,
 	}
 	instanceGroup := ctx.GetInstanceGroup()
 	configuration := instanceGroup.GetEKSConfiguration()

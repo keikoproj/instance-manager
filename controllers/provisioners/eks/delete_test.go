@@ -18,12 +18,16 @@ package eks
 import (
 	"testing"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/iam"
+	awsauth "github.com/keikoproj/aws-auth/pkg/mapper"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/onsi/gomega"
 	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestDeletePositive(t *testing.T) {
@@ -122,5 +126,71 @@ func TestDeleteAutoScalingGroupNegative(t *testing.T) {
 	g.Expect(err).To(gomega.HaveOccurred())
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileDeleting))
 	asgMock.DeleteAutoScalingGroupErr = nil
+}
 
+func TestRemoveAuthRoleNegative(t *testing.T) {
+	var (
+		g       = gomega.NewGomegaWithT(t)
+		k       = MockKubernetesClientSet()
+		ig      = MockInstanceGroup()
+		ig2     = MockInstanceGroup()
+		asgMock = NewAutoScalingMocker()
+		iamMock = NewIamMocker()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock)
+	ctx := MockContext(ig, k, w)
+
+	// two instancegroups with same role arn
+	ig.Status.NodesArn = "same-role"
+	ig2.Name = "instance-group-2"
+	ig2.Namespace = "different-namespace"
+	ig2.Status.NodesArn = "same-role"
+
+	igObj, err := kubeprovider.GetUnstructuredInstanceGroup(ig)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	ig2Obj, err := kubeprovider.GetUnstructuredInstanceGroup(ig2)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	_, err = ctx.KubernetesClient.KubeDynamic.Resource(v1alpha1.GroupVersionResource).Namespace("instance-manager").Create(igObj, metav1.CreateOptions{})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	_, err = ctx.KubernetesClient.KubeDynamic.Resource(v1alpha1.GroupVersionResource).Namespace(ig2.Namespace).Create(ig2Obj, metav1.CreateOptions{})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	ctx.SetDiscoveredState(&DiscoveredState{
+		IAMRole: &iam.Role{
+			Arn: aws.String("same-role"),
+		},
+		ScalingGroup: &autoscaling.Group{},
+	})
+
+	ctx.BootstrapNodes()
+
+	// Only one role is added to aws-auth
+	auth, _, err := awsauth.ReadAuthMap(k.Kubernetes)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	g.Expect(len(auth.MapRoles)).To(gomega.Equal(1))
+
+	// after delete, the role should not be deleted
+	err = ctx.Delete()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileDeleting))
+
+	auth, _, err = awsauth.ReadAuthMap(k.Kubernetes)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	g.Expect(len(auth.MapRoles)).To(gomega.Equal(1))
+
+	// this time the role should be successfully removed
+	err = ctx.KubernetesClient.KubeDynamic.Resource(v1alpha1.GroupVersionResource).Namespace(ig2.Namespace).Delete(ig2.Name, &metav1.DeleteOptions{})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	err = ctx.Delete()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileDeleting))
+
+	auth, _, err = awsauth.ReadAuthMap(k.Kubernetes)
+	t.Log(auth)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	g.Expect(len(auth.MapRoles)).To(gomega.Equal(0))
 }

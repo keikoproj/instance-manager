@@ -36,9 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	dynamic "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
-	fclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 var (
@@ -76,7 +74,6 @@ func MockKubernetesClientSet() kubeprovider.KubernetesClientSet {
 
 func MockContext(instanceGroup *v1alpha1.InstanceGroup, kube kubeprovider.KubernetesClientSet, w awsprovider.AwsWorker) *EksInstanceGroupContext {
 	input := provisioners.ProvisionerInput{
-		Client:        fclient.NewFakeClientWithScheme(scheme.Scheme),
 		AwsWorker:     w,
 		Kubernetes:    kube,
 		InstanceGroup: instanceGroup,

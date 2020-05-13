@@ -5,7 +5,6 @@ import (
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -22,7 +21,6 @@ type ProvisionerInput struct {
 	InstanceGroup *v1alpha1.InstanceGroup
 	Configuration ProvisionerConfiguration
 	Log           logr.Logger
-	Client        client.Client
 }
 
 type ProvisionerConfiguration struct {

@@ -24,10 +24,12 @@ import (
 	"strings"
 
 	"github.com/ghodss/yaml"
+	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -38,6 +40,16 @@ import (
 type KubernetesClientSet struct {
 	Kubernetes  kubernetes.Interface
 	KubeDynamic dynamic.Interface
+}
+
+func GetUnstructuredInstanceGroup(instanceGroup *v1alpha1.InstanceGroup) (*unstructured.Unstructured, error) {
+	var obj = &unstructured.Unstructured{}
+	content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(instanceGroup)
+	if err != nil {
+		return obj, err
+	}
+	obj.Object = content
+	return obj, nil
 }
 
 func IsDesiredNodesReady(kube kubernetes.Interface, instanceIds []string, desiredCount int) (bool, error) {

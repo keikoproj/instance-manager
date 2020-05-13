@@ -46,7 +46,7 @@ import (
 
 // InstanceGroupReconciler reconciles an InstanceGroup object
 type InstanceGroupReconciler struct {
-	Client                 client.Client
+	client.Client
 	Log                    logr.Logger
 	ControllerConfPath     string
 	ControllerTemplatePath string
@@ -106,7 +106,6 @@ func (r *InstanceGroupReconciler) NewProvisionerInput(instanceGroup *v1alpha1.In
 		InstanceGroup: instanceGroup,
 		Configuration: config,
 		Log:           r.Log,
-		Client:        r.Client,
 	}
 	return input, nil
 }
@@ -122,7 +121,7 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	_ = r.Log.WithValues("instancegroup", req.NamespacedName)
 
 	instanceGroup := &v1alpha1.InstanceGroup{}
-	err := r.Client.Get(context.Background(), req.NamespacedName, instanceGroup)
+	err := r.Get(context.Background(), req.NamespacedName, instanceGroup)
 	if err != nil {
 		if kerrors.IsNotFound(err) {
 			r.Log.Info("instancegroup not found", "instancegroup", req.Name, "namespace", req.Namespace)
@@ -153,7 +152,7 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	switch provisionerKind {
 	case eks.ProvisionerName:
 		ctx := eks.New(input)
-		defer r.Client.Update(context.Background(), ctx.GetInstanceGroup())
+		defer r.Update(context.Background(), ctx.GetInstanceGroup())
 		err = HandleReconcileRequest(ctx)
 		if err != nil {
 			r.Log.Error(err,
@@ -175,7 +174,7 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		}
 	case eksmanaged.ProvisionerName:
 		ctx := eksmanaged.New(input)
-		defer r.Client.Update(context.Background(), ctx.GetInstanceGroup())
+		defer r.Update(context.Background(), ctx.GetInstanceGroup())
 		err = HandleReconcileRequest(ctx)
 		if err != nil {
 			r.Log.Error(err,
