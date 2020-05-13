@@ -37,7 +37,7 @@ func (ctx *EksInstanceGroupContext) Delete() error {
 		return errors.Wrap(err, "failed to delete scaling group")
 	}
 
-	// if scaling group is deleted, defer removal from aws-auth
+	// if scaling group is deleted, remove the role from aws-auth if it's not in use by other groups
 	if err := ctx.RemoveAuthRole(roleARN); err != nil {
 		return errors.Wrap(err, "failed to remove auth role")
 	}
