@@ -58,7 +58,7 @@ func (ctx *EksInstanceGroupContext) Create() error {
 	return nil
 }
 
-func (ctx EksInstanceGroupContext) CreateScalingGroup() error {
+func (ctx *EksInstanceGroupContext) CreateScalingGroup() error {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
 		spec          = instanceGroup.GetEKSSpec()

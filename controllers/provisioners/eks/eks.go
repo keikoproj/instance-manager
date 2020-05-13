@@ -16,6 +16,8 @@ limitations under the License.
 package eks
 
 import (
+	"sync"
+
 	"github.com/go-logr/logr"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
@@ -71,6 +73,7 @@ type EksDefaultConfiguration struct {
 }
 
 type EksInstanceGroupContext struct {
+	sync.Mutex
 	InstanceGroup    *v1alpha1.InstanceGroup
 	KubernetesClient kubeprovider.KubernetesClientSet
 	AwsWorker        awsprovider.AwsWorker

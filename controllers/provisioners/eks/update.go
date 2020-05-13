@@ -63,6 +63,13 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		return errors.Wrap(err, "failed to update scaling group")
 	}
 
+	// we should try to bootstrap the role before we wait for nodes to be ready
+	// to avoid getting locked if someone made a manual change to aws-auth
+	err = ctx.BootstrapNodes()
+	if err != nil {
+		ctx.Log.Error(err, "failed to bootstrap role", "instancegroup", instanceGroup.GetName())
+	}
+
 	// update readiness conditions
 	nodesReady := ctx.UpdateNodeReadyCondition()
 	if nodesReady {
