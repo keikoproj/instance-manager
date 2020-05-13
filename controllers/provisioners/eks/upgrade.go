@@ -85,12 +85,7 @@ func (ctx *EksInstanceGroupContext) BootstrapNodes() error {
 	ctx.Lock()
 	defer ctx.Unlock()
 
-	err := common.UpsertAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{roleARN})
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return common.UpsertAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{roleARN})
 }
 
 func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *kubeprovider.RollingUpdateRequest {
