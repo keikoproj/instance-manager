@@ -352,10 +352,5 @@ func (ctx *EksInstanceGroupContext) RemoveAuthRole(arn string) error {
 		return nil
 	}
 
-	err = common.RemoveAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{arn})
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return common.RemoveAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{arn})
 }

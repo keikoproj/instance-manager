@@ -18,8 +18,6 @@ package eks
 import (
 	"sync"
 
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	"github.com/go-logr/logr"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
@@ -77,7 +75,6 @@ type EksDefaultConfiguration struct {
 type EksInstanceGroupContext struct {
 	sync.Mutex
 	InstanceGroup    *v1alpha1.InstanceGroup
-	RuntimeClient    client.Client
 	KubernetesClient kubeprovider.KubernetesClientSet
 	AwsWorker        awsprovider.AwsWorker
 	DiscoveredState  *DiscoveredState
