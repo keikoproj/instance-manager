@@ -74,12 +74,23 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 
 func (ctx *EksInstanceGroupContext) BootstrapNodes() error {
 	var (
-		state   = ctx.GetDiscoveredState()
-		role    = state.GetRole()
-		roleARN = aws.StringValue(role.Arn)
+		state         = ctx.GetDiscoveredState()
+		instanceGroup = ctx.GetInstanceGroup()
+		role          = state.GetRole()
+		roleARN       = aws.StringValue(role.Arn)
 	)
+	ctx.Log.Info("bootstrapping arn to aws-auth", "instancegroup", instanceGroup.GetName(), "arn", roleARN)
 
-	return common.UpsertAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{roleARN})
+	// lock to guarantee Upsert and Remove cannot conflict when roles are shared between instancegroups
+	ctx.Lock()
+	defer ctx.Unlock()
+
+	err := common.UpsertAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{roleARN})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *kubeprovider.RollingUpdateRequest {

@@ -16,6 +16,10 @@ limitations under the License.
 package eks
 
 import (
+	"sync"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/go-logr/logr"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
@@ -40,6 +44,7 @@ func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 		KubernetesClient: p.Kubernetes,
 		AwsWorker:        p.AwsWorker,
 		Log:              p.Log.WithName("eks"),
+		RuntimeClient:    p.Client,
 	}
 	instanceGroup := ctx.GetInstanceGroup()
 	configuration := instanceGroup.GetEKSConfiguration()
@@ -71,7 +76,9 @@ type EksDefaultConfiguration struct {
 }
 
 type EksInstanceGroupContext struct {
+	sync.Mutex
 	InstanceGroup    *v1alpha1.InstanceGroup
+	RuntimeClient    client.Client
 	KubernetesClient kubeprovider.KubernetesClientSet
 	AwsWorker        awsprovider.AwsWorker
 	DiscoveredState  *DiscoveredState

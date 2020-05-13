@@ -17,7 +17,6 @@ package eks
 
 import (
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
-	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/pkg/errors"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -39,7 +38,9 @@ func (ctx *EksInstanceGroupContext) Delete() error {
 	}
 
 	// if scaling group is deleted, defer removal from aws-auth
-	defer common.RemoveAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{roleARN})
+	if err := ctx.RemoveAuthRole(roleARN); err != nil {
+		return errors.Wrap(err, "failed to remove auth role")
+	}
 
 	// delete launchconfig
 	err = ctx.DeleteLaunchConfiguration()

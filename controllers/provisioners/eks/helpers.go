@@ -16,14 +16,18 @@ limitations under the License.
 package eks
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"sort"
 	"strings"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
@@ -328,4 +332,29 @@ func (ctx *EksInstanceGroupContext) GetManagedPoliciesList(additionalPolicies []
 		managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, name))
 	}
 	return managedPolicies
+}
+
+func (ctx *EksInstanceGroupContext) RemoveAuthRole(arn string) error {
+	ctx.Lock()
+	defer ctx.Unlock()
+
+	var instanceGroup = ctx.GetInstanceGroup()
+	instanceGroups := &v1alpha1.InstanceGroupList{}
+	ctx.RuntimeClient.List(context.Background(), instanceGroups, client.MatchingField("status.nodesInstanceRoleArn", arn))
+	// If there are other instance groups using the same role we should not remove it from aws-auth
+	if len(instanceGroups.Items) > 1 {
+		ctx.Log.Info(
+			"skipping removal of auth role, is used by another instancegroup",
+			"instancegroup", instanceGroup.GetName(),
+			"arn", arn,
+		)
+		return nil
+	}
+
+	err := common.RemoveAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{arn})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
