@@ -21,8 +21,6 @@ import (
 	"sort"
 	"strings"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
@@ -31,6 +29,8 @@ import (
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput(name string) *autoscaling.CreateLaunchConfigurationInput {
@@ -338,16 +338,30 @@ func (ctx *EksInstanceGroupContext) RemoveAuthRole(arn string) error {
 	defer ctx.Unlock()
 
 	var instanceGroup = ctx.GetInstanceGroup()
-	list, err := ctx.KubernetesClient.KubeDynamic.Resource(v1alpha1.GroupVersionResource).List(metav1.ListOptions{
-		FieldSelector: fmt.Sprintf("%v=%v", ".status.nodesInstanceRoleArn", arn),
-	})
+	var list = &unstructured.UnstructuredList{}
+	var sharedGroups = make([]string, 0)
+
+	list, err := ctx.KubernetesClient.KubeDynamic.Resource(v1alpha1.GroupVersionResource).List(metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+
+	// find objects which share the same nodesInstanceRoleArn
+	for _, obj := range list.Items {
+		if val, ok, _ := unstructured.NestedString(obj.Object, "status", "nodesInstanceRoleArn"); ok {
+			if strings.EqualFold(arn, val) {
+				sharedGroups = append(sharedGroups, obj.GetName())
+			}
+		}
+	}
 
 	// If there are other instance groups using the same role we should not remove it from aws-auth
-	if len(list.Items) > 1 {
+	if len(sharedGroups) > 1 {
 		ctx.Log.Info(
 			"skipping removal of auth role, is used by another instancegroup",
 			"instancegroup", instanceGroup.GetName(),
 			"arn", arn,
+			"conflict", strings.Join(sharedGroups, ","),
 		)
 		return nil
 	}
