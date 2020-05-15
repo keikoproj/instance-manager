@@ -87,13 +87,13 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup() error {
 	}
 	ctx.Log.Info("created scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 
-	out, err := ctx.AwsWorker.GetAutoscalingGroup(asgName)
+	scalingGroup, err := ctx.AwsWorker.GetAutoscalingGroup(asgName)
 	if err != nil {
 		return err
 	}
 
-	if len(out.AutoScalingGroups) == 1 {
-		state.SetScalingGroup(out.AutoScalingGroups[0])
+	if scalingGroup != nil {
+		state.SetScalingGroup(scalingGroup)
 	}
 
 	return nil
@@ -121,17 +121,16 @@ func (ctx *EksInstanceGroupContext) CreateLaunchConfiguration() error {
 
 	ctx.Log.Info("created launchconfig", "instancegroup", instanceGroup.GetName(), "launchconfig", lcName)
 
-	lcOut, err := ctx.AwsWorker.GetAutoscalingLaunchConfig(lcName)
+	lc, err := ctx.AwsWorker.GetAutoscalingLaunchConfig(lcName)
 	if err != nil {
 		return err
 	}
 
-	if len(lcOut.LaunchConfigurations) == 1 {
-		createdLaunchConfiguration := lcOut.LaunchConfigurations[0]
-		name := aws.StringValue(createdLaunchConfiguration.LaunchConfigurationName)
+	if lc != nil {
+		name := aws.StringValue(lc.LaunchConfigurationName)
 		status.SetActiveLaunchConfigurationName(name)
 		state.SetActiveLaunchConfigurationName(name)
-		state.SetLaunchConfiguration(createdLaunchConfiguration)
+		state.SetLaunchConfiguration(lc)
 	}
 
 	return nil

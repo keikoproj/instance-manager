@@ -108,13 +108,13 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 	}
 	ctx.Log.Info("updated scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 
-	out, err := ctx.AwsWorker.GetAutoscalingGroup(asgName)
+	scalingGroup, err = ctx.AwsWorker.GetAutoscalingGroup(asgName)
 	if err != nil {
 		return err
 	}
 
-	if len(out.AutoScalingGroups) == 1 {
-		state.SetScalingGroup(out.AutoScalingGroups[0])
+	if scalingGroup != nil {
+		state.SetScalingGroup(scalingGroup)
 	}
 
 	return nil
