@@ -15,7 +15,7 @@ type RetryLogger struct {
 var _ request.Retryer = &RetryLogger{}
 
 var DefaultRetryer = client.DefaultRetryer{
-	NumMaxRetries:    30,
+	NumMaxRetries:    50,
 	MinThrottleDelay: time.Second * 5,
 	MaxThrottleDelay: time.Second * 60,
 	MinRetryDelay:    time.Second * 1,

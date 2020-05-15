@@ -252,10 +252,6 @@ func (r *InstanceGroupReconciler) spotEventReconciler(obj handler.MapObject) []c
 	instanceGroup.Name = awsprovider.GetTagValueByKey(tags, provisioners.TagInstanceGroupName)
 	instanceGroup.Namespace = awsprovider.GetTagValueByKey(tags, provisioners.TagInstanceGroupNamespace)
 	if instanceGroup.Name == "" || instanceGroup.Namespace == "" {
-		r.Log.Error(err,
-			"failed to map v1.event to scalinggroup",
-			"event", obj.Meta.GetName(),
-		)
 		return nil
 	}
 

@@ -581,9 +581,12 @@ func GetRegion() (string, error) {
 
 // GetAwsAsgClient returns an ASG client
 func GetAwsAsgClient(region string) autoscalingiface.AutoScalingAPI {
-	sess := session.Must(session.NewSession())
 	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
 	config = request.WithRetryer(config, NewRetryLogger(DefaultRetryer))
+	sess, err := session.NewSession(config)
+	if err != nil {
+		panic(err)
+	}
 	cache.AddCaching(sess, cacheCfg)
 	cacheCfg.SetCacheTTL("autoscaling", "DescribeAutoScalingGroups", DescribeAutoScalingGroupsTTL)
 	cacheCfg.SetCacheTTL("autoscaling", "DescribeLaunchConfigurations", DescribeLaunchConfigurationsTTL)
@@ -596,9 +599,12 @@ func GetAwsAsgClient(region string) autoscalingiface.AutoScalingAPI {
 
 // GetAwsEksClient returns an EKS client
 func GetAwsEksClient(region string) eksiface.EKSAPI {
-	sess := session.Must(session.NewSession())
 	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
 	config = request.WithRetryer(config, NewRetryLogger(DefaultRetryer))
+	sess, err := session.NewSession(config)
+	if err != nil {
+		panic(err)
+	}
 	cache.AddCaching(sess, cacheCfg)
 	cacheCfg.SetCacheTTL("eks", "DescribeNodegroup", DescribeNodegroupTTL)
 	sess.Handlers.Complete.PushFront(func(r *request.Request) {
@@ -610,9 +616,12 @@ func GetAwsEksClient(region string) eksiface.EKSAPI {
 
 // GetAwsIAMClient returns an IAM client
 func GetAwsIamClient(region string) iamiface.IAMAPI {
-	sess := session.Must(session.NewSession())
 	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
 	config = request.WithRetryer(config, NewRetryLogger(DefaultRetryer))
+	sess, err := session.NewSession(config)
+	if err != nil {
+		panic(err)
+	}
 	cache.AddCaching(sess, cacheCfg)
 	cacheCfg.SetCacheTTL("iam", "GetRole", GetRoleTTL)
 	cacheCfg.SetCacheTTL("iam", "GetInstanceProfile", GetInstanceProfileTTL)
