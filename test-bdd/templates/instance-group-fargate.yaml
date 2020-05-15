@@ -1,0 +1,30 @@
+apiVersion: instancemgr.keikoproj.io/v1alpha1
+kind: InstanceGroup
+metadata:
+  name: hello-world-fargate
+  namespace: instance-manager
+spec:
+  provisioner: eks-fargate
+  strategy:
+      type: rollingUpdate
+  eks-fargate:
+      fargateProfileName: {{ .ProfileName }}
+      clusterName: {{ .ClusterName }}
+      podExecutionRoleArn: ""
+      subnets: {{range $element := .Subnets}}
+        - {{$element}}
+      {{ end }}
+      selectors:
+      - namespace: "default"
+        labels:
+          key1: "value1"
+          key2: "value2"
+      - namespace: "instance-manager"
+        labels:
+          key1: "value1"
+          key2: "value2"
+          key3: "value3"
+      tags:
+        - key9: value101
+          key7: value202
+          key8: value9
