@@ -589,7 +589,7 @@ func GetAwsAsgClient(region string) autoscalingiface.AutoScalingAPI {
 	cacheCfg.SetCacheTTL("autoscaling", "DescribeLaunchConfigurations", DescribeLaunchConfigurationsTTL)
 	sess.Handlers.Complete.PushFront(func(r *request.Request) {
 		ctx := r.HTTPRequest.Context()
-		log.Info("AWS API CALL", "cacheHit", cache.IsCacheHit(ctx), "service", r.ClientInfo.ServiceName, "operation", r.Operation.Name)
+		log.V(1).Info("AWS API", "cacheHit", cache.IsCacheHit(ctx), "service", r.ClientInfo.ServiceName, "operation", r.Operation.Name)
 	})
 	return autoscaling.New(sess)
 }
@@ -603,7 +603,7 @@ func GetAwsEksClient(region string) eksiface.EKSAPI {
 	cacheCfg.SetCacheTTL("eks", "DescribeNodegroup", DescribeNodegroupTTL)
 	sess.Handlers.Complete.PushFront(func(r *request.Request) {
 		ctx := r.HTTPRequest.Context()
-		log.Info("AWS API CALL", "cacheHit", cache.IsCacheHit(ctx), "service", r.ClientInfo.ServiceName, "operation", r.Operation.Name)
+		log.V(1).Info("AWS API", "cacheHit", cache.IsCacheHit(ctx), "service", r.ClientInfo.ServiceName, "operation", r.Operation.Name)
 	})
 	return eks.New(sess, config)
 }
@@ -618,7 +618,7 @@ func GetAwsIamClient(region string) iamiface.IAMAPI {
 	cacheCfg.SetCacheTTL("iam", "GetInstanceProfile", GetInstanceProfileTTL)
 	sess.Handlers.Complete.PushFront(func(r *request.Request) {
 		ctx := r.HTTPRequest.Context()
-		log.Info("AWS API CALL", "cacheHit", cache.IsCacheHit(ctx), "service", r.ClientInfo.ServiceName, "operation", r.Operation.Name)
+		log.V(1).Info("AWS API", "cacheHit", cache.IsCacheHit(ctx), "service", r.ClientInfo.ServiceName, "operation", r.Operation.Name)
 	})
 	return iam.New(sess, config)
 }

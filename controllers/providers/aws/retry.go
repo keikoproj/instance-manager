@@ -46,7 +46,7 @@ func (l RetryLogger) RetryRules(r *request.Request) time.Duration {
 	} else {
 		err = fmt.Sprintf("%d %s", r.HTTPResponse.StatusCode, r.HTTPResponse.Status)
 	}
-	log.Info("retryable aws api failure", "error", err, "method", method, "backoff", duration)
+	log.V(1).Info("retryable failure", "error", err, "method", method, "backoff", duration)
 
 	return duration
 }

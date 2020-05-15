@@ -47,11 +47,10 @@ import (
 // InstanceGroupReconciler reconciles an InstanceGroup object
 type InstanceGroupReconciler struct {
 	client.Client
-	Log                    logr.Logger
-	ControllerConfPath     string
-	ControllerTemplatePath string
-	MaxParallel            int
-	Auth                   *InstanceGroupAuthenticator
+	Log                logr.Logger
+	ControllerConfPath string
+	MaxParallel        int
+	Auth               *InstanceGroupAuthenticator
 }
 
 type InstanceGroupAuthenticator struct {
