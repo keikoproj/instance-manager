@@ -50,7 +50,9 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		if err != nil {
 			return errors.Wrap(err, "failed to create launch configuration")
 		}
-		defer ctx.AwsWorker.DeleteLaunchConfig(oldConfigName)
+		if oldConfigName != "" {
+			defer ctx.AwsWorker.DeleteLaunchConfig(oldConfigName)
+		}
 	}
 
 	if ctx.RotationNeeded() {
@@ -67,7 +69,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	// to avoid getting locked if someone made a manual change to aws-auth
 	err = ctx.BootstrapNodes()
 	if err != nil {
-		ctx.Log.Error(err, "failed to bootstrap role", "instancegroup", instanceGroup.GetName())
+		ctx.Log.Info("failed to bootstrap role, will retry", "error", err, "instancegroup", instanceGroup.GetName())
 	}
 
 	// update readiness conditions
