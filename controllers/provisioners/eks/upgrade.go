@@ -36,11 +36,6 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 	// process the upgrade strategy
 	switch strategyType {
 	case kubeprovider.CRDStrategyName:
-		crdStrategy := strategy.GetCRDType()
-		if err := crdStrategy.Validate(); err != nil {
-			instanceGroup.SetState(v1alpha1.ReconcileErr)
-			return errors.Wrap(err, "failed to validate strategy spec")
-		}
 		ok, err := kubeprovider.ProcessCRDStrategy(ctx.KubernetesClient.KubeDynamic, instanceGroup)
 		if err != nil {
 			instanceGroup.SetState(v1alpha1.ReconcileErr)
