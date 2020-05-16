@@ -22,8 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/keikoproj/aws-sdk-go-cache/cache"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
@@ -587,13 +585,6 @@ func GetAwsAsgClient(region string) autoscalingiface.AutoScalingAPI {
 	if err != nil {
 		panic(err)
 	}
-	cache.AddCaching(sess, cacheCfg)
-	cacheCfg.SetCacheTTL("autoscaling", "DescribeAutoScalingGroups", DescribeAutoScalingGroupsTTL)
-	cacheCfg.SetCacheTTL("autoscaling", "DescribeLaunchConfigurations", DescribeLaunchConfigurationsTTL)
-	sess.Handlers.Complete.PushFront(func(r *request.Request) {
-		ctx := r.HTTPRequest.Context()
-		log.V(1).Info("AWS API", "cacheHit", cache.IsCacheHit(ctx), "service", r.ClientInfo.ServiceName, "operation", r.Operation.Name)
-	})
 	return autoscaling.New(sess)
 }
 
@@ -605,12 +596,6 @@ func GetAwsEksClient(region string) eksiface.EKSAPI {
 	if err != nil {
 		panic(err)
 	}
-	cache.AddCaching(sess, cacheCfg)
-	cacheCfg.SetCacheTTL("eks", "DescribeNodegroup", DescribeNodegroupTTL)
-	sess.Handlers.Complete.PushFront(func(r *request.Request) {
-		ctx := r.HTTPRequest.Context()
-		log.V(1).Info("AWS API", "cacheHit", cache.IsCacheHit(ctx), "service", r.ClientInfo.ServiceName, "operation", r.Operation.Name)
-	})
 	return eks.New(sess, config)
 }
 
@@ -622,13 +607,6 @@ func GetAwsIamClient(region string) iamiface.IAMAPI {
 	if err != nil {
 		panic(err)
 	}
-	cache.AddCaching(sess, cacheCfg)
-	cacheCfg.SetCacheTTL("iam", "GetRole", GetRoleTTL)
-	cacheCfg.SetCacheTTL("iam", "GetInstanceProfile", GetInstanceProfileTTL)
-	sess.Handlers.Complete.PushFront(func(r *request.Request) {
-		ctx := r.HTTPRequest.Context()
-		log.V(1).Info("AWS API", "cacheHit", cache.IsCacheHit(ctx), "service", r.ClientInfo.ServiceName, "operation", r.Operation.Name)
-	})
 	return iam.New(sess, config)
 }
 
