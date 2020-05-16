@@ -47,10 +47,11 @@ import (
 // InstanceGroupReconciler reconciles an InstanceGroup object
 type InstanceGroupReconciler struct {
 	client.Client
-	Log                logr.Logger
-	ControllerConfPath string
-	MaxParallel        int
-	Auth               *InstanceGroupAuthenticator
+	SpotRecommendationTime float64
+	Log                    logr.Logger
+	ControllerConfPath     string
+	MaxParallel            int
+	Auth                   *InstanceGroupAuthenticator
 }
 
 type InstanceGroupAuthenticator struct {
@@ -234,7 +235,7 @@ func (r *InstanceGroupReconciler) spotEventReconciler(obj handler.MapObject) []c
 
 	creationTime := obj.Meta.GetCreationTimestamp()
 	minutesSince := time.Since(creationTime.Time).Minutes()
-	if minutesSince > 5.0 {
+	if minutesSince > r.SpotRecommendationTime {
 		return nil
 	}
 
