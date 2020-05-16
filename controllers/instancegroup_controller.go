@@ -224,11 +224,17 @@ func (r *InstanceGroupReconciler) spotEventReconciler(obj handler.MapObject) []c
 		return nil
 	}
 
-	reason, exists, err := unstructured.NestedString(unstructuredObj, "reason")
-	if !exists || err != nil {
+	if reason, ok, _ := unstructured.NestedString(unstructuredObj, "reason"); ok {
+		if reason != kubeprovider.SpotRecommendationReason {
+			return nil
+		}
+	} else {
 		return nil
 	}
-	if reason != kubeprovider.SpotRecommendationReason {
+
+	creationTime := obj.Meta.GetCreationTimestamp()
+	minutesSince := time.Since(creationTime.Time).Minutes()
+	if minutesSince > 5.0 {
 		return nil
 	}
 
