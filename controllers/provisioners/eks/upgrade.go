@@ -30,10 +30,11 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
 		strategy      = ctx.GetUpgradeStrategy()
+		strategyType  = strings.ToLower(strategy.GetType())
 	)
 
 	// process the upgrade strategy
-	switch strings.ToLower(strategy.GetType()) {
+	switch strategyType {
 	case kubeprovider.CRDStrategyName:
 		crdStrategy := strategy.GetCRDType()
 		if err := crdStrategy.Validate(); err != nil {
