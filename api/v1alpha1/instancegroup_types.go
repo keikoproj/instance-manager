@@ -49,6 +49,8 @@ const (
 	LifecycleStateSpot        = "spot"
 	CRDStrategyName           = "crd"
 	RollingUpdateStrategyName = "rollingupdate"
+	EKSProvisionerName        = "eks"
+	EKSManagedProvisionerName = "eks-managed"
 
 	NodesReady InstanceGroupConditionType = "NodesReady"
 )
@@ -265,6 +267,14 @@ func (s *InstanceGroupSpec) Validate() error {
 		return errors.Errorf("validation failed, provisioner '%v' is invalid", s.Provisioner)
 	}
 
+	if strings.EqualFold(s.Provisioner, EKSProvisionerName) {
+		if err := s.EKSSpec.EKSConfiguration.Validate(); err != nil {
+			return err
+		}
+	}
+
+	// TODO: Add validation for EKSManagedProvisioner
+
 	if s.AwsUpgradeStrategy.Type == "" {
 		s.AwsUpgradeStrategy.Type = RollingUpdateStrategyName
 	}
@@ -277,9 +287,16 @@ func (s *InstanceGroupSpec) Validate() error {
 		return errors.Errorf("validation failed, strategy.crd is required")
 	}
 
+	if strings.EqualFold(s.AwsUpgradeStrategy.Type, CRDStrategyName) && s.AwsUpgradeStrategy.CRDType != nil {
+		if err := s.AwsUpgradeStrategy.CRDType.Validate(); err != nil {
+			return err
+		}
+	}
+
 	if strings.EqualFold(s.AwsUpgradeStrategy.Type, RollingUpdateStrategyName) && s.AwsUpgradeStrategy.RollingUpdateType == nil {
 		s.AwsUpgradeStrategy.RollingUpdateType = DefaultRollingUpdateStrategy
 	}
+
 	return nil
 }
 func (c *EKSConfiguration) GetRoleName() string {
