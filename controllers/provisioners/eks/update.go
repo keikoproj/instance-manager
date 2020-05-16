@@ -99,7 +99,6 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 
 	err := ctx.AwsWorker.UpdateScalingGroup(&autoscaling.UpdateAutoScalingGroupInput{
 		AutoScalingGroupName:    aws.String(asgName),
-		DesiredCapacity:         aws.Int64(spec.GetMinSize()),
 		LaunchConfigurationName: aws.String(state.GetActiveLaunchConfigurationName()),
 		MinSize:                 aws.Int64(spec.GetMinSize()),
 		MaxSize:                 aws.Int64(spec.GetMaxSize()),
