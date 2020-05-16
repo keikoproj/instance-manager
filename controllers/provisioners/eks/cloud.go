@@ -94,15 +94,13 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 			return errors.Wrap(err, "failed to describe autoscaling launch configurations")
 		}
 
-		// there can only be 1 launch config since we're searching by name
-		if len(targetLaunchConfig.LaunchConfigurations) != 1 {
+		if targetLaunchConfig == nil {
 			return nil
 		}
 
-		var lc = targetLaunchConfig.LaunchConfigurations[0]
-		var lcName = aws.StringValue(lc.LaunchConfigurationName)
+		var lcName = aws.StringValue(targetLaunchConfig.LaunchConfigurationName)
 
-		state.SetLaunchConfiguration(lc)
+		state.SetLaunchConfiguration(targetLaunchConfig)
 		state.SetActiveLaunchConfigurationName(lcName)
 		status.SetActiveLaunchConfigurationName(lcName)
 	}

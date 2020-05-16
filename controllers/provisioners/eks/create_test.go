@@ -16,6 +16,7 @@ limitations under the License.
 package eks
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -23,6 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/onsi/gomega"
 	"github.com/pkg/errors"
 )
@@ -82,7 +84,7 @@ func TestCreateLaunchConfigurationPositive(t *testing.T) {
 		},
 	})
 
-	lcName := "some-launch-config"
+	lcName := fmt.Sprintf("my-cluster-%v-%v-%v", ig.GetNamespace(), ig.GetName(), common.GetTimeString())
 	mockLaunchConfiguration := &autoscaling.LaunchConfiguration{
 		LaunchConfigurationName: aws.String(lcName),
 	}
@@ -120,10 +122,12 @@ func TestCreateScalingGroupPositive(t *testing.T) {
 		LaunchConfiguration: mockLaunchConfiguration,
 	})
 
+	asgName := fmt.Sprintf("my-cluster-%v-%v", ig.GetNamespace(), ig.GetName())
 	mockScalingGroup := &autoscaling.Group{
-		AutoScalingGroupName: aws.String("some-scaling-group"),
+		AutoScalingGroupName: aws.String(asgName),
 	}
 	asgMock.AutoScalingGroups = []*autoscaling.Group{mockScalingGroup}
+	asgMock.AutoScalingGroup = mockScalingGroup
 
 	err := ctx.Create()
 	g.Expect(err).NotTo(gomega.HaveOccurred())

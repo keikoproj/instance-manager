@@ -12,34 +12,6 @@ all: manager
 test: generate fmt vet manifests
 	go test -v ./controllers/... -coverprofile coverage.txt
 
-env-create:
-	./test-bdd/setup/setup.sh \
-	--region $(AWS_REGION) \
-	--vpc-id $(VPC_ID) \
-	--cluster-name $(EKS_CLUSTER) \
-	--ami-id $(STABLE_AMI) \
-	--cluster-subnets $(CLUSTER_SUBNETS) \
-	--node-subnets $(NODE_SUBNETS) \
-	--keypair-name $(KEYPAIR_NAME) \
-	--prefix $(PREFIX) \
-	--template-path ./docs \
-	--instancemgr-tag $(INSTANCEMGR_TAG) \
-	create
-
-env-delete:
-	./test-bdd/setup/setup.sh \
-	--region $(AWS_REGION) \
-	--vpc-id $(VPC_ID) \
-	--cluster-name $(EKS_CLUSTER) \
-	--ami-id $(STABLE_AMI) \
-	--cluster-subnets $(CLUSTER_SUBNETS) \
-	--node-subnets $(NODE_SUBNETS) \
-	--keypair-name $(KEYPAIR_NAME) \
-	--prefix $(PREFIX) \
-	--template-path ./docs \
-	--instancemgr-tag $(INSTANCEMGR_TAG) \
-	delete
-
 bdd:
 	go test -timeout 60m -v ./test-bdd/ --godog.stop-on-failure
 

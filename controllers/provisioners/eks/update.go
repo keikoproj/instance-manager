@@ -50,7 +50,9 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		if err != nil {
 			return errors.Wrap(err, "failed to create launch configuration")
 		}
-		defer ctx.AwsWorker.DeleteLaunchConfig(oldConfigName)
+		if oldConfigName != "" {
+			defer ctx.AwsWorker.DeleteLaunchConfig(oldConfigName)
+		}
 	}
 
 	if ctx.RotationNeeded() {
@@ -67,7 +69,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	// to avoid getting locked if someone made a manual change to aws-auth
 	err = ctx.BootstrapNodes()
 	if err != nil {
-		ctx.Log.Error(err, "failed to bootstrap role", "instancegroup", instanceGroup.GetName())
+		ctx.Log.Info("failed to bootstrap role, will retry", "error", err, "instancegroup", instanceGroup.GetName())
 	}
 
 	// update readiness conditions
@@ -107,13 +109,13 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 	}
 	ctx.Log.Info("updated scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 
-	out, err := ctx.AwsWorker.GetAutoscalingGroup(asgName)
+	scalingGroup, err = ctx.AwsWorker.GetAutoscalingGroup(asgName)
 	if err != nil {
 		return err
 	}
 
-	if len(out.AutoScalingGroups) == 1 {
-		state.SetScalingGroup(out.AutoScalingGroups[0])
+	if scalingGroup != nil {
+		state.SetScalingGroup(scalingGroup)
 	}
 
 	return nil

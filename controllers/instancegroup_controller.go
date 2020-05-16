@@ -47,9 +47,9 @@ import (
 // InstanceGroupReconciler reconciles an InstanceGroup object
 type InstanceGroupReconciler struct {
 	client.Client
+	SpotRecommendationTime float64
 	Log                    logr.Logger
 	ControllerConfPath     string
-	ControllerTemplatePath string
 	MaxParallel            int
 	Auth                   *InstanceGroupAuthenticator
 }
@@ -225,11 +225,17 @@ func (r *InstanceGroupReconciler) spotEventReconciler(obj handler.MapObject) []c
 		return nil
 	}
 
-	reason, exists, err := unstructured.NestedString(unstructuredObj, "reason")
-	if !exists || err != nil {
+	if reason, ok, _ := unstructured.NestedString(unstructuredObj, "reason"); ok {
+		if reason != kubeprovider.SpotRecommendationReason {
+			return nil
+		}
+	} else {
 		return nil
 	}
-	if reason != kubeprovider.SpotRecommendationReason {
+
+	creationTime := obj.Meta.GetCreationTimestamp()
+	minutesSince := time.Since(creationTime.Time).Minutes()
+	if minutesSince > r.SpotRecommendationTime {
 		return nil
 	}
 
@@ -253,10 +259,6 @@ func (r *InstanceGroupReconciler) spotEventReconciler(obj handler.MapObject) []c
 	instanceGroup.Name = awsprovider.GetTagValueByKey(tags, provisioners.TagInstanceGroupName)
 	instanceGroup.Namespace = awsprovider.GetTagValueByKey(tags, provisioners.TagInstanceGroupNamespace)
 	if instanceGroup.Name == "" || instanceGroup.Namespace == "" {
-		r.Log.Error(err,
-			"failed to map v1.event to scalinggroup",
-			"event", obj.Meta.GetName(),
-		)
 		return nil
 	}
 

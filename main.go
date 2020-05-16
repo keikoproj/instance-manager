@@ -37,7 +37,7 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 )
 
-const controllerVersion = "instancemgr-0.6.1"
+const controllerVersion = "instancemgr-0.6.2"
 
 func init() {
 	instancemgrv1alpha1.AddToScheme(scheme)
@@ -59,17 +59,17 @@ func main() {
 
 	var (
 		metricsAddr            string
+		spotRecommendationTime float64
 		enableLeaderElection   bool
 		controllerConfPath     string
-		controllerTemplatePath string
 		maxParallel            int
 		err                    error
 	)
 
 	flag.IntVar(&maxParallel, "max-workers", 5, "The number of maximum parallel reconciles")
+	flag.Float64Var(&spotRecommendationTime, "spot-recommendation-time", 10.0, "The maximum age of spot recommendation events to consider in minutes")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&controllerConfPath, "controller-config", "/etc/config/controller.conf", "The controller config file")
-	flag.StringVar(&controllerTemplatePath, "controller-template", "/etc/config/cloudformation.template", "The controller template file")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	flag.Parse()
@@ -115,10 +115,10 @@ func main() {
 	}
 
 	err = (&controllers.InstanceGroupReconciler{
+		SpotRecommendationTime: spotRecommendationTime,
 		Client:                 mgr.GetClient(),
 		Log:                    ctrl.Log.WithName("controllers").WithName("instancegroup"),
 		ControllerConfPath:     controllerConfPath,
-		ControllerTemplatePath: controllerTemplatePath,
 		MaxParallel:            maxParallel,
 		Auth: &controllers.InstanceGroupAuthenticator{
 			Aws:        awsWorker,

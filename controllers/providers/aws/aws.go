@@ -19,11 +19,13 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
@@ -500,41 +502,49 @@ func (w *AwsWorker) DescribeAutoscalingLaunchConfigs() (autoscaling.DescribeLaun
 	return *out, nil
 }
 
-func (w *AwsWorker) GetAutoscalingLaunchConfig(name string) (*autoscaling.DescribeLaunchConfigurationsOutput, error) {
-	out, err := w.AsgClient.DescribeLaunchConfigurations(&autoscaling.DescribeLaunchConfigurationsInput{
-		LaunchConfigurationNames: aws.StringSlice([]string{name}),
-	})
+func (w *AwsWorker) GetAutoscalingLaunchConfig(name string) (*autoscaling.LaunchConfiguration, error) {
+	var lc *autoscaling.LaunchConfiguration
+	out, err := w.AsgClient.DescribeLaunchConfigurations(&autoscaling.DescribeLaunchConfigurationsInput{})
 	if err != nil {
-		return &autoscaling.DescribeLaunchConfigurationsOutput{}, err
+		return lc, err
 	}
-	return out, nil
+	for _, config := range out.LaunchConfigurations {
+		n := aws.StringValue(config.LaunchConfigurationName)
+		if strings.EqualFold(name, n) {
+			lc = config
+		}
+	}
+	return lc, nil
 }
 
-func (w *AwsWorker) GetAutoscalingGroup(name string) (*autoscaling.DescribeAutoScalingGroupsOutput, error) {
-	out, err := w.AsgClient.DescribeAutoScalingGroups(&autoscaling.DescribeAutoScalingGroupsInput{
-		AutoScalingGroupNames: aws.StringSlice([]string{name}),
-	})
+func (w *AwsWorker) GetAutoscalingGroup(name string) (*autoscaling.Group, error) {
+	var asg *autoscaling.Group
+	out, err := w.AsgClient.DescribeAutoScalingGroups(&autoscaling.DescribeAutoScalingGroupsInput{})
 	if err != nil {
-		return &autoscaling.DescribeAutoScalingGroupsOutput{}, err
+		return asg, err
 	}
-	return out, nil
+	for _, group := range out.AutoScalingGroups {
+		n := aws.StringValue(group.AutoScalingGroupName)
+		if strings.EqualFold(name, n) {
+			asg = group
+		}
+	}
+	return asg, nil
 }
 
 func GetScalingGroupTagsByName(name string, client autoscalingiface.AutoScalingAPI) ([]*autoscaling.TagDescription, error) {
 	tags := []*autoscaling.TagDescription{}
-	input := &autoscaling.DescribeAutoScalingGroupsInput{
-		AutoScalingGroupNames: aws.StringSlice([]string{name}),
-	}
+	input := &autoscaling.DescribeAutoScalingGroupsInput{}
 	out, err := client.DescribeAutoScalingGroups(input)
 	if err != nil {
 		return tags, err
 	}
-
-	if len(out.AutoScalingGroups) < 1 {
-		err := errors.New("could not find scaling group")
-		return tags, err
+	for _, asg := range out.AutoScalingGroups {
+		n := aws.StringValue(asg.AutoScalingGroupName)
+		if strings.EqualFold(name, n) {
+			tags = asg.Tags
+		}
 	}
-	tags = out.AutoScalingGroups[0].Tags
 	return tags, nil
 }
 
@@ -569,30 +579,35 @@ func GetRegion() (string, error) {
 
 // GetAwsAsgClient returns an ASG client
 func GetAwsAsgClient(region string) autoscalingiface.AutoScalingAPI {
-	var config aws.Config
-	config.Region = aws.String(region)
-	sess := session.Must(session.NewSessionWithOptions(session.Options{
-		SharedConfigState: session.SharedConfigEnable,
-		Config:            config,
-	}))
+	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
+	config = request.WithRetryer(config, NewRetryLogger(DefaultRetryer))
+	sess, err := session.NewSession(config)
+	if err != nil {
+		panic(err)
+	}
 	return autoscaling.New(sess)
 }
 
 // GetAwsEksClient returns an EKS client
 func GetAwsEksClient(region string) eksiface.EKSAPI {
-	var config aws.Config
-	config.Region = aws.String(region)
-	sess := session.Must(session.NewSessionWithOptions(session.Options{
-		SharedConfigState: session.SharedConfigEnable,
-		Config:            config,
-	}))
-	return eks.New(sess)
+	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
+	config = request.WithRetryer(config, NewRetryLogger(DefaultRetryer))
+	sess, err := session.NewSession(config)
+	if err != nil {
+		panic(err)
+	}
+	return eks.New(sess, config)
 }
 
 // GetAwsIAMClient returns an IAM client
 func GetAwsIamClient(region string) iamiface.IAMAPI {
-	mySession := session.Must(session.NewSession())
-	return iam.New(mySession, aws.NewConfig().WithRegion(region))
+	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
+	config = request.WithRetryer(config, NewRetryLogger(DefaultRetryer))
+	sess, err := session.NewSession(config)
+	if err != nil {
+		panic(err)
+	}
+	return iam.New(sess, config)
 }
 
 type ManagedNodeGroupReconcileState struct {
