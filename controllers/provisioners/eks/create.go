@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/pkg/errors"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -86,7 +87,6 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup() error {
 		return err
 	}
 	ctx.Log.Info("created scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
-
 	scalingGroup, err := ctx.AwsWorker.GetAutoscalingGroup(asgName)
 	if err != nil {
 		return err
@@ -96,6 +96,7 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup() error {
 		state.SetScalingGroup(scalingGroup)
 	}
 
+	state.Publisher.Publish(kubeprovider.InstanceGroupCreatedEvent)
 	return nil
 }
 

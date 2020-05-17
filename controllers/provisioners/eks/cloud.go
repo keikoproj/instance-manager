@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -26,6 +27,18 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/pkg/errors"
 )
+
+type DiscoveredState struct {
+	Provisioned                   bool
+	NodesReady                    bool
+	OwnedScalingGroups            []*autoscaling.Group
+	ScalingGroup                  *autoscaling.Group
+	LaunchConfiguration           *autoscaling.LaunchConfiguration
+	ActiveLaunchConfigurationName string
+	IAMRole                       *iam.Role
+	InstanceProfile               *iam.InstanceProfile
+	Publisher                     kubeprovider.EventPublisher
+}
 
 func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	var (
@@ -35,6 +48,12 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		status        = instanceGroup.GetStatus()
 		clusterName   = configuration.GetClusterName()
 	)
+
+	state.Publisher = kubeprovider.EventPublisher{
+		Client:    ctx.KubernetesClient.Kubernetes,
+		Namespace: instanceGroup.GetNamespace(),
+		Name:      instanceGroup.GetName(),
+	}
 
 	var roleName, instanceProfileName string
 	if configuration.HasExistingRole() {
@@ -117,17 +136,6 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	}
 
 	return nil
-}
-
-type DiscoveredState struct {
-	Provisioned                   bool
-	NodesReady                    bool
-	OwnedScalingGroups            []*autoscaling.Group
-	ScalingGroup                  *autoscaling.Group
-	LaunchConfiguration           *autoscaling.LaunchConfiguration
-	ActiveLaunchConfigurationName string
-	IAMRole                       *iam.Role
-	InstanceProfile               *iam.InstanceProfile
 }
 
 func (d *DiscoveredState) SetScalingGroup(asg *autoscaling.Group) {

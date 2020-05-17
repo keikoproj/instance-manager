@@ -303,14 +303,19 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 		ctx.Log.Error(err, "could not update node conditions", "instancegroup", instanceGroup.GetName())
 		return false
 	}
-
 	if ok {
+		if !state.IsNodesReady() {
+			state.Publisher.Publish(kubeprovider.NodesReadyEvent, "instancegroup", instanceGroup.GetName(), "instances", instanceIds)
+		}
 		state.SetNodesReady(true)
 		conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionTrue))
 		status.SetConditions(conditions)
 		return true
 	}
 
+	if state.IsNodesReady() {
+		state.Publisher.Publish(kubeprovider.NodesNotReadyEvent, "instancegroup", instanceGroup.GetName(), "instances", instanceIds)
+	}
 	state.SetNodesReady(false)
 	conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionFalse))
 	status.SetConditions(conditions)
