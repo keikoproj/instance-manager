@@ -133,6 +133,8 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 
 	if err = instanceGroup.Spec.Validate(); err != nil {
 		r.Log.Error(err, "reconcile failed")
+		instanceGroup.SetState(v1alpha1.ReconcileErr)
+		r.Update(context.Background(), instanceGroup)
 		return ctrl.Result{}, err
 	}
 
