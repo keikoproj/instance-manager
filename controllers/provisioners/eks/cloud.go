@@ -50,9 +50,11 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	)
 
 	state.Publisher = kubeprovider.EventPublisher{
-		Client:    ctx.KubernetesClient.Kubernetes,
-		Namespace: instanceGroup.GetNamespace(),
-		Name:      instanceGroup.GetName(),
+		Client:          ctx.KubernetesClient.Kubernetes,
+		Namespace:       instanceGroup.GetNamespace(),
+		Name:            instanceGroup.GetName(),
+		UID:             instanceGroup.GetUID(),
+		ResourceVersion: instanceGroup.GetResourceVersion(),
 	}
 
 	var roleName, instanceProfileName string

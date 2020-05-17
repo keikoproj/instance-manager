@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"k8s.io/apimachinery/pkg/types"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,39 +45,35 @@ var (
 	// EventLevelWarning is the level of a warning event
 	EventLevelWarning = "Warning"
 
-	InstanceGroupCreatedEvent          EventKind = "InstanceGroupCreated"
-	InstanceGroupDeletedEvent          EventKind = "InstanceGroupDeleted"
-	NodesReadyEvent                    EventKind = "InstanceGroupNodesReady"
-	NodesNotReadyEvent                 EventKind = "InstanceGroupNodesNotReady"
-	InstanceGroupUpgradeStartedEvent   EventKind = "InstanceGroupUpgradeStarted"
-	InstanceGroupUpgradeCompletedEvent EventKind = "InstanceGroupUpgradeCompleted"
-	InstanceGroupUpgradeFailedEvent    EventKind = "InstanceGroupUpgradeFailed"
+	InstanceGroupCreatedEvent       EventKind = "InstanceGroupCreated"
+	InstanceGroupDeletedEvent       EventKind = "InstanceGroupDeleted"
+	NodesReadyEvent                 EventKind = "InstanceGroupNodesReady"
+	NodesNotReadyEvent              EventKind = "InstanceGroupNodesNotReady"
+	InstanceGroupUpgradeFailedEvent EventKind = "InstanceGroupUpgradeFailed"
 
 	EventLevels = map[EventKind]string{
-		InstanceGroupCreatedEvent:          EventLevelNormal,
-		InstanceGroupDeletedEvent:          EventLevelNormal,
-		NodesNotReadyEvent:                 EventLevelWarning,
-		NodesReadyEvent:                    EventLevelNormal,
-		InstanceGroupUpgradeStartedEvent:   EventLevelNormal,
-		InstanceGroupUpgradeCompletedEvent: EventLevelNormal,
-		InstanceGroupUpgradeFailedEvent:    EventLevelWarning,
+		InstanceGroupCreatedEvent:       EventLevelNormal,
+		InstanceGroupDeletedEvent:       EventLevelNormal,
+		NodesNotReadyEvent:              EventLevelWarning,
+		NodesReadyEvent:                 EventLevelNormal,
+		InstanceGroupUpgradeFailedEvent: EventLevelWarning,
 	}
 
 	EventMessages = map[EventKind]string{
-		InstanceGroupCreatedEvent:          "instance group has been successfully created",
-		InstanceGroupDeletedEvent:          "instance group has been successfully deleted",
-		InstanceGroupUpgradeCompletedEvent: "instance group has been successfully upgraded",
-		InstanceGroupUpgradeStartedEvent:   "instance group has started upgrading",
-		InstanceGroupUpgradeFailedEvent:    "instance group has failed upgrading",
-		NodesNotReadyEvent:                 "instance group nodes are not ready",
-		NodesReadyEvent:                    "instance group nodes are ready",
+		InstanceGroupCreatedEvent:       "instance group has been successfully created",
+		InstanceGroupDeletedEvent:       "instance group has been successfully deleted",
+		InstanceGroupUpgradeFailedEvent: "instance group has failed upgrading",
+		NodesNotReadyEvent:              "instance group nodes are not ready",
+		NodesReadyEvent:                 "instance group nodes are ready",
 	}
 )
 
 type EventPublisher struct {
-	Client    kubernetes.Interface
-	Name      string
-	Namespace string
+	Client          kubernetes.Interface
+	Name            string
+	Namespace       string
+	UID             types.UID
+	ResourceVersion string
 }
 
 func (e *EventPublisher) Publish(kind EventKind, keysAndValues ...interface{}) {
@@ -84,13 +81,9 @@ func (e *EventPublisher) Publish(kind EventKind, keysAndValues ...interface{}) {
 	messageFields := make(map[string]string)
 	messageFields["msg"] = getEventMessage(kind)
 
-	for i, kv := range keysAndValues {
-		var key, value string
-		if i%2 == 0 {
-			key = kv.(string)
-		} else {
-			value = kv.(string)
-		}
+	for i := 0; i < len(keysAndValues); i += 2 {
+		key := keysAndValues[i].(string)
+		value := keysAndValues[i+1].(string)
 		messageFields[key] = value
 	}
 
@@ -106,10 +99,12 @@ func (e *EventPublisher) Publish(kind EventKind, keysAndValues ...interface{}) {
 			Namespace: e.Namespace,
 		},
 		InvolvedObject: v1.ObjectReference{
-			Kind:       InvolvedObjectKind,
-			Namespace:  e.Namespace,
-			Name:       e.Name,
-			APIVersion: v1alpha1.GroupVersion.Version,
+			Kind:            InvolvedObjectKind,
+			Namespace:       e.Namespace,
+			Name:            e.Name,
+			APIVersion:      v1alpha1.GroupVersion.Version,
+			UID:             e.UID,
+			ResourceVersion: e.ResourceVersion,
 		},
 		Reason:  string(kind),
 		Message: string(payload),
