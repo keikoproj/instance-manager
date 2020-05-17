@@ -96,7 +96,7 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup() error {
 		state.SetScalingGroup(scalingGroup)
 	}
 
-	state.Publisher.Publish(kubeprovider.InstanceGroupCreatedEvent)
+	state.Publisher.Publish(kubeprovider.InstanceGroupCreatedEvent, "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 	return nil
 }
 

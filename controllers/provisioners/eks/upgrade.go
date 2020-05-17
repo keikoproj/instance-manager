@@ -43,7 +43,7 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 		}
 		ok, err := kubeprovider.ProcessCRDStrategy(ctx.KubernetesClient.KubeDynamic, instanceGroup)
 		if err != nil {
-			state.Publisher.Publish(kubeprovider.InstanceGroupUpgradeFailedEvent, "instancegroup", instanceGroup.GetName(), "type", kubeprovider.CRDStrategyName, "error", err)
+			state.Publisher.Publish(kubeprovider.InstanceGroupUpgradeFailedEvent, "instancegroup", instanceGroup.GetName(), "type", kubeprovider.CRDStrategyName, "error", err.Error())
 			instanceGroup.SetState(v1alpha1.ReconcileErr)
 			return errors.Wrap(err, "failed to process CRD strategy")
 		}
