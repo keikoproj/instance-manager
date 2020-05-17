@@ -350,8 +350,6 @@ func (ctx *EksInstanceGroupContext) GetEnabledMetrics() ([]string, bool) {
 		}
 	}
 
-	fmt.Printf("NEED TO ENABLE METRICS: %+v", enableMetrics)
-
 	if common.SliceEmpty(enableMetrics) {
 		return enableMetrics, false
 	}

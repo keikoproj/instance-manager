@@ -232,12 +232,14 @@ func (c *EKSConfiguration) Validate() error {
 		return errors.Errorf("validation failed, 'securityGroups' is a required parameter")
 	}
 	for _, m := range c.MetricsCollection {
+		metrics := make([]string, 0)
 		if strings.EqualFold(m, "all") {
 			continue
 		}
-		if !common.ContainsString(awsprovider.DefaultAutoscalingMetrics, m) {
-			return errors.Errorf("validation failed, %v metrics provided are invalid, must be in %v", c.MetricsCollection, awsprovider.DefaultAutoscalingMetrics)
+		if common.ContainsString(awsprovider.DefaultAutoscalingMetrics, m) {
+			metrics = append(metrics, m)
 		}
+		c.MetricsCollection = metrics
 	}
 	if common.StringEmpty(c.Image) {
 		return errors.Errorf("validation failed, 'image' is a required parameter")
