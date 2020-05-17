@@ -56,7 +56,7 @@ const (
 )
 
 var (
-	Strategies   = []string{"crd", "rollingupdate"}
+	Strategies   = []string{"crd", "rollingupdate", "managed"}
 	Provisioners = []string{"eks", "eks-managed"}
 
 	DefaultRollingUpdateStrategy = &RollingUpdateStrategy{
