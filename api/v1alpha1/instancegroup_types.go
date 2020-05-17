@@ -18,6 +18,9 @@ package v1alpha1
 import (
 	"strings"
 
+	"github.com/keikoproj/instance-manager/controllers/common"
+	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
+
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -150,6 +153,7 @@ type EKSConfiguration struct {
 	ExistingRoleName            string              `json:"roleName,omitempty"`
 	ExistingInstanceProfileName string              `json:"instanceProfileName,omitempty"`
 	ManagedPolicies             []string            `json:"managedPolicies,omitempty"`
+	MetricsCollection           []string            `json:"metricsCollection,omitempty"`
 }
 
 type NodeVolume struct {
@@ -218,22 +222,30 @@ func (ig *InstanceGroup) SetUpgradeStrategy(strategy AwsUpgradeStrategy) {
 	ig.Spec.AwsUpgradeStrategy = strategy
 }
 func (c *EKSConfiguration) Validate() error {
-	if c.EksClusterName == "" {
+	if common.StringEmpty(c.EksClusterName) {
 		return errors.Errorf("validation failed, 'eksClusterName' is a required parameter")
 	}
-	if len(c.Subnets) == 0 {
+	if common.SliceEmpty(c.Subnets) {
 		return errors.Errorf("validation failed, 'subnets' is a required parameter")
 	}
-	if len(c.NodeSecurityGroups) == 0 {
+	if common.SliceEmpty(c.NodeSecurityGroups) {
 		return errors.Errorf("validation failed, 'securityGroups' is a required parameter")
 	}
-	if c.Image == "" {
+	for _, m := range c.MetricsCollection {
+		if strings.EqualFold(m, "all") {
+			continue
+		}
+		if !common.ContainsString(awsprovider.DefaultAutoscalingMetrics, m) {
+			return errors.Errorf("validation failed, %v metrics provided are invalid, must be in %v", c.MetricsCollection, awsprovider.DefaultAutoscalingMetrics)
+		}
+	}
+	if common.StringEmpty(c.Image) {
 		return errors.Errorf("validation failed, 'image' is a required parameter")
 	}
-	if c.InstanceType == "" {
+	if common.StringEmpty(c.InstanceType) {
 		return errors.Errorf("validation failed, 'instanceType' is a required parameter")
 	}
-	if c.KeyPairName == "" {
+	if common.StringEmpty(c.KeyPairName) {
 		return errors.Errorf("validation failed, 'keyPair' is a required parameter")
 	}
 	if len(c.Volumes) == 0 {
@@ -285,6 +297,12 @@ func (c *EKSConfiguration) GetManagedPolicies() []string {
 }
 func (c *EKSConfiguration) SetManagedPolicies(policies []string) {
 	c.ManagedPolicies = policies
+}
+func (c *EKSConfiguration) GetMetricsCollection() []string {
+	return c.MetricsCollection
+}
+func (c *EKSConfiguration) SetMetricsCollection(metrics []string) {
+	c.MetricsCollection = metrics
 }
 func (c *EKSConfiguration) GetVolumes() []NodeVolume {
 	return c.Volumes
