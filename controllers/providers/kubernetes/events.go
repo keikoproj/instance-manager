@@ -39,7 +39,7 @@ var (
 	// InvolvedObjectKind is the default kind of involved objects
 	InvolvedObjectKind = "InstanceGroup"
 	// EventName is the default name for service events
-	EventName = "lifecycle-manager.%v.%v"
+	EventControllerName = "instance-manager"
 	// EventLevelNormal is the level of a normal event
 	EventLevelNormal = "Normal"
 	// EventLevelWarning is the level of a warning event
@@ -92,7 +92,9 @@ func (e *EventPublisher) Publish(kind EventKind, keysAndValues ...interface{}) {
 		log.Error(err, "failed to marshal event message fields", "fields", messageFields)
 	}
 
-	eventName := fmt.Sprintf(EventName, time.Now().Unix(), rand.Int())
+	now := time.Now()
+
+	eventName := fmt.Sprintf("%v.%v.%v", EventControllerName, time.Now().Unix(), rand.Int())
 	event := &v1.Event{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      eventName,
@@ -106,12 +108,11 @@ func (e *EventPublisher) Publish(kind EventKind, keysAndValues ...interface{}) {
 			UID:             e.UID,
 			ResourceVersion: e.ResourceVersion,
 		},
-		Reason:  string(kind),
-		Message: string(payload),
-		Type:    getEventLevel(kind),
-		LastTimestamp: metav1.Time{
-			Time: time.Now(),
-		},
+		Reason:         string(kind),
+		Message:        string(payload),
+		Type:           getEventLevel(kind),
+		FirstTimestamp: metav1.NewTime(now),
+		LastTimestamp:  metav1.NewTime(now),
 	}
 
 	_, err = e.Client.CoreV1().Events(e.Namespace).Create(event)
