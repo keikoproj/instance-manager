@@ -46,7 +46,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	// create new launchconfig if it has drifted
 	if ctx.LaunchConfigurationDrifted() {
 		rotationNeeded = true
-		lcName := fmt.Sprintf("%v-%v-%v-%v", clusterName, instanceGroup.GetNamespace(), instanceGroup.GetName(), common.GetTimeString())
+		lcName := fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
 		lcInput := ctx.GetLaunchConfigurationInput(lcName)
 		err := ctx.CreateLaunchConfiguration(lcInput)
 		if err != nil {
