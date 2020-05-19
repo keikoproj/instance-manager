@@ -65,11 +65,6 @@ var (
 		},
 	}
 
-	GroupVersionResource = schema.GroupVersionResource{
-		Group:    "instancemgr.keikoproj.io",
-		Version:  "v1alpha1",
-		Resource: "instancegroups",
-	}
 	log = ctrl.Log.WithName("v1alpha1")
 )
 
