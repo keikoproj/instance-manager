@@ -297,20 +297,27 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 		instanceIds = append(instanceIds, aws.StringValue(instance.InstanceId))
 	}
 
+	instances := strings.Join(instanceIds, ",")
+
 	var conditions []v1alpha1.InstanceGroupCondition
 	ok, err := kubeprovider.IsDesiredNodesReady(ctx.KubernetesClient.Kubernetes, instanceIds, desiredCount)
 	if err != nil {
 		ctx.Log.Error(err, "could not update node conditions", "instancegroup", instanceGroup.GetName())
 		return false
 	}
-
 	if ok {
+		if !state.IsNodesReady() {
+			state.Publisher.Publish(kubeprovider.NodesReadyEvent, "instancegroup", instanceGroup.GetName(), "instances", instances)
+		}
 		state.SetNodesReady(true)
 		conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionTrue))
 		status.SetConditions(conditions)
 		return true
 	}
 
+	if state.IsNodesReady() {
+		state.Publisher.Publish(kubeprovider.NodesNotReadyEvent, "instancegroup", instanceGroup.GetName(), "instances", instances)
+	}
 	state.SetNodesReady(false)
 	conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionFalse))
 	status.SetConditions(conditions)

@@ -43,6 +43,9 @@ func TestDeletePositive(t *testing.T) {
 	ctx := MockContext(ig, k, w)
 
 	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
 		ScalingGroup:        &autoscaling.Group{},
 		LaunchConfiguration: &autoscaling.LaunchConfiguration{},
 		IAMRole:             &iam.Role{},
@@ -67,6 +70,9 @@ func TestDeleteManagedRoleNegative(t *testing.T) {
 	ctx := MockContext(ig, k, w)
 
 	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
 		IAMRole: &iam.Role{},
 	})
 
@@ -95,6 +101,9 @@ func TestDeleteLaunchConfigurationNegative(t *testing.T) {
 	ctx := MockContext(ig, k, w)
 
 	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
 		LaunchConfiguration: &autoscaling.LaunchConfiguration{},
 	})
 
@@ -118,6 +127,9 @@ func TestDeleteAutoScalingGroupNegative(t *testing.T) {
 	ctx := MockContext(ig, k, w)
 
 	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
 		ScalingGroup: &autoscaling.Group{},
 	})
 
@@ -159,6 +171,9 @@ func TestRemoveAuthRoleNegative(t *testing.T) {
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
 		IAMRole: &iam.Role{
 			Arn: aws.String("same-role"),
 		},

@@ -22,7 +22,6 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
@@ -66,11 +65,6 @@ var (
 		},
 	}
 
-	GroupVersionResource = schema.GroupVersionResource{
-		Group:    "instancemgr.keikoproj.io",
-		Version:  "v1alpha1",
-		Resource: "instancegroups",
-	}
 	log = ctrl.Log.WithName("v1alpha1")
 )
 

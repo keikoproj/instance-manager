@@ -17,6 +17,7 @@ package eks
 
 import (
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/pkg/errors"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -74,6 +75,7 @@ func (ctx *EksInstanceGroupContext) DeleteScalingGroup() error {
 		return err
 	}
 	ctx.Log.Info("deleted scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
+	state.Publisher.Publish(kubeprovider.InstanceGroupDeletedEvent, "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 	return nil
 }
 

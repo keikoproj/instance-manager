@@ -156,7 +156,11 @@ func TestUpgradeCRDStrategy(t *testing.T) {
 
 	w := MockAwsWorker(asgMock, iamMock)
 	ctx := MockContext(ig, k, w)
-
+	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
+	})
 	// get custom resource yaml
 	crYAML, err := yaml.Marshal(cr.Object)
 	g.Expect(err).NotTo(gomega.HaveOccurred())
@@ -263,6 +267,9 @@ func TestUpgradeRollingUpdateStrategyPositive(t *testing.T) {
 
 		ig.SetUpgradeStrategy(MockAwsRollingUpdateStrategy(&tc.maxUnavailable))
 		ctx.SetDiscoveredState(&DiscoveredState{
+			Publisher: kubeprovider.EventPublisher{
+				Client: k.Kubernetes,
+			},
 			ScalingGroup: &autoscaling.Group{
 				LaunchConfigurationName: aws.String("some-launch-config"),
 				AutoScalingGroupName:    aws.String("some-scaling-group"),
