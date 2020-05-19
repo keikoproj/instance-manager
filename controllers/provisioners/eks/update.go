@@ -16,6 +16,7 @@ limitations under the License.
 package eks
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/pkg/errors"
@@ -26,11 +27,15 @@ import (
 	"github.com/keikoproj/instance-manager/controllers/common"
 )
 
+const (
+	launchConfigurationRetentionCount = 2
+)
+
 func (ctx *EksInstanceGroupContext) Update() error {
 	var (
 		instanceGroup  = ctx.GetInstanceGroup()
-		state          = ctx.GetDiscoveredState()
-		oldConfigName  string
+		configuration  = instanceGroup.GetEKSConfiguration()
+		clusterName    = configuration.GetClusterName()
 		rotationNeeded bool
 	)
 
@@ -45,13 +50,11 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	// create new launchconfig if it has drifted
 	if ctx.LaunchConfigurationDrifted() {
 		rotationNeeded = true
-		oldConfigName = state.GetActiveLaunchConfigurationName()
-		err := ctx.CreateLaunchConfiguration()
+		lcName := fmt.Sprintf("%v-%v-%v-%v", clusterName, instanceGroup.GetNamespace(), instanceGroup.GetName(), common.GetTimeString())
+		lcInput := ctx.GetLaunchConfigurationInput(lcName)
+		err := ctx.CreateLaunchConfiguration(lcInput)
 		if err != nil {
 			return errors.Wrap(err, "failed to create launch configuration")
-		}
-		if oldConfigName != "" {
-			defer ctx.AwsWorker.DeleteLaunchConfig(oldConfigName)
 		}
 	}
 

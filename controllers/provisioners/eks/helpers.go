@@ -375,3 +375,32 @@ func (ctx *EksInstanceGroupContext) RemoveAuthRole(arn string) error {
 
 	return common.RemoveAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{arn})
 }
+
+func (ctx *EksInstanceGroupContext) GetTimeSortedLaunchConfigurations() []*autoscaling.LaunchConfiguration {
+	var (
+		state = ctx.GetDiscoveredState()
+	)
+
+	configurations := []*autoscaling.LaunchConfiguration{}
+	for _, lc := range state.GetLaunchConfigurations() {
+		name := aws.StringValue(lc.LaunchConfigurationName)
+		if strings.HasPrefix(name, ctx.ResourcePrefix) {
+			configurations = append(configurations, lc)
+		}
+	}
+
+	// sort matching launch configs by created time
+	sort.Slice(configurations, func(i, j int) bool {
+		ti := configurations[i].CreatedTime
+		tj := configurations[j].CreatedTime
+		if tj == nil {
+			return true
+		}
+		if ti == nil {
+			return false
+		}
+		return ti.UnixNano() < tj.UnixNano()
+	})
+
+	return configurations
+}

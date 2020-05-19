@@ -33,6 +33,7 @@ type DiscoveredState struct {
 	NodesReady                    bool
 	OwnedScalingGroups            []*autoscaling.Group
 	ScalingGroup                  *autoscaling.Group
+	LaunchConfigurations          []*autoscaling.LaunchConfiguration
 	LaunchConfiguration           *autoscaling.LaunchConfiguration
 	ActiveLaunchConfigurationName string
 	IAMRole                       *iam.Role
@@ -84,16 +85,22 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	// find all owned scaling groups
 	ownedScalingGroups := ctx.findOwnedScalingGroups(scalingGroups)
 	state.SetOwnedScalingGroups(ownedScalingGroups)
-
 	// cache the scaling group we are reconciling for if it exists
 	targetScalingGroup := ctx.findTargetScalingGroup(ownedScalingGroups)
 
 	// if there is no scaling group found, it's deprovisioned
 	if targetScalingGroup == nil {
 		state.SetProvisioned(false)
-		// no need to look for launch configurations at this point
 		return nil
 	}
+
+	launchConfigurations, err := ctx.AwsWorker.DescribeAutoscalingLaunchConfigs()
+	if err != nil {
+		return errors.Wrap(err, "failed to describe autoscaling groups")
+	}
+
+	ctx.DiscoveredState.SetLaunchConfigurations(launchConfigurations)
+
 	state.SetProvisioned(true)
 	state.SetScalingGroup(targetScalingGroup)
 
@@ -108,22 +115,29 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	}
 
 	// cache the launch configuration we are reconciling for if it exists
-	launchConfigName := aws.StringValue(targetScalingGroup.LaunchConfigurationName)
-	if launchConfigName != "" {
-		targetLaunchConfig, err := ctx.AwsWorker.GetAutoscalingLaunchConfig(launchConfigName)
-		if err != nil {
-			return errors.Wrap(err, "failed to describe autoscaling launch configurations")
+	for _, lc := range launchConfigurations {
+		lcName := aws.StringValue(lc.LaunchConfigurationName)
+		if aws.StringValue(lc.LaunchConfigurationName) == aws.StringValue(targetScalingGroup.LaunchConfigurationName) {
+			state.SetLaunchConfiguration(lc)
+			state.SetActiveLaunchConfigurationName(lcName)
+			status.SetActiveLaunchConfigurationName(lcName)
 		}
+	}
 
-		if targetLaunchConfig == nil {
-			return nil
+	// delete old launch configurations
+	sortedConfigs := ctx.GetTimeSortedLaunchConfigurations()
+	var deletable []*autoscaling.LaunchConfiguration
+	if len(sortedConfigs) > launchConfigurationRetentionCount {
+		d := len(sortedConfigs) - launchConfigurationRetentionCount
+		deletable = sortedConfigs[:d]
+	}
+
+	for _, d := range deletable {
+		name := aws.StringValue(d.LaunchConfigurationName)
+		ctx.Log.Info("deleting old launch configuration", "instancegroup", instanceGroup.GetName(), "name", name)
+		if err := ctx.AwsWorker.DeleteLaunchConfig(name); err != nil {
+			ctx.Log.Error(err, "failed to delete launch configuration", "instancegroup", instanceGroup.GetName(), "name", name)
 		}
-
-		var lcName = aws.StringValue(targetLaunchConfig.LaunchConfigurationName)
-
-		state.SetLaunchConfiguration(targetLaunchConfig)
-		state.SetActiveLaunchConfigurationName(lcName)
-		status.SetActiveLaunchConfigurationName(lcName)
 	}
 
 	if status.GetNodesReadyCondition() == corev1.ConditionTrue {
@@ -164,6 +178,12 @@ func (d *DiscoveredState) SetLaunchConfiguration(lc *autoscaling.LaunchConfigura
 }
 func (d *DiscoveredState) GetLaunchConfiguration() *autoscaling.LaunchConfiguration {
 	return d.LaunchConfiguration
+}
+func (d *DiscoveredState) GetLaunchConfigurations() []*autoscaling.LaunchConfiguration {
+	return d.LaunchConfigurations
+}
+func (d *DiscoveredState) SetLaunchConfigurations(configs []*autoscaling.LaunchConfiguration) {
+	d.LaunchConfigurations = configs
 }
 func (d *DiscoveredState) SetActiveLaunchConfigurationName(name string) {
 	d.ActiveLaunchConfigurationName = name
