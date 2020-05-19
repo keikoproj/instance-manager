@@ -90,5 +90,5 @@ func ReadFile(path string) ([]byte, error) {
 
 func GetTimeString() string {
 	n := time.Now().UTC()
-	return fmt.Sprintf("%v%v%v%v%v%v", n.Year(), int(n.Month()), n.Day(), n.Hour(), n.Minute(), n.Second())
+	return n.Format("20060102150405")
 }

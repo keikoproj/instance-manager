@@ -259,6 +259,7 @@ type MockAutoScalingClient struct {
 	UpdateAutoScalingGroupErr              error
 	DeleteAutoScalingGroupErr              error
 	TerminateInstanceInAutoScalingGroupErr error
+	DeleteLaunchConfigurationCallCount     int
 	LaunchConfiguration                    *autoscaling.LaunchConfiguration
 	LaunchConfigurations                   []*autoscaling.LaunchConfiguration
 	AutoScalingGroup                       *autoscaling.Group
@@ -286,6 +287,7 @@ func (a *MockAutoScalingClient) DescribeLaunchConfigurations(input *autoscaling.
 }
 
 func (a *MockAutoScalingClient) DeleteLaunchConfiguration(input *autoscaling.DeleteLaunchConfigurationInput) (*autoscaling.DeleteLaunchConfigurationOutput, error) {
+	a.DeleteLaunchConfigurationCallCount++
 	return &autoscaling.DeleteLaunchConfigurationOutput{}, a.DeleteLaunchConfigurationErr
 }
 
@@ -303,6 +305,15 @@ func (a *MockAutoScalingClient) DescribeAutoScalingGroups(input *autoscaling.Des
 
 func (a *MockAutoScalingClient) DescribeAutoScalingGroupsPages(input *autoscaling.DescribeAutoScalingGroupsInput, callback func(*autoscaling.DescribeAutoScalingGroupsOutput, bool) bool) error {
 	page, err := a.DescribeAutoScalingGroups(input)
+	if err != nil {
+		return err
+	}
+	callback(page, false)
+	return nil
+}
+
+func (a *MockAutoScalingClient) DescribeLaunchConfigurationsPages(input *autoscaling.DescribeLaunchConfigurationsInput, callback func(*autoscaling.DescribeLaunchConfigurationsOutput, bool) bool) error {
+	page, err := a.DescribeLaunchConfigurations(input)
 	if err != nil {
 		return err
 	}

@@ -16,6 +16,8 @@ limitations under the License.
 package eks
 
 import (
+	"strings"
+
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/pkg/errors"
 
@@ -81,18 +83,18 @@ func (ctx *EksInstanceGroupContext) DeleteLaunchConfiguration() error {
 	var (
 		state         = ctx.GetDiscoveredState()
 		instanceGroup = ctx.GetInstanceGroup()
-		lcName        = state.GetActiveLaunchConfigurationName()
 	)
 
-	if !state.HasLaunchConfiguration() {
-		return nil
+	for _, lc := range state.GetLaunchConfigurations() {
+		name := aws.StringValue(lc.LaunchConfigurationName)
+		if strings.HasPrefix(name, ctx.ResourcePrefix) {
+			err := ctx.AwsWorker.DeleteLaunchConfig(name)
+			if err != nil {
+				return err
+			}
+			ctx.Log.Info("deleted launch config", "instancegroup", instanceGroup.GetName(), "launchconfig", name)
+		}
 	}
-
-	err := ctx.AwsWorker.DeleteLaunchConfig(lcName)
-	if err != nil {
-		return err
-	}
-	ctx.Log.Info("deleted launch config", "instancegroup", instanceGroup.GetName(), "launchconfig", lcName)
 	return nil
 }
 
