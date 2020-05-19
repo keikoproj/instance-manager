@@ -34,6 +34,16 @@ func ContainsString(slice []string, s string) bool {
 	return false
 }
 
+// ContainsString returns true if a given slice 'slice' contains string 's', otherwise return false
+func ContainsEqualFold(slice []string, s string) bool {
+	for _, item := range slice {
+		if strings.EqualFold(item, s) {
+			return true
+		}
+	}
+	return false
+}
+
 func StringSliceEquals(x, y []string) bool {
 	sort.Strings(x)
 	sort.Strings(y)
