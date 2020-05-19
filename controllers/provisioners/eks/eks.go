@@ -27,7 +27,8 @@ import (
 )
 
 const (
-	ProvisionerName = "eks"
+	ProvisionerName                     = "eks"
+	defaultLaunchConfigurationRetention = 2
 )
 
 var (

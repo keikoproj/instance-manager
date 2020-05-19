@@ -128,8 +128,8 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	// delete old launch configurations
 	sortedConfigs := ctx.GetTimeSortedLaunchConfigurations()
 	var deletable []*autoscaling.LaunchConfiguration
-	if len(sortedConfigs) > launchConfigurationRetentionCount {
-		d := len(sortedConfigs) - launchConfigurationRetentionCount
+	if len(sortedConfigs) > defaultLaunchConfigurationRetention {
+		d := len(sortedConfigs) - defaultLaunchConfigurationRetention
 		deletable = sortedConfigs[:d]
 	}
 

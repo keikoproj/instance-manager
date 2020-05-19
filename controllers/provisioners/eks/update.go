@@ -27,10 +27,6 @@ import (
 	"github.com/keikoproj/instance-manager/controllers/common"
 )
 
-const (
-	launchConfigurationRetentionCount = 2
-)
-
 func (ctx *EksInstanceGroupContext) Update() error {
 	var (
 		instanceGroup  = ctx.GetInstanceGroup()
