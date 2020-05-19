@@ -45,8 +45,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	if ctx.LaunchConfigurationDrifted() {
 		rotationNeeded = true
 		lcName := fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
-		lcInput := ctx.GetLaunchConfigurationInput(lcName)
-		err := ctx.CreateLaunchConfiguration(lcInput)
+		err := ctx.CreateLaunchConfiguration(lcName)
 		if err != nil {
 			return errors.Wrap(err, "failed to create launch configuration")
 		}

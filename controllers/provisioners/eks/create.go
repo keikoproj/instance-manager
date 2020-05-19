@@ -44,8 +44,7 @@ func (ctx *EksInstanceGroupContext) Create() error {
 	// create launchconfig
 	if !state.HasLaunchConfiguration() {
 		lcName := fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
-		lcInput := ctx.GetLaunchConfigurationInput(lcName)
-		err := ctx.CreateLaunchConfiguration(lcInput)
+		err := ctx.CreateLaunchConfiguration(lcName)
 		if err != nil {
 			return errors.Wrap(err, "failed to create launch configuration")
 		}
@@ -101,12 +100,12 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup() error {
 	return nil
 }
 
-func (ctx *EksInstanceGroupContext) CreateLaunchConfiguration(input *autoscaling.CreateLaunchConfigurationInput) error {
+func (ctx *EksInstanceGroupContext) CreateLaunchConfiguration(name string) error {
 	var (
 		state         = ctx.GetDiscoveredState()
 		instanceGroup = ctx.GetInstanceGroup()
 		status        = instanceGroup.GetStatus()
-		name          = aws.StringValue(input.LaunchConfigurationName)
+		input         = ctx.GetLaunchConfigurationInput(name)
 	)
 
 	if aws.StringValue(input.IamInstanceProfile) == "" {
