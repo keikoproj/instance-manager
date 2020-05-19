@@ -30,8 +30,6 @@ import (
 func (ctx *EksInstanceGroupContext) Update() error {
 	var (
 		instanceGroup  = ctx.GetInstanceGroup()
-		configuration  = instanceGroup.GetEKSConfiguration()
-		clusterName    = configuration.GetClusterName()
 		rotationNeeded bool
 	)
 
