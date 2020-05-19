@@ -16,6 +16,7 @@ limitations under the License.
 package eks
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -208,4 +209,68 @@ func TestCloudDiscoverySpotPrice(t *testing.T) {
 	err = ctx.CloudDiscovery()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	g.Expect(configuration.GetSpotPrice()).To(gomega.BeEmpty())
+}
+
+func TestLaunchConfigDeletion(t *testing.T) {
+	var (
+		g       = gomega.NewGomegaWithT(t)
+		k       = MockKubernetesClientSet()
+		ig      = MockInstanceGroup()
+		asgMock = NewAutoScalingMocker()
+		iamMock = NewIamMocker()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock)
+	ctx := MockContext(ig, k, w)
+	configuration := ig.GetEKSConfiguration()
+
+	iamMock.Role = &iam.Role{
+		RoleName: aws.String("some-role"),
+		Arn:      aws.String("some-arn"),
+	}
+
+	iamMock.InstanceProfile = &iam.InstanceProfile{
+		InstanceProfileName: aws.String("some-profile"),
+	}
+
+	var (
+		clusterName           = "some-cluster"
+		resourceName          = "some-instance-group"
+		resourceNamespace     = "default"
+		ownedScalingGroupName = "scaling-group-1"
+		ownershipTag          = MockTagDescription(provisioners.TagClusterName, clusterName)
+		nameTag               = MockTagDescription(provisioners.TagInstanceGroupName, resourceName)
+		namespaceTag          = MockTagDescription(provisioners.TagInstanceGroupNamespace, resourceNamespace)
+	)
+
+	ig.SetName(resourceName)
+	ig.SetNamespace(resourceNamespace)
+	configuration.SetClusterName(clusterName)
+
+	asgMock.AutoScalingGroups = []*autoscaling.Group{
+		MockScalingGroup(ownedScalingGroupName, ownershipTag, nameTag, namespaceTag),
+	}
+
+	asgMock.LaunchConfigurations = []*autoscaling.LaunchConfiguration{
+		{
+			LaunchConfigurationName: aws.String(fmt.Sprintf("%v-123456", ctx.ResourcePrefix)),
+			CreatedTime:             aws.Time(time.Now()),
+		},
+		{
+			LaunchConfigurationName: aws.String(fmt.Sprintf("%v-123457", ctx.ResourcePrefix)),
+			CreatedTime:             aws.Time(time.Now().Add(time.Duration(-1) * time.Minute)),
+		},
+		{
+			LaunchConfigurationName: aws.String(fmt.Sprintf("%v-123458", ctx.ResourcePrefix)),
+			CreatedTime:             aws.Time(time.Now().Add(time.Duration(-3) * time.Minute)),
+		},
+		{
+			LaunchConfigurationName: aws.String(fmt.Sprintf("%v-123459", ctx.ResourcePrefix)),
+			CreatedTime:             aws.Time(time.Now().Add(time.Duration(-5) * time.Minute)),
+		},
+	}
+
+	err := ctx.CloudDiscovery()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	g.Expect(asgMock.DeleteLaunchConfigurationCallCount).To(gomega.Equal(2))
 }

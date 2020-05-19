@@ -16,6 +16,7 @@ limitations under the License.
 package eks
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -104,14 +105,17 @@ func TestDeleteLaunchConfigurationNegative(t *testing.T) {
 		Publisher: kubeprovider.EventPublisher{
 			Client: k.Kubernetes,
 		},
-		LaunchConfiguration: &autoscaling.LaunchConfiguration{},
+		LaunchConfigurations: []*autoscaling.LaunchConfiguration{
+			{
+				LaunchConfigurationName: aws.String(fmt.Sprintf("%v-123456", ctx.ResourcePrefix)),
+			},
+		},
 	})
 
 	asgMock.DeleteLaunchConfigurationErr = errors.New("some-error")
 	err := ctx.Delete()
 	g.Expect(err).To(gomega.HaveOccurred())
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileDeleting))
-	asgMock.DeleteLaunchConfigurationErr = nil
 }
 
 func TestDeleteAutoScalingGroupNegative(t *testing.T) {

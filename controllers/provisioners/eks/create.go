@@ -43,7 +43,8 @@ func (ctx *EksInstanceGroupContext) Create() error {
 
 	// create launchconfig
 	if !state.HasLaunchConfiguration() {
-		err := ctx.CreateLaunchConfiguration()
+		lcName := fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
+		err := ctx.CreateLaunchConfiguration(lcName)
 		if err != nil {
 			return errors.Wrap(err, "failed to create launch configuration")
 		}
@@ -64,9 +65,8 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup() error {
 		instanceGroup = ctx.GetInstanceGroup()
 		spec          = instanceGroup.GetEKSSpec()
 		configuration = instanceGroup.GetEKSConfiguration()
-		clusterName   = configuration.GetClusterName()
 		state         = ctx.GetDiscoveredState()
-		asgName       = fmt.Sprintf("%v-%v-%v", clusterName, instanceGroup.GetNamespace(), instanceGroup.GetName())
+		asgName       = ctx.ResourcePrefix
 		tags          = ctx.GetAddedTags(asgName)
 	)
 
@@ -100,35 +100,30 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup() error {
 	return nil
 }
 
-func (ctx *EksInstanceGroupContext) CreateLaunchConfiguration() error {
+func (ctx *EksInstanceGroupContext) CreateLaunchConfiguration(name string) error {
 	var (
 		state         = ctx.GetDiscoveredState()
 		instanceGroup = ctx.GetInstanceGroup()
-		configuration = instanceGroup.GetEKSConfiguration()
 		status        = instanceGroup.GetStatus()
-		clusterName   = configuration.GetClusterName()
-		lcName        = fmt.Sprintf("%v-%v-%v-%v", clusterName, instanceGroup.GetNamespace(), instanceGroup.GetName(), common.GetTimeString())
-		lcInput       = ctx.GetLaunchConfigurationInput(lcName)
+		input         = ctx.GetLaunchConfigurationInput(name)
 	)
 
-	if aws.StringValue(lcInput.IamInstanceProfile) == "" {
+	if aws.StringValue(input.IamInstanceProfile) == "" {
 		return errors.Errorf("cannot create a launchconfiguration without iam instance profile")
 	}
 
-	err := ctx.AwsWorker.CreateLaunchConfig(lcInput)
+	err := ctx.AwsWorker.CreateLaunchConfig(input)
 	if err != nil {
 		return err
 	}
 
-	ctx.Log.Info("created launchconfig", "instancegroup", instanceGroup.GetName(), "launchconfig", lcName)
-
-	lc, err := ctx.AwsWorker.GetAutoscalingLaunchConfig(lcName)
+	ctx.Log.Info("created launchconfig", "instancegroup", instanceGroup.GetName(), "launchconfig", name)
+	lc, err := ctx.AwsWorker.GetAutoscalingLaunchConfig(name)
 	if err != nil {
 		return err
 	}
 
 	if lc != nil {
-		name := aws.StringValue(lc.LaunchConfigurationName)
 		status.SetActiveLaunchConfigurationName(name)
 		state.SetActiveLaunchConfigurationName(name)
 		state.SetLaunchConfiguration(lc)
@@ -142,9 +137,8 @@ func (ctx *EksInstanceGroupContext) CreateManagedRole() error {
 		instanceGroup      = ctx.GetInstanceGroup()
 		state              = ctx.GetDiscoveredState()
 		configuration      = instanceGroup.GetEKSConfiguration()
-		clusterName        = configuration.GetClusterName()
 		additionalPolicies = configuration.GetManagedPolicies()
-		roleName           = fmt.Sprintf("%v-%v-%v", clusterName, instanceGroup.GetNamespace(), instanceGroup.GetName())
+		roleName           = ctx.ResourcePrefix
 	)
 
 	if configuration.HasExistingRole() {
