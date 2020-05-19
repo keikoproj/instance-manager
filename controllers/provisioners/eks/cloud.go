@@ -17,6 +17,7 @@ package eks
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
@@ -134,6 +135,10 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 
 	for _, d := range deletable {
 		name := aws.StringValue(d.LaunchConfigurationName)
+		if strings.EqualFold(name, state.GetActiveLaunchConfigurationName()) {
+			// never try to delete the active launch config
+			continue
+		}
 		ctx.Log.Info("deleting old launch configuration", "instancegroup", instanceGroup.GetName(), "name", name)
 		if err := ctx.AwsWorker.DeleteLaunchConfig(name); err != nil {
 			ctx.Log.Error(err, "failed to delete launch configuration", "instancegroup", instanceGroup.GetName(), "name", name)
