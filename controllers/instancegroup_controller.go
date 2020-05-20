@@ -131,6 +131,13 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		return ctrl.Result{}, err
 	}
 
+	if err = instanceGroup.Spec.Validate(); err != nil {
+		r.Log.Error(err, "reconcile failed")
+		instanceGroup.SetState(v1alpha1.ReconcileErr)
+		r.Update(context.Background(), instanceGroup)
+		return ctrl.Result{}, err
+	}
+
 	// Add Finalizer if not present, and set the initial state
 	finalizerName := fmt.Sprintf("finalizers.%v.instancegroups.keikoproj.io", instanceGroup.Spec.Provisioner)
 	r.SetFinalizer(instanceGroup, finalizerName)

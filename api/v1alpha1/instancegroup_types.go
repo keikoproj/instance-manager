@@ -24,7 +24,6 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
@@ -47,18 +46,27 @@ const (
 	ReconcileReady ReconcileState = "Ready"
 	ReconcileErr   ReconcileState = "Error"
 
-	LifecycleStateNormal = "normal"
-	LifecycleStateSpot   = "spot"
+	LifecycleStateNormal      = "normal"
+	LifecycleStateSpot        = "spot"
+	CRDStrategyName           = "crd"
+	RollingUpdateStrategyName = "rollingupdate"
+	EKSProvisionerName        = "eks"
+	EKSManagedProvisionerName = "eks-managed"
 
 	NodesReady InstanceGroupConditionType = "NodesReady"
 )
 
 var (
-	GroupVersionResource = schema.GroupVersionResource{
-		Group:    "instancemgr.keikoproj.io",
-		Version:  "v1alpha1",
-		Resource: "instancegroups",
+	Strategies   = []string{"crd", "rollingupdate", "managed"}
+	Provisioners = []string{"eks", "eks-managed"}
+
+	DefaultRollingUpdateStrategy = &RollingUpdateStrategy{
+		MaxUnavailable: &intstr.IntOrString{
+			Type:   intstr.Int,
+			IntVal: 1,
+		},
 	}
+
 	log = ctrl.Log.WithName("v1alpha1")
 )
 
@@ -259,6 +267,43 @@ func (c *EKSConfiguration) Validate() error {
 			},
 		}
 	}
+	return nil
+}
+func (s *InstanceGroupSpec) Validate() error {
+	if !common.ContainsEqualFold(Provisioners, s.Provisioner) {
+		return errors.Errorf("validation failed, provisioner '%v' is invalid", s.Provisioner)
+	}
+
+	if strings.EqualFold(s.Provisioner, EKSProvisionerName) {
+		if err := s.EKSSpec.EKSConfiguration.Validate(); err != nil {
+			return err
+		}
+	}
+
+	// TODO: Add validation for EKSManagedProvisioner
+
+	if s.AwsUpgradeStrategy.Type == "" {
+		s.AwsUpgradeStrategy.Type = RollingUpdateStrategyName
+	}
+
+	if !common.ContainsEqualFold(Strategies, s.AwsUpgradeStrategy.Type) {
+		return errors.Errorf("validation failed, strategy '%v' is invalid", s.AwsUpgradeStrategy.Type)
+	}
+
+	if strings.EqualFold(s.AwsUpgradeStrategy.Type, CRDStrategyName) && s.AwsUpgradeStrategy.CRDType == nil {
+		return errors.Errorf("validation failed, strategy.crd is required")
+	}
+
+	if strings.EqualFold(s.AwsUpgradeStrategy.Type, CRDStrategyName) && s.AwsUpgradeStrategy.CRDType != nil {
+		if err := s.AwsUpgradeStrategy.CRDType.Validate(); err != nil {
+			return err
+		}
+	}
+
+	if strings.EqualFold(s.AwsUpgradeStrategy.Type, RollingUpdateStrategyName) && s.AwsUpgradeStrategy.RollingUpdateType == nil {
+		s.AwsUpgradeStrategy.RollingUpdateType = DefaultRollingUpdateStrategy
+	}
+
 	return nil
 }
 func (c *EKSConfiguration) GetRoleName() string {

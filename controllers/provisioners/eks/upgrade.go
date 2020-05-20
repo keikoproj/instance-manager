@@ -30,18 +30,16 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
 		strategy      = ctx.GetUpgradeStrategy()
+		state         = ctx.GetDiscoveredState()
+		strategyType  = strings.ToLower(strategy.GetType())
 	)
 
 	// process the upgrade strategy
-	switch strings.ToLower(strategy.GetType()) {
+	switch strategyType {
 	case kubeprovider.CRDStrategyName:
-		crdStrategy := strategy.GetCRDType()
-		if err := crdStrategy.Validate(); err != nil {
-			instanceGroup.SetState(v1alpha1.ReconcileErr)
-			return errors.Wrap(err, "failed to validate strategy spec")
-		}
 		ok, err := kubeprovider.ProcessCRDStrategy(ctx.KubernetesClient.KubeDynamic, instanceGroup)
 		if err != nil {
+			state.Publisher.Publish(kubeprovider.InstanceGroupUpgradeFailedEvent, "instancegroup", instanceGroup.GetName(), "type", kubeprovider.CRDStrategyName, "error", err.Error())
 			instanceGroup.SetState(v1alpha1.ReconcileErr)
 			return errors.Wrap(err, "failed to process CRD strategy")
 		}
@@ -53,6 +51,7 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 		req := ctx.NewRollingUpdateRequest()
 		ok, err := kubeprovider.ProcessRollingUpgradeStrategy(req)
 		if err != nil {
+			state.Publisher.Publish(kubeprovider.InstanceGroupUpgradeFailedEvent, "instancegroup", instanceGroup.GetName(), "type", kubeprovider.RollingUpdateStrategyName, "error", err)
 			instanceGroup.SetState(v1alpha1.ReconcileErr)
 			return errors.Wrap(err, "failed to process rolling-update strategy")
 		}

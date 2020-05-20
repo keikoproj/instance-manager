@@ -298,20 +298,27 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 		instanceIds = append(instanceIds, aws.StringValue(instance.InstanceId))
 	}
 
+	instances := strings.Join(instanceIds, ",")
+
 	var conditions []v1alpha1.InstanceGroupCondition
 	ok, err := kubeprovider.IsDesiredNodesReady(ctx.KubernetesClient.Kubernetes, instanceIds, desiredCount)
 	if err != nil {
 		ctx.Log.Error(err, "could not update node conditions", "instancegroup", instanceGroup.GetName())
 		return false
 	}
-
 	if ok {
+		if !state.IsNodesReady() {
+			state.Publisher.Publish(kubeprovider.NodesReadyEvent, "instancegroup", instanceGroup.GetName(), "instances", instances)
+		}
 		state.SetNodesReady(true)
 		conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionTrue))
 		status.SetConditions(conditions)
 		return true
 	}
 
+	if state.IsNodesReady() {
+		state.Publisher.Publish(kubeprovider.NodesNotReadyEvent, "instancegroup", instanceGroup.GetName(), "instances", instances)
+	}
 	state.SetNodesReady(false)
 	conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionFalse))
 	status.SetConditions(conditions)
@@ -461,4 +468,33 @@ func (ctx *EksInstanceGroupContext) RemoveAuthRole(arn string) error {
 	}
 
 	return common.RemoveAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{arn})
+}
+
+func (ctx *EksInstanceGroupContext) GetTimeSortedLaunchConfigurations() []*autoscaling.LaunchConfiguration {
+	var (
+		state = ctx.GetDiscoveredState()
+	)
+
+	configurations := []*autoscaling.LaunchConfiguration{}
+	for _, lc := range state.GetLaunchConfigurations() {
+		name := aws.StringValue(lc.LaunchConfigurationName)
+		if strings.HasPrefix(name, ctx.ResourcePrefix) {
+			configurations = append(configurations, lc)
+		}
+	}
+
+	// sort matching launch configs by created time
+	sort.Slice(configurations, func(i, j int) bool {
+		ti := configurations[i].CreatedTime
+		tj := configurations[j].CreatedTime
+		if tj == nil {
+			return true
+		}
+		if ti == nil {
+			return false
+		}
+		return ti.UnixNano() < tj.UnixNano()
+	})
+
+	return configurations
 }

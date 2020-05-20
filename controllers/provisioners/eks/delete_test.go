@@ -16,6 +16,7 @@ limitations under the License.
 package eks
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -43,6 +44,9 @@ func TestDeletePositive(t *testing.T) {
 	ctx := MockContext(ig, k, w)
 
 	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
 		ScalingGroup:        &autoscaling.Group{},
 		LaunchConfiguration: &autoscaling.LaunchConfiguration{},
 		IAMRole:             &iam.Role{},
@@ -67,6 +71,9 @@ func TestDeleteManagedRoleNegative(t *testing.T) {
 	ctx := MockContext(ig, k, w)
 
 	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
 		IAMRole: &iam.Role{},
 	})
 
@@ -95,14 +102,20 @@ func TestDeleteLaunchConfigurationNegative(t *testing.T) {
 	ctx := MockContext(ig, k, w)
 
 	ctx.SetDiscoveredState(&DiscoveredState{
-		LaunchConfiguration: &autoscaling.LaunchConfiguration{},
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
+		LaunchConfigurations: []*autoscaling.LaunchConfiguration{
+			{
+				LaunchConfigurationName: aws.String(fmt.Sprintf("%v-123456", ctx.ResourcePrefix)),
+			},
+		},
 	})
 
 	asgMock.DeleteLaunchConfigurationErr = errors.New("some-error")
 	err := ctx.Delete()
 	g.Expect(err).To(gomega.HaveOccurred())
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileDeleting))
-	asgMock.DeleteLaunchConfigurationErr = nil
 }
 
 func TestDeleteAutoScalingGroupNegative(t *testing.T) {
@@ -118,6 +131,9 @@ func TestDeleteAutoScalingGroupNegative(t *testing.T) {
 	ctx := MockContext(ig, k, w)
 
 	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
 		ScalingGroup: &autoscaling.Group{},
 	})
 
@@ -159,6 +175,9 @@ func TestRemoveAuthRoleNegative(t *testing.T) {
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
 		IAMRole: &iam.Role{
 			Arn: aws.String("same-role"),
 		},

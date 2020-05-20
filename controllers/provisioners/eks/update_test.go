@@ -18,6 +18,8 @@ package eks
 import (
 	"testing"
 
+	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -55,6 +57,9 @@ func TestUpdateScalingGroupPositive(t *testing.T) {
 	asgMock.AutoScalingGroups = []*autoscaling.Group{mockScalingGroup}
 
 	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
 		ScalingGroup:                  mockScalingGroup,
 		ActiveLaunchConfigurationName: "some-launch-config",
 		LaunchConfiguration:           mockLaunchConfig,
@@ -108,6 +113,9 @@ func TestUpdateWithDriftRotationPositive(t *testing.T) {
 
 	// missing launch config causes drift
 	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
 		ScalingGroup:                  mockScalingGroup,
 		ActiveLaunchConfigurationName: "some-launch-config",
 		InstanceProfile: &iam.InstanceProfile{
@@ -167,6 +175,9 @@ func TestUpdateWithRotationPositive(t *testing.T) {
 	asgMock.AutoScalingGroups = []*autoscaling.Group{mockScalingGroup}
 
 	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
 		ScalingGroup:                  mockScalingGroup,
 		ActiveLaunchConfigurationName: "some-launch-config",
 		LaunchConfiguration:           mockLaunchConfig,
@@ -245,6 +256,9 @@ func TestLaunchConfigurationDrifted(t *testing.T) {
 
 	for _, tc := range tests {
 		ctx.SetDiscoveredState(&DiscoveredState{
+			Publisher: kubeprovider.EventPublisher{
+				Client: k.Kubernetes,
+			},
 			ActiveLaunchConfigurationName: "some-launch-config",
 			LaunchConfiguration:           tc.input,
 		})
@@ -272,6 +286,9 @@ func TestUpdateScalingGroupNegative(t *testing.T) {
 	}
 
 	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
 		ScalingGroup: mockScalingGroup,
 	})
 

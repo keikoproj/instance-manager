@@ -24,8 +24,15 @@ import (
 )
 
 var (
-	// GroupVersion is group version used to register these objects
+	// GroupVersion is group version used to register instance groups
 	GroupVersion = schema.GroupVersion{Group: "instancemgr.keikoproj.io", Version: "v1alpha1"}
+
+	// GroupVersionResource is group version resource used to register instance groups
+	GroupVersionResource = schema.GroupVersionResource{
+		Group:    "instancemgr.keikoproj.io",
+		Version:  "v1alpha1",
+		Resource: "instancegroups",
+	}
 
 	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
 	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}

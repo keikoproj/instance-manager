@@ -16,7 +16,10 @@ limitations under the License.
 package eks
 
 import (
+	"strings"
+
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/pkg/errors"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -74,6 +77,7 @@ func (ctx *EksInstanceGroupContext) DeleteScalingGroup() error {
 		return err
 	}
 	ctx.Log.Info("deleted scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
+	state.Publisher.Publish(kubeprovider.InstanceGroupDeletedEvent, "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 	return nil
 }
 
@@ -81,18 +85,18 @@ func (ctx *EksInstanceGroupContext) DeleteLaunchConfiguration() error {
 	var (
 		state         = ctx.GetDiscoveredState()
 		instanceGroup = ctx.GetInstanceGroup()
-		lcName        = state.GetActiveLaunchConfigurationName()
 	)
 
-	if !state.HasLaunchConfiguration() {
-		return nil
+	for _, lc := range state.GetLaunchConfigurations() {
+		name := aws.StringValue(lc.LaunchConfigurationName)
+		if strings.HasPrefix(name, ctx.ResourcePrefix) {
+			err := ctx.AwsWorker.DeleteLaunchConfig(name)
+			if err != nil {
+				return err
+			}
+			ctx.Log.Info("deleted launch config", "instancegroup", instanceGroup.GetName(), "launchconfig", name)
+		}
 	}
-
-	err := ctx.AwsWorker.DeleteLaunchConfig(lcName)
-	if err != nil {
-		return err
-	}
-	ctx.Log.Info("deleted launch config", "instancegroup", instanceGroup.GetName(), "launchconfig", lcName)
 	return nil
 }
 
