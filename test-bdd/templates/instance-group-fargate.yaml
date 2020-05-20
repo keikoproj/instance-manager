@@ -8,7 +8,7 @@ spec:
   strategy:
       type: rollingUpdate
   eks-fargate:
-      fargateProfileName: {{ .ProfileName }}
+      fargateProfileName: "test-bdd-profile-name"
       clusterName: {{ .ClusterName }}
       podExecutionRoleArn: ""
       subnets: {{range $element := .Subnets}}

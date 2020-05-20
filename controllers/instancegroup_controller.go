@@ -195,6 +195,31 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 			)
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
+
+	case eksfargate.ProvisionerName:
+
+		ctx := eksfargate.New(input)
+		defer r.Update(context.Background(), ctx.GetInstanceGroup())
+		err = HandleReconcileRequest(ctx)
+		if err != nil {
+			r.Log.Error(err,
+				"reconcile failed",
+				"instancegroup", instanceGroup.GetName(),
+				"provisioner", provisionerKind,
+			)
+			ctx.SetState(v1alpha1.ReconcileErr)
+		}
+		if eksfargate.IsRetryable(instanceGroup) {
+			r.Log.Info(
+				"reconcile event ended with requeue",
+				"instancegroup", req.Name,
+				"namespace", req.Namespace,
+				"provisioner", provisionerKind,
+				"resourceVersion", instanceGroup.GetResourceVersion(),
+			)
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+		}
+
 	default:
 		return ctrl.Result{}, errors.Errorf("provisioner '%v' does not exist", provisionerKind)
 	}
@@ -208,32 +233,6 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		"resourceVersion", instanceGroup.GetResourceVersion(),
 	)
 	return ctrl.Result{}, nil
-}
-
-func (r *InstanceGroupReconciler) ReconcileEKSFargate(instanceGroup *v1alpha1.InstanceGroup, finalizerName string) error {
-	awsRegion, err := awsprovider.GetRegion()
-	if err != nil {
-		return err
-	}
-	worker := awsprovider.AwsWorker{
-		IamClient: awsprovider.GetAwsIamClient(awsRegion),
-		EksClient: awsprovider.GetAwsEksClient(awsRegion),
-	}
-	ctx, err := eksfargate.New(instanceGroup, worker)
-	if err != nil {
-		r.Log.Error(err, "Allocation of EKSFargate context failed")
-		ctx.SetState(v1alpha1.ReconcileErr)
-		r.Update(context.Background(), ctx.GetInstanceGroup())
-		return err
-	}
-	err = HandleReconcileRequest(&ctx)
-	if err != nil {
-		ctx.SetState(v1alpha1.ReconcileErr)
-		r.Update(context.Background(), ctx.GetInstanceGroup())
-		return err
-	}
-	r.Finalize(instanceGroup, finalizerName)
-	return r.Update(context.Background(), instanceGroup)
 }
 
 func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {

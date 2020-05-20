@@ -17,18 +17,23 @@ package eksfargate
 
 import (
 	"errors"
-	"fmt"
 	"github.com/aws/aws-sdk-go/service/eks"
 	v1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
 	aws "github.com/keikoproj/instance-manager/controllers/providers/aws"
-	ctrl "sigs.k8s.io/controller-runtime"
+	"github.com/keikoproj/instance-manager/controllers/provisioners"
 )
+
+const ProvisionerName = "eks-fargate"
 
 const LastAppliedConfigurationKey = "kubectl.kubernetes.io/last-applied-configuration"
 
 const (
 	PendingRolePolicyAttach = "pendingPolicyCreation"
 	PendingRoleCreation     = "pendingRoleCreation"
+)
+
+var (
+	NonRetryableStates = []v1alpha1.ReconcileState{v1alpha1.ReconcileErr, v1alpha1.ReconcileReady, v1alpha1.ReconcileDeleted}
 )
 
 const (
@@ -40,15 +45,36 @@ const (
 	UnrecoverableDeleteErrorString = "UnrecoverableDeleteError"
 )
 
-func New(instanceGroup *v1alpha1.InstanceGroup, worker aws.AwsWorker) (InstanceGroupContext, error) {
-	ctx := InstanceGroupContext{
-		InstanceGroup: instanceGroup,
-		AwsWorker:     worker,
-		Log:           ctrl.Log.WithName("eksfargate"),
+func New(p provisioners.ProvisionerInput) *InstanceGroupContext {
+	ctx := &InstanceGroupContext{
+		InstanceGroup: p.InstanceGroup,
+		AwsWorker:     p.AwsWorker,
+		Log:           p.Log.WithName("eks-fargate"),
 	}
+
+	instanceGroup := ctx.GetInstanceGroup()
+
 	instanceGroup.SetState(v1alpha1.ReconcileInit)
-	return ctx, nil
+	ctx.processParameters()
+
+	return ctx
 }
+
+func (ctx *InstanceGroupContext) processParameters() {
+	var (
+		instanceGroup = ctx.GetInstanceGroup()
+		spec          = instanceGroup.GetEKSFargateSpec()
+		params        = make(map[string]interface{})
+	)
+
+	params["ClusterName"] = spec.GetClusterName()
+	params["ProfileName"] = spec.GetProfileName()
+	params["Selectors"] = CreateFargateSelectors(spec.GetSelectors())
+	params["Subnets"] = CreateFargateSubnets(spec.GetSubnets())
+	params["Tags"] = CreateFargateTags(spec.GetTags())
+	ctx.AwsWorker.Parameters = params
+}
+
 func CreateFargateSubnets(subnets []string) []*string {
 	stringReferences := []*string{}
 	for _, s := range subnets {
@@ -84,31 +110,34 @@ func CreateFargateSelectors(selectors []v1alpha1.EKSFargateSelectors) []*eks.Far
 	}
 	return eksSelectors
 }
-
+func IsRetryable(instanceGroup *v1alpha1.InstanceGroup) bool {
+	for _, state := range NonRetryableStates {
+		if state == instanceGroup.GetState() {
+			return false
+		}
+	}
+	return true
+}
 func (ctx *InstanceGroupContext) Create() error {
 	var arn string
 	instanceGroup := ctx.GetInstanceGroup()
 	spec := instanceGroup.GetEKSFargateSpec()
 	if instanceGroup.GetEKSFargateSpec().GetPodExecutionRoleArn() == "" {
-		commonInput := aws.CreateCommonInput{
-			ClusterName: spec.GetClusterName(),
-			ProfileName: spec.GetProfileName(),
-		}
-		created, err := ctx.AwsWorker.CreateDefaultRole(commonInput)
+		created, err := ctx.AwsWorker.CreateDefaultRole()
 		if created || err != nil {
 			ctx.Log.Info("Creating default role")
 			return err
 		}
-		role, err := ctx.AwsWorker.GetDefaultRole(commonInput)
+		role, err := ctx.AwsWorker.GetDefaultRole()
 		if err != nil {
-			ctx.Log.Error(err, "Failed to get default role: %v")
+			ctx.Log.Info("Failed to get default role", "error", err)
 			return err
 		}
 		arn = *role.Arn
 
-		err = ctx.AwsWorker.AttachDefaultPolicyToDefaultRole(commonInput)
+		err = ctx.AwsWorker.AttachDefaultPolicyToDefaultRole()
 		if err != nil {
-			ctx.Log.Error(err, "Failed to get attach policy to role: %v")
+			ctx.Log.Info("Failed to get attach policy to role", "error", err)
 			return err
 		}
 		ctx.Log.Info("Attached default policy to role")
@@ -117,24 +146,18 @@ func (ctx *InstanceGroupContext) Create() error {
 		arn = spec.GetPodExecutionRoleArn()
 	}
 
-	ctx.Log.Info(fmt.Sprintf("Creating a profile with %s", arn))
-	createProfileInput := aws.CreateProfileInput{
-		ClusterName: spec.GetClusterName(),
-		ProfileName: spec.GetProfileName(),
-		Arn:         arn,
-		Selectors:   CreateFargateSelectors(spec.GetSelectors()),
-		Tags:        CreateFargateTags(spec.GetTags()),
-		Subnets:     CreateFargateSubnets(spec.GetSubnets()),
-	}
-	tryAgain, err := ctx.AwsWorker.CreateProfile(createProfileInput)
+	ctx.Log.Info("Creating a profile.", "arn", arn)
+	tryAgain, err := ctx.AwsWorker.CreateProfile(arn)
 	if tryAgain {
 		ctx.Log.Info("Resource inuse on Create.")
 		return nil
 	}
 	if err != nil {
-		ctx.Log.Error(err, "Creation of the fargate profile for cluster %v and name %v failed: %v",
+		ctx.Log.Info("Creation of the fargate profile failed", "cluster",
 			spec.GetClusterName(),
-			spec.GetProfileName())
+			"profile",
+			spec.GetProfileName(),
+			"error", err)
 	} else {
 		instanceGroup.SetState(v1alpha1.ReconcileModifying)
 	}
@@ -142,11 +165,7 @@ func (ctx *InstanceGroupContext) Create() error {
 	return err
 }
 func (ctx *InstanceGroupContext) CloudDiscovery() error {
-	input := aws.CreateCommonInput{
-		ClusterName: ctx.GetInstanceGroup().GetEKSFargateSpec().GetClusterName(),
-		ProfileName: ctx.GetInstanceGroup().GetEKSFargateSpec().GetProfileName(),
-	}
-	profile, err := ctx.AwsWorker.DescribeProfile(input)
+	profile, err := ctx.AwsWorker.DescribeProfile()
 	if err != nil {
 		profile = &eks.FargateProfile{
 			Status: nil,
@@ -164,33 +183,31 @@ func (ctx *InstanceGroupContext) Delete() error {
 	spec := instanceGroup.GetEKSFargateSpec()
 
 	worker := ctx.AwsWorker
-	commonInput := aws.CreateCommonInput{
-		ClusterName: spec.GetClusterName(),
-		ProfileName: spec.GetProfileName(),
-	}
 	if spec.GetPodExecutionRoleArn() == "" {
-		found, err := worker.DetachDefaultPolicyFromDefaultRole(commonInput)
+		found, err := worker.DetachDefaultPolicyFromDefaultRole()
 		if found || err != nil {
-			ctx.Log.Info(fmt.Sprintf("Detaching the default policy: %v", err))
+			ctx.Log.Info("Detaching the default policy", "error", err)
 			return err
 		}
 
-		found, err = ctx.AwsWorker.DeleteDefaultRole(commonInput)
+		found, err = ctx.AwsWorker.DeleteDefaultRole()
 		if found || err != nil {
-			ctx.Log.Info(fmt.Sprintf("Deleting the default role: %v", err))
+			ctx.Log.Info("Deleting the default role", "error", err)
 			return err
 		}
 	}
 	ctx.Log.Info("Deleting the profile")
-	tryAgain, err := worker.DeleteProfile(commonInput)
+	tryAgain, err := worker.DeleteProfile()
 	if tryAgain {
 		ctx.Log.Info("Resource inuse on Delete.")
 		return nil
 	}
 	if err != nil {
-		ctx.Log.Error(err, "Deletion of the fargate profile for cluster %v and name %v failed: %v",
-			commonInput.ClusterName,
-			commonInput.ProfileName)
+		ctx.Log.Info("Deletion of the fargate profile.", "cluster",
+			spec.GetClusterName(),
+			"profile",
+			spec.GetProfileName(),
+			"error", err)
 		return err
 	}
 	instanceGroup.SetState(v1alpha1.ReconcileDeleting)

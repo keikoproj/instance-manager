@@ -65,7 +65,11 @@ env-delete:
 
 .PHONY: bdd
 bdd:
-	go test -timeout 60m -v ./test-bdd/ --godog.stop-on-failure --godog.tags "~@wip"
+	go test -timeout 60m -v ./test-bdd/ --godog.stop-on-failure 
+
+.PHONY: wip
+wip:
+	go test -timeout 60m -v ./test-bdd/ --godog.tags "@wip"
 
 .PHONY: coverage
 coverage:

@@ -35,7 +35,6 @@ import (
 type TemplateArguments struct {
 	ClusterName        string
 	KeyPairName        string
-	ProfileName        string
 	AmiID              string
 	NodeRole           string
 	NodeSecurityGroups []string
@@ -46,7 +45,6 @@ func NewTemplateArguments() *TemplateArguments {
 	return &TemplateArguments{
 		ClusterName:        os.Getenv("EKS_CLUSTER"),
 		KeyPairName:        os.Getenv("KEYPAIR_NAME"),
-		ProfileName:        os.Getenv("PROFILE_NAME"),
 		AmiID:              os.Getenv("AMI_ID"),
 		NodeRole:           os.Getenv("NODE_ROLE"),
 		NodeSecurityGroups: strings.Split(os.Getenv("SECURITY_GROUPS"), ","),

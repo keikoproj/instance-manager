@@ -23,9 +23,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
-	//"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
+	"github.com/keikoproj/instance-manager/controllers/provisioners"
 	"github.com/pkg/errors"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	//	"io/ioutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	//	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -277,13 +279,16 @@ func (u *EksFargateUnitTest) BuildProvisioner(t *testing.T) *InstanceGroupContex
 			DeleteRoleFound:          u.DeleteRoleFound,
 		},
 	}
-	provisioner, err := New(u.InstanceGroup, *aws)
-
-	if err != nil {
-		t.Fatal(err)
+	ctrl.SetLogger(zap.Logger(true))
+	p := provisioners.ProvisionerInput{
+		InstanceGroup: u.InstanceGroup,
+		AwsWorker:     *aws,
+		Log:           ctrl.Log.WithName("unit-test").WithName("InstanceGroup"),
 	}
-	u.Provisioner = &provisioner
-	return &provisioner
+	provisioner := New(p)
+
+	u.Provisioner = provisioner
+	return provisioner
 }
 
 func (u *EksFargateUnitTest) Run(t *testing.T) v1alpha1.ReconcileState {
@@ -904,4 +909,44 @@ func TestDeleteWithRetry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("TestDeleteWithRetry: expected nil.  Got %v", err)
 	}
+}
+func TestIsRetryableFalse1(t *testing.T) {
+	ig := FakeIG{}
+	instanceGroup := ig.getInstanceGroup()
+	instanceGroup.SetState(v1alpha1.ReconcileDeleted)
+	retryable := IsRetryable(instanceGroup)
+	if retryable {
+		t.Fatal("TestIsRetryableFalse1: expected false.")
+	}
+
+}
+func TestIsRetryableFalse2(t *testing.T) {
+	ig := FakeIG{}
+	instanceGroup := ig.getInstanceGroup()
+	instanceGroup.SetState(v1alpha1.ReconcileReady)
+	retryable := IsRetryable(instanceGroup)
+	if retryable {
+		t.Fatal("TestIsRetryableFalse2: expected false.")
+	}
+
+}
+func TestIsRetryableFalse3(t *testing.T) {
+	ig := FakeIG{}
+	instanceGroup := ig.getInstanceGroup()
+	instanceGroup.SetState(v1alpha1.ReconcileErr)
+	retryable := IsRetryable(instanceGroup)
+	if retryable {
+		t.Fatal("TestIsRetryableFalse3: expected false.")
+	}
+
+}
+func TestIsRetryableTrue(t *testing.T) {
+	ig := FakeIG{}
+	instanceGroup := ig.getInstanceGroup()
+	instanceGroup.SetState(v1alpha1.ReconcileModifying)
+	retryable := IsRetryable(instanceGroup)
+	if !retryable {
+		t.Fatal("TestIsRetryableTrue: expected true.")
+	}
+
 }

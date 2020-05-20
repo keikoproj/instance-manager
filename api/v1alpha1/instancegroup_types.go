@@ -182,24 +182,6 @@ type EKSManagedConfiguration struct {
 	Version            string              `json:"version,omitempty"`
 }
 
-// EKSCFConfiguration defines the context of an AWS Instance Group using EKSCF
-type EKSCFConfiguration struct {
-	EksClusterName              string              `json:"clusterName,omitempty"`
-	KeyPairName                 string              `json:"keyPairName,omitempty"`
-	Image                       string              `json:"image,omitempty"`
-	InstanceType                string              `json:"instanceType,omitempty"`
-	NodeSecurityGroups          []string            `json:"securityGroups,omitempty"`
-	VolSize                     int32               `json:"volSize,omitempty"`
-	Subnets                     []string            `json:"subnets,omitempty"`
-	BootstrapArguments          string              `json:"bootstrapArguments,omitempty"`
-	SpotPrice                   string              `json:"spotPrice,omitempty"`
-	Tags                        []map[string]string `json:"tags,omitempty"`
-	ExistingRoleName            string              `json:"roleName,omitempty"`
-	ExistingInstanceProfileName string              `json:"instanceProfileName,omitempty"`
-	ManagedPolicies             []string            `json:"managedPolicies,omitempty"`
-	MetricsCollection           []string            `json:"metricsCollection,omitempty"`
-}
-
 type EKSFargateSelectors struct {
 	Namespace string            `json:"namespace"`
 	Labels    map[string]string `json:"labels"`

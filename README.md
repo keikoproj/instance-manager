@@ -26,20 +26,16 @@ _For installation instructions and more examples of usage, please refer to the [
 
 ### Currently supported provisioners
 
-| Provisioner | Description | Supported?
-| :--- | :--- | :---: |
-| eks-cf | provision nodes on EKS using cloudformation | ✅ |
-| eks-managed | provision managed node groups for EKS | ✅ |
-| eks-fargate | provision a cluster to run pods on fargate|✅|
+| Provisioner | Description | 
+| :---------- | :---------- | 
+| eks         | provision nodes on EKS |
+| eks-managed | provision managed node groups on EKS|
+| eks-fargate | provision a cluster to run pods on EKS Fargate|
 
 To create an instance group, submit an InstanceGroup custom resource in your cluster, and the controller will provision and bootstrap it to your cluster, and allow you to modify it from within the cluster.
 
-<<<<<<< HEAD
-### Sample Specs (by provisioner)
-#### *eks-cf* provisioner
-=======
+
 ### EKS sample spec (alpha-2)
->>>>>>> master
 
 ```yaml
 apiVersion: instancemgr.keikoproj.io/v1alpha1
@@ -83,8 +79,7 @@ spec:
         value: some-value
 ```
 
-#### *eks-fargate* provisioner
-
+### EKS Fargate sample spec
 The purpose of this provisioner is to enable instance groups with AWS Fargate management. 
 
 By associating EKS clusters with a Fargate Profile, pods can be identified for execution through profile selectors. If a to-be-scheduled pod matches any of the selectors in the Fargate Profile, then that pod is scheduled on Fargate. 
@@ -132,7 +127,7 @@ spec:
 ```
 Read more about the [Fargate Profile](https://docs.aws.amazon.com/eks/latest/userguide/fargate-profile.html).
 
-If the above `podExecutionRoleArn` parameter is not specified, the provisioner will create a simple, limited role and policy that enables the pod to start but not access any AWS resources.  That role and policy is shown below. 
+If the above *podExecutionRoleArn* parameter is not specified, the provisioner will create a simple, limited role and policy that enables the pod to start but not access any AWS resources.  That role and policy is shown below. 
 
 ```yaml
 Type: 'AWS::IAM::Role'
@@ -149,7 +144,7 @@ Properties:
   Path: /
   
 ```
-Most likely an execution role with access to addtional AWS resources will be required.  In this case, the above IAM role can be used as the basis to create a new, custom role with the IAM policies specific to your pods. Create your new role and your pod specific policies and use the new role's ARN as the `podExecutionRoleArn` parameter value in eks-fargate spec. 
+Most likely an execution role with access to addtional AWS resources will be required.  In this case, the above IAM role can be used as the basis to create a new, custom role with the IAM policies specific to your pods. Create your new role and your pod specific policies and use the new role's ARN as the *podExecutionRoleArn* parameter value in eks-fargate spec. 
 
 Here is an example of a role with an additional policy for S3 access.
 

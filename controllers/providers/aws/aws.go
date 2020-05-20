@@ -35,19 +35,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
-type CreateProfileInput struct {
-	ClusterName string
-	ProfileName string
-	Arn         string
-	Selectors   []*eks.FargateProfileSelector
-	Tags        map[string]*string
-	Subnets     []*string
-}
-type CreateCommonInput struct {
-	ClusterName string
-	ProfileName string
-}
-
 var (
 	log = ctrl.Log.WithName("aws-provider")
 )
@@ -740,10 +727,10 @@ func IsProfileInConditionState(key string, condition string) bool {
 
 const defaultPolicyArn = "arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy"
 
-func (w *AwsWorker) DetachDefaultPolicyFromDefaultRole(input CreateCommonInput) (bool, error) {
+func (w *AwsWorker) DetachDefaultPolicyFromDefaultRole() (bool, error) {
 	rolePolicy := &iam.DetachRolePolicyInput{
 		PolicyArn: aws.String(defaultPolicyArn),
-		RoleName:  w.CreateDefaultRoleName(input),
+		RoleName:  w.CreateDefaultRoleName(),
 	}
 	_, err := w.IamClient.DetachRolePolicy(rolePolicy)
 	if err != nil {
@@ -757,9 +744,9 @@ func (w *AwsWorker) DetachDefaultPolicyFromDefaultRole(input CreateCommonInput) 
 	return true, nil
 }
 
-func (w *AwsWorker) DeleteDefaultRole(input CreateCommonInput) (bool, error) {
+func (w *AwsWorker) DeleteDefaultRole() (bool, error) {
 	role := &iam.DeleteRoleInput{
-		RoleName: w.CreateDefaultRoleName(input),
+		RoleName: w.CreateDefaultRoleName(),
 	}
 	_, err := w.IamClient.DeleteRole(role)
 	if err != nil {
@@ -772,13 +759,13 @@ func (w *AwsWorker) DeleteDefaultRole(input CreateCommonInput) (bool, error) {
 	}
 	return true, nil
 }
-func (w *AwsWorker) CreateDefaultRoleName(input CreateCommonInput) *string {
-	s := fmt.Sprintf("%v_%v_Role", input.ClusterName, input.ProfileName)
+func (w *AwsWorker) CreateDefaultRoleName() *string {
+	s := fmt.Sprintf("%v_%v_Role", w.Parameters["ClusterName"].(string), w.Parameters["ProfileName"].(string))
 	return &s
 }
 
-func (w *AwsWorker) GetDefaultRole(input CreateCommonInput) (*iam.Role, error) {
-	var roleName = w.CreateDefaultRoleName(input)
+func (w *AwsWorker) GetDefaultRole() (*iam.Role, error) {
+	var roleName = w.CreateDefaultRoleName()
 	role := &iam.GetRoleInput{
 		RoleName: roleName,
 	}
@@ -789,8 +776,8 @@ func (w *AwsWorker) GetDefaultRole(input CreateCommonInput) (*iam.Role, error) {
 
 	return resp.Role, nil
 }
-func (w *AwsWorker) CreateDefaultRole(input CreateCommonInput) (bool, error) {
-	var roleName = w.CreateDefaultRoleName(input)
+func (w *AwsWorker) CreateDefaultRole() (bool, error) {
+	var roleName = w.CreateDefaultRoleName()
 	var template = `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"eks-fargate-pods.amazonaws.com"},"Action":"sts:AssumeRole"}]}`
 	role := &iam.CreateRoleInput{
 		AssumeRolePolicyDocument: &template,
@@ -809,23 +796,23 @@ func (w *AwsWorker) CreateDefaultRole(input CreateCommonInput) (bool, error) {
 	return true, nil
 }
 
-func (w *AwsWorker) AttachDefaultPolicyToDefaultRole(input CreateCommonInput) error {
+func (w *AwsWorker) AttachDefaultPolicyToDefaultRole() error {
 	rolePolicy := &iam.AttachRolePolicyInput{
 		PolicyArn: aws.String(defaultPolicyArn),
-		RoleName:  w.CreateDefaultRoleName(input),
+		RoleName:  w.CreateDefaultRoleName(),
 	}
 	_, err := w.IamClient.AttachRolePolicy(rolePolicy)
 	return err
 }
 
-func (w *AwsWorker) CreateProfile(input CreateProfileInput) (bool, error) {
+func (w *AwsWorker) CreateProfile(arn string) (bool, error) {
 	fargateInput := &eks.CreateFargateProfileInput{
-		ClusterName:         &input.ClusterName,
-		FargateProfileName:  &input.ProfileName,
-		PodExecutionRoleArn: &input.Arn,
-		Selectors:           input.Selectors,
-		Subnets:             input.Subnets,
-		Tags:                input.Tags,
+		ClusterName:         aws.String(w.Parameters["ClusterName"].(string)),
+		FargateProfileName:  aws.String(w.Parameters["ProfileName"].(string)),
+		PodExecutionRoleArn: aws.String(arn),
+		Selectors:           w.Parameters["Selectors"].([]*eks.FargateProfileSelector),
+		Subnets:             w.Parameters["Subnets"].([]*string),
+		Tags:                w.Parameters["Tags"].(map[string]*string),
 	}
 
 	_, err := w.EksClient.CreateFargateProfile(fargateInput)
@@ -839,10 +826,10 @@ func (w *AwsWorker) CreateProfile(input CreateProfileInput) (bool, error) {
 	return false, err
 }
 
-func (w *AwsWorker) DeleteProfile(input CreateCommonInput) (bool, error) {
+func (w *AwsWorker) DeleteProfile() (bool, error) {
 	deleteInput := &eks.DeleteFargateProfileInput{
-		ClusterName:        &input.ClusterName,
-		FargateProfileName: &input.ProfileName,
+		ClusterName:        aws.String(w.Parameters["ClusterName"].(string)),
+		FargateProfileName: aws.String(w.Parameters["ProfileName"].(string)),
 	}
 	_, err := w.EksClient.DeleteFargateProfile(deleteInput)
 	if err != nil {
@@ -855,17 +842,14 @@ func (w *AwsWorker) DeleteProfile(input CreateCommonInput) (bool, error) {
 	return false, err
 }
 
-func DescribeProfileWithParms(client eksiface.EKSAPI, input CreateCommonInput) (*eks.FargateProfile, error) {
+func (w *AwsWorker) DescribeProfile() (*eks.FargateProfile, error) {
 	describeInput := &eks.DescribeFargateProfileInput{
-		ClusterName:        &input.ClusterName,
-		FargateProfileName: &input.ProfileName,
+		ClusterName:        aws.String(w.Parameters["ClusterName"].(string)),
+		FargateProfileName: aws.String(w.Parameters["ProfileName"].(string)),
 	}
-	output, err := client.DescribeFargateProfile(describeInput)
+	output, err := w.EksClient.DescribeFargateProfile(describeInput)
 	if err != nil {
 		return nil, err
 	}
 	return output.FargateProfile, nil
-}
-func (w *AwsWorker) DescribeProfile(input CreateCommonInput) (*eks.FargateProfile, error) {
-	return DescribeProfileWithParms(w.EksClient, input)
 }

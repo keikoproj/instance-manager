@@ -37,6 +37,7 @@ Feature: CRUD Create
   @wip
   Scenario: Create a fargate profile with default execution role 
     Given an EKS cluster
-    When I create a resource instance-group-fargate.yaml
-    Then the resource should be created
+    Then I create a resource instance-group-fargate.yaml
+    And the resource should be created
+    And the fargate profile should be found
 
