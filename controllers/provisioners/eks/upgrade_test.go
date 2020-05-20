@@ -33,20 +33,22 @@ import (
 
 func TestUpgradeCRDStrategyValidation(t *testing.T) {
 	var (
-		g       = gomega.NewGomegaWithT(t)
-		k       = MockKubernetesClientSet()
-		ig      = MockInstanceGroup()
-		cr      = MockCustomResourceSpec()
-		crd     = MockCustomResourceDefinition()
-		asgMock = NewAutoScalingMocker()
-		iamMock = NewIamMocker()
+		g   = gomega.NewGomegaWithT(t)
+		k   = MockKubernetesClientSet()
+		ig  = MockInstanceGroup()
+		cr  = MockCustomResourceSpec()
+		crd = MockCustomResourceDefinition()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock)
-	ctx := MockContext(ig, k, w)
+	config := ig.GetEKSConfiguration()
 
 	// assume initial state of modifying
 	ig.SetState(v1alpha1.ReconcileModifying)
+	config.Subnets = []string{"subnet-1"}
+	config.Image = "ami-1234"
+	config.NodeSecurityGroups = []string{"sg-12323"}
+	config.InstanceType = "m5.large"
+	config.KeyPairName = "myKey"
 
 	// get custom resource yaml
 	crYAML, err := yaml.Marshal(cr.Object)
@@ -79,25 +81,25 @@ func TestUpgradeCRDStrategyValidation(t *testing.T) {
 		shouldErr     bool
 		expectedState v1alpha1.ReconcileState
 	}{
-		{input: valid, shouldErr: false, expectedState: v1alpha1.ReconcileModifying},
-		{input: missingName, shouldErr: true, expectedState: v1alpha1.ReconcileErr},
-		{input: missingSpec, shouldErr: true, expectedState: v1alpha1.ReconcileErr},
-		{input: missingConcurrency, shouldErr: false, expectedState: v1alpha1.ReconcileModifying},
-		{input: missingStatusPath, shouldErr: true, expectedState: v1alpha1.ReconcileErr},
-		{input: missingSuccessStr, shouldErr: true, expectedState: v1alpha1.ReconcileErr},
-		{input: missingFailureStr, shouldErr: true, expectedState: v1alpha1.ReconcileErr},
+		{input: valid, shouldErr: false},
+		{input: missingName, shouldErr: true},
+		{input: missingSpec, shouldErr: true},
+		{input: missingConcurrency, shouldErr: false},
+		{input: missingStatusPath, shouldErr: true},
+		{input: missingSuccessStr, shouldErr: true},
+		{input: missingFailureStr, shouldErr: true},
 	}
 
 	for i, tc := range tests {
-		t.Logf("#%v - %+v", i, tc.input.CRDType)
+		t.Logf("#%v - %+v", i, tc.input)
 		var errOccured bool
 		ig.SetUpgradeStrategy(tc.input)
-		err := ctx.UpgradeNodes()
+		err := ig.Spec.Validate()
 		if err != nil {
+			t.Log(err)
 			errOccured = true
 		}
 		g.Expect(errOccured).To(gomega.Equal(tc.shouldErr))
-		g.Expect(ctx.GetState()).To(gomega.Equal(tc.expectedState))
 	}
 	g.Expect(missingConcurrency.CRDType.ConcurrencyPolicy).To(gomega.Equal("forbid"))
 }
@@ -154,7 +156,11 @@ func TestUpgradeCRDStrategy(t *testing.T) {
 
 	w := MockAwsWorker(asgMock, iamMock)
 	ctx := MockContext(ig, k, w)
-
+	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
+	})
 	// get custom resource yaml
 	crYAML, err := yaml.Marshal(cr.Object)
 	g.Expect(err).NotTo(gomega.HaveOccurred())
@@ -261,6 +267,9 @@ func TestUpgradeRollingUpdateStrategyPositive(t *testing.T) {
 
 		ig.SetUpgradeStrategy(MockAwsRollingUpdateStrategy(&tc.maxUnavailable))
 		ctx.SetDiscoveredState(&DiscoveredState{
+			Publisher: kubeprovider.EventPublisher{
+				Client: k.Kubernetes,
+			},
 			ScalingGroup: &autoscaling.Group{
 				LaunchConfigurationName: aws.String("some-launch-config"),
 				AutoScalingGroupName:    aws.String("some-scaling-group"),

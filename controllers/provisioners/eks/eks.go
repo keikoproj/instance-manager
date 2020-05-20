@@ -16,6 +16,9 @@ limitations under the License.
 package eks
 
 import (
+	"fmt"
+	"sync"
+
 	"github.com/go-logr/logr"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
@@ -24,7 +27,8 @@ import (
 )
 
 const (
-	ProvisionerName = "eks"
+	ProvisionerName                     = "eks"
+	defaultLaunchConfigurationRetention = 2
 )
 
 var (
@@ -43,6 +47,8 @@ func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 	}
 	instanceGroup := ctx.GetInstanceGroup()
 	configuration := instanceGroup.GetEKSConfiguration()
+	ctx.ResourcePrefix = fmt.Sprintf("%v-%v-%v", configuration.GetClusterName(), instanceGroup.GetNamespace(), instanceGroup.GetName())
+
 	instanceGroup.SetState(v1alpha1.ReconcileInit)
 
 	if len(p.Configuration.DefaultSubnets) != 0 {
@@ -71,11 +77,13 @@ type EksDefaultConfiguration struct {
 }
 
 type EksInstanceGroupContext struct {
+	sync.Mutex
 	InstanceGroup    *v1alpha1.InstanceGroup
 	KubernetesClient kubeprovider.KubernetesClientSet
 	AwsWorker        awsprovider.AwsWorker
 	DiscoveredState  *DiscoveredState
 	Log              logr.Logger
+	ResourcePrefix   string
 }
 
 func (ctx *EksInstanceGroupContext) GetInstanceGroup() *v1alpha1.InstanceGroup {

@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	github.com/aws/aws-sdk-go v1.30.24
+	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cucumber/godog v0.8.1
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v0.1.0
@@ -15,7 +16,8 @@ require (
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/onsi/gomega v1.9.0
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v0.9.3 // indirect
+	github.com/prometheus/common v0.9.1 // indirect
+	github.com/prometheus/procfs v0.0.8 // indirect
 	github.com/sirupsen/logrus v1.4.2
 	go.uber.org/atomic v1.4.0 // indirect
 	go.uber.org/zap v1.10.0 // indirect

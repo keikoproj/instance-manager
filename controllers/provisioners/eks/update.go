@@ -16,6 +16,7 @@ limitations under the License.
 package eks
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/pkg/errors"
@@ -29,8 +30,6 @@ import (
 func (ctx *EksInstanceGroupContext) Update() error {
 	var (
 		instanceGroup  = ctx.GetInstanceGroup()
-		state          = ctx.GetDiscoveredState()
-		oldConfigName  string
 		rotationNeeded bool
 	)
 
@@ -45,12 +44,11 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	// create new launchconfig if it has drifted
 	if ctx.LaunchConfigurationDrifted() {
 		rotationNeeded = true
-		oldConfigName = state.GetActiveLaunchConfigurationName()
-		err := ctx.CreateLaunchConfiguration()
+		lcName := fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
+		err := ctx.CreateLaunchConfiguration(lcName)
 		if err != nil {
 			return errors.Wrap(err, "failed to create launch configuration")
 		}
-		defer ctx.AwsWorker.DeleteLaunchConfig(oldConfigName)
 	}
 
 	if ctx.RotationNeeded() {
@@ -61,6 +59,13 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	err = ctx.UpdateScalingGroup()
 	if err != nil {
 		return errors.Wrap(err, "failed to update scaling group")
+	}
+
+	// we should try to bootstrap the role before we wait for nodes to be ready
+	// to avoid getting locked if someone made a manual change to aws-auth
+	err = ctx.BootstrapNodes()
+	if err != nil {
+		ctx.Log.Info("failed to bootstrap role, will retry", "error", err, "instancegroup", instanceGroup.GetName())
 	}
 
 	// update readiness conditions
@@ -90,7 +95,6 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 
 	err := ctx.AwsWorker.UpdateScalingGroup(&autoscaling.UpdateAutoScalingGroupInput{
 		AutoScalingGroupName:    aws.String(asgName),
-		DesiredCapacity:         aws.Int64(spec.GetMinSize()),
 		LaunchConfigurationName: aws.String(state.GetActiveLaunchConfigurationName()),
 		MinSize:                 aws.Int64(spec.GetMinSize()),
 		MaxSize:                 aws.Int64(spec.GetMaxSize()),
@@ -101,13 +105,13 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 	}
 	ctx.Log.Info("updated scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 
-	out, err := ctx.AwsWorker.GetAutoscalingGroup(asgName)
+	scalingGroup, err = ctx.AwsWorker.GetAutoscalingGroup(asgName)
 	if err != nil {
 		return err
 	}
 
-	if len(out.AutoScalingGroups) == 1 {
-		state.SetScalingGroup(out.AutoScalingGroups[0])
+	if scalingGroup != nil {
+		state.SetScalingGroup(scalingGroup)
 	}
 
 	return nil

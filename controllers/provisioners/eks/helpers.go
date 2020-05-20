@@ -24,10 +24,13 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput(name string) *autoscaling.CreateLaunchConfigurationInput {
@@ -294,20 +297,27 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 		instanceIds = append(instanceIds, aws.StringValue(instance.InstanceId))
 	}
 
+	instances := strings.Join(instanceIds, ",")
+
 	var conditions []v1alpha1.InstanceGroupCondition
 	ok, err := kubeprovider.IsDesiredNodesReady(ctx.KubernetesClient.Kubernetes, instanceIds, desiredCount)
 	if err != nil {
 		ctx.Log.Error(err, "could not update node conditions", "instancegroup", instanceGroup.GetName())
 		return false
 	}
-
 	if ok {
+		if !state.IsNodesReady() {
+			state.Publisher.Publish(kubeprovider.NodesReadyEvent, "instancegroup", instanceGroup.GetName(), "instances", instances)
+		}
 		state.SetNodesReady(true)
 		conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionTrue))
 		status.SetConditions(conditions)
 		return true
 	}
 
+	if state.IsNodesReady() {
+		state.Publisher.Publish(kubeprovider.NodesNotReadyEvent, "instancegroup", instanceGroup.GetName(), "instances", instances)
+	}
 	state.SetNodesReady(false)
 	conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionFalse))
 	status.SetConditions(conditions)
@@ -328,4 +338,69 @@ func (ctx *EksInstanceGroupContext) GetManagedPoliciesList(additionalPolicies []
 		managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, name))
 	}
 	return managedPolicies
+}
+
+func (ctx *EksInstanceGroupContext) RemoveAuthRole(arn string) error {
+	ctx.Lock()
+	defer ctx.Unlock()
+
+	var instanceGroup = ctx.GetInstanceGroup()
+	var list = &unstructured.UnstructuredList{}
+	var sharedGroups = make([]string, 0)
+
+	list, err := ctx.KubernetesClient.KubeDynamic.Resource(v1alpha1.GroupVersionResource).List(metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+
+	// find objects which share the same nodesInstanceRoleArn
+	for _, obj := range list.Items {
+		if val, ok, _ := unstructured.NestedString(obj.Object, "status", "nodesInstanceRoleArn"); ok {
+			if strings.EqualFold(arn, val) {
+				sharedGroups = append(sharedGroups, obj.GetName())
+			}
+		}
+	}
+
+	// If there are other instance groups using the same role we should not remove it from aws-auth
+	if len(sharedGroups) > 1 {
+		ctx.Log.Info(
+			"skipping removal of auth role, is used by another instancegroup",
+			"instancegroup", instanceGroup.GetName(),
+			"arn", arn,
+			"conflict", strings.Join(sharedGroups, ","),
+		)
+		return nil
+	}
+
+	return common.RemoveAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{arn})
+}
+
+func (ctx *EksInstanceGroupContext) GetTimeSortedLaunchConfigurations() []*autoscaling.LaunchConfiguration {
+	var (
+		state = ctx.GetDiscoveredState()
+	)
+
+	configurations := []*autoscaling.LaunchConfiguration{}
+	for _, lc := range state.GetLaunchConfigurations() {
+		name := aws.StringValue(lc.LaunchConfigurationName)
+		if strings.HasPrefix(name, ctx.ResourcePrefix) {
+			configurations = append(configurations, lc)
+		}
+	}
+
+	// sort matching launch configs by created time
+	sort.Slice(configurations, func(i, j int) bool {
+		ti := configurations[i].CreatedTime
+		tj := configurations[j].CreatedTime
+		if tj == nil {
+			return true
+		}
+		if ti == nil {
+			return false
+		}
+		return ti.UnixNano() < tj.UnixNano()
+	})
+
+	return configurations
 }

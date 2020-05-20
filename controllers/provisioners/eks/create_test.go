@@ -16,13 +16,17 @@ limitations under the License.
 package eks
 
 import (
+	"fmt"
 	"testing"
+
+	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/onsi/gomega"
 	"github.com/pkg/errors"
 )
@@ -39,6 +43,7 @@ func TestCreateManagedRolePositive(t *testing.T) {
 	w := MockAwsWorker(asgMock, iamMock)
 	ctx := MockContext(ig, k, w)
 	state := ctx.GetDiscoveredState()
+	state.Publisher.Client = k.Kubernetes
 
 	// Mock role/profile do not exist so they are always created
 	iamMock.GetRoleErr = errors.New("not found")
@@ -77,12 +82,15 @@ func TestCreateLaunchConfigurationPositive(t *testing.T) {
 	ig.GetEKSConfiguration().SetRoleName("some-role")
 
 	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
 		InstanceProfile: &iam.InstanceProfile{
 			Arn: aws.String("some-profile-arn"),
 		},
 	})
 
-	lcName := "some-launch-config"
+	lcName := fmt.Sprintf("my-cluster-%v-%v-%v", ig.GetNamespace(), ig.GetName(), common.GetTimeString())
 	mockLaunchConfiguration := &autoscaling.LaunchConfiguration{
 		LaunchConfigurationName: aws.String(lcName),
 	}
@@ -117,13 +125,18 @@ func TestCreateScalingGroupPositive(t *testing.T) {
 	}
 
 	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
 		LaunchConfiguration: mockLaunchConfiguration,
 	})
 
+	asgName := fmt.Sprintf("my-cluster-%v-%v", ig.GetNamespace(), ig.GetName())
 	mockScalingGroup := &autoscaling.Group{
-		AutoScalingGroupName: aws.String("some-scaling-group"),
+		AutoScalingGroupName: aws.String(asgName),
 	}
 	asgMock.AutoScalingGroups = []*autoscaling.Group{mockScalingGroup}
+	asgMock.AutoScalingGroup = mockScalingGroup
 
 	err := ctx.Create()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
@@ -158,6 +171,9 @@ func TestCreateNoOp(t *testing.T) {
 	}
 
 	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
 		LaunchConfiguration: mockLaunchConfiguration,
 		ScalingGroup:        mockScalingGroup,
 	})
@@ -230,6 +246,9 @@ func TestCreateLaunchConfigNegative(t *testing.T) {
 	ig.GetEKSConfiguration().SetInstanceProfileName("some-profile")
 
 	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
 		InstanceProfile: &iam.InstanceProfile{
 			Arn: aws.String("arn"),
 		},
@@ -275,6 +294,9 @@ func TestCreateAutoScalingGroupNegative(t *testing.T) {
 	ig.GetEKSConfiguration().SetInstanceProfileName("some-profile")
 
 	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
 		LaunchConfiguration: &autoscaling.LaunchConfiguration{LaunchConfigurationName: aws.String("launch-config")},
 	})
 

@@ -34,6 +34,16 @@ func ContainsString(slice []string, s string) bool {
 	return false
 }
 
+// ContainsString returns true if a given slice 'slice' contains string 's', otherwise return false
+func ContainsEqualFold(slice []string, s string) bool {
+	for _, item := range slice {
+		if strings.EqualFold(item, s) {
+			return true
+		}
+	}
+	return false
+}
+
 func StringSliceEquals(x, y []string) bool {
 	sort.Strings(x)
 	sort.Strings(y)
@@ -80,5 +90,5 @@ func ReadFile(path string) ([]byte, error) {
 
 func GetTimeString() string {
 	n := time.Now().UTC()
-	return fmt.Sprintf("%v%v%v%v%v%v", n.Year(), int(n.Month()), n.Day(), n.Hour(), n.Minute(), n.Second())
+	return n.Format("20060102150405")
 }

@@ -30,18 +30,16 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
 		strategy      = ctx.GetUpgradeStrategy()
+		state         = ctx.GetDiscoveredState()
+		strategyType  = strings.ToLower(strategy.GetType())
 	)
 
 	// process the upgrade strategy
-	switch strings.ToLower(strategy.GetType()) {
+	switch strategyType {
 	case kubeprovider.CRDStrategyName:
-		crdStrategy := strategy.GetCRDType()
-		if err := crdStrategy.Validate(); err != nil {
-			instanceGroup.SetState(v1alpha1.ReconcileErr)
-			return errors.Wrap(err, "failed to validate strategy spec")
-		}
 		ok, err := kubeprovider.ProcessCRDStrategy(ctx.KubernetesClient.KubeDynamic, instanceGroup)
 		if err != nil {
+			state.Publisher.Publish(kubeprovider.InstanceGroupUpgradeFailedEvent, "instancegroup", instanceGroup.GetName(), "type", kubeprovider.CRDStrategyName, "error", err.Error())
 			instanceGroup.SetState(v1alpha1.ReconcileErr)
 			return errors.Wrap(err, "failed to process CRD strategy")
 		}
@@ -53,6 +51,7 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 		req := ctx.NewRollingUpdateRequest()
 		ok, err := kubeprovider.ProcessRollingUpgradeStrategy(req)
 		if err != nil {
+			state.Publisher.Publish(kubeprovider.InstanceGroupUpgradeFailedEvent, "instancegroup", instanceGroup.GetName(), "type", kubeprovider.RollingUpdateStrategyName, "error", err)
 			instanceGroup.SetState(v1alpha1.ReconcileErr)
 			return errors.Wrap(err, "failed to process rolling-update strategy")
 		}
@@ -74,10 +73,16 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 
 func (ctx *EksInstanceGroupContext) BootstrapNodes() error {
 	var (
-		state   = ctx.GetDiscoveredState()
-		role    = state.GetRole()
-		roleARN = aws.StringValue(role.Arn)
+		state         = ctx.GetDiscoveredState()
+		instanceGroup = ctx.GetInstanceGroup()
+		role          = state.GetRole()
+		roleARN       = aws.StringValue(role.Arn)
 	)
+	ctx.Log.Info("bootstrapping arn to aws-auth", "instancegroup", instanceGroup.GetName(), "arn", roleARN)
+
+	// lock to guarantee Upsert and Remove cannot conflict when roles are shared between instancegroups
+	ctx.Lock()
+	defer ctx.Unlock()
 
 	return common.UpsertAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{roleARN})
 }
