@@ -40,11 +40,13 @@ func TestUpdateScalingGroupPositive(t *testing.T) {
 
 	w := MockAwsWorker(asgMock, iamMock)
 	ctx := MockContext(ig, k, w)
+	ig.GetEKSConfiguration().SetMetricsCollection([]string{"GroupMinSize", "GroupMaxSize", "GroupDesiredCapacity"})
 
 	// avoid drift / rotation
 	input := ctx.GetLaunchConfigurationInput("some-launch-config")
 	mockLaunchConfig := MockLaunchConfigFromInput(input)
 	mockScalingGroup := &autoscaling.Group{
+		EnabledMetrics:       MockEnabledMetrics("GroupInServiceInstances", "GroupMinSize"),
 		AutoScalingGroupName: aws.String("some-scaling-group"),
 		DesiredCapacity:      aws.Int64(1),
 		Instances: []*autoscaling.Instance{
@@ -278,8 +280,10 @@ func TestUpdateScalingGroupNegative(t *testing.T) {
 
 	w := MockAwsWorker(asgMock, iamMock)
 	ctx := MockContext(ig, k, w)
+	ig.GetEKSConfiguration().SetMetricsCollection([]string{"GroupMinSize", "GroupMaxSize", "GroupDesiredCapacity"})
 
 	mockScalingGroup := &autoscaling.Group{
+		EnabledMetrics:       MockEnabledMetrics("GroupInServiceInstances", "GroupMinSize"),
 		AutoScalingGroupName: aws.String("some-scaling-group"),
 		DesiredCapacity:      aws.Int64(1),
 		Instances:            []*autoscaling.Instance{},
@@ -290,26 +294,51 @@ func TestUpdateScalingGroupNegative(t *testing.T) {
 			Client: k.Kubernetes,
 		},
 		ScalingGroup: mockScalingGroup,
+		InstanceProfile: &iam.InstanceProfile{
+			Arn: aws.String("some-instance-arn"),
+		},
 	})
 
-	asgMock.DescribeAutoScalingGroupsErr = errors.New("some-error")
+	asgMock.DescribeAutoScalingGroupsErr = errors.New("some-describe-error")
 	err := ctx.Update()
+	t.Log(err)
 	g.Expect(err).To(gomega.HaveOccurred())
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
+	asgMock.DescribeAutoScalingGroupsErr = nil
 
-	asgMock.UpdateAutoScalingGroupErr = errors.New("some-error")
+	asgMock.UpdateAutoScalingGroupErr = errors.New("some-update-error")
 	err = ctx.Update()
+	t.Log(err)
 	g.Expect(err).To(gomega.HaveOccurred())
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
+	asgMock.UpdateAutoScalingGroupErr = nil
 
-	asgMock.CreateLaunchConfigurationErr = errors.New("some-error")
+	asgMock.CreateLaunchConfigurationErr = errors.New("some-create-error")
 	err = ctx.Update()
+	t.Log(err)
 	g.Expect(err).To(gomega.HaveOccurred())
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
+	asgMock.CreateLaunchConfigurationErr = nil
 
-	iamMock.GetRoleErr = errors.New("some-error")
-	iamMock.CreateRoleErr = errors.New("some-error")
+	iamMock.GetRoleErr = errors.New("some-get-error")
+	iamMock.CreateRoleErr = errors.New("some-create-error")
 	err = ctx.Update()
+	t.Log(err)
+	g.Expect(err).To(gomega.HaveOccurred())
+	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
+	iamMock.GetRoleErr = nil
+	iamMock.CreateRoleErr = nil
+
+	asgMock.DisableMetricsCollectionErr = errors.New("some-error")
+	err = ctx.Update()
+	t.Log(err)
+	g.Expect(err).To(gomega.HaveOccurred())
+	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
+	asgMock.DisableMetricsCollectionErr = nil
+
+	asgMock.EnableMetricsCollectionErr = errors.New("some-error")
+	err = ctx.Update()
+	t.Log(err)
 	g.Expect(err).To(gomega.HaveOccurred())
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
 }
