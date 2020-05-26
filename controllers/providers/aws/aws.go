@@ -317,13 +317,6 @@ func (w *AwsWorker) CreateUpdateScalingGroupRole(name string, managedPolicies []
 			return createdRole, createdProfile, errors.Wrap(err, "failed to create instance-profile")
 		}
 		createdProfile = out.InstanceProfile
-
-		err = w.IamClient.WaitUntilInstanceProfileExists(&iam.GetInstanceProfileInput{
-			InstanceProfileName: aws.String(name),
-		})
-		if err != nil {
-			return createdRole, createdProfile, errors.Wrap(err, "instance-profile propogation waiter timed out")
-		}
 		time.Sleep(DefaultInstanceProfilePropagationDelay)
 	} else {
 		createdProfile = instanceProfile
@@ -521,21 +514,6 @@ func (w *AwsWorker) DescribeAutoscalingLaunchConfigs() ([]*autoscaling.LaunchCon
 		return launchConfigurations, err
 	}
 	return launchConfigurations, nil
-}
-
-func (w *AwsWorker) GetAutoscalingLaunchConfig(name string) (*autoscaling.LaunchConfiguration, error) {
-	var lc *autoscaling.LaunchConfiguration
-	out, err := w.AsgClient.DescribeLaunchConfigurations(&autoscaling.DescribeLaunchConfigurationsInput{})
-	if err != nil {
-		return lc, err
-	}
-	for _, config := range out.LaunchConfigurations {
-		n := aws.StringValue(config.LaunchConfigurationName)
-		if strings.EqualFold(name, n) {
-			lc = config
-		}
-	}
-	return lc, nil
 }
 
 func (w *AwsWorker) GetAutoscalingGroup(name string) (*autoscaling.Group, error) {
