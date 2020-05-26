@@ -317,13 +317,6 @@ func (w *AwsWorker) CreateUpdateScalingGroupRole(name string, managedPolicies []
 			return createdRole, createdProfile, errors.Wrap(err, "failed to create instance-profile")
 		}
 		createdProfile = out.InstanceProfile
-
-		err = w.IamClient.WaitUntilInstanceProfileExists(&iam.GetInstanceProfileInput{
-			InstanceProfileName: aws.String(name),
-		})
-		if err != nil {
-			return createdRole, createdProfile, errors.Wrap(err, "instance-profile propogation waiter timed out")
-		}
 		time.Sleep(DefaultInstanceProfilePropagationDelay)
 	} else {
 		createdProfile = instanceProfile
