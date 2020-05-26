@@ -516,21 +516,6 @@ func (w *AwsWorker) DescribeAutoscalingLaunchConfigs() ([]*autoscaling.LaunchCon
 	return launchConfigurations, nil
 }
 
-func (w *AwsWorker) GetAutoscalingLaunchConfig(name string) (*autoscaling.LaunchConfiguration, error) {
-	var lc *autoscaling.LaunchConfiguration
-	out, err := w.AsgClient.DescribeLaunchConfigurations(&autoscaling.DescribeLaunchConfigurationsInput{})
-	if err != nil {
-		return lc, err
-	}
-	for _, config := range out.LaunchConfigurations {
-		n := aws.StringValue(config.LaunchConfigurationName)
-		if strings.EqualFold(name, n) {
-			lc = config
-		}
-	}
-	return lc, nil
-}
-
 func (w *AwsWorker) GetAutoscalingGroup(name string) (*autoscaling.Group, error) {
 	var asg *autoscaling.Group
 	out, err := w.AsgClient.DescribeAutoScalingGroups(&autoscaling.DescribeAutoScalingGroupsInput{})
