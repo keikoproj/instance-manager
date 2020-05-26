@@ -33,6 +33,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/pkg/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
@@ -52,6 +53,22 @@ var (
 	DefaultInstanceProfilePropagationDelay = time.Second * 20
 	DefaultWaiterDuration                  = time.Second * 5
 	DefaultWaiterRetries                   = 12
+
+	DefaultAutoscalingMetrics = []string{
+		"GroupMinSize",
+		"GroupMaxSize",
+		"GroupDesiredCapacity",
+		"GroupInServiceInstances",
+		"GroupPendingInstances",
+		"GroupStandbyInstances",
+		"GroupTerminatingInstances",
+		"GroupInServiceCapacity",
+		"GroupPendingCapacity",
+		"GroupTerminatingCapacity",
+		"GroupStandbyCapacity",
+		"GroupTotalInstances",
+		"GroupTotalCapacity",
+	}
 )
 
 const (
@@ -534,6 +551,35 @@ func (w *AwsWorker) GetAutoscalingGroup(name string) (*autoscaling.Group, error)
 		}
 	}
 	return asg, nil
+}
+
+func (w *AwsWorker) EnableMetrics(asgName string, metrics []string) error {
+	if common.SliceEmpty(metrics) {
+		return nil
+	}
+	_, err := w.AsgClient.EnableMetricsCollection(&autoscaling.EnableMetricsCollectionInput{
+		AutoScalingGroupName: aws.String(asgName),
+		Granularity:          aws.String("1Minute"),
+		Metrics:              aws.StringSlice(metrics),
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) DisableMetrics(asgName string, metrics []string) error {
+	if common.SliceEmpty(metrics) {
+		return nil
+	}
+	_, err := w.AsgClient.DisableMetricsCollection(&autoscaling.DisableMetricsCollectionInput{
+		AutoScalingGroupName: aws.String(asgName),
+		Metrics:              aws.StringSlice(metrics),
+	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func GetScalingGroupTagsByName(name string, client autoscalingiface.AutoScalingAPI) ([]*autoscaling.TagDescription, error) {

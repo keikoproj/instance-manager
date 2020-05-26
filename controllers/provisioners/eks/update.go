@@ -114,6 +114,10 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 		state.SetScalingGroup(scalingGroup)
 	}
 
+	if err := ctx.UpdateMetricsCollection(asgName); err != nil {
+		return err
+	}
+
 	return nil
 }
 
