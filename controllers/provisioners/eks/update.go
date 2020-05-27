@@ -64,8 +64,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 
 	// we should try to bootstrap the role before we wait for nodes to be ready
 	// to avoid getting locked if someone made a manual change to aws-auth
-	err = ctx.BootstrapNodes()
-	if err != nil {
+	if err = ctx.BootstrapNodes(); err != nil {
 		ctx.Log.Info("failed to bootstrap role, will retry", "error", err, "instancegroup", instanceGroup.GetName())
 	}
 

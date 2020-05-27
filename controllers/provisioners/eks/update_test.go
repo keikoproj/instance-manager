@@ -41,7 +41,15 @@ func TestUpdateScalingGroupPositive(t *testing.T) {
 
 	w := MockAwsWorker(asgMock, iamMock)
 	ctx := MockContext(ig, k, w)
+
+	mockTags := []map[string]string{
+		{
+			"key":   "some-tag",
+			"value": "some-different-value",
+		},
+	}
 	ig.GetEKSConfiguration().SetMetricsCollection([]string{"GroupMinSize", "GroupMaxSize", "GroupDesiredCapacity"})
+	ig.GetEKSConfiguration().SetTags(mockTags)
 
 	// avoid drift / rotation
 	input := ctx.GetLaunchConfigurationInput("some-launch-config")
@@ -54,6 +62,12 @@ func TestUpdateScalingGroupPositive(t *testing.T) {
 			{
 				InstanceId:              aws.String("i-1234"),
 				LaunchConfigurationName: aws.String("some-launch-config"),
+			},
+		},
+		Tags: []*autoscaling.TagDescription{
+			{
+				Key:   aws.String("some-tag"),
+				Value: aws.String("some-value"),
 			},
 		},
 	}
@@ -91,6 +105,7 @@ func TestUpdateScalingGroupPositive(t *testing.T) {
 
 	err = ctx.Update()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
+	g.Expect(ctx.TagsUpdateNeeded()).To(gomega.BeTrue())
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModified))
 }
 
@@ -113,6 +128,12 @@ func TestUpdateWithDriftRotationPositive(t *testing.T) {
 			{
 				InstanceId:              aws.String("i-1234"),
 				LaunchConfigurationName: aws.String("some-launch-config"),
+			},
+		},
+		Tags: []*autoscaling.TagDescription{
+			{
+				Key:   aws.String("some-tag"),
+				Value: aws.String("some-value"),
 			},
 		},
 	}
@@ -153,6 +174,7 @@ func TestUpdateWithDriftRotationPositive(t *testing.T) {
 
 	err = ctx.Update()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
+	g.Expect(ctx.TagsUpdateNeeded()).To(gomega.BeTrue())
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileInitUpgrade))
 }
 
@@ -347,4 +369,54 @@ func TestUpdateScalingGroupNegative(t *testing.T) {
 	t.Log(err)
 	g.Expect(err).To(gomega.HaveOccurred())
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
+}
+
+func TestScalingGroupUpdatePredicate(t *testing.T) {
+	var (
+		g             = gomega.NewGomegaWithT(t)
+		k             = MockKubernetesClientSet()
+		ig            = MockInstanceGroup()
+		spec          = ig.GetEKSSpec()
+		configuration = ig.GetEKSConfiguration()
+		asgMock       = NewAutoScalingMocker()
+		iamMock       = NewIamMocker()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock)
+	ctx := MockContext(ig, k, w)
+	spec.MinSize = int64(3)
+	spec.MaxSize = int64(6)
+	configuration.SetSubnets([]string{"subnet-1", "subnet-2", "subnet-3"})
+
+	mockScalingGroupMin := MockScalingGroup("asg-1")
+	mockScalingGroupMin.MinSize = aws.Int64(0)
+	mockScalingGroupMax := MockScalingGroup("asg-2")
+	mockScalingGroupMax.MaxSize = aws.Int64(0)
+	mockScalingGroupSubnets := MockScalingGroup("asg-3")
+	mockScalingGroupSubnets.VPCZoneIdentifier = aws.String("subnet-0")
+	mockScalingGroupLaunchConfig := MockScalingGroup("asg-4")
+	mockScalingGroupLaunchConfig.LaunchConfigurationName = aws.String("different-name")
+
+	tests := []struct {
+		input    *autoscaling.Group
+		expected bool
+	}{
+		{input: MockScalingGroup("asg-0"), expected: false},
+		{input: mockScalingGroupLaunchConfig, expected: true},
+		{input: mockScalingGroupMin, expected: true},
+		{input: mockScalingGroupMax, expected: true},
+		{input: mockScalingGroupSubnets, expected: true},
+	}
+
+	for _, tc := range tests {
+		ctx.SetDiscoveredState(&DiscoveredState{
+			Publisher: kubeprovider.EventPublisher{
+				Client: k.Kubernetes,
+			},
+			ScalingGroup:                  tc.input,
+			ActiveLaunchConfigurationName: "some-launch-configuration",
+		})
+		got := ctx.ScalingGroupUpdateNeeded()
+		g.Expect(got).To(gomega.Equal(tc.expected))
+	}
 }

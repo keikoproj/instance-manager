@@ -87,30 +87,25 @@ func (ctx *EksInstanceGroupContext) GetAddedTags(asgName string) []*autoscaling.
 
 func (ctx *EksInstanceGroupContext) GetRemovedTags(asgName string) []*autoscaling.Tag {
 	var (
-		existingTags []*autoscaling.Tag
 		removal      []*autoscaling.Tag
 		state        = ctx.GetDiscoveredState()
 		scalingGroup = state.GetScalingGroup()
 		addedTags    = ctx.GetAddedTags(asgName)
 	)
 
-	// get existing tags
 	for _, tag := range scalingGroup.Tags {
-		existingTags = append(existingTags, ctx.AwsWorker.NewTag(aws.StringValue(tag.Key), aws.StringValue(tag.Value), asgName))
-	}
-
-	// find removals against incoming tags
-	for _, tag := range existingTags {
 		var match bool
 		for _, t := range addedTags {
-			if reflect.DeepEqual(t, tag) {
+			if aws.StringValue(t.Key) == aws.StringValue(tag.Key) {
 				match = true
 			}
 		}
 		if !match {
-			removal = append(removal, tag)
+			matchedTag := ctx.AwsWorker.NewTag(aws.StringValue(tag.Key), aws.StringValue(tag.Value), asgName)
+			removal = append(removal, matchedTag)
 		}
 	}
+
 	return removal
 }
 
