@@ -363,6 +363,9 @@ func (c *EKSConfiguration) GetTags() []map[string]string {
 	}
 	return c.Tags
 }
+func (c *EKSConfiguration) SetTags(tags []map[string]string) {
+	c.Tags = tags
+}
 func (c *EKSConfiguration) GetSubnets() []string {
 	if c.Subnets == nil {
 		return []string{}

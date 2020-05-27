@@ -87,30 +87,25 @@ func (ctx *EksInstanceGroupContext) GetAddedTags(asgName string) []*autoscaling.
 
 func (ctx *EksInstanceGroupContext) GetRemovedTags(asgName string) []*autoscaling.Tag {
 	var (
-		existingTags []*autoscaling.Tag
 		removal      []*autoscaling.Tag
 		state        = ctx.GetDiscoveredState()
 		scalingGroup = state.GetScalingGroup()
 		addedTags    = ctx.GetAddedTags(asgName)
 	)
 
-	// get existing tags
 	for _, tag := range scalingGroup.Tags {
-		existingTags = append(existingTags, ctx.AwsWorker.NewTag(aws.StringValue(tag.Key), aws.StringValue(tag.Value), asgName))
-	}
-
-	// find removals against incoming tags
-	for _, tag := range existingTags {
 		var match bool
 		for _, t := range addedTags {
-			if reflect.DeepEqual(t, tag) {
+			if aws.StringValue(t.Key) == aws.StringValue(tag.Key) {
 				match = true
 			}
 		}
 		if !match {
-			removal = append(removal, tag)
+			matchedTag := ctx.AwsWorker.NewTag(aws.StringValue(tag.Key), aws.StringValue(tag.Value), asgName)
+			removal = append(removal, matchedTag)
 		}
 	}
+
 	return removal
 }
 
@@ -285,7 +280,12 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 		status        = instanceGroup.GetStatus()
 		scalingGroup  = state.GetScalingGroup()
 		desiredCount  = int(aws.Int64Value(scalingGroup.DesiredCapacity))
+		nodes         = state.GetClusterNodes()
 	)
+
+	if scalingGroup == nil {
+		return false
+	}
 
 	ctx.Log.Info("waiting for node readiness conditions", "instancegroup", instanceGroup.GetName())
 	if len(scalingGroup.Instances) != desiredCount {
@@ -301,7 +301,7 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 	instances := strings.Join(instanceIds, ",")
 
 	var conditions []v1alpha1.InstanceGroupCondition
-	ok, err := kubeprovider.IsDesiredNodesReady(ctx.KubernetesClient.Kubernetes, instanceIds, desiredCount)
+	ok, err := kubeprovider.IsDesiredNodesReady(nodes, instanceIds, desiredCount)
 	if err != nil {
 		ctx.Log.Error(err, "could not update node conditions", "instancegroup", instanceGroup.GetName())
 		return false

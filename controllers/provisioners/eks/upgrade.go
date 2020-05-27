@@ -92,6 +92,7 @@ func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *kubeprovider.Roll
 		needsUpdate        []string
 		allInstances       []string
 		instanceGroup      = ctx.GetInstanceGroup()
+		state              = ctx.GetDiscoveredState()
 		scalingGroup       = ctx.GetDiscoveredState().GetScalingGroup()
 		activeLaunchConfig = aws.StringValue(scalingGroup.LaunchConfigurationName)
 		desiredCount       = int(aws.Int64Value(scalingGroup.DesiredCapacity))
@@ -122,7 +123,7 @@ func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *kubeprovider.Roll
 
 	return &kubeprovider.RollingUpdateRequest{
 		AwsWorker:        ctx.AwsWorker,
-		Kubernetes:       ctx.KubernetesClient.Kubernetes,
+		ClusterNodes:     state.GetClusterNodes(),
 		MaxUnavailable:   unavailableInt,
 		DesiredCapacity:  desiredCount,
 		AllInstances:     allInstances,

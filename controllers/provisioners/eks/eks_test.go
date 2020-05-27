@@ -168,6 +168,7 @@ func MockScalingGroup(name string, t ...*autoscaling.TagDescription) *autoscalin
 		Tags:                    t,
 		MinSize:                 aws.Int64(3),
 		MaxSize:                 aws.Int64(6),
+		VPCZoneIdentifier:       aws.String("subnet-1,subnet-2,subnet-3"),
 	}
 }
 
