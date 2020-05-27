@@ -285,7 +285,12 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 		status        = instanceGroup.GetStatus()
 		scalingGroup  = state.GetScalingGroup()
 		desiredCount  = int(aws.Int64Value(scalingGroup.DesiredCapacity))
+		nodes         = state.GetClusterNodes()
 	)
+
+	if scalingGroup == nil {
+		return false
+	}
 
 	ctx.Log.Info("waiting for node readiness conditions", "instancegroup", instanceGroup.GetName())
 	if len(scalingGroup.Instances) != desiredCount {
@@ -301,7 +306,7 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 	instances := strings.Join(instanceIds, ",")
 
 	var conditions []v1alpha1.InstanceGroupCondition
-	ok, err := kubeprovider.IsDesiredNodesReady(ctx.KubernetesClient.Kubernetes, instanceIds, desiredCount)
+	ok, err := kubeprovider.IsDesiredNodesReady(nodes, instanceIds, desiredCount)
 	if err != nil {
 		ctx.Log.Error(err, "could not update node conditions", "instancegroup", instanceGroup.GetName())
 		return false

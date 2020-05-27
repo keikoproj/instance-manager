@@ -18,6 +18,7 @@ package eks
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/pkg/errors"
 
@@ -93,25 +94,27 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 		rmTags        = ctx.GetRemovedTags(asgName)
 	)
 
-	err := ctx.AwsWorker.UpdateScalingGroup(&autoscaling.UpdateAutoScalingGroupInput{
-		AutoScalingGroupName:    aws.String(asgName),
-		LaunchConfigurationName: aws.String(state.GetActiveLaunchConfigurationName()),
-		MinSize:                 aws.Int64(spec.GetMinSize()),
-		MaxSize:                 aws.Int64(spec.GetMaxSize()),
-		VPCZoneIdentifier:       aws.String(common.ConcatenateList(configuration.GetSubnets(), ",")),
-	}, tags, rmTags)
-	if err != nil {
-		return err
-	}
-	ctx.Log.Info("updated scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
+	if ctx.ScalingGroupUpdateNeeded() {
+		err := ctx.AwsWorker.UpdateScalingGroup(&autoscaling.UpdateAutoScalingGroupInput{
+			AutoScalingGroupName:    aws.String(asgName),
+			LaunchConfigurationName: aws.String(state.GetActiveLaunchConfigurationName()),
+			MinSize:                 aws.Int64(spec.GetMinSize()),
+			MaxSize:                 aws.Int64(spec.GetMaxSize()),
+			VPCZoneIdentifier:       aws.String(common.ConcatenateList(configuration.GetSubnets(), ",")),
+		})
+		if err != nil {
+			return err
+		}
 
-	scalingGroup, err = ctx.AwsWorker.GetAutoscalingGroup(asgName)
-	if err != nil {
-		return err
+		ctx.Log.Info("updated scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 	}
 
-	if scalingGroup != nil {
-		state.SetScalingGroup(scalingGroup)
+	if ctx.TagsUpdateNeeded() {
+		err := ctx.AwsWorker.UpdateScalingGroupTags(tags, rmTags)
+		if err != nil {
+			return err
+		}
+		ctx.Log.Info("updated scaling group tags", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 	}
 
 	if err := ctx.UpdateMetricsCollection(asgName); err != nil {
@@ -138,6 +141,69 @@ func (ctx *EksInstanceGroupContext) RotationNeeded() bool {
 			return true
 		}
 	}
+	return false
+}
+
+func (ctx *EksInstanceGroupContext) TagsUpdateNeeded() bool {
+	var (
+		instanceGroup = ctx.GetInstanceGroup()
+		configuration = instanceGroup.GetEKSConfiguration()
+		state         = ctx.GetDiscoveredState()
+		scalingGroup  = state.GetScalingGroup()
+		asgName       = aws.StringValue(scalingGroup.AutoScalingGroupName)
+		rmTags        = ctx.GetRemovedTags(asgName)
+	)
+
+	if len(rmTags) > 0 {
+		return true
+	}
+
+	existingTags := make([]map[string]string, 0)
+	for _, tag := range scalingGroup.Tags {
+		tagSet := map[string]string{
+			"key":   aws.StringValue(tag.Key),
+			"value": aws.StringValue(tag.Value),
+		}
+		existingTags = append(existingTags, tagSet)
+	}
+
+	for _, tag := range configuration.GetTags() {
+		if !common.StringMapSliceContains(existingTags, tag) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (ctx *EksInstanceGroupContext) ScalingGroupUpdateNeeded() bool {
+	var (
+		instanceGroup  = ctx.GetInstanceGroup()
+		spec           = instanceGroup.GetEKSSpec()
+		configuration  = instanceGroup.GetEKSConfiguration()
+		state          = ctx.GetDiscoveredState()
+		scalingGroup   = state.GetScalingGroup()
+		zoneIdentifier = aws.StringValue(scalingGroup.VPCZoneIdentifier)
+		groupSubnets   = strings.Split(zoneIdentifier, ",")
+		specSubnets    = configuration.GetSubnets()
+	)
+
+	if state.GetActiveLaunchConfigurationName() != aws.StringValue(scalingGroup.LaunchConfigurationName) {
+		return true
+	}
+
+	if spec.GetMinSize() != aws.Int64Value(scalingGroup.MinSize) {
+		return true
+	}
+
+	if spec.GetMaxSize() != aws.Int64Value(scalingGroup.MaxSize) {
+		return true
+	}
+
+	if !common.StringSliceEqualFold(specSubnets, groupSubnets) {
+		return true
+	}
+
 	return false
 }
 
