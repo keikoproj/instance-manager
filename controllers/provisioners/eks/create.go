@@ -130,17 +130,18 @@ func (ctx *EksInstanceGroupContext) CreateManagedRole() error {
 	)
 
 	if configuration.HasExistingRole() {
+		// avoid updating if using an existing role
 		return nil
 	}
 
 	// create a controller-owned role for the instancegroup
 	managedPolicies := ctx.GetManagedPoliciesList(additionalPolicies)
 
-	role, profile, err := ctx.AwsWorker.CreateUpdateScalingGroupRole(roleName, managedPolicies)
+	role, profile, err := ctx.AwsWorker.CreateScalingGroupRole(roleName, managedPolicies)
 	if err != nil {
 		return err
 	}
-	ctx.Log.Info("created managed role", "instancegroup", instanceGroup.GetName(), "iamrole", roleName)
+	ctx.Log.Info("reconciled managed role", "instancegroup", instanceGroup.GetName(), "iamrole", roleName)
 
 	state.SetRole(role)
 	state.SetInstanceProfile(profile)
