@@ -27,6 +27,7 @@ import (
 	"github.com/onsi/gomega"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestUpdateScalingGroupPositive(t *testing.T) {
@@ -58,15 +59,6 @@ func TestUpdateScalingGroupPositive(t *testing.T) {
 	}
 	asgMock.AutoScalingGroups = []*autoscaling.Group{mockScalingGroup}
 
-	ctx.SetDiscoveredState(&DiscoveredState{
-		Publisher: kubeprovider.EventPublisher{
-			Client: k.Kubernetes,
-		},
-		ScalingGroup:                  mockScalingGroup,
-		ActiveLaunchConfigurationName: "some-launch-config",
-		LaunchConfiguration:           mockLaunchConfig,
-	})
-
 	// create matching node object
 	mockNode := &corev1.Node{
 		Spec: corev1.NodeSpec{
@@ -83,6 +75,19 @@ func TestUpdateScalingGroupPositive(t *testing.T) {
 	}
 	_, err := k.Kubernetes.CoreV1().Nodes().Create(mockNode)
 	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	nodes, err := k.Kubernetes.CoreV1().Nodes().List(metav1.ListOptions{})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
+		ScalingGroup:                  mockScalingGroup,
+		ActiveLaunchConfigurationName: "some-launch-config",
+		LaunchConfiguration:           mockLaunchConfig,
+		ClusterNodes:                  nodes,
+	})
 
 	err = ctx.Update()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
@@ -113,18 +118,6 @@ func TestUpdateWithDriftRotationPositive(t *testing.T) {
 	}
 	asgMock.AutoScalingGroups = []*autoscaling.Group{mockScalingGroup}
 
-	// missing launch config causes drift
-	ctx.SetDiscoveredState(&DiscoveredState{
-		Publisher: kubeprovider.EventPublisher{
-			Client: k.Kubernetes,
-		},
-		ScalingGroup:                  mockScalingGroup,
-		ActiveLaunchConfigurationName: "some-launch-config",
-		InstanceProfile: &iam.InstanceProfile{
-			Arn: aws.String("some-instance-arn"),
-		},
-	})
-
 	// create matching node object
 	mockNode := &corev1.Node{
 		Spec: corev1.NodeSpec{
@@ -141,6 +134,22 @@ func TestUpdateWithDriftRotationPositive(t *testing.T) {
 	}
 	_, err := k.Kubernetes.CoreV1().Nodes().Create(mockNode)
 	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	nodes, err := k.Kubernetes.CoreV1().Nodes().List(metav1.ListOptions{})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	// missing launch config causes drift
+	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
+		ScalingGroup:                  mockScalingGroup,
+		ActiveLaunchConfigurationName: "some-launch-config",
+		InstanceProfile: &iam.InstanceProfile{
+			Arn: aws.String("some-instance-arn"),
+		},
+		ClusterNodes: nodes,
+	})
 
 	err = ctx.Update()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
@@ -176,15 +185,6 @@ func TestUpdateWithRotationPositive(t *testing.T) {
 	}
 	asgMock.AutoScalingGroups = []*autoscaling.Group{mockScalingGroup}
 
-	ctx.SetDiscoveredState(&DiscoveredState{
-		Publisher: kubeprovider.EventPublisher{
-			Client: k.Kubernetes,
-		},
-		ScalingGroup:                  mockScalingGroup,
-		ActiveLaunchConfigurationName: "some-launch-config",
-		LaunchConfiguration:           mockLaunchConfig,
-	})
-
 	// create matching node object
 	mockNode := &corev1.Node{
 		Spec: corev1.NodeSpec{
@@ -201,6 +201,19 @@ func TestUpdateWithRotationPositive(t *testing.T) {
 	}
 	_, err := k.Kubernetes.CoreV1().Nodes().Create(mockNode)
 	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	nodes, err := k.Kubernetes.CoreV1().Nodes().List(metav1.ListOptions{})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
+		ScalingGroup:                  mockScalingGroup,
+		ActiveLaunchConfigurationName: "some-launch-config",
+		LaunchConfiguration:           mockLaunchConfig,
+		ClusterNodes:                  nodes,
+	})
 
 	err = ctx.Update()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
@@ -299,15 +312,8 @@ func TestUpdateScalingGroupNegative(t *testing.T) {
 		},
 	})
 
-	asgMock.DescribeAutoScalingGroupsErr = errors.New("some-describe-error")
-	err := ctx.Update()
-	t.Log(err)
-	g.Expect(err).To(gomega.HaveOccurred())
-	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
-	asgMock.DescribeAutoScalingGroupsErr = nil
-
 	asgMock.UpdateAutoScalingGroupErr = errors.New("some-update-error")
-	err = ctx.Update()
+	err := ctx.Update()
 	t.Log(err)
 	g.Expect(err).To(gomega.HaveOccurred())
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
