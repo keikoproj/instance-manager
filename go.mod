@@ -3,6 +3,7 @@ module github.com/keikoproj/instance-manager
 go 1.13
 
 require (
+	github.com/Masterminds/semver v1.5.0
 	github.com/aws/aws-sdk-go v1.30.24
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cucumber/godog v0.8.1
@@ -32,4 +33,5 @@ require (
 	k8s.io/client-go v0.17.2
 	k8s.io/utils v0.0.0-20200414100711-2df71ebbae66 // indirect
 	sigs.k8s.io/controller-runtime v0.4.0
+	sigs.k8s.io/controller-tools v0.2.4 // indirect
 )

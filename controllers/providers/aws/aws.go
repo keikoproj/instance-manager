@@ -357,6 +357,25 @@ func (w *AwsWorker) IsNodeGroupExist() bool {
 	return true
 }
 
+// Included. Temporarily marked for traceability purposes: labelbug fix @agaro
+//######################################################################################
+
+func (w *AwsWorker) DescribeEKSCluster(clusterName string) (*eks.Cluster, error) {
+	cluster := &eks.Cluster{} // only used in line 372 "return err, cluster", why not just directly return &eks.Cluster{}?
+	input := &eks.DescribeClusterInput{
+		Name: aws.String(clusterName),
+	}
+
+	output, err := w.EksClient.DescribeCluster(input)
+	if err != nil {
+		log.Error(err, "failed to describe cluster")
+		return cluster, err
+	}
+	return output.Cluster, nil
+}
+
+//######################################################################################
+
 // TODO: Rename - GetNodeGroup
 func (w *AwsWorker) GetSelfNodeGroup() (error, *eks.Nodegroup) {
 	input := &eks.DescribeNodegroupInput{

@@ -31,6 +31,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	// Included. Temporarily marked for traceability purposes: labelbug fix @agaro
+	//######################################################################################
+	"github.com/Masterminds/semver"
+	//######################################################################################
 )
 
 func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput(name string) *autoscaling.CreateLaunchConfigurationInput {
@@ -145,6 +150,8 @@ func (ctx *EksInstanceGroupContext) GetTaintList() []string {
 	return taintList
 }
 
+// Edited. Temporarily marked for traceability purposes: labelbug fix @agaro
+//######################################################################################
 func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 	var (
 		labelList     []string
@@ -161,11 +168,32 @@ func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 	sort.Strings(labelList)
 
 	// add role label
-	for _, label := range RoleLabelsFmt {
+
+	/*for _, label := range RoleLabelsFmt {
 		labelList = append(labelList, fmt.Sprintf(label, instanceGroup.GetName()))
+	}*/
+
+	useNewStyleLabel := true
+	clusterVersion, err := ctx.DiscoveredState.GetClusterVersion()
+	if err == nil {
+		// compare versions and decide the label
+		c, err := semver.NewConstraint(">= 1.16-0") // "-0" to include pre-releases in the comparison
+		if err == nil {
+			useNewStyleLabel = c.Check(clusterVersion)
+		} // else: assume the new style role label
+	} // else: assume the new style role label
+
+	if useNewStyleLabel {
+		labelList = append(labelList, fmt.Sprintf(RoleNewLabelFmt, instanceGroup.GetName()))
+		fmt.Printf("\nUsing role label: %s\n", RoleNewLabelFmt) // for debugging purposes
+	} else {
+		labelList = append(labelList, fmt.Sprintf(RoleOldLabelFmt, instanceGroup.GetName()))
+		fmt.Printf("\nUsing role label: %s\n", RoleOldLabelFmt) // for debugging purposes
 	}
 	return labelList
 }
+
+//######################################################################################
 
 func (ctx *EksInstanceGroupContext) GetBootstrapArgs() string {
 	var (

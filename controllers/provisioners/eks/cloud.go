@@ -27,6 +27,12 @@ import (
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/pkg/errors"
+
+	// Included. Temporarily marked for traceability purposes: labelbug fix @agaro
+	//######################################################################################
+	"github.com/Masterminds/semver"
+	"github.com/aws/aws-sdk-go/service/eks"
+	//######################################################################################
 )
 
 type DiscoveredState struct {
@@ -40,6 +46,8 @@ type DiscoveredState struct {
 	IAMRole                       *iam.Role
 	InstanceProfile               *iam.InstanceProfile
 	Publisher                     kubeprovider.EventPublisher
+	// why here declaring the cluster here and not in the method "CloudDiscovery" like clusterName or instanceGroup?
+	Cluster *eks.Cluster // Included. Temporarily marked for traceability purposes: labelbug fix @agaro
 }
 
 func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
@@ -49,6 +57,7 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		configuration = instanceGroup.GetEKSConfiguration()
 		status        = instanceGroup.GetStatus()
 		clusterName   = configuration.GetClusterName()
+		//clusterVersion =
 	)
 
 	state.Publisher = kubeprovider.EventPublisher{
@@ -82,6 +91,16 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to describe autoscaling groups")
 	}
+
+	// Included. Temporarily marked for traceability purposes: labelbug fix @agaro
+	//######################################################################################
+	cluster, err := ctx.AwsWorker.DescribeEKSCluster(clusterName)
+	if err == nil {
+		state.SetCluster(cluster)
+	} else {
+		return errors.Wrap(err, "failed to describe cluster")
+	}
+	//######################################################################################
 
 	// find all owned scaling groups
 	ownedScalingGroups := ctx.findOwnedScalingGroups(scalingGroups)
@@ -170,6 +189,25 @@ func (d *DiscoveredState) GetScalingGroup() *autoscaling.Group {
 	}
 	return &autoscaling.Group{}
 }
+
+// Included. Temporarily marked for traceability purposes: labelbug fix @agaro
+//######################################################################################
+func (d *DiscoveredState) SetCluster(cluster *eks.Cluster) {
+	d.Cluster = cluster
+}
+
+func (d *DiscoveredState) GetClusterVersion() (*semver.Version, error) {
+
+	ver, err := semver.NewVersion(*d.Cluster.Version)
+	if err != nil {
+		//log.Error(err, "failed to get the cluster version")
+		return nil, err
+	}
+	return ver, nil
+}
+
+//######################################################################################
+
 func (d *DiscoveredState) SetOwnedScalingGroups(groups []*autoscaling.Group) {
 	d.OwnedScalingGroups = groups
 }
