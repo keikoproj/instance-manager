@@ -22,6 +22,7 @@ import (
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
@@ -38,6 +39,7 @@ import (
 type DiscoveredState struct {
 	Provisioned                   bool
 	NodesReady                    bool
+	ClusterNodes                  *corev1.NodeList
 	OwnedScalingGroups            []*autoscaling.Group
 	ScalingGroup                  *autoscaling.Group
 	LaunchConfigurations          []*autoscaling.LaunchConfiguration
@@ -67,6 +69,12 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		UID:             instanceGroup.GetUID(),
 		ResourceVersion: instanceGroup.GetResourceVersion(),
 	}
+
+	nodes, err := ctx.KubernetesClient.Kubernetes.CoreV1().Nodes().List(metav1.ListOptions{})
+	if err != nil {
+		return errors.Wrap(err, "failed to list cluster nodes")
+	}
+	state.SetClusterNodes(nodes)
 
 	var roleName, instanceProfileName string
 	if configuration.HasExistingRole() {
@@ -279,4 +287,10 @@ func (d *DiscoveredState) SetNodesReady(condition bool) {
 }
 func (d *DiscoveredState) IsNodesReady() bool {
 	return d.NodesReady
+}
+func (d *DiscoveredState) SetClusterNodes(nodes *corev1.NodeList) {
+	d.ClusterNodes = nodes
+}
+func (d *DiscoveredState) GetClusterNodes() *corev1.NodeList {
+	return d.ClusterNodes
 }

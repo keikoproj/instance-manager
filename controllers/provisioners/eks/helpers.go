@@ -28,6 +28,7 @@ import (
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -91,30 +92,25 @@ func (ctx *EksInstanceGroupContext) GetAddedTags(asgName string) []*autoscaling.
 
 func (ctx *EksInstanceGroupContext) GetRemovedTags(asgName string) []*autoscaling.Tag {
 	var (
-		existingTags []*autoscaling.Tag
 		removal      []*autoscaling.Tag
 		state        = ctx.GetDiscoveredState()
 		scalingGroup = state.GetScalingGroup()
 		addedTags    = ctx.GetAddedTags(asgName)
 	)
 
-	// get existing tags
 	for _, tag := range scalingGroup.Tags {
-		existingTags = append(existingTags, ctx.AwsWorker.NewTag(aws.StringValue(tag.Key), aws.StringValue(tag.Value), asgName))
-	}
-
-	// find removals against incoming tags
-	for _, tag := range existingTags {
 		var match bool
 		for _, t := range addedTags {
-			if reflect.DeepEqual(t, tag) {
+			if aws.StringValue(t.Key) == aws.StringValue(tag.Key) {
 				match = true
 			}
 		}
 		if !match {
-			removal = append(removal, tag)
+			matchedTag := ctx.AwsWorker.NewTag(aws.StringValue(tag.Key), aws.StringValue(tag.Value), asgName)
+			removal = append(removal, matchedTag)
 		}
 	}
+
 	return removal
 }
 
@@ -312,7 +308,12 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 		status        = instanceGroup.GetStatus()
 		scalingGroup  = state.GetScalingGroup()
 		desiredCount  = int(aws.Int64Value(scalingGroup.DesiredCapacity))
+		nodes         = state.GetClusterNodes()
 	)
+
+	if scalingGroup == nil {
+		return false
+	}
 
 	ctx.Log.Info("waiting for node readiness conditions", "instancegroup", instanceGroup.GetName())
 	if len(scalingGroup.Instances) != desiredCount {
@@ -328,7 +329,7 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 	instances := strings.Join(instanceIds, ",")
 
 	var conditions []v1alpha1.InstanceGroupCondition
-	ok, err := kubeprovider.IsDesiredNodesReady(ctx.KubernetesClient.Kubernetes, instanceIds, desiredCount)
+	ok, err := kubeprovider.IsDesiredNodesReady(nodes, instanceIds, desiredCount)
 	if err != nil {
 		ctx.Log.Error(err, "could not update node conditions", "instancegroup", instanceGroup.GetName())
 		return false
@@ -350,6 +351,99 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 	conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionFalse))
 	status.SetConditions(conditions)
 	return false
+}
+
+func (ctx *EksInstanceGroupContext) GetEnabledMetrics() ([]string, bool) {
+	var (
+		instanceGroup  = ctx.GetInstanceGroup()
+		configuration  = instanceGroup.GetEKSConfiguration()
+		metrics        = configuration.GetMetricsCollection()
+		state          = ctx.GetDiscoveredState()
+		scalingGroup   = state.GetScalingGroup()
+		enableMetrics  = make([]string, 0)
+		enabledMetrics = make([]string, 0)
+		desiredMetrics []string
+	)
+
+	// handle 'all' metrics provided
+	if common.ContainsEqualFold(metrics, "all") {
+		desiredMetrics = awsprovider.DefaultAutoscalingMetrics
+	} else {
+		desiredMetrics = metrics
+	}
+
+	// get all already enabled metrics
+	for _, m := range scalingGroup.EnabledMetrics {
+		enabledMetrics = append(enabledMetrics, aws.StringValue(m.Metric))
+
+	}
+
+	// add desired which are not enabled
+	for _, m := range desiredMetrics {
+		if !common.ContainsString(enabledMetrics, m) {
+			enableMetrics = append(enableMetrics, m)
+		}
+	}
+
+	if common.SliceEmpty(enableMetrics) {
+		return enableMetrics, false
+	}
+
+	return enableMetrics, true
+}
+
+func (ctx *EksInstanceGroupContext) GetDisabledMetrics() ([]string, bool) {
+	var (
+		instanceGroup   = ctx.GetInstanceGroup()
+		configuration   = instanceGroup.GetEKSConfiguration()
+		metrics         = configuration.GetMetricsCollection()
+		state           = ctx.GetDiscoveredState()
+		scalingGroup    = state.GetScalingGroup()
+		disabledMetrics = make([]string, 0)
+		desiredMetrics  []string
+	)
+
+	// handle 'all' metrics provided
+	if common.ContainsEqualFold(metrics, "all") {
+		desiredMetrics = awsprovider.DefaultAutoscalingMetrics
+	} else {
+		desiredMetrics = metrics
+	}
+
+	// find metrics that need to be disabled
+	for _, m := range scalingGroup.EnabledMetrics {
+		metricName := aws.StringValue(m.Metric)
+		if !common.ContainsString(desiredMetrics, metricName) {
+			disabledMetrics = append(disabledMetrics, metricName)
+		}
+	}
+
+	if common.SliceEmpty(disabledMetrics) {
+		return disabledMetrics, false
+	}
+
+	return disabledMetrics, true
+}
+
+func (ctx *EksInstanceGroupContext) UpdateMetricsCollection(asgName string) error {
+	var (
+		instanceGroup = ctx.GetInstanceGroup()
+	)
+
+	if metrics, ok := ctx.GetDisabledMetrics(); ok {
+		if err := ctx.AwsWorker.DisableMetrics(asgName, metrics); err != nil {
+			return errors.Wrapf(err, "failed to disable metrics %v", metrics)
+		}
+		ctx.Log.Info("disabled metrics collection", "instancegroup", instanceGroup.GetName(), "metrics", metrics)
+	}
+
+	if metrics, ok := ctx.GetEnabledMetrics(); ok {
+		if err := ctx.AwsWorker.EnableMetrics(asgName, metrics); err != nil {
+			return errors.Wrapf(err, "failed to enable metrics %v", metrics)
+		}
+		ctx.Log.Info("enabled metrics collection", "instancegroup", instanceGroup.GetName(), "metrics", metrics)
+	}
+	return nil
 }
 
 func (ctx *EksInstanceGroupContext) GetManagedPoliciesList(additionalPolicies []string) []string {

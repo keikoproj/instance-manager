@@ -168,6 +168,7 @@ func MockScalingGroup(name string, t ...*autoscaling.TagDescription) *autoscalin
 		Tags:                    t,
 		MinSize:                 aws.Int64(3),
 		MaxSize:                 aws.Int64(6),
+		VPCZoneIdentifier:       aws.String("subnet-1,subnet-2,subnet-3"),
 	}
 }
 
@@ -249,6 +250,18 @@ func MockSpotEvent(id, scalingGroup, price string, useSpot bool, ts time.Time) *
 	return event
 }
 
+func MockEnabledMetrics(metrics ...string) []*autoscaling.EnabledMetric {
+	mockMetrics := make([]*autoscaling.EnabledMetric, 0)
+	for _, m := range metrics {
+		metric := &autoscaling.EnabledMetric{
+			Granularity: aws.String("1Minute"),
+			Metric:      aws.String(m),
+		}
+		mockMetrics = append(mockMetrics, metric)
+	}
+	return mockMetrics
+}
+
 type MockAutoScalingClient struct {
 	autoscalingiface.AutoScalingAPI
 	DescribeLaunchConfigurationsErr        error
@@ -259,11 +272,21 @@ type MockAutoScalingClient struct {
 	UpdateAutoScalingGroupErr              error
 	DeleteAutoScalingGroupErr              error
 	TerminateInstanceInAutoScalingGroupErr error
+	EnableMetricsCollectionErr             error
+	DisableMetricsCollectionErr            error
 	DeleteLaunchConfigurationCallCount     int
 	LaunchConfiguration                    *autoscaling.LaunchConfiguration
 	LaunchConfigurations                   []*autoscaling.LaunchConfiguration
 	AutoScalingGroup                       *autoscaling.Group
 	AutoScalingGroups                      []*autoscaling.Group
+}
+
+func (a *MockAutoScalingClient) EnableMetricsCollection(input *autoscaling.EnableMetricsCollectionInput) (*autoscaling.EnableMetricsCollectionOutput, error) {
+	return &autoscaling.EnableMetricsCollectionOutput{}, a.EnableMetricsCollectionErr
+}
+
+func (a *MockAutoScalingClient) DisableMetricsCollection(input *autoscaling.DisableMetricsCollectionInput) (*autoscaling.DisableMetricsCollectionOutput, error) {
+	return &autoscaling.DisableMetricsCollectionOutput{}, a.DisableMetricsCollectionErr
 }
 
 func (a *MockAutoScalingClient) TerminateInstanceInAutoScalingGroup(input *autoscaling.TerminateInstanceInAutoScalingGroupInput) (*autoscaling.TerminateInstanceInAutoScalingGroupOutput, error) {

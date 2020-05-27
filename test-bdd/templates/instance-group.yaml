@@ -38,3 +38,5 @@ spec:
       tags:
       - key: k8s-minion-manager
         value: use-spot
+      metricsCollection:
+      - all

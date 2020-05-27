@@ -17,7 +17,7 @@ package kubernetes
 
 import (
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
-	"k8s.io/client-go/kubernetes"
+	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -31,7 +31,7 @@ var (
 
 type RollingUpdateRequest struct {
 	AwsWorker        awsprovider.AwsWorker
-	Kubernetes       kubernetes.Interface
+	ClusterNodes     *corev1.NodeList
 	ScalingGroupName string
 	MaxUnavailable   int
 	DesiredCapacity  int
@@ -61,7 +61,7 @@ func ProcessRollingUpgradeStrategy(req *RollingUpdateRequest) (bool, error) {
 		req.MaxUnavailable = req.DesiredCapacity
 	}
 
-	ok, err := IsMinNodesReady(req.Kubernetes, req.AllInstances, req.MaxUnavailable)
+	ok, err := IsMinNodesReady(req.ClusterNodes, req.AllInstances, req.MaxUnavailable)
 	if err != nil {
 		return false, err
 	}

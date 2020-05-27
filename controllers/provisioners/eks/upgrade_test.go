@@ -265,6 +265,9 @@ func TestUpgradeRollingUpdateStrategyPositive(t *testing.T) {
 			g.Expect(err).NotTo(gomega.HaveOccurred())
 		}
 
+		nodes, err := k.Kubernetes.CoreV1().Nodes().List(metav1.ListOptions{})
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+
 		ig.SetUpgradeStrategy(MockAwsRollingUpdateStrategy(&tc.maxUnavailable))
 		ctx.SetDiscoveredState(&DiscoveredState{
 			Publisher: kubeprovider.EventPublisher{
@@ -276,6 +279,7 @@ func TestUpgradeRollingUpdateStrategyPositive(t *testing.T) {
 				Instances:               tc.scalingInstances,
 				DesiredCapacity:         aws.Int64(int64(len(tc.scalingInstances))),
 			},
+			ClusterNodes: nodes,
 		})
 
 		ig.SetState(v1alpha1.ReconcileModifying)

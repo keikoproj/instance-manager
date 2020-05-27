@@ -140,7 +140,6 @@ func TestCreateScalingGroupPositive(t *testing.T) {
 
 	err := ctx.Create()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
-	g.Expect(ctx.GetDiscoveredState().GetScalingGroup()).To(gomega.Equal(mockScalingGroup))
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModified))
 }
 
@@ -254,23 +253,11 @@ func TestCreateLaunchConfigNegative(t *testing.T) {
 		},
 	})
 
-	asgMock.DescribeLaunchConfigurationsErr = errors.New("some-error")
+	asgMock.CreateLaunchConfigurationErr = errors.New("some-error")
 	err := ctx.Create()
 	g.Expect(err).To(gomega.HaveOccurred())
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
-	asgMock.DescribeLaunchConfigurationsErr = nil
-
-	asgMock.CreateLaunchConfigurationErr = errors.New("some-error")
-	err = ctx.Create()
-	g.Expect(err).To(gomega.HaveOccurred())
-	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
 	asgMock.CreateLaunchConfigurationErr = nil
-
-	asgMock.DescribeAutoScalingGroupsErr = errors.New("some-error")
-	err = ctx.Create()
-	g.Expect(err).To(gomega.HaveOccurred())
-	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
-	asgMock.DescribeAutoScalingGroupsErr = nil
 
 	asgMock.CreateAutoScalingGroupErr = errors.New("some-error")
 	err = ctx.Create()
