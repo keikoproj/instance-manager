@@ -50,7 +50,7 @@ type AwsWorker struct {
 }
 
 var (
-	DefaultInstanceProfilePropagationDelay = time.Second * 20
+	DefaultInstanceProfilePropagationDelay = time.Second * 25
 	DefaultWaiterDuration                  = time.Second * 5
 	DefaultWaiterRetries                   = 12
 
@@ -286,7 +286,51 @@ func (w *AwsWorker) DeleteScalingGroupRole(name string, managedPolicies []string
 	return nil
 }
 
-func (w *AwsWorker) CreateUpdateScalingGroupRole(name string, managedPolicies []string) (*iam.Role, *iam.InstanceProfile, error) {
+func (w *AwsWorker) AttachManagedPolicies(name string, managedPolicies []string) error {
+	for _, policy := range managedPolicies {
+		_, err := w.IamClient.AttachRolePolicy(&iam.AttachRolePolicyInput{
+			RoleName:  aws.String(name),
+			PolicyArn: aws.String(policy),
+		})
+		if err != nil {
+			return errors.Wrap(err, "failed to attach role policies")
+		}
+	}
+	return nil
+}
+
+func (w *AwsWorker) DetachManagedPolicies(name string, managedPolicies []string) error {
+	for _, policy := range managedPolicies {
+		_, err := w.IamClient.DetachRolePolicy(&iam.DetachRolePolicyInput{
+			RoleName:  aws.String(name),
+			PolicyArn: aws.String(policy),
+		})
+		if err != nil {
+			return errors.Wrap(err, "failed to detach role policies")
+		}
+	}
+	return nil
+}
+
+func (w *AwsWorker) ListRolePolicies(name string) ([]*iam.AttachedPolicy, error) {
+	policies := []*iam.AttachedPolicy{}
+	err := w.IamClient.ListAttachedRolePoliciesPages(
+		&iam.ListAttachedRolePoliciesInput{
+			RoleName: aws.String(name),
+		},
+		func(page *iam.ListAttachedRolePoliciesOutput, lastPage bool) bool {
+			for _, p := range page.AttachedPolicies {
+				policies = append(policies, p)
+			}
+			return page.Marker != nil
+		})
+	if err != nil {
+		return policies, err
+	}
+	return policies, nil
+}
+
+func (w *AwsWorker) CreateScalingGroupRole(name string) (*iam.Role, *iam.InstanceProfile, error) {
 	var (
 		assumeRolePolicyDocument = `{
 			"Version": "2012-10-17",
@@ -323,30 +367,21 @@ func (w *AwsWorker) CreateUpdateScalingGroupRole(name string, managedPolicies []
 		}
 		createdProfile = out.InstanceProfile
 		time.Sleep(DefaultInstanceProfilePropagationDelay)
-	} else {
-		createdProfile = instanceProfile
-	}
 
-	_, err := w.IamClient.AddRoleToInstanceProfile(&iam.AddRoleToInstanceProfileInput{
-		InstanceProfileName: aws.String(name),
-		RoleName:            aws.String(name),
-	})
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() != iam.ErrCodeLimitExceededException {
-				return createdRole, createdProfile, errors.Wrap(err, "failed to attach instance-profile")
-			}
-		}
-	}
-
-	for _, policy := range managedPolicies {
-		_, err = w.IamClient.AttachRolePolicy(&iam.AttachRolePolicyInput{
-			RoleName:  aws.String(name),
-			PolicyArn: aws.String(policy),
+		_, err = w.IamClient.AddRoleToInstanceProfile(&iam.AddRoleToInstanceProfileInput{
+			InstanceProfileName: aws.String(name),
+			RoleName:            aws.String(name),
 		})
 		if err != nil {
-			return createdRole, createdProfile, errors.Wrap(err, "failed to attach policies")
+			if aerr, ok := err.(awserr.Error); ok {
+				if aerr.Code() != iam.ErrCodeLimitExceededException {
+					return createdRole, createdProfile, errors.Wrap(err, "failed to attach instance-profile")
+				}
+			}
 		}
+
+	} else {
+		createdProfile = instanceProfile
 	}
 
 	return createdRole, createdProfile, nil

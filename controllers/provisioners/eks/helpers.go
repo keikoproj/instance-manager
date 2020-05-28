@@ -338,6 +338,7 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 		if !state.IsNodesReady() {
 			state.Publisher.Publish(kubeprovider.NodesReadyEvent, "instancegroup", instanceGroup.GetName(), "instances", instances)
 		}
+		ctx.Log.Info("desired nodes are ready", "instancegroup", instanceGroup.GetName(), "instances", instances)
 		state.SetNodesReady(true)
 		conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionTrue))
 		status.SetConditions(conditions)
@@ -347,6 +348,7 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 	if state.IsNodesReady() {
 		state.Publisher.Publish(kubeprovider.NodesNotReadyEvent, "instancegroup", instanceGroup.GetName(), "instances", instances)
 	}
+	ctx.Log.Info("desired nodes are not ready", "instancegroup", instanceGroup.GetName(), "instances", instances)
 	state.SetNodesReady(false)
 	conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionFalse))
 	status.SetConditions(conditions)
