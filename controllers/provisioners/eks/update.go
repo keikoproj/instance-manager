@@ -319,3 +319,38 @@ func (ctx *EksInstanceGroupContext) LaunchConfigurationDrifted() bool {
 
 	return drift
 }
+
+func (ctx *EksInstanceGroupContext) UpdateManagedPolicies(roleName string) error {
+	var (
+		instanceGroup      = ctx.GetInstanceGroup()
+		state              = ctx.GetDiscoveredState()
+		configuration      = instanceGroup.GetEKSConfiguration()
+		additionalPolicies = configuration.GetManagedPolicies()
+		needsUpdate        bool
+	)
+
+	// create a controller-owned role for the instancegroup
+	managedPolicies := ctx.GetManagedPoliciesList(additionalPolicies)
+	attachedPolicies := state.GetAttachedPolicies()
+
+	for _, policy := range attachedPolicies {
+		name := aws.StringValue(policy.PolicyName)
+		if !common.ContainsString(managedPolicies, name) {
+			needsUpdate = true
+		}
+	}
+
+	if len(attachedPolicies) == 0 {
+		needsUpdate = true
+	}
+
+	if needsUpdate {
+		err := ctx.AwsWorker.AttachManagedPolicies(roleName, managedPolicies)
+		if err != nil {
+			return err
+		}
+		ctx.Log.Info("updated managed policies", "instancegroup", instanceGroup.GetName(), "iamrole", roleName)
+	}
+
+	return nil
+}

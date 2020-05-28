@@ -361,8 +361,26 @@ type MockIamClient struct {
 	AttachRolePolicyErr               error
 	DetachRolePolicyErr               error
 	WaitUntilInstanceProfileExistsErr error
+	ListAttachedRolePoliciesErr       error
 	Role                              *iam.Role
 	InstanceProfile                   *iam.InstanceProfile
+	AttachedPolicies                  []*iam.AttachedPolicy
+}
+
+func (i *MockIamClient) ListAttachedRolePolicies(input *iam.ListAttachedRolePoliciesInput) (*iam.ListAttachedRolePoliciesOutput, error) {
+	if i.AttachedPolicies != nil {
+		return &iam.ListAttachedRolePoliciesOutput{AttachedPolicies: i.AttachedPolicies}, i.ListAttachedRolePoliciesErr
+	}
+	return &iam.ListAttachedRolePoliciesOutput{}, i.ListAttachedRolePoliciesErr
+}
+
+func (i *MockIamClient) ListAttachedRolePoliciesPages(input *iam.ListAttachedRolePoliciesInput, callback func(*iam.ListAttachedRolePoliciesOutput, bool) bool) error {
+	page, err := i.ListAttachedRolePolicies(input)
+	if err != nil {
+		return err
+	}
+	callback(page, false)
+	return nil
 }
 
 func (i *MockIamClient) CreateRole(input *iam.CreateRoleInput) (*iam.CreateRoleOutput, error) {

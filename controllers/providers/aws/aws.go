@@ -286,7 +286,38 @@ func (w *AwsWorker) DeleteScalingGroupRole(name string, managedPolicies []string
 	return nil
 }
 
-func (w *AwsWorker) CreateScalingGroupRole(name string, managedPolicies []string) (*iam.Role, *iam.InstanceProfile, error) {
+func (w *AwsWorker) AttachManagedPolicies(name string, managedPolicies []string) error {
+	for _, policy := range managedPolicies {
+		_, err := w.IamClient.AttachRolePolicy(&iam.AttachRolePolicyInput{
+			RoleName:  aws.String(name),
+			PolicyArn: aws.String(policy),
+		})
+		if err != nil {
+			return errors.Wrap(err, "failed to attach role policies")
+		}
+	}
+	return nil
+}
+
+func (w *AwsWorker) ListRolePolicies(name string) ([]*iam.AttachedPolicy, error) {
+	policies := []*iam.AttachedPolicy{}
+	err := w.IamClient.ListAttachedRolePoliciesPages(
+		&iam.ListAttachedRolePoliciesInput{
+			RoleName: aws.String(name),
+		},
+		func(page *iam.ListAttachedRolePoliciesOutput, lastPage bool) bool {
+			for _, p := range page.AttachedPolicies {
+				policies = append(policies, p)
+			}
+			return page.Marker != nil
+		})
+	if err != nil {
+		return policies, err
+	}
+	return policies, nil
+}
+
+func (w *AwsWorker) CreateScalingGroupRole(name string) (*iam.Role, *iam.InstanceProfile, error) {
 	var (
 		assumeRolePolicyDocument = `{
 			"Version": "2012-10-17",
@@ -310,15 +341,6 @@ func (w *AwsWorker) CreateScalingGroupRole(name string, managedPolicies []string
 			return createdRole, createdProfile, errors.Wrap(err, "failed to create role")
 		}
 		createdRole = out.Role
-		for _, policy := range managedPolicies {
-			_, err = w.IamClient.AttachRolePolicy(&iam.AttachRolePolicyInput{
-				RoleName:  aws.String(name),
-				PolicyArn: aws.String(policy),
-			})
-			if err != nil {
-				return createdRole, createdProfile, errors.Wrap(err, "failed to attach role policies")
-			}
-		}
 	} else {
 		createdRole = role
 	}
