@@ -329,7 +329,6 @@ func (ctx *EksInstanceGroupContext) UpdateManagedPolicies(roleName string) error
 		needsUpdate        bool
 	)
 
-	// create a controller-owned role for the instancegroup
 	managedPolicies := ctx.GetManagedPoliciesList(additionalPolicies)
 	attachedPolicies := state.GetAttachedPolicies()
 
