@@ -11,7 +11,7 @@ require (
 	github.com/golang/protobuf v1.4.1 // indirect
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/json-iterator/go v1.1.9 // indirect
-	github.com/keikoproj/aws-auth v0.0.0-20200510193503-dcb7aa6350e1
+	github.com/keikoproj/aws-auth v0.0.0-20200519230504-67c8d09ec1b3
 	github.com/keikoproj/aws-sdk-go-cache v0.0.0-20200124200058-ab3c8c94044a
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/onsi/gomega v1.9.0
