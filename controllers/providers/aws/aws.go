@@ -54,8 +54,7 @@ var (
 )
 
 const (
-	IAMPolicyPrefix             = "arn:aws:iam::aws:policy"
-	FargateProfileStatusMissing = "MISSING"
+	IAMPolicyPrefix = "arn:aws:iam::aws:policy"
 )
 
 func DefaultEksUserDataFmt() string {
@@ -65,15 +64,12 @@ set -o xtrace
 }
 
 func (w *AwsWorker) RoleExist(name string) (*iam.Role, bool) {
-	var role *iam.Role
-	input := &iam.GetRoleInput{
-		RoleName: aws.String(name),
-	}
-	out, err := w.IamClient.GetRole(input)
+	out, err := w.GetRole(name)
 	if err != nil {
+		var role *iam.Role
 		return role, false
 	}
-	return out.Role, true
+	return out, true
 }
 
 func (w *AwsWorker) InstanceProfileExist(name string) (*iam.InstanceProfile, bool) {
@@ -717,7 +713,7 @@ func IsStackInConditionState(key string, condition string) bool {
 func IsProfileInConditionState(key string, condition string) bool {
 
 	conditionStates := map[string]CloudResourceReconcileState{
-		FargateProfileStatusMissing:          FiniteDeleted,
+		aws.StringValue(nil):                 FiniteDeleted,
 		eks.FargateProfileStatusCreating:     OngoingState,
 		eks.FargateProfileStatusActive:       FiniteState,
 		eks.FargateProfileStatusDeleting:     OngoingState,
@@ -745,47 +741,34 @@ func IsProfileInConditionState(key string, condition string) bool {
 
 const defaultPolicyArn = "arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy"
 
-func (w *AwsWorker) DetachDefaultPolicyFromDefaultRole() (bool, error) {
+func (w *AwsWorker) DetachDefaultPolicyFromDefaultRole() error {
 	rolePolicy := &iam.DetachRolePolicyInput{
 		PolicyArn: aws.String(defaultPolicyArn),
-		RoleName:  w.CreateDefaultRoleName(),
+		RoleName:  aws.String(w.FargateRoleName()),
 	}
 	_, err := w.IamClient.DetachRolePolicy(rolePolicy)
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() == iam.ErrCodeNoSuchEntityException {
-				return false, nil
-			}
-		}
-		return false, err
-	}
-	return true, nil
+	return err
 }
 
-func (w *AwsWorker) DeleteDefaultRole() (bool, error) {
+func (w *AwsWorker) DeleteDefaultFargateRole() error {
 	role := &iam.DeleteRoleInput{
-		RoleName: w.CreateDefaultRoleName(),
+		RoleName: aws.String(w.FargateRoleName()),
 	}
 	_, err := w.IamClient.DeleteRole(role)
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() == iam.ErrCodeNoSuchEntityException {
-				return false, nil
-			}
-		}
-		return false, err
-	}
-	return true, nil
+	return err
 }
-func (w *AwsWorker) CreateDefaultRoleName() *string {
+func (w *AwsWorker) FargateRoleName() string {
 	s := fmt.Sprintf("%v_%v_Role", w.Parameters["ClusterName"].(string), w.Parameters["ProfileName"].(string))
-	return &s
+	return s
 }
 
-func (w *AwsWorker) GetDefaultRole() (*iam.Role, error) {
-	var roleName = w.CreateDefaultRoleName()
+func (w *AwsWorker) GetDefaultFargateRole() (*iam.Role, error) {
+	var roleName = w.FargateRoleName()
+	return w.GetRole(roleName)
+}
+func (w *AwsWorker) GetRole(roleName string) (*iam.Role, error) {
 	role := &iam.GetRoleInput{
-		RoleName: roleName,
+		RoleName: aws.String(roleName),
 	}
 	resp, err := w.IamClient.GetRole(role)
 	if err != nil {
@@ -794,36 +777,28 @@ func (w *AwsWorker) GetDefaultRole() (*iam.Role, error) {
 
 	return resp.Role, nil
 }
-func (w *AwsWorker) CreateDefaultRole() (bool, error) {
-	var roleName = w.CreateDefaultRoleName()
+func (w *AwsWorker) CreateDefaultFargateRole() error {
+	var roleName = w.FargateRoleName()
 	var template = `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"eks-fargate-pods.amazonaws.com"},"Action":"sts:AssumeRole"}]}`
 	role := &iam.CreateRoleInput{
 		AssumeRolePolicyDocument: &template,
 		Path:                     aws.String("/"),
-		RoleName:                 roleName,
+		RoleName:                 aws.String(roleName),
 	}
 	_, err := w.IamClient.CreateRole(role)
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() == iam.ErrCodeEntityAlreadyExistsException {
-				return false, nil
-			}
-		}
-		return false, err
-	}
-	return true, nil
+	return err
 }
 
 func (w *AwsWorker) AttachDefaultPolicyToDefaultRole() error {
 	rolePolicy := &iam.AttachRolePolicyInput{
 		PolicyArn: aws.String(defaultPolicyArn),
-		RoleName:  w.CreateDefaultRoleName(),
+		RoleName:  aws.String(w.FargateRoleName()),
 	}
 	_, err := w.IamClient.AttachRolePolicy(rolePolicy)
 	return err
 }
 
-func (w *AwsWorker) CreateProfile(arn string) (bool, error) {
+func (w *AwsWorker) CreateFargateProfile(arn string) error {
 	fargateInput := &eks.CreateFargateProfileInput{
 		ClusterName:         aws.String(w.Parameters["ClusterName"].(string)),
 		FargateProfileName:  aws.String(w.Parameters["ProfileName"].(string)),
@@ -834,33 +809,19 @@ func (w *AwsWorker) CreateProfile(arn string) (bool, error) {
 	}
 
 	_, err := w.EksClient.CreateFargateProfile(fargateInput)
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() == eks.ErrCodeResourceInUseException {
-				return true, nil
-			}
-		}
-	}
-	return false, err
+	return err
 }
 
-func (w *AwsWorker) DeleteProfile() (bool, error) {
+func (w *AwsWorker) DeleteFargateProfile() error {
 	deleteInput := &eks.DeleteFargateProfileInput{
 		ClusterName:        aws.String(w.Parameters["ClusterName"].(string)),
 		FargateProfileName: aws.String(w.Parameters["ProfileName"].(string)),
 	}
 	_, err := w.EksClient.DeleteFargateProfile(deleteInput)
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() == eks.ErrCodeResourceInUseException {
-				return true, nil
-			}
-		}
-	}
-	return false, err
+	return err
 }
 
-func (w *AwsWorker) DescribeProfile() (*eks.FargateProfile, error) {
+func (w *AwsWorker) DescribeFargateProfile() (*eks.FargateProfile, error) {
 	describeInput := &eks.DescribeFargateProfileInput{
 		ClusterName:        aws.String(w.Parameters["ClusterName"].(string)),
 		FargateProfileName: aws.String(w.Parameters["ProfileName"].(string)),

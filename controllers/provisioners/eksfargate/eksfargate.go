@@ -17,9 +17,12 @@ package eksfargate
 
 import (
 	"errors"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/eks"
+	"github.com/aws/aws-sdk-go/service/iam"
 	v1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
-	aws "github.com/keikoproj/instance-manager/controllers/providers/aws"
+	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
 )
 
@@ -44,6 +47,15 @@ const (
 	UnrecoverableErrorString       = "UnrecoverableError"
 	UnrecoverableDeleteErrorString = "UnrecoverableDeleteError"
 )
+
+func becauseErrorContains(err error, code string) bool {
+	if aerr, ok := err.(awserr.Error); ok {
+		if aerr.Code() == code {
+			return true
+		}
+	}
+	return false
+}
 
 func New(p provisioners.ProvisionerInput) *InstanceGroupContext {
 	ctx := &InstanceGroupContext{
@@ -96,7 +108,6 @@ func CreateFargateTags(tagArray []map[string]string) map[string]*string {
 	return tags
 }
 
-// Convienence function to convert from json to API.
 func CreateFargateSelectors(selectors []v1alpha1.EKSFargateSelectors) []*eks.FargateProfileSelector {
 	var eksSelectors []*eks.FargateProfileSelector
 	for _, selector := range selectors {
@@ -123,56 +134,93 @@ func (ctx *InstanceGroupContext) Create() error {
 	instanceGroup := ctx.GetInstanceGroup()
 	spec := instanceGroup.GetEKSFargateSpec()
 	if instanceGroup.GetEKSFargateSpec().GetPodExecutionRoleArn() == "" {
-		created, err := ctx.AwsWorker.CreateDefaultRole()
-		if created || err != nil {
-			ctx.Log.Info("Creating default role")
+		err := ctx.AwsWorker.CreateDefaultFargateRole()
+		if err == nil {
+			ctx.Log.Info("Created default role",
+				"instancegroup",
+				instanceGroup.GetName())
+			return nil
+		}
+		if !becauseErrorContains(err, iam.ErrCodeEntityAlreadyExistsException) {
+			ctx.Log.Error(err,
+				"Creation of the default role failed.",
+				"instancegroup",
+				instanceGroup.GetName())
 			return err
 		}
-		role, err := ctx.AwsWorker.GetDefaultRole()
+
+		role, err := ctx.AwsWorker.GetDefaultFargateRole()
 		if err != nil {
-			ctx.Log.Info("Failed to get default role", "error", err)
+			ctx.Log.Error(err,
+				"Failed to find the default role",
+				"instancegroup",
+				instanceGroup.GetName())
 			return err
 		}
 		arn = *role.Arn
 
 		err = ctx.AwsWorker.AttachDefaultPolicyToDefaultRole()
 		if err != nil {
-			ctx.Log.Info("Failed to get attach policy to role", "error", err)
+			ctx.Log.Error(err,
+				"Failed to attach the default policy to role",
+				"instancegroup",
+				instanceGroup.GetName())
 			return err
 		}
-		ctx.Log.Info("Attached default policy to role")
+		ctx.Log.Info("Attached default policy to role",
+			"instancegroup",
+			instanceGroup.GetName())
 
 	} else {
 		arn = spec.GetPodExecutionRoleArn()
 	}
 
-	ctx.Log.Info("Creating a profile.", "arn", arn)
-	tryAgain, err := ctx.AwsWorker.CreateProfile(arn)
-	if tryAgain {
-		ctx.Log.Info("Resource inuse on Create.")
-		return nil
-	}
+	err := ctx.AwsWorker.CreateFargateProfile(arn)
 	if err != nil {
-		ctx.Log.Info("Creation of the fargate profile failed", "cluster",
+
+		if becauseErrorContains(err, eks.ErrCodeResourceInUseException) {
+			ctx.Log.Info("Creation of the fargate profile delayed.",
+				"instancegroup",
+				instanceGroup.GetName(),
+				"cluster",
+				spec.GetClusterName(),
+				"profile",
+				spec.GetProfileName(),
+				"error", err)
+			return nil
+		}
+
+		ctx.Log.Error(err, "Creation of the fargate profile failed",
+			"instancegroup",
+			instanceGroup.GetName(),
+			"cluster",
 			spec.GetClusterName(),
 			"profile",
-			spec.GetProfileName(),
-			"error", err)
-	} else {
-		instanceGroup.SetState(v1alpha1.ReconcileModifying)
+			spec.GetProfileName())
+		return err
 	}
 
-	return err
+	ctx.Log.Info("Fargate profile creation started.",
+		"instancegroup",
+		instanceGroup.GetName(),
+		"cluster",
+		spec.GetClusterName(),
+		"profile",
+		spec.GetProfileName())
+
+	instanceGroup.SetState(v1alpha1.ReconcileModifying)
+
+	return nil
 }
 func (ctx *InstanceGroupContext) CloudDiscovery() error {
-	profile, err := ctx.AwsWorker.DescribeProfile()
+	profile, err := ctx.AwsWorker.DescribeFargateProfile()
 	if err != nil {
 		profile = &eks.FargateProfile{
 			Status: nil,
 		}
 	}
 	if profile.Status == nil {
-		ctx.DiscoveredState.ProfileStatus = aws.FargateProfileStatusMissing
+		ctx.DiscoveredState.ProfileStatus = aws.StringValue(nil)
 	} else {
 		ctx.DiscoveredState.ProfileStatus = *profile.Status
 	}
@@ -184,40 +232,78 @@ func (ctx *InstanceGroupContext) Delete() error {
 
 	worker := ctx.AwsWorker
 	if spec.GetPodExecutionRoleArn() == "" {
-		found, err := worker.DetachDefaultPolicyFromDefaultRole()
-		if found || err != nil {
-			ctx.Log.Info("Detaching the default policy", "error", err)
+		err := worker.DetachDefaultPolicyFromDefaultRole()
+		// Policy was detached
+		if err == nil {
+			// Role was detached, return and get requeued.
+			ctx.Log.Info("Detached default policy.",
+				"instancegroup",
+				instanceGroup.GetName())
+			return nil
+		}
+		if !becauseErrorContains(err, iam.ErrCodeNoSuchEntityException) {
+			ctx.Log.Error(err,
+				"Detaching the default policy failed.",
+				"instancegroup",
+				instanceGroup.GetName())
 			return err
 		}
 
-		found, err = ctx.AwsWorker.DeleteDefaultRole()
-		if found || err != nil {
-			ctx.Log.Info("Deleting the default role", "error", err)
+		err = ctx.AwsWorker.DeleteDefaultFargateRole()
+		if err == nil {
+			ctx.Log.Info("Deleted the default role.",
+				"instancegroup",
+				instanceGroup.GetName())
+			return nil
+		}
+		if !becauseErrorContains(err, iam.ErrCodeNoSuchEntityException) {
+			ctx.Log.Error(err,
+				"Deleting the default role failed.",
+				"instancegroup",
+				instanceGroup.GetName())
 			return err
 		}
 	}
-	ctx.Log.Info("Deleting the profile")
-	tryAgain, err := worker.DeleteProfile()
-	if tryAgain {
-		ctx.Log.Info("Resource inuse on Delete.")
-		return nil
-	}
+
+	err := worker.DeleteFargateProfile()
 	if err != nil {
-		ctx.Log.Info("Deletion of the fargate profile.", "cluster",
+
+		if becauseErrorContains(err, eks.ErrCodeResourceInUseException) {
+			ctx.Log.Info("Deletion of the fargate profile delayed",
+				"instancegroup",
+				instanceGroup.GetName(),
+				"cluster",
+				spec.GetClusterName(),
+				"profile",
+				spec.GetProfileName(),
+				"error", err)
+			return nil
+		}
+
+		ctx.Log.Error(err, "Deletion of the fargate profile failed.",
+			"instancegroup",
+			instanceGroup.GetName(),
+			"cluster",
 			spec.GetClusterName(),
 			"profile",
-			spec.GetProfileName(),
-			"error", err)
+			spec.GetProfileName())
 		return err
 	}
+
+	ctx.Log.Info("Deletion of the fargate profile started",
+		"instancegroup",
+		instanceGroup.GetName(),
+		"cluster",
+		spec.GetClusterName(),
+		"profile",
+		spec.GetProfileName())
+
 	instanceGroup.SetState(v1alpha1.ReconcileDeleting)
 
-	return err
+	return nil
 }
 
 func (ctx *InstanceGroupContext) Update() error {
-	// No update is required
-	ctx.Log.Info("Running update")
 	instanceGroup := ctx.GetInstanceGroup()
 	annos := instanceGroup.GetObjectMeta().GetAnnotations()
 	// If there is a last-applied-configuration then assume
@@ -229,7 +315,7 @@ func (ctx *InstanceGroupContext) Update() error {
 	return nil
 }
 func (ctx *InstanceGroupContext) UpgradeNodes() error {
-	return errors.New("upgrade not supported")
+	return nil
 }
 func (ctx *InstanceGroupContext) BootstrapNodes() error {
 	return nil
@@ -241,9 +327,6 @@ func (ctx *InstanceGroupContext) IsReady() bool {
 	}
 	return false
 }
-func (ctx *InstanceGroupContext) IsUpgradeNeeded() bool {
-	return false
-}
 func (ctx *InstanceGroupContext) StateDiscovery() {
 	instanceGroup := ctx.GetInstanceGroup()
 	if instanceGroup.GetState() == v1alpha1.ReconcileInit {
@@ -251,12 +334,12 @@ func (ctx *InstanceGroupContext) StateDiscovery() {
 		if instanceGroup.ObjectMeta.DeletionTimestamp.IsZero() {
 			if ctx.GetDiscoveredState().IsProvisioned() {
 				// Role exists and the Profile exists in some form (creating)
-				if aws.IsProfileInConditionState(ctx.GetDiscoveredState().GetProfileStatus(), OngoingStateString) {
+				if awsprovider.IsProfileInConditionState(ctx.GetDiscoveredState().GetProfileStatus(), OngoingStateString) {
 					instanceGroup.SetState(v1alpha1.ReconcileModifying)
 					// Role exists and the Profile exists (active)
-				} else if aws.IsProfileInConditionState(ctx.GetDiscoveredState().GetProfileStatus(), FiniteStateString) {
+				} else if awsprovider.IsProfileInConditionState(ctx.GetDiscoveredState().GetProfileStatus(), FiniteStateString) {
 					instanceGroup.SetState(v1alpha1.ReconcileInitUpdate)
-				} else if aws.IsProfileInConditionState(ctx.GetDiscoveredState().GetProfileStatus(), UpdateRecoverableErrorString) {
+				} else if awsprovider.IsProfileInConditionState(ctx.GetDiscoveredState().GetProfileStatus(), UpdateRecoverableErrorString) {
 					instanceGroup.SetState(v1alpha1.ReconcileInitDelete)
 				} else {
 					// Profile already exists so return an error
@@ -267,10 +350,10 @@ func (ctx *InstanceGroupContext) StateDiscovery() {
 			}
 		} else {
 			if ctx.GetDiscoveredState().IsProvisioned() {
-				if aws.IsProfileInConditionState(ctx.GetDiscoveredState().GetProfileStatus(), OngoingStateString) {
+				if awsprovider.IsProfileInConditionState(ctx.GetDiscoveredState().GetProfileStatus(), OngoingStateString) {
 					// deleting stack is in an ongoing state
 					instanceGroup.SetState(v1alpha1.ReconcileDeleting)
-				} else if aws.IsProfileInConditionState(ctx.GetDiscoveredState().GetProfileStatus(), FiniteStateString) {
+				} else if awsprovider.IsProfileInConditionState(ctx.GetDiscoveredState().GetProfileStatus(), FiniteStateString) {
 					instanceGroup.SetState(v1alpha1.ReconcileInitDelete)
 				} else {
 					instanceGroup.SetState(v1alpha1.ReconcileErr)

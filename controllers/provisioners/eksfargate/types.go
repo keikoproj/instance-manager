@@ -16,9 +16,10 @@ limitations under the License.
 package eksfargate
 
 import (
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/go-logr/logr"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
-	aws "github.com/keikoproj/instance-manager/controllers/providers/aws"
+	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 )
 
 type DiscoveredState struct {
@@ -29,12 +30,12 @@ func (ds *DiscoveredState) GetProfileStatus() string {
 	return ds.ProfileStatus
 }
 func (ds *DiscoveredState) IsProvisioned() bool {
-	return ds.GetProfileStatus() != aws.FargateProfileStatusMissing
+	return ds.GetProfileStatus() != aws.StringValue(nil)
 }
 
 type InstanceGroupContext struct {
 	InstanceGroup   *v1alpha1.InstanceGroup
-	AwsWorker       aws.AwsWorker
+	AwsWorker       awsprovider.AwsWorker
 	DiscoveredState DiscoveredState
 	Log             logr.Logger
 }

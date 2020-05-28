@@ -6,9 +6,20 @@
 ![version](https://img.shields.io/badge/version-0.6.2-blue.svg?cacheSeconds=2592000)
 > Create and manage instance groups with Kubernetes.
 
-instance-manager simplifies the creation of worker nodes from within a Kubernetes cluster, create `InstanceGroup` objects in your cluster and instance-manager will provision the actual machines and bootstrap them to the cluster.
+**instance-manager** simplifies the creation of worker nodes from within a Kubernetes cluster and creates `InstanceGroup` objects in your cluster. Additionally, **instance-manager** will provision the actual machines and bootstrap them to the cluster.
 
 ![instance-manager](hack/instance-manager.png)
+
+- [Installation](#installation)  
+- [Usage Example](#usage-example)  
+    * [Currently supported provisioners](#currently-supported-provisioners)
+    * [EKS sample spec](#EKS-sample-spec)
+    * [Submit and Verify](#submit-and-verify)
+    * [Features](#features)
+    * [Alpha-2 Version](#alpha-2-version)
+- [Contributing](#contributing)  
+- [Developer Guide](#developer-guide)  
+
 
 Worker nodes in Kubernetes clusters work best if provisioned and managed using a logical grouping. Kops introduced the term “InstanceGroup” for this logical grouping. In AWS, an InstanceGroup maps to an AutoScalingGroup.
 
@@ -35,7 +46,7 @@ _For installation instructions and more examples of usage, please refer to the [
 To create an instance group, submit an InstanceGroup custom resource in your cluster, and the controller will provision and bootstrap it to your cluster, and allow you to modify it from within the cluster.
 
 
-### EKS sample spec (alpha-2)
+### EKS sample spec
 
 ```yaml
 apiVersion: instancemgr.keikoproj.io/v1alpha1
@@ -79,8 +90,157 @@ spec:
         value: some-value
 ```
 
-### EKS Fargate sample spec
-The purpose of this provisioner is to enable instance groups with AWS Fargate management. 
+
+### Submit and Verify
+
+```bash
+$ kubectl create -f instance_group.yaml
+instancegroup.instancemgr.keikoproj.io/hello-world created
+
+$ kubectl get instancegroups
+NAMESPACE          NAME         STATE                MIN   MAX  GROUP NAME    PROVISIONER   STRATEGY   LIFECYCLE   AGE
+instance-manager   hello-world  ReconcileModifying   3     6    hello-world   eks           crd        normal      1m
+```
+
+some time later, once the cloudformation stacks are created
+
+```bash
+$ kubectl get instancegroups
+NAMESPACE          NAME         STATE   MIN   MAX  GROUP NAME    PROVISIONER   STRATEGY   LIFECYCLE   AGE
+instance-manager   hello-world  Ready   3     6    hello-world   eks           crd        normal      7m
+```
+
+At this point the new nodes should be joined as well
+
+```bash
+$ kubectl get nodes
+NAME                                        STATUS   ROLES         AGE    VERSION
+ip-10-10-10-10.us-west-2.compute.internal   Ready    system        2h     v1.14.6-eks-5047ed
+ip-10-10-10-20.us-west-2.compute.internal   Ready    hello-world   32s    v1.14.6-eks-5047ed
+ip-10-10-10-30.us-west-2.compute.internal   Ready    hello-world   32s    v1.14.6-eks-5047ed
+ip-10-10-10-40.us-west-2.compute.internal   Ready    hello-world   32s    v1.14.6-eks-5047ed
+```
+
+### Features
+
+#### Spot instance support
+
+You can manually specify a spot price directly in the spec of an instance group
+
+```yaml
+apiVersion: instancemgr.keikoproj.io/v1alpha1
+kind: InstanceGroup
+metadata:
+  name: hello-world
+  namespace: instance-manager
+spec:
+  strategy: <...>
+  provisioner: eks
+  eks:
+    configuration:
+      spotPrice: "0.67"
+```
+
+instance-manager will switch the instances to spot for you if that price is available.
+
+You can also use [minion-manager](https://github.com/keikoproj/minion-manager/issues/50) in `--events-only` mode to provide spot recommendations for instance-manager.
+
+#### Upgrade Strategies
+
+instance-manager supports multiple upgrade strategies, a basic one called `rollingUpdate` which rotates instances according to `maxUnavailable`.
+
+```yaml
+apiVersion: instancemgr.keikoproj.io/v1alpha1
+kind: InstanceGroup
+metadata:
+  name: hello-world
+  namespace: instance-manager
+spec:
+  strategy:
+    type: rollingUpdate
+    rollingUpdate:
+      maxUnavailable: 30%
+  provisioner: eks
+  eks:
+    configuration: <...>
+```
+
+In this case, 30% of the capacity will terminate at a time, once all desired nodes are in ready state, the next batch will terminate.
+
+You can also use custom controllers with instance manager using the `CRD strategy`.
+
+```yaml
+apiVersion: instancemgr.keikoproj.io/v1alpha1
+kind: InstanceGroup
+metadata:
+  name: hello-world
+  namespace: instance-manager
+spec:
+  strategy:
+    provisioner: eks
+    crd:
+      crdName: rollingupgrades
+      statusJSONPath: .status.currentStatus
+      statusSuccessString: completed
+      statusFailureString: error
+      spec: |
+        apiVersion: upgrademgr.keikoproj.io/v1alpha1
+        kind: RollingUpgrade
+        metadata:
+          name: rollup-nodes
+          namespace: instance-manager
+        spec:
+          postDrainDelaySeconds: 30
+          nodeIntervalSeconds: 30
+          asgName: {{ .InstanceGroup.Status.ActiveScalingGroupName }}
+          strategy:
+            mode: eager
+            type: randomUpdate
+            maxUnavailable: 30%
+            drainTimeout: 120
+```
+
+In this strategy you can create resources as a response for a pending upgrade, you can use [upgrade-manager](https://github.com/keikoproj/upgrade-manager) and `RollingUpgrade` custom resources in order to rotate your instance-groups with more fine grained strategies. You can template any required parameter right form the instance group spec, in this case we are taking the scaling group name from the instance group's `.status.activeScalingGroupName` and putting it in the `.spec.asgName` of the `RollingUpgrade` custom resource. We are also telling instance-manager how to know if this custom-resource is successful or not by looking at the resource's jsonpath for specific strings.
+
+_For more examples and usage, please refer to the [Installation Reference Walkthrough][install]._
+
+#### EKS Managed Node Group (alpha-1)
+
+You can also provision EKS managed node groups by submitting a spec with a different provisioner.
+
+```yaml
+apiVersion: instancemgr.keikoproj.io/v1alpha1
+kind: InstanceGroup
+metadata:
+  name: hello-world
+  namespace: instance-manager
+spec:
+  provisioner: eks-managed
+  eks-managed:
+    maxSize: 6
+    minSize: 3
+    configuration:
+      clusterName: my-eks-cluster
+      labels:
+        example.label.com/label: some-value
+      volSize: 20
+      nodeRole: arn:aws:iam::012345678910:role/basic-eks-role
+      amiType: AL2_x86_64
+      instanceType: m5.large
+      keyPairName: my-ec2-key-pair
+      securityGroups:
+      - sg-04adb6343b07c7914
+      subnets:
+      - subnet-0bf9bc85fd80af561
+      - subnet-0130025d2673de5e4
+      - subnet-01a5c28e074c46580
+      tags:
+      - key: my-ec2-tag
+        value: some-value
+```
+
+#### EKS Fargate
+The purpose of the fargate provisioner is to enable the management of Fargate profiles.
 
 By associating EKS clusters with a Fargate Profile, pods can be identified for execution through profile selectors. If a to-be-scheduled pod matches any of the selectors in the Fargate Profile, then that pod is scheduled on Fargate. 
 
@@ -102,6 +262,8 @@ metadata:
 spec:
   # provision for EKS using Fargate
   provisioner: eks-fargate
+  strategy:
+    type: rollingUpdate
   # provisioner configuration
   eks-fargate:
     fargateProfileName: "my-unique-profile-name"
@@ -176,119 +338,6 @@ AWS's Fargate Profiles are immutable.  Once one is created, it cannot be directl
 
 The **eks-fargate** provisioner is built on top of that immutability.  Therefore, if an attempt is made to modify an existing profile, the provisioner will return an error.  You first have to `delete` the profile and follow that with a `create`.
 
-### Submit & Verify
-
-```bash
-$ kubectl create -f instance_group.yaml
-instancegroup.instancemgr.keikoproj.io/hello-world created
-
-$ kubectl get instancegroups
-NAMESPACE          NAME         STATE                MIN   MAX  GROUP NAME    PROVISIONER   STRATEGY   LIFECYCLE   AGE
-instance-manager   hello-world  ReconcileModifying   3     6    hello-world   eks           crd        normal      1m
-```
-
-some time later, once the cloudformation stacks are created
-
-```bash
-$ kubectl get instancegroups
-NAMESPACE          NAME         STATE   MIN   MAX  GROUP NAME    PROVISIONER   STRATEGY   LIFECYCLE   AGE
-instance-manager   hello-world  Ready   3     6    hello-world   eks           crd        normal      7m
-```
-
-At this point the new nodes should be joined as well
-
-```bash
-$ kubectl get nodes
-NAME                                        STATUS   ROLES         AGE    VERSION
-ip-10-10-10-10.us-west-2.compute.internal   Ready    system        2h     v1.14.6-eks-5047ed
-ip-10-10-10-20.us-west-2.compute.internal   Ready    hello-world   32s    v1.14.6-eks-5047ed
-ip-10-10-10-30.us-west-2.compute.internal   Ready    hello-world   32s    v1.14.6-eks-5047ed
-ip-10-10-10-40.us-west-2.compute.internal   Ready    hello-world   32s    v1.14.6-eks-5047ed
-```
-
-#### Features
-
-##### Spot instance support
-
-You can manually specify a spot price directly in the spec of an instance group
-
-```yaml
-apiVersion: instancemgr.keikoproj.io/v1alpha1
-kind: InstanceGroup
-metadata:
-  name: hello-world
-  namespace: instance-manager
-spec:
-  strategy: <...>
-  provisioner: eks
-  eks:
-    configuration:
-      spotPrice: "0.67"
-```
-
-instance-manager will switch the instances to spot for you if that price is available.
-
-You can also use [minion-manager](https://github.com/keikoproj/minion-manager/issues/50) in `--events-only` mode to provide spot recommendations for instance-manager.
-
-##### Upgrade Strategies
-
-instance-manager supports multiple upgrade strategies, a basic one called `rollingUpdate` which rotates instances according to `maxUnavailable`.
-
-```yaml
-apiVersion: instancemgr.keikoproj.io/v1alpha1
-kind: InstanceGroup
-metadata:
-  name: hello-world
-  namespace: instance-manager
-spec:
-  strategy:
-    type: rollingUpdate
-    rollingUpdate:
-      maxUnavailable: 30%
-  provisioner: eks
-  eks:
-    configuration: <...>
-```
-
-In this case, 30% of the capacity will terminate at a time, once all desired nodes are in ready state, the next batch will terminate.
-
-You can also use custom controllers with instance manager using the `CRD strategy`.
-
-```yaml
-apiVersion: instancemgr.keikoproj.io/v1alpha1
-kind: InstanceGroup
-metadata:
-  name: hello-world
-  namespace: instance-manager
-spec:
-  strategy:
-    provisioner: eks
-    crd:
-      crdName: rollingupgrades
-      statusJSONPath: .status.currentStatus
-      statusSuccessString: completed
-      statusFailureString: error
-      spec: |
-        apiVersion: upgrademgr.keikoproj.io/v1alpha1
-        kind: RollingUpgrade
-        metadata:
-          name: rollup-nodes
-          namespace: instance-manager
-        spec:
-          postDrainDelaySeconds: 30
-          nodeIntervalSeconds: 30
-          asgName: {{ .InstanceGroup.Status.ActiveScalingGroupName }}
-          strategy:
-            mode: eager
-            type: randomUpdate
-            maxUnavailable: 30%
-            drainTimeout: 120
-```
-
-In this strategy you can create resources as a response for a pending upgrade, you can use [upgrade-manager](https://github.com/keikoproj/upgrade-manager) and `RollingUpgrade` custom resources in order to rotate your instance-groups with more fine grained strategies. You can template any required parameter right form the instance group spec, in this case we are taking the scaling group name from the instance group's `.status.activeScalingGroupName` and putting it in the `.spec.asgName` of the `RollingUpgrade` custom resource. We are also telling instance-manager how to know if this custom-resource is successful or not by looking at the resource's jsonpath for specific strings.
-
-_For more examples and usage, please refer to the [Installation Reference Walkthrough][install]._
-
 ##### Bring your own role
 
 You can choose to provide an IAM role that is managed externally to instance-manager by providing the name of the instance profile and the role name.
@@ -309,42 +358,6 @@ spec:
 ```
 
 if you do not provide these fields, a role will be created for your instance-group by the controller (will require IAM access).
-
-
-##### EKS Managed Node Group (alpha-1)
-
-You can also provision EKS managed node groups by submitting a spec with a different provisioner.
-
-```yaml
-apiVersion: instancemgr.keikoproj.io/v1alpha1
-kind: InstanceGroup
-metadata:
-  name: hello-world
-  namespace: instance-manager
-spec:
-  provisioner: eks-managed
-  eks-managed:
-    maxSize: 6
-    minSize: 3
-    configuration:
-      clusterName: my-eks-cluster
-      labels:
-        example.label.com/label: some-value
-      volSize: 20
-      nodeRole: arn:aws:iam::012345678910:role/basic-eks-role
-      amiType: AL2_x86_64
-      instanceType: m5.large
-      keyPairName: my-ec2-key-pair
-      securityGroups:
-      - sg-04adb6343b07c7914
-      subnets:
-      - subnet-0bf9bc85fd80af561
-      - subnet-0130025d2673de5e4
-      - subnet-01a5c28e074c46580
-      tags:
-      - key: my-ec2-tag
-        value: some-value
-```
 
 ### Alpha-2 Version
 

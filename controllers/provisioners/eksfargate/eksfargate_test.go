@@ -26,41 +26,35 @@ import (
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
 	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	//	"io/ioutil"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	//	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	//	"k8s.io/apimachinery/pkg/runtime"
-	//	fakedynamic "k8s.io/client-go/dynamic/fake"
-	//	"k8s.io/client-go/kubernetes/fake"
 	"testing"
 	"time"
 )
 
 type EksFargateUnitTest struct {
-	Description         string
-	Provisioner         *InstanceGroupContext
-	InstanceGroup       *v1alpha1.InstanceGroup
-	ProfileBasic        *eks.FargateProfile
-	ProfileFromDescribe *eks.FargateProfile
-	ProfileFromCreate   *eks.FargateProfile
-	//UpdateNeeded        bool
-	ProfileExists            bool
-	MakeCreateProfileFail    bool
-	MakeCreateProfileRetry   bool
-	MakeDeleteProfileFail    bool
-	MakeDeleteProfileRetry   bool
-	MakeDescribeProfileFail  bool
-	CheckArnFor              string
-	MakeCreateRoleFail       bool
-	MakeGetRoleFail          bool
-	CreateRoleDupFound       bool
-	DetachRolePolicyFound    bool
-	DetachRolePolicyFail     bool
-	MakeAttachRolePolicyFail bool
-	MakeDeleteRoleFail       bool
-	DeleteRoleFound          bool
+	Description                           string
+	Provisioner                           *InstanceGroupContext
+	InstanceGroup                         *v1alpha1.InstanceGroup
+	ProfileBasic                          *eks.FargateProfile
+	ProfileFromDescribe                   *eks.FargateProfile
+	ProfileFromCreate                     *eks.FargateProfile
+	ProfileExists                         bool
+	MakeCreateProfileFail                 bool
+	MakeCreateProfileRetry                bool
+	MakeDeleteProfileFail                 bool
+	MakeDeleteProfileRetry                bool
+	MakeDescribeProfileFail               bool
+	CheckArnFor                           string
+	MakeCreateRoleFail                    bool
+	MakeGetRoleFail                       bool
+	CreateRoleDupFound                    bool
+	DetachRolePolicyNoSuchEntityException bool
+	DetachRolePolicyFail                  bool
+	MakeAttachRolePolicyFail              bool
+	MakeDeleteRoleFail                    bool
+	DeleteRoleNoSuchEntityException       bool
 }
 
 type FakeIG struct {
@@ -86,36 +80,36 @@ type stubEKS struct {
 }
 type stubIAM struct {
 	iamiface.IAMAPI
-	Profile                  *eks.FargateProfile
-	MakeCreateRoleFail       bool
-	MakeGetRoleFail          bool
-	CreateRoleDupFound       bool
-	MakeAttachRolePolicyFail bool
-	DetachRolePolicyFound    bool
-	DetachRolePolicyFail     bool
-	MakeDeleteRoleFail       bool
-	DeleteRoleFound          bool
+	Profile                               *eks.FargateProfile
+	MakeCreateRoleFail                    bool
+	MakeGetRoleFail                       bool
+	CreateRoleDupFound                    bool
+	MakeAttachRolePolicyFail              bool
+	DetachRolePolicyNoSuchEntityException bool
+	DetachRolePolicyFail                  bool
+	MakeDeleteRoleFail                    bool
+	DeleteRoleNoSuchEntityException       bool
 }
 
 func (s *stubIAM) DetachRolePolicy(input *iam.DetachRolePolicyInput) (*iam.DetachRolePolicyOutput, error) {
 	if s.DetachRolePolicyFail == false {
-		if !s.DetachRolePolicyFound {
-			return nil, awserr.New(iam.ErrCodeNoSuchEntityException, "not found", errors.New(""))
-		}
 		output := &iam.DetachRolePolicyOutput{}
 		return output, nil
 	} else {
+		if s.DetachRolePolicyNoSuchEntityException {
+			return nil, awserr.New(iam.ErrCodeNoSuchEntityException, "not found on detach", errors.New(""))
+		}
 		return nil, errors.New("detach role policy failed")
 	}
 }
 func (s *stubIAM) DeleteRole(input *iam.DeleteRoleInput) (*iam.DeleteRoleOutput, error) {
 	if s.MakeDeleteRoleFail == false {
-		if !s.DeleteRoleFound {
-			return nil, awserr.New(iam.ErrCodeNoSuchEntityException, "not found", errors.New(""))
-		}
 		output := &iam.DeleteRoleOutput{}
 		return output, nil
 	} else {
+		if s.DeleteRoleNoSuchEntityException {
+			return nil, awserr.New(iam.ErrCodeNoSuchEntityException, "not found on delete role", errors.New(""))
+		}
 		return nil, errors.New("delete role failed")
 	}
 }
@@ -195,11 +189,6 @@ func (s *stubEKS) DeleteFargateProfile(input *eks.DeleteFargateProfileInput) (*e
 	}
 }
 
-func init() {
-	//	flag.BoolVar(&loggingEnabled, "logging-enabled", false, "Enable Logging")
-	//log.Out = ioutil.Discard
-}
-
 func getProfile(state string) *eks.FargateProfile {
 	return &eks.FargateProfile{
 		Status: aws.String(state)}
@@ -269,14 +258,14 @@ func (u *EksFargateUnitTest) BuildProvisioner(t *testing.T) *InstanceGroupContex
 			CheckArnFor:             u.CheckArnFor,
 		},
 		IamClient: &stubIAM{
-			MakeCreateRoleFail:       u.MakeCreateRoleFail,
-			MakeGetRoleFail:          u.MakeGetRoleFail,
-			CreateRoleDupFound:       u.CreateRoleDupFound,
-			MakeAttachRolePolicyFail: u.MakeAttachRolePolicyFail,
-			DetachRolePolicyFound:    u.DetachRolePolicyFound,
-			DetachRolePolicyFail:     u.DetachRolePolicyFail,
-			MakeDeleteRoleFail:       u.MakeDeleteRoleFail,
-			DeleteRoleFound:          u.DeleteRoleFound,
+			MakeCreateRoleFail:                    u.MakeCreateRoleFail,
+			MakeGetRoleFail:                       u.MakeGetRoleFail,
+			CreateRoleDupFound:                    u.CreateRoleDupFound,
+			MakeAttachRolePolicyFail:              u.MakeAttachRolePolicyFail,
+			DetachRolePolicyNoSuchEntityException: u.DetachRolePolicyNoSuchEntityException,
+			DetachRolePolicyFail:                  u.DetachRolePolicyFail,
+			MakeDeleteRoleFail:                    u.MakeDeleteRoleFail,
+			DeleteRoleNoSuchEntityException:       u.DeleteRoleNoSuchEntityException,
 		},
 	}
 	ctrl.SetLogger(zap.Logger(true))
@@ -485,8 +474,8 @@ func TestUpgradeNodes(t *testing.T) {
 		ProfileBasic:  nil,
 	}
 	ctx := testCase.BuildProvisioner(t)
-	if ctx.UpgradeNodes() == nil {
-		t.Fatal("TestUpgradeNodes: expected an exception but did not get one.")
+	if ctx.UpgradeNodes() != nil {
+		t.Fatal("TestUpgradeNodes: expected nil but got exception")
 	}
 }
 func TestBootstrapNodes(t *testing.T) {
@@ -499,18 +488,6 @@ func TestBootstrapNodes(t *testing.T) {
 	ctx := testCase.BuildProvisioner(t)
 	if ctx.BootstrapNodes() != nil {
 		t.Fatal("TestBootstrapNodes: got an exception when not expected")
-	}
-}
-func TestIsUpgradeNeeded(t *testing.T) {
-	ig := FakeIG{}
-	instanceGroup := ig.getInstanceGroup()
-	testCase := EksFargateUnitTest{
-		InstanceGroup: instanceGroup,
-		ProfileBasic:  nil,
-	}
-	ctx := testCase.BuildProvisioner(t)
-	if ctx.IsUpgradeNeeded() != false {
-		t.Fatal("TestIsUpgradeNeeded: got an true when false expected")
 	}
 }
 func TestCreateFargateTags(t *testing.T) {
@@ -540,7 +517,7 @@ func TestCloudDiscoveryFailureGettingProfile(t *testing.T) {
 	}
 	ctx := testCase.BuildProvisioner(t)
 	ctx.CloudDiscovery()
-	if ctx.GetDiscoveredState().GetProfileStatus() != awsprovider.FargateProfileStatusMissing {
+	if ctx.GetDiscoveredState().GetProfileStatus() != aws.StringValue(nil) {
 		t.Fatalf("TestGetStateFailureGettingProfile: expected nil but got a status")
 	}
 }
@@ -555,7 +532,7 @@ func TestCloudDiscoverySuccessGettingProfile(t *testing.T) {
 	ctx := testCase.BuildProvisioner(t)
 	ctx.CloudDiscovery()
 
-	if ctx.GetDiscoveredState().GetProfileStatus() == awsprovider.FargateProfileStatusMissing {
+	if ctx.GetDiscoveredState().GetProfileStatus() == aws.StringValue(nil) {
 		t.Fatalf("TestGetStateSuccessGettingProfile: expected profile but got a nil")
 	}
 }
@@ -564,7 +541,7 @@ func TestCreateWithSuppliedArnSuccessProfileCreation(t *testing.T) {
 	instanceGroup := ig.getInstanceGroup()
 	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
 	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
-	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn("a:b:c:d:e:f") // no arn
+	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn("a:b:c:d:e:f")
 	testCase := EksFargateUnitTest{
 		InstanceGroup: instanceGroup,
 		CheckArnFor:   "a:b:c:d:e:f",
@@ -734,7 +711,7 @@ func TestDeleteWithArnDeleteProfileSuccess(t *testing.T) {
 	instanceGroup := ig.getInstanceGroup()
 	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
 	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
-	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn("a:b:c:d:e:f") // no arn
+	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn("a:b:c:d:e:f")
 	testCase := EksFargateUnitTest{
 		InstanceGroup: instanceGroup,
 	}
@@ -752,7 +729,7 @@ func TestDeleteWithArnDeleteProfileFail(t *testing.T) {
 	instanceGroup := ig.getInstanceGroup()
 	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
 	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
-	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn("a:b:c:d:e:f") // no arn
+	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn("a:b:c:d:e:f")
 	testCase := EksFargateUnitTest{
 		InstanceGroup:         instanceGroup,
 		MakeDeleteProfileFail: true,
@@ -776,8 +753,8 @@ func TestDeleteWithoutArnDetachPolicyFromRoleCreated(t *testing.T) {
 	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
 	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
 	testCase := EksFargateUnitTest{
-		InstanceGroup:         instanceGroup,
-		DetachRolePolicyFound: true,
+		InstanceGroup:                         instanceGroup,
+		DetachRolePolicyNoSuchEntityException: true,
 	}
 	ctx := testCase.BuildProvisioner(t)
 	err := ctx.Delete()
@@ -794,8 +771,9 @@ func TestDeleteWithoutArnDetachPolicyFromRoleFailed(t *testing.T) {
 	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
 	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
 	testCase := EksFargateUnitTest{
-		InstanceGroup:        instanceGroup,
-		DetachRolePolicyFail: true,
+		InstanceGroup:                         instanceGroup,
+		DetachRolePolicyFail:                  true,
+		DetachRolePolicyNoSuchEntityException: false,
 	}
 	ctx := testCase.BuildProvisioner(t)
 	err := ctx.Delete()
@@ -815,9 +793,11 @@ func TestDeleteWithoutArnDeleteRoleFailed(t *testing.T) {
 	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
 	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
 	testCase := EksFargateUnitTest{
-		InstanceGroup:         instanceGroup,
-		DetachRolePolicyFound: false,
-		MakeDeleteRoleFail:    true,
+		InstanceGroup:                         instanceGroup,
+		DetachRolePolicyFail:                  true,
+		DetachRolePolicyNoSuchEntityException: true,
+		MakeDeleteRoleFail:                    true,
+		DeleteRoleNoSuchEntityException:       false,
 	}
 	ctx := testCase.BuildProvisioner(t)
 	err := ctx.Delete()
@@ -837,9 +817,9 @@ func TestDeleteWithoutArnDeleteRoleCreated(t *testing.T) {
 	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
 	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
 	testCase := EksFargateUnitTest{
-		InstanceGroup:         instanceGroup,
-		DetachRolePolicyFound: false,
-		DeleteRoleFound:       true,
+		InstanceGroup:                         instanceGroup,
+		DetachRolePolicyNoSuchEntityException: false,
+		DeleteRoleNoSuchEntityException:       true,
 	}
 	ctx := testCase.BuildProvisioner(t)
 	err := ctx.Delete()
@@ -856,10 +836,12 @@ func TestDeleteWithoutArnDeleteProfileFailed(t *testing.T) {
 	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
 	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
 	testCase := EksFargateUnitTest{
-		InstanceGroup:         instanceGroup,
-		DetachRolePolicyFound: false,
-		DeleteRoleFound:       false,
-		MakeDeleteProfileFail: true,
+		InstanceGroup:                         instanceGroup,
+		DetachRolePolicyFail:                  true,
+		DetachRolePolicyNoSuchEntityException: true,
+		MakeDeleteRoleFail:                    true,
+		DeleteRoleNoSuchEntityException:       true,
+		MakeDeleteProfileFail:                 true,
 	}
 	ctx := testCase.BuildProvisioner(t)
 	err := ctx.Delete()
@@ -879,10 +861,12 @@ func TestDeleteWithoutArnDeleteProfileSuccess(t *testing.T) {
 	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
 	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
 	testCase := EksFargateUnitTest{
-		InstanceGroup:         instanceGroup,
-		DetachRolePolicyFound: false,
-		DeleteRoleFound:       false,
-		MakeDeleteProfileFail: false,
+		InstanceGroup:                         instanceGroup,
+		DetachRolePolicyFail:                  true,
+		DetachRolePolicyNoSuchEntityException: true,
+		MakeDeleteRoleFail:                    true,
+		DeleteRoleNoSuchEntityException:       true,
+		MakeDeleteProfileFail:                 false,
 	}
 	ctx := testCase.BuildProvisioner(t)
 	err := ctx.Delete()
@@ -899,10 +883,13 @@ func TestDeleteWithRetry(t *testing.T) {
 	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
 	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
 	testCase := EksFargateUnitTest{
-		InstanceGroup:          instanceGroup,
-		MakeDeleteProfileRetry: true,
-		DetachRolePolicyFound:  false,
-		DeleteRoleFound:        false,
+		InstanceGroup:                         instanceGroup,
+		DetachRolePolicyFail:                  true,
+		DetachRolePolicyNoSuchEntityException: true,
+		MakeDeleteRoleFail:                    true,
+		DeleteRoleNoSuchEntityException:       true,
+		MakeDeleteProfileFail:                 true,
+		MakeDeleteProfileRetry:                true,
 	}
 	ctx := testCase.BuildProvisioner(t)
 	err := ctx.Delete()
