@@ -94,6 +94,10 @@ spec:
                       items:
                         type: string
                       type: array
+                    metricsCollection:
+                      items:
+                        type: string
+                      type: array
                     roleName:
                       type: string
                     securityGroups:

@@ -34,7 +34,7 @@ func ContainsString(slice []string, s string) bool {
 	return false
 }
 
-// ContainsString returns true if a given slice 'slice' contains string 's', otherwise return false
+// ContainsEqualFold returns true if a given slice 'slice' contains string 's' under unicode case-folding
 func ContainsEqualFold(slice []string, s string) bool {
 	for _, item := range slice {
 		if strings.EqualFold(item, s) {
@@ -42,6 +42,35 @@ func ContainsEqualFold(slice []string, s string) bool {
 		}
 	}
 	return false
+}
+
+func StringMapSliceContains(m []map[string]string, contains map[string]string) bool {
+	for _, obj := range m {
+		if reflect.DeepEqual(obj, contains) {
+			return true
+		}
+	}
+	return false
+}
+
+func StringSliceEqualFold(x []string, y []string) bool {
+	if len(x) != len(y) {
+		return false
+	}
+	for _, element := range x {
+		if !ContainsEqualFold(y, element) {
+			return false
+		}
+	}
+	return true
+}
+
+func SliceEmpty(slice []string) bool {
+	return len(slice) == 0
+}
+
+func StringEmpty(str string) bool {
+	return str == ""
 }
 
 func StringSliceEquals(x, y []string) bool {

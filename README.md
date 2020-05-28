@@ -215,6 +215,8 @@ metadata:
   name: hello-world
   namespace: instance-manager
 spec:
+  strategy:
+    type: managed
   provisioner: eks-managed
   eks-managed:
     maxSize: 6

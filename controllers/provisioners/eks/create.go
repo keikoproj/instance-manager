@@ -31,6 +31,7 @@ func (ctx *EksInstanceGroupContext) Create() error {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
 		state         = ctx.GetDiscoveredState()
+		lcName        = state.GetActiveLaunchConfigurationName()
 	)
 
 	instanceGroup.SetState(v1alpha1.ReconcileModifying)
@@ -43,7 +44,7 @@ func (ctx *EksInstanceGroupContext) Create() error {
 
 	// create launchconfig
 	if !state.HasLaunchConfiguration() {
-		lcName := fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
+		lcName = fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
 		err := ctx.CreateLaunchConfiguration(lcName)
 		if err != nil {
 			return errors.Wrap(err, "failed to create launch configuration")
@@ -51,7 +52,7 @@ func (ctx *EksInstanceGroupContext) Create() error {
 	}
 
 	// create scaling group
-	err = ctx.CreateScalingGroup()
+	err = ctx.CreateScalingGroup(lcName)
 	if err != nil {
 		return errors.Wrap(err, "failed to create scaling group")
 	}
@@ -60,7 +61,7 @@ func (ctx *EksInstanceGroupContext) Create() error {
 	return nil
 }
 
-func (ctx *EksInstanceGroupContext) CreateScalingGroup() error {
+func (ctx *EksInstanceGroupContext) CreateScalingGroup(lcName string) error {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
 		spec          = instanceGroup.GetEKSSpec()
@@ -77,7 +78,7 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup() error {
 	err := ctx.AwsWorker.CreateScalingGroup(&autoscaling.CreateAutoScalingGroupInput{
 		AutoScalingGroupName:    aws.String(asgName),
 		DesiredCapacity:         aws.Int64(spec.GetMinSize()),
-		LaunchConfigurationName: aws.String(state.GetActiveLaunchConfigurationName()),
+		LaunchConfigurationName: aws.String(lcName),
 		MinSize:                 aws.Int64(spec.GetMinSize()),
 		MaxSize:                 aws.Int64(spec.GetMaxSize()),
 		VPCZoneIdentifier:       aws.String(common.ConcatenateList(configuration.GetSubnets(), ",")),
@@ -87,13 +88,9 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup() error {
 		return err
 	}
 	ctx.Log.Info("created scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
-	scalingGroup, err := ctx.AwsWorker.GetAutoscalingGroup(asgName)
-	if err != nil {
-		return err
-	}
 
-	if scalingGroup != nil {
-		state.SetScalingGroup(scalingGroup)
+	if err := ctx.UpdateMetricsCollection(asgName); err != nil {
+		return err
 	}
 
 	state.Publisher.Publish(kubeprovider.InstanceGroupCreatedEvent, "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
@@ -118,41 +115,35 @@ func (ctx *EksInstanceGroupContext) CreateLaunchConfiguration(name string) error
 	}
 
 	ctx.Log.Info("created launchconfig", "instancegroup", instanceGroup.GetName(), "launchconfig", name)
-	lc, err := ctx.AwsWorker.GetAutoscalingLaunchConfig(name)
-	if err != nil {
-		return err
-	}
-
-	if lc != nil {
-		status.SetActiveLaunchConfigurationName(name)
-		state.SetActiveLaunchConfigurationName(name)
-		state.SetLaunchConfiguration(lc)
-	}
-
+	status.SetActiveLaunchConfigurationName(name)
+	state.SetActiveLaunchConfigurationName(name)
 	return nil
 }
 
 func (ctx *EksInstanceGroupContext) CreateManagedRole() error {
 	var (
-		instanceGroup      = ctx.GetInstanceGroup()
-		state              = ctx.GetDiscoveredState()
-		configuration      = instanceGroup.GetEKSConfiguration()
-		additionalPolicies = configuration.GetManagedPolicies()
-		roleName           = ctx.ResourcePrefix
+		instanceGroup = ctx.GetInstanceGroup()
+		state         = ctx.GetDiscoveredState()
+		configuration = instanceGroup.GetEKSConfiguration()
+		roleName      = ctx.ResourcePrefix
 	)
 
 	if configuration.HasExistingRole() {
+		// avoid updating if using an existing role
 		return nil
 	}
 
-	// create a controller-owned role for the instancegroup
-	managedPolicies := ctx.GetManagedPoliciesList(additionalPolicies)
-
-	role, profile, err := ctx.AwsWorker.CreateUpdateScalingGroupRole(roleName, managedPolicies)
+	role, profile, err := ctx.AwsWorker.CreateScalingGroupRole(roleName)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to create scaling group role")
 	}
-	ctx.Log.Info("created managed role", "instancegroup", instanceGroup.GetName(), "iamrole", roleName)
+
+	err = ctx.UpdateManagedPolicies(roleName)
+	if err != nil {
+		return errors.Wrap(err, "failed to update managed policies")
+	}
+
+	ctx.Log.Info("reconciled managed role", "instancegroup", instanceGroup.GetName(), "iamrole", roleName)
 
 	state.SetRole(role)
 	state.SetInstanceProfile(profile)

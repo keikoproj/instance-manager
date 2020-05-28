@@ -29,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/pkg/errors"
 	"os"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -48,9 +49,25 @@ type AwsWorker struct {
 }
 
 var (
-	DefaultInstanceProfilePropagationDelay = time.Second * 20
+	DefaultInstanceProfilePropagationDelay = time.Second * 25
 	DefaultWaiterDuration                  = time.Second * 5
 	DefaultWaiterRetries                   = 12
+
+	DefaultAutoscalingMetrics = []string{
+		"GroupMinSize",
+		"GroupMaxSize",
+		"GroupDesiredCapacity",
+		"GroupInServiceInstances",
+		"GroupPendingInstances",
+		"GroupStandbyInstances",
+		"GroupTerminatingInstances",
+		"GroupInServiceCapacity",
+		"GroupPendingCapacity",
+		"GroupTerminatingCapacity",
+		"GroupStandbyCapacity",
+		"GroupTotalInstances",
+		"GroupTotalCapacity",
+	}
 )
 
 const (
@@ -125,24 +142,29 @@ func (w *AwsWorker) CreateScalingGroup(input *autoscaling.CreateAutoScalingGroup
 	return nil
 }
 
-func (w *AwsWorker) UpdateScalingGroup(input *autoscaling.UpdateAutoScalingGroupInput, upTags []*autoscaling.Tag, rmTags []*autoscaling.Tag) error {
-	_, err := w.AsgClient.CreateOrUpdateTags(&autoscaling.CreateOrUpdateTagsInput{
-		Tags: upTags,
-	})
-	if err != nil {
-		return err
-	}
-
-	if len(rmTags) > 0 {
-		_, err = w.AsgClient.DeleteTags(&autoscaling.DeleteTagsInput{
-			Tags: rmTags,
+func (w *AwsWorker) UpdateScalingGroupTags(add []*autoscaling.Tag, remove []*autoscaling.Tag) error {
+	if len(add) > 0 {
+		_, err := w.AsgClient.CreateOrUpdateTags(&autoscaling.CreateOrUpdateTagsInput{
+			Tags: add,
 		})
 		if err != nil {
 			return err
 		}
 	}
 
-	_, err = w.AsgClient.UpdateAutoScalingGroup(input)
+	if len(remove) > 0 {
+		_, err := w.AsgClient.DeleteTags(&autoscaling.DeleteTagsInput{
+			Tags: remove,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (w *AwsWorker) UpdateScalingGroup(input *autoscaling.UpdateAutoScalingGroupInput) error {
+	_, err := w.AsgClient.UpdateAutoScalingGroup(input)
 	if err != nil {
 		return err
 	}
@@ -260,7 +282,51 @@ func (w *AwsWorker) DeleteScalingGroupRole(name string, managedPolicies []string
 	return nil
 }
 
-func (w *AwsWorker) CreateUpdateScalingGroupRole(name string, managedPolicies []string) (*iam.Role, *iam.InstanceProfile, error) {
+func (w *AwsWorker) AttachManagedPolicies(name string, managedPolicies []string) error {
+	for _, policy := range managedPolicies {
+		_, err := w.IamClient.AttachRolePolicy(&iam.AttachRolePolicyInput{
+			RoleName:  aws.String(name),
+			PolicyArn: aws.String(policy),
+		})
+		if err != nil {
+			return errors.Wrap(err, "failed to attach role policies")
+		}
+	}
+	return nil
+}
+
+func (w *AwsWorker) DetachManagedPolicies(name string, managedPolicies []string) error {
+	for _, policy := range managedPolicies {
+		_, err := w.IamClient.DetachRolePolicy(&iam.DetachRolePolicyInput{
+			RoleName:  aws.String(name),
+			PolicyArn: aws.String(policy),
+		})
+		if err != nil {
+			return errors.Wrap(err, "failed to detach role policies")
+		}
+	}
+	return nil
+}
+
+func (w *AwsWorker) ListRolePolicies(name string) ([]*iam.AttachedPolicy, error) {
+	policies := []*iam.AttachedPolicy{}
+	err := w.IamClient.ListAttachedRolePoliciesPages(
+		&iam.ListAttachedRolePoliciesInput{
+			RoleName: aws.String(name),
+		},
+		func(page *iam.ListAttachedRolePoliciesOutput, lastPage bool) bool {
+			for _, p := range page.AttachedPolicies {
+				policies = append(policies, p)
+			}
+			return page.Marker != nil
+		})
+	if err != nil {
+		return policies, err
+	}
+	return policies, nil
+}
+
+func (w *AwsWorker) CreateScalingGroupRole(name string) (*iam.Role, *iam.InstanceProfile, error) {
 	var (
 		assumeRolePolicyDocument = `{
 			"Version": "2012-10-17",
@@ -296,38 +362,22 @@ func (w *AwsWorker) CreateUpdateScalingGroupRole(name string, managedPolicies []
 			return createdRole, createdProfile, errors.Wrap(err, "failed to create instance-profile")
 		}
 		createdProfile = out.InstanceProfile
+		time.Sleep(DefaultInstanceProfilePropagationDelay)
 
-		err = w.IamClient.WaitUntilInstanceProfileExists(&iam.GetInstanceProfileInput{
+		_, err = w.IamClient.AddRoleToInstanceProfile(&iam.AddRoleToInstanceProfileInput{
 			InstanceProfileName: aws.String(name),
+			RoleName:            aws.String(name),
 		})
 		if err != nil {
-			return createdRole, createdProfile, errors.Wrap(err, "instance-profile propogation waiter timed out")
-		}
-		time.Sleep(DefaultInstanceProfilePropagationDelay)
-	} else {
-		createdProfile = instanceProfile
-	}
-
-	_, err := w.IamClient.AddRoleToInstanceProfile(&iam.AddRoleToInstanceProfileInput{
-		InstanceProfileName: aws.String(name),
-		RoleName:            aws.String(name),
-	})
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() != iam.ErrCodeLimitExceededException {
-				return createdRole, createdProfile, errors.Wrap(err, "failed to attach instance-profile")
+			if aerr, ok := err.(awserr.Error); ok {
+				if aerr.Code() != iam.ErrCodeLimitExceededException {
+					return createdRole, createdProfile, errors.Wrap(err, "failed to attach instance-profile")
+				}
 			}
 		}
-	}
 
-	for _, policy := range managedPolicies {
-		_, err = w.IamClient.AttachRolePolicy(&iam.AttachRolePolicyInput{
-			RoleName:  aws.String(name),
-			PolicyArn: aws.String(policy),
-		})
-		if err != nil {
-			return createdRole, createdProfile, errors.Wrap(err, "failed to attach policies")
-		}
+	} else {
+		createdProfile = instanceProfile
 	}
 
 	return createdRole, createdProfile, nil
@@ -502,34 +552,33 @@ func (w *AwsWorker) DescribeAutoscalingLaunchConfigs() ([]*autoscaling.LaunchCon
 	return launchConfigurations, nil
 }
 
-func (w *AwsWorker) GetAutoscalingLaunchConfig(name string) (*autoscaling.LaunchConfiguration, error) {
-	var lc *autoscaling.LaunchConfiguration
-	out, err := w.AsgClient.DescribeLaunchConfigurations(&autoscaling.DescribeLaunchConfigurationsInput{})
+func (w *AwsWorker) EnableMetrics(asgName string, metrics []string) error {
+	if common.SliceEmpty(metrics) {
+		return nil
+	}
+	_, err := w.AsgClient.EnableMetricsCollection(&autoscaling.EnableMetricsCollectionInput{
+		AutoScalingGroupName: aws.String(asgName),
+		Granularity:          aws.String("1Minute"),
+		Metrics:              aws.StringSlice(metrics),
+	})
 	if err != nil {
-		return lc, err
+		return err
 	}
-	for _, config := range out.LaunchConfigurations {
-		n := aws.StringValue(config.LaunchConfigurationName)
-		if strings.EqualFold(name, n) {
-			lc = config
-		}
-	}
-	return lc, nil
+	return nil
 }
 
-func (w *AwsWorker) GetAutoscalingGroup(name string) (*autoscaling.Group, error) {
-	var asg *autoscaling.Group
-	out, err := w.AsgClient.DescribeAutoScalingGroups(&autoscaling.DescribeAutoScalingGroupsInput{})
+func (w *AwsWorker) DisableMetrics(asgName string, metrics []string) error {
+	if common.SliceEmpty(metrics) {
+		return nil
+	}
+	_, err := w.AsgClient.DisableMetricsCollection(&autoscaling.DisableMetricsCollectionInput{
+		AutoScalingGroupName: aws.String(asgName),
+		Metrics:              aws.StringSlice(metrics),
+	})
 	if err != nil {
-		return asg, err
+		return err
 	}
-	for _, group := range out.AutoScalingGroups {
-		n := aws.StringValue(group.AutoScalingGroupName)
-		if strings.EqualFold(name, n) {
-			asg = group
-		}
-	}
-	return asg, nil
+	return nil
 }
 
 func GetScalingGroupTagsByName(name string, client autoscalingiface.AutoScalingAPI) ([]*autoscaling.TagDescription, error) {

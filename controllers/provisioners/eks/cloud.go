@@ -22,6 +22,7 @@ import (
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
@@ -32,12 +33,14 @@ import (
 type DiscoveredState struct {
 	Provisioned                   bool
 	NodesReady                    bool
+	ClusterNodes                  *corev1.NodeList
 	OwnedScalingGroups            []*autoscaling.Group
 	ScalingGroup                  *autoscaling.Group
 	LaunchConfigurations          []*autoscaling.LaunchConfiguration
 	LaunchConfiguration           *autoscaling.LaunchConfiguration
 	ActiveLaunchConfigurationName string
 	IAMRole                       *iam.Role
+	AttachedPolicies              []*iam.AttachedPolicy
 	InstanceProfile               *iam.InstanceProfile
 	Publisher                     kubeprovider.EventPublisher
 }
@@ -59,6 +62,12 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		ResourceVersion: instanceGroup.GetResourceVersion(),
 	}
 
+	nodes, err := ctx.KubernetesClient.Kubernetes.CoreV1().Nodes().List(metav1.ListOptions{})
+	if err != nil {
+		return errors.Wrap(err, "failed to list cluster nodes")
+	}
+	state.SetClusterNodes(nodes)
+
 	var roleName, instanceProfileName string
 	if configuration.HasExistingRole() {
 		roleName = configuration.GetRoleName()
@@ -72,6 +81,14 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	if val, ok := ctx.AwsWorker.RoleExist(roleName); ok {
 		state.SetRole(val)
 		status.SetNodesArn(aws.StringValue(val.Arn))
+
+		if !configuration.HasExistingRole() {
+			policies, err := ctx.AwsWorker.ListRolePolicies(roleName)
+			if err != nil {
+				return errors.Wrap(err, "failed to list attached role policies")
+			}
+			state.SetAttachedPolicies(policies)
+		}
 	}
 
 	if val, ok := ctx.AwsWorker.InstanceProfileExist(instanceProfileName); ok {
@@ -176,6 +193,15 @@ func (d *DiscoveredState) SetOwnedScalingGroups(groups []*autoscaling.Group) {
 func (d *DiscoveredState) GetOwnedScalingGroups() []*autoscaling.Group {
 	return d.OwnedScalingGroups
 }
+func (d *DiscoveredState) SetAttachedPolicies(policies []*iam.AttachedPolicy) {
+	d.AttachedPolicies = policies
+}
+func (d *DiscoveredState) GetAttachedPolicies() []*iam.AttachedPolicy {
+	if d.AttachedPolicies == nil {
+		d.AttachedPolicies = []*iam.AttachedPolicy{}
+	}
+	return d.AttachedPolicies
+}
 func (d *DiscoveredState) SetLaunchConfiguration(lc *autoscaling.LaunchConfiguration) {
 	if lc != nil {
 		d.LaunchConfiguration = lc
@@ -241,4 +267,10 @@ func (d *DiscoveredState) SetNodesReady(condition bool) {
 }
 func (d *DiscoveredState) IsNodesReady() bool {
 	return d.NodesReady
+}
+func (d *DiscoveredState) SetClusterNodes(nodes *corev1.NodeList) {
+	d.ClusterNodes = nodes
+}
+func (d *DiscoveredState) GetClusterNodes() *corev1.NodeList {
+	return d.ClusterNodes
 }

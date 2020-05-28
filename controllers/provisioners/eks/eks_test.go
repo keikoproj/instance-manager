@@ -154,6 +154,19 @@ func MockCustomResourceDefinition() *unstructured.Unstructured {
 	}
 }
 
+func MockAttachedPolicies(policies ...string) []*iam.AttachedPolicy {
+	mock := []*iam.AttachedPolicy{}
+	for _, p := range policies {
+		arn := fmt.Sprintf("%v/%v", awsprovider.IAMPolicyPrefix, p)
+		policy := &iam.AttachedPolicy{
+			PolicyName: aws.String(p),
+			PolicyArn:  aws.String(arn),
+		}
+		mock = append(mock, policy)
+	}
+	return mock
+}
+
 func MockTagDescription(key, value string) *autoscaling.TagDescription {
 	return &autoscaling.TagDescription{
 		Key:   aws.String(key),
@@ -168,6 +181,7 @@ func MockScalingGroup(name string, t ...*autoscaling.TagDescription) *autoscalin
 		Tags:                    t,
 		MinSize:                 aws.Int64(3),
 		MaxSize:                 aws.Int64(6),
+		VPCZoneIdentifier:       aws.String("subnet-1,subnet-2,subnet-3"),
 	}
 }
 
@@ -249,6 +263,18 @@ func MockSpotEvent(id, scalingGroup, price string, useSpot bool, ts time.Time) *
 	return event
 }
 
+func MockEnabledMetrics(metrics ...string) []*autoscaling.EnabledMetric {
+	mockMetrics := make([]*autoscaling.EnabledMetric, 0)
+	for _, m := range metrics {
+		metric := &autoscaling.EnabledMetric{
+			Granularity: aws.String("1Minute"),
+			Metric:      aws.String(m),
+		}
+		mockMetrics = append(mockMetrics, metric)
+	}
+	return mockMetrics
+}
+
 type MockAutoScalingClient struct {
 	autoscalingiface.AutoScalingAPI
 	DescribeLaunchConfigurationsErr        error
@@ -259,11 +285,21 @@ type MockAutoScalingClient struct {
 	UpdateAutoScalingGroupErr              error
 	DeleteAutoScalingGroupErr              error
 	TerminateInstanceInAutoScalingGroupErr error
+	EnableMetricsCollectionErr             error
+	DisableMetricsCollectionErr            error
 	DeleteLaunchConfigurationCallCount     int
 	LaunchConfiguration                    *autoscaling.LaunchConfiguration
 	LaunchConfigurations                   []*autoscaling.LaunchConfiguration
 	AutoScalingGroup                       *autoscaling.Group
 	AutoScalingGroups                      []*autoscaling.Group
+}
+
+func (a *MockAutoScalingClient) EnableMetricsCollection(input *autoscaling.EnableMetricsCollectionInput) (*autoscaling.EnableMetricsCollectionOutput, error) {
+	return &autoscaling.EnableMetricsCollectionOutput{}, a.EnableMetricsCollectionErr
+}
+
+func (a *MockAutoScalingClient) DisableMetricsCollection(input *autoscaling.DisableMetricsCollectionInput) (*autoscaling.DisableMetricsCollectionOutput, error) {
+	return &autoscaling.DisableMetricsCollectionOutput{}, a.DisableMetricsCollectionErr
 }
 
 func (a *MockAutoScalingClient) TerminateInstanceInAutoScalingGroup(input *autoscaling.TerminateInstanceInAutoScalingGroupInput) (*autoscaling.TerminateInstanceInAutoScalingGroupOutput, error) {
@@ -336,10 +372,30 @@ type MockIamClient struct {
 	AddRoleToInstanceProfileErr       error
 	RemoveRoleFromInstanceProfileErr  error
 	AttachRolePolicyErr               error
+	AttachRolePolicyCallCount         int
 	DetachRolePolicyErr               error
+	DetachRolePolicyCallCount         int
 	WaitUntilInstanceProfileExistsErr error
+	ListAttachedRolePoliciesErr       error
 	Role                              *iam.Role
 	InstanceProfile                   *iam.InstanceProfile
+	AttachedPolicies                  []*iam.AttachedPolicy
+}
+
+func (i *MockIamClient) ListAttachedRolePolicies(input *iam.ListAttachedRolePoliciesInput) (*iam.ListAttachedRolePoliciesOutput, error) {
+	if i.AttachedPolicies != nil {
+		return &iam.ListAttachedRolePoliciesOutput{AttachedPolicies: i.AttachedPolicies}, i.ListAttachedRolePoliciesErr
+	}
+	return &iam.ListAttachedRolePoliciesOutput{}, i.ListAttachedRolePoliciesErr
+}
+
+func (i *MockIamClient) ListAttachedRolePoliciesPages(input *iam.ListAttachedRolePoliciesInput, callback func(*iam.ListAttachedRolePoliciesOutput, bool) bool) error {
+	page, err := i.ListAttachedRolePolicies(input)
+	if err != nil {
+		return err
+	}
+	callback(page, false)
+	return nil
 }
 
 func (i *MockIamClient) CreateRole(input *iam.CreateRoleInput) (*iam.CreateRoleOutput, error) {
@@ -377,10 +433,12 @@ func (i *MockIamClient) RemoveRoleFromInstanceProfile(input *iam.RemoveRoleFromI
 }
 
 func (i *MockIamClient) AttachRolePolicy(input *iam.AttachRolePolicyInput) (*iam.AttachRolePolicyOutput, error) {
+	i.AttachRolePolicyCallCount++
 	return &iam.AttachRolePolicyOutput{}, i.AttachRolePolicyErr
 }
 
 func (i *MockIamClient) DetachRolePolicy(input *iam.DetachRolePolicyInput) (*iam.DetachRolePolicyOutput, error) {
+	i.DetachRolePolicyCallCount++
 	return &iam.DetachRolePolicyOutput{}, i.DetachRolePolicyErr
 }
 

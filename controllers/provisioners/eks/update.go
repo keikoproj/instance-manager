@@ -18,6 +18,7 @@ package eks
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/pkg/errors"
 
@@ -63,8 +64,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 
 	// we should try to bootstrap the role before we wait for nodes to be ready
 	// to avoid getting locked if someone made a manual change to aws-auth
-	err = ctx.BootstrapNodes()
-	if err != nil {
+	if err = ctx.BootstrapNodes(); err != nil {
 		ctx.Log.Info("failed to bootstrap role, will retry", "error", err, "instancegroup", instanceGroup.GetName())
 	}
 
@@ -93,25 +93,31 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 		rmTags        = ctx.GetRemovedTags(asgName)
 	)
 
-	err := ctx.AwsWorker.UpdateScalingGroup(&autoscaling.UpdateAutoScalingGroupInput{
-		AutoScalingGroupName:    aws.String(asgName),
-		LaunchConfigurationName: aws.String(state.GetActiveLaunchConfigurationName()),
-		MinSize:                 aws.Int64(spec.GetMinSize()),
-		MaxSize:                 aws.Int64(spec.GetMaxSize()),
-		VPCZoneIdentifier:       aws.String(common.ConcatenateList(configuration.GetSubnets(), ",")),
-	}, tags, rmTags)
-	if err != nil {
-		return err
-	}
-	ctx.Log.Info("updated scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
+	if ctx.ScalingGroupUpdateNeeded() {
+		err := ctx.AwsWorker.UpdateScalingGroup(&autoscaling.UpdateAutoScalingGroupInput{
+			AutoScalingGroupName:    aws.String(asgName),
+			LaunchConfigurationName: aws.String(state.GetActiveLaunchConfigurationName()),
+			MinSize:                 aws.Int64(spec.GetMinSize()),
+			MaxSize:                 aws.Int64(spec.GetMaxSize()),
+			VPCZoneIdentifier:       aws.String(common.ConcatenateList(configuration.GetSubnets(), ",")),
+		})
+		if err != nil {
+			return err
+		}
 
-	scalingGroup, err = ctx.AwsWorker.GetAutoscalingGroup(asgName)
-	if err != nil {
-		return err
+		ctx.Log.Info("updated scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 	}
 
-	if scalingGroup != nil {
-		state.SetScalingGroup(scalingGroup)
+	if ctx.TagsUpdateNeeded() {
+		err := ctx.AwsWorker.UpdateScalingGroupTags(tags, rmTags)
+		if err != nil {
+			return err
+		}
+		ctx.Log.Info("updated scaling group tags", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
+	}
+
+	if err := ctx.UpdateMetricsCollection(asgName); err != nil {
+		return err
 	}
 
 	return nil
@@ -134,6 +140,69 @@ func (ctx *EksInstanceGroupContext) RotationNeeded() bool {
 			return true
 		}
 	}
+	return false
+}
+
+func (ctx *EksInstanceGroupContext) TagsUpdateNeeded() bool {
+	var (
+		instanceGroup = ctx.GetInstanceGroup()
+		configuration = instanceGroup.GetEKSConfiguration()
+		state         = ctx.GetDiscoveredState()
+		scalingGroup  = state.GetScalingGroup()
+		asgName       = aws.StringValue(scalingGroup.AutoScalingGroupName)
+		rmTags        = ctx.GetRemovedTags(asgName)
+	)
+
+	if len(rmTags) > 0 {
+		return true
+	}
+
+	existingTags := make([]map[string]string, 0)
+	for _, tag := range scalingGroup.Tags {
+		tagSet := map[string]string{
+			"key":   aws.StringValue(tag.Key),
+			"value": aws.StringValue(tag.Value),
+		}
+		existingTags = append(existingTags, tagSet)
+	}
+
+	for _, tag := range configuration.GetTags() {
+		if !common.StringMapSliceContains(existingTags, tag) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (ctx *EksInstanceGroupContext) ScalingGroupUpdateNeeded() bool {
+	var (
+		instanceGroup  = ctx.GetInstanceGroup()
+		spec           = instanceGroup.GetEKSSpec()
+		configuration  = instanceGroup.GetEKSConfiguration()
+		state          = ctx.GetDiscoveredState()
+		scalingGroup   = state.GetScalingGroup()
+		zoneIdentifier = aws.StringValue(scalingGroup.VPCZoneIdentifier)
+		groupSubnets   = strings.Split(zoneIdentifier, ",")
+		specSubnets    = configuration.GetSubnets()
+	)
+
+	if state.GetActiveLaunchConfigurationName() != aws.StringValue(scalingGroup.LaunchConfigurationName) {
+		return true
+	}
+
+	if spec.GetMinSize() != aws.Int64Value(scalingGroup.MinSize) {
+		return true
+	}
+
+	if spec.GetMaxSize() != aws.Int64Value(scalingGroup.MaxSize) {
+		return true
+	}
+
+	if !common.StringSliceEqualFold(specSubnets, groupSubnets) {
+		return true
+	}
+
 	return false
 }
 
@@ -249,4 +318,52 @@ func (ctx *EksInstanceGroupContext) LaunchConfigurationDrifted() bool {
 	}
 
 	return drift
+}
+
+func (ctx *EksInstanceGroupContext) UpdateManagedPolicies(roleName string) error {
+	var (
+		instanceGroup      = ctx.GetInstanceGroup()
+		state              = ctx.GetDiscoveredState()
+		configuration      = instanceGroup.GetEKSConfiguration()
+		additionalPolicies = configuration.GetManagedPolicies()
+		needsAttach        = make([]string, 0)
+		needsDetach        = make([]string, 0)
+	)
+
+	managedPolicies := ctx.GetManagedPoliciesList(additionalPolicies)
+	attachedPolicies := state.GetAttachedPolicies()
+
+	attachedArns := make([]string, 0)
+	for _, p := range attachedPolicies {
+		attachedArns = append(attachedArns, aws.StringValue(p.PolicyArn))
+	}
+
+	for _, policy := range managedPolicies {
+		if !common.ContainsString(attachedArns, policy) {
+			needsAttach = append(needsAttach, policy)
+		}
+	}
+
+	if len(attachedArns) == 0 {
+		needsAttach = managedPolicies
+	}
+
+	for _, policy := range attachedArns {
+		if !common.ContainsString(managedPolicies, policy) {
+			needsDetach = append(needsDetach, policy)
+		}
+	}
+
+	err := ctx.AwsWorker.AttachManagedPolicies(roleName, needsAttach)
+	if err != nil {
+		return err
+	}
+
+	err = ctx.AwsWorker.DetachManagedPolicies(roleName, needsDetach)
+	if err != nil {
+		return err
+	}
+
+	ctx.Log.Info("updated managed policies", "instancegroup", instanceGroup.GetName(), "iamrole", roleName)
+	return nil
 }

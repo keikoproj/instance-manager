@@ -52,12 +52,7 @@ func GetUnstructuredInstanceGroup(instanceGroup *v1alpha1.InstanceGroup) (*unstr
 	return obj, nil
 }
 
-func IsDesiredNodesReady(kube kubernetes.Interface, instanceIds []string, desiredCount int) (bool, error) {
-	nodes, err := kube.CoreV1().Nodes().List(metav1.ListOptions{})
-	if err != nil {
-		return false, err
-	}
-
+func IsDesiredNodesReady(nodes *corev1.NodeList, instanceIds []string, desiredCount int) (bool, error) {
 	if len(instanceIds) != desiredCount {
 		return false, nil
 	}
@@ -72,12 +67,7 @@ func IsDesiredNodesReady(kube kubernetes.Interface, instanceIds []string, desire
 	return false, nil
 }
 
-func IsMinNodesReady(kube kubernetes.Interface, instanceIds []string, minCount int) (bool, error) {
-	nodes, err := kube.CoreV1().Nodes().List(metav1.ListOptions{})
-	if err != nil {
-		return false, err
-	}
-
+func IsMinNodesReady(nodes *corev1.NodeList, instanceIds []string, minCount int) (bool, error) {
 	// if count of instances in scaling group is not over min, requeue
 	if len(instanceIds) < minCount {
 		return false, nil
