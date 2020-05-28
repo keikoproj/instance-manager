@@ -154,6 +154,19 @@ func MockCustomResourceDefinition() *unstructured.Unstructured {
 	}
 }
 
+func MockAttachedPolicies(policies ...string) []*iam.AttachedPolicy {
+	mock := []*iam.AttachedPolicy{}
+	for _, p := range policies {
+		arn := fmt.Sprintf("%v/%v", awsprovider.IAMPolicyPrefix, p)
+		policy := &iam.AttachedPolicy{
+			PolicyName: aws.String(p),
+			PolicyArn:  aws.String(arn),
+		}
+		mock = append(mock, policy)
+	}
+	return mock
+}
+
 func MockTagDescription(key, value string) *autoscaling.TagDescription {
 	return &autoscaling.TagDescription{
 		Key:   aws.String(key),
@@ -359,10 +372,30 @@ type MockIamClient struct {
 	AddRoleToInstanceProfileErr       error
 	RemoveRoleFromInstanceProfileErr  error
 	AttachRolePolicyErr               error
+	AttachRolePolicyCallCount         int
 	DetachRolePolicyErr               error
+	DetachRolePolicyCallCount         int
 	WaitUntilInstanceProfileExistsErr error
+	ListAttachedRolePoliciesErr       error
 	Role                              *iam.Role
 	InstanceProfile                   *iam.InstanceProfile
+	AttachedPolicies                  []*iam.AttachedPolicy
+}
+
+func (i *MockIamClient) ListAttachedRolePolicies(input *iam.ListAttachedRolePoliciesInput) (*iam.ListAttachedRolePoliciesOutput, error) {
+	if i.AttachedPolicies != nil {
+		return &iam.ListAttachedRolePoliciesOutput{AttachedPolicies: i.AttachedPolicies}, i.ListAttachedRolePoliciesErr
+	}
+	return &iam.ListAttachedRolePoliciesOutput{}, i.ListAttachedRolePoliciesErr
+}
+
+func (i *MockIamClient) ListAttachedRolePoliciesPages(input *iam.ListAttachedRolePoliciesInput, callback func(*iam.ListAttachedRolePoliciesOutput, bool) bool) error {
+	page, err := i.ListAttachedRolePolicies(input)
+	if err != nil {
+		return err
+	}
+	callback(page, false)
+	return nil
 }
 
 func (i *MockIamClient) CreateRole(input *iam.CreateRoleInput) (*iam.CreateRoleOutput, error) {
@@ -400,10 +433,12 @@ func (i *MockIamClient) RemoveRoleFromInstanceProfile(input *iam.RemoveRoleFromI
 }
 
 func (i *MockIamClient) AttachRolePolicy(input *iam.AttachRolePolicyInput) (*iam.AttachRolePolicyOutput, error) {
+	i.AttachRolePolicyCallCount++
 	return &iam.AttachRolePolicyOutput{}, i.AttachRolePolicyErr
 }
 
 func (i *MockIamClient) DetachRolePolicy(input *iam.DetachRolePolicyInput) (*iam.DetachRolePolicyOutput, error) {
+	i.DetachRolePolicyCallCount++
 	return &iam.DetachRolePolicyOutput{}, i.DetachRolePolicyErr
 }
 
