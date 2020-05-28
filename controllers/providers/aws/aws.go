@@ -47,6 +47,7 @@ const (
 	CacheDefaultTTL                 time.Duration = time.Second * 0
 	DescribeAutoScalingGroupsTTL    time.Duration = 60 * time.Second
 	DescribeLaunchConfigurationsTTL time.Duration = 60 * time.Second
+	ListAttachedRolePoliciesTTL     time.Duration = 60 * time.Second
 	GetRoleTTL                      time.Duration = 60 * time.Second
 	GetInstanceProfileTTL           time.Duration = 60 * time.Second
 	DescribeNodegroupTTL            time.Duration = 60 * time.Second
@@ -699,6 +700,7 @@ func GetAwsIamClient(region string, cacheCfg *cache.Config) iamiface.IAMAPI {
 	cache.AddCaching(sess, cacheCfg)
 	cacheCfg.SetCacheTTL("iam", "GetInstanceProfile", GetInstanceProfileTTL)
 	cacheCfg.SetCacheTTL("iam", "GetRole", GetRoleTTL)
+	cacheCfg.SetCacheTTL("iam", "ListAttachedRolePolicies", ListAttachedRolePoliciesTTL)
 	sess.Handlers.Complete.PushFront(func(r *request.Request) {
 		ctx := r.HTTPRequest.Context()
 		log.V(1).Info("AWS API call",
