@@ -334,8 +334,8 @@ func (ctx *EksInstanceGroupContext) UpdateManagedPolicies(roleName string) error
 	attachedPolicies := state.GetAttachedPolicies()
 
 	for _, policy := range attachedPolicies {
-		name := aws.StringValue(policy.PolicyName)
-		if !common.ContainsString(managedPolicies, name) {
+		arn := aws.StringValue(policy.PolicyArn)
+		if !common.ContainsString(managedPolicies, arn) {
 			needsUpdate = true
 		}
 	}
