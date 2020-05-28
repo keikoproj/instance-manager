@@ -659,7 +659,7 @@ func GetAwsAsgClient(region string, cacheCfg *cache.Config) autoscalingiface.Aut
 	sess.Handlers.Complete.PushFront(func(r *request.Request) {
 		ctx := r.HTTPRequest.Context()
 		log.V(1).Info("AWS API call",
-			"hit", cache.IsCacheHit(ctx),
+			"cacheHit", cache.IsCacheHit(ctx),
 			"service", r.ClientInfo.ServiceName,
 			"operation", r.Operation.Name,
 		)
@@ -681,7 +681,7 @@ func GetAwsEksClient(region string, cacheCfg *cache.Config) eksiface.EKSAPI {
 	sess.Handlers.Complete.PushFront(func(r *request.Request) {
 		ctx := r.HTTPRequest.Context()
 		log.V(1).Info("AWS API call",
-			"hit", cache.IsCacheHit(ctx),
+			"cacheHit", cache.IsCacheHit(ctx),
 			"service", r.ClientInfo.ServiceName,
 			"operation", r.Operation.Name,
 		)
@@ -704,7 +704,7 @@ func GetAwsIamClient(region string, cacheCfg *cache.Config) iamiface.IAMAPI {
 	sess.Handlers.Complete.PushFront(func(r *request.Request) {
 		ctx := r.HTTPRequest.Context()
 		log.V(1).Info("AWS API call",
-			"hit", cache.IsCacheHit(ctx),
+			"cacheHit", cache.IsCacheHit(ctx),
 			"service", r.ClientInfo.ServiceName,
 			"operation", r.Operation.Name,
 		)
