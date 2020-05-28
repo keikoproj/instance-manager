@@ -21,6 +21,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Masterminds/semver"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
@@ -32,10 +33,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
 	// Included. Temporarily marked for traceability purposes: labelbug fix @agaro
 	//######################################################################################
-	"github.com/Masterminds/semver"
 	//######################################################################################
 )
 
@@ -181,10 +180,11 @@ func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 
 	if useNewStyleLabel {
 		labelList = append(labelList, fmt.Sprintf(RoleNewLabelFmt, instanceGroup.GetName()))
-		fmt.Printf("\nUsing role label: %s\n", RoleNewLabelFmt) // for debugging purposes
+		//fmt.Printf("\nUsing role labels: %s\n", RoleNewLabelFmt) // for debugging purposes
 	} else {
 		labelList = append(labelList, fmt.Sprintf(RoleOldLabelFmt, instanceGroup.GetName()))
-		fmt.Printf("\nUsing role label: %s\n", RoleOldLabelFmt) // for debugging purposes
+		labelList = append(labelList, fmt.Sprintf(RoleNewLabelFmt, instanceGroup.GetName()))
+		//fmt.Printf("\nUsing role labels: %s, %s\n", RoleOldLabelFmt, RoleNewLabelFmt) // for debugging purposes
 	}
 	return labelList
 }

@@ -208,7 +208,6 @@ func (d *DiscoveredState) GetClusterVersion() (*semver.Version, error) {
 
 	ver, err := semver.NewVersion(*d.Cluster.Version)
 	if err != nil {
-		//log.Error(err, "failed to get the cluster version")
 		return nil, err
 	}
 	return ver, nil

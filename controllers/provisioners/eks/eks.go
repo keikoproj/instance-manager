@@ -36,8 +36,8 @@ var (
 	// Edited. Temporarily marked for traceability purposes: labelbug fix @agaro
 	//######################################################################################
 	//RoleLabelsFmt          = []string{"node.kubernetes.io/role=%s", "node-role.kubernetes.io/%s=\"\""}
-	//RoleNewLabelFmt = "node.kubernetes.io/role=%s"
-	RoleNewLabelFmt = "kubernetes.io/role=%s"
+	RoleNewLabelFmt = "node.kubernetes.io/role=%s"
+	//RoleNewLabelFmt = "kubernetes.io/role=%s"
 	RoleOldLabelFmt = "node-role.kubernetes.io/%s=\"\""
 	//######################################################################################
 
