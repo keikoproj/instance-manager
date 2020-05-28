@@ -319,3 +319,51 @@ func (ctx *EksInstanceGroupContext) LaunchConfigurationDrifted() bool {
 
 	return drift
 }
+
+func (ctx *EksInstanceGroupContext) UpdateManagedPolicies(roleName string) error {
+	var (
+		instanceGroup      = ctx.GetInstanceGroup()
+		state              = ctx.GetDiscoveredState()
+		configuration      = instanceGroup.GetEKSConfiguration()
+		additionalPolicies = configuration.GetManagedPolicies()
+		needsAttach        = make([]string, 0)
+		needsDetach        = make([]string, 0)
+	)
+
+	managedPolicies := ctx.GetManagedPoliciesList(additionalPolicies)
+	attachedPolicies := state.GetAttachedPolicies()
+
+	attachedArns := make([]string, 0)
+	for _, p := range attachedPolicies {
+		attachedArns = append(attachedArns, aws.StringValue(p.PolicyArn))
+	}
+
+	for _, policy := range managedPolicies {
+		if !common.ContainsString(attachedArns, policy) {
+			needsAttach = append(needsAttach, policy)
+		}
+	}
+
+	if len(attachedArns) == 0 {
+		needsAttach = managedPolicies
+	}
+
+	for _, policy := range attachedArns {
+		if !common.ContainsString(managedPolicies, policy) {
+			needsDetach = append(needsDetach, policy)
+		}
+	}
+
+	err := ctx.AwsWorker.AttachManagedPolicies(roleName, needsAttach)
+	if err != nil {
+		return err
+	}
+
+	err = ctx.AwsWorker.DetachManagedPolicies(roleName, needsDetach)
+	if err != nil {
+		return err
+	}
+
+	ctx.Log.Info("updated managed policies", "instancegroup", instanceGroup.GetName(), "iamrole", roleName)
+	return nil
+}

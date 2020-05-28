@@ -122,25 +122,28 @@ func (ctx *EksInstanceGroupContext) CreateLaunchConfiguration(name string) error
 
 func (ctx *EksInstanceGroupContext) CreateManagedRole() error {
 	var (
-		instanceGroup      = ctx.GetInstanceGroup()
-		state              = ctx.GetDiscoveredState()
-		configuration      = instanceGroup.GetEKSConfiguration()
-		additionalPolicies = configuration.GetManagedPolicies()
-		roleName           = ctx.ResourcePrefix
+		instanceGroup = ctx.GetInstanceGroup()
+		state         = ctx.GetDiscoveredState()
+		configuration = instanceGroup.GetEKSConfiguration()
+		roleName      = ctx.ResourcePrefix
 	)
 
 	if configuration.HasExistingRole() {
+		// avoid updating if using an existing role
 		return nil
 	}
 
-	// create a controller-owned role for the instancegroup
-	managedPolicies := ctx.GetManagedPoliciesList(additionalPolicies)
-
-	role, profile, err := ctx.AwsWorker.CreateUpdateScalingGroupRole(roleName, managedPolicies)
+	role, profile, err := ctx.AwsWorker.CreateScalingGroupRole(roleName)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to create scaling group role")
 	}
-	ctx.Log.Info("created managed role", "instancegroup", instanceGroup.GetName(), "iamrole", roleName)
+
+	err = ctx.UpdateManagedPolicies(roleName)
+	if err != nil {
+		return errors.Wrap(err, "failed to update managed policies")
+	}
+
+	ctx.Log.Info("reconciled managed role", "instancegroup", instanceGroup.GetName(), "iamrole", roleName)
 
 	state.SetRole(role)
 	state.SetInstanceProfile(profile)
