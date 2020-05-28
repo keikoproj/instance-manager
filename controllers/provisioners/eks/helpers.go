@@ -480,7 +480,8 @@ func (ctx *EksInstanceGroupContext) GetTimeSortedLaunchConfigurations() []*autos
 	configurations := []*autoscaling.LaunchConfiguration{}
 	for _, lc := range state.GetLaunchConfigurations() {
 		name := aws.StringValue(lc.LaunchConfigurationName)
-		if strings.HasPrefix(name, ctx.ResourcePrefix) {
+		matcher := fmt.Sprintf("%v-", ctx.ResourcePrefix)
+		if strings.HasPrefix(name, matcher) {
 			configurations = append(configurations, lc)
 		}
 	}
