@@ -299,6 +299,19 @@ func (w *AwsWorker) AttachManagedPolicies(name string, managedPolicies []string)
 	return nil
 }
 
+func (w *AwsWorker) DetachManagedPolicies(name string, managedPolicies []string) error {
+	for _, policy := range managedPolicies {
+		_, err := w.IamClient.DetachRolePolicy(&iam.DetachRolePolicyInput{
+			RoleName:  aws.String(name),
+			PolicyArn: aws.String(policy),
+		})
+		if err != nil {
+			return errors.Wrap(err, "failed to detach role policies")
+		}
+	}
+	return nil
+}
+
 func (w *AwsWorker) ListRolePolicies(name string) ([]*iam.AttachedPolicy, error) {
 	policies := []*iam.AttachedPolicy{}
 	err := w.IamClient.ListAttachedRolePoliciesPages(

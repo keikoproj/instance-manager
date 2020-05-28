@@ -326,30 +326,44 @@ func (ctx *EksInstanceGroupContext) UpdateManagedPolicies(roleName string) error
 		state              = ctx.GetDiscoveredState()
 		configuration      = instanceGroup.GetEKSConfiguration()
 		additionalPolicies = configuration.GetManagedPolicies()
-		needsUpdate        bool
+		needsAttach        = make([]string, 0)
+		needsDetach        = make([]string, 0)
 	)
 
 	managedPolicies := ctx.GetManagedPoliciesList(additionalPolicies)
 	attachedPolicies := state.GetAttachedPolicies()
 
-	for _, policy := range attachedPolicies {
-		arn := aws.StringValue(policy.PolicyArn)
-		if !common.ContainsString(managedPolicies, arn) {
-			needsUpdate = true
+	attachedArns := make([]string, 0)
+	for _, p := range attachedPolicies {
+		attachedArns = append(attachedArns, aws.StringValue(p.PolicyArn))
+	}
+
+	for _, policy := range managedPolicies {
+		if !common.ContainsString(attachedArns, policy) {
+			needsAttach = append(needsAttach, policy)
 		}
 	}
 
-	if len(attachedPolicies) == 0 {
-		needsUpdate = true
+	if len(attachedArns) == 0 {
+		needsAttach = managedPolicies
 	}
 
-	if needsUpdate {
-		err := ctx.AwsWorker.AttachManagedPolicies(roleName, managedPolicies)
-		if err != nil {
-			return err
+	for _, policy := range attachedArns {
+		if !common.ContainsString(managedPolicies, policy) {
+			needsDetach = append(needsDetach, policy)
 		}
-		ctx.Log.Info("updated managed policies", "instancegroup", instanceGroup.GetName(), "iamrole", roleName)
 	}
 
+	err := ctx.AwsWorker.AttachManagedPolicies(roleName, needsAttach)
+	if err != nil {
+		return err
+	}
+
+	err = ctx.AwsWorker.DetachManagedPolicies(roleName, needsDetach)
+	if err != nil {
+		return err
+	}
+
+	ctx.Log.Info("updated managed policies", "instancegroup", instanceGroup.GetName(), "iamrole", roleName)
 	return nil
 }

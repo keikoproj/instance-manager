@@ -420,3 +420,51 @@ func TestScalingGroupUpdatePredicate(t *testing.T) {
 		g.Expect(got).To(gomega.Equal(tc.expected))
 	}
 }
+
+func TestUpdateManagedPolicies(t *testing.T) {
+	var (
+		g             = gomega.NewGomegaWithT(t)
+		k             = MockKubernetesClientSet()
+		ig            = MockInstanceGroup()
+		configuration = ig.GetEKSConfiguration()
+		asgMock       = NewAutoScalingMocker()
+		iamMock       = NewIamMocker()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock)
+	ctx := MockContext(ig, k, w)
+
+	tests := []struct {
+		attachedPolicies   []*iam.AttachedPolicy
+		additionalPolicies []string
+		expectedAttached   int
+		expectedDetached   int
+	}{
+		// default policies attached, no changes needed
+		{attachedPolicies: MockAttachedPolicies(DefaultManagedPolicies...), additionalPolicies: []string{}, expectedAttached: 0, expectedDetached: 0},
+		// default policies not attached
+		{attachedPolicies: MockAttachedPolicies(), additionalPolicies: []string{}, expectedAttached: 3, expectedDetached: 0},
+		// additional policies need to be attached
+		{attachedPolicies: MockAttachedPolicies(DefaultManagedPolicies...), additionalPolicies: []string{"policy-1", "policy-2"}, expectedAttached: 2, expectedDetached: 0},
+		// additional policies need to be detached
+		{attachedPolicies: MockAttachedPolicies("AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly", "policy-1"), additionalPolicies: []string{}, expectedAttached: 0, expectedDetached: 1},
+		// additional policies need to be attached & detached
+		{attachedPolicies: MockAttachedPolicies("AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly", "policy-1"), additionalPolicies: []string{"policy-2"}, expectedAttached: 1, expectedDetached: 1},
+	}
+
+	for _, tc := range tests {
+		iamMock.AttachRolePolicyCallCount = 0
+		iamMock.DetachRolePolicyCallCount = 0
+		ctx.SetDiscoveredState(&DiscoveredState{
+			Publisher: kubeprovider.EventPublisher{
+				Client: k.Kubernetes,
+			},
+			AttachedPolicies: tc.attachedPolicies,
+		})
+		configuration.SetManagedPolicies(tc.additionalPolicies)
+		err := ctx.UpdateManagedPolicies("some-role")
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		g.Expect(iamMock.AttachRolePolicyCallCount).To(gomega.Equal(tc.expectedAttached))
+		g.Expect(iamMock.DetachRolePolicyCallCount).To(gomega.Equal(tc.expectedDetached))
+	}
+}
