@@ -162,34 +162,23 @@ func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 	}
 	sort.Strings(labelList)
 
-	// add role label
-
-	/*for _, label := range RoleLabelsFmt {
-		labelList = append(labelList, fmt.Sprintf(label, instanceGroup.GetName()))
-	}*/
-
-	useNewStyleLabel := true
+	// add role label according to the cluster's k8s version
+	addOldStyleLabel := false
 	clusterVersion, err := ctx.DiscoveredState.GetClusterVersion()
 	if err == nil {
-		// compare versions and decide the label
-		c, err := semver.NewConstraint(">= 1.16-0") // "-0" to include pre-releases in the comparison
+		c, err := semver.NewConstraint("< 1.16-0")
 		if err == nil {
-			useNewStyleLabel = c.Check(clusterVersion)
-		} // else: assume the new style role label
-	} // else: assume the new style role label
+			addOldStyleLabel = c.Check(clusterVersion)
+		}
+	}
 
-	if useNewStyleLabel {
-		labelList = append(labelList, fmt.Sprintf(RoleNewLabelFmt, instanceGroup.GetName()))
-		//fmt.Printf("\nUsing role labels: %s\n", RoleNewLabelFmt) // for debugging purposes
-	} else {
+	labelList = append(labelList, fmt.Sprintf(RoleNewLabelFmt, instanceGroup.GetName()))
+
+	if addOldStyleLabel {
 		labelList = append(labelList, fmt.Sprintf(RoleOldLabelFmt, instanceGroup.GetName()))
-		labelList = append(labelList, fmt.Sprintf(RoleNewLabelFmt, instanceGroup.GetName()))
-		//fmt.Printf("\nUsing role labels: %s, %s\n", RoleOldLabelFmt, RoleNewLabelFmt) // for debugging purposes
 	}
 	return labelList
 }
-
-//######################################################################################
 
 func (ctx *EksInstanceGroupContext) GetBootstrapArgs() string {
 	var (
