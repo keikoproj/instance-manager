@@ -42,6 +42,7 @@ type DiscoveredState struct {
 	LaunchConfiguration           *autoscaling.LaunchConfiguration
 	ActiveLaunchConfigurationName string
 	IAMRole                       *iam.Role
+	AttachedPolicies              []*iam.AttachedPolicy
 	InstanceProfile               *iam.InstanceProfile
 	Publisher                     kubeprovider.EventPublisher
 	Cluster                       *eks.Cluster
@@ -83,6 +84,14 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	if val, ok := ctx.AwsWorker.RoleExist(roleName); ok {
 		state.SetRole(val)
 		status.SetNodesArn(aws.StringValue(val.Arn))
+
+		if !configuration.HasExistingRole() {
+			policies, err := ctx.AwsWorker.ListRolePolicies(roleName)
+			if err != nil {
+				return errors.Wrap(err, "failed to list attached role policies")
+			}
+			state.SetAttachedPolicies(policies)
+		}
 	}
 
 	if val, ok := ctx.AwsWorker.InstanceProfileExist(instanceProfileName); ok {
@@ -206,6 +215,15 @@ func (d *DiscoveredState) SetOwnedScalingGroups(groups []*autoscaling.Group) {
 }
 func (d *DiscoveredState) GetOwnedScalingGroups() []*autoscaling.Group {
 	return d.OwnedScalingGroups
+}
+func (d *DiscoveredState) SetAttachedPolicies(policies []*iam.AttachedPolicy) {
+	d.AttachedPolicies = policies
+}
+func (d *DiscoveredState) GetAttachedPolicies() []*iam.AttachedPolicy {
+	if d.AttachedPolicies == nil {
+		d.AttachedPolicies = []*iam.AttachedPolicy{}
+	}
+	return d.AttachedPolicies
 }
 func (d *DiscoveredState) SetLaunchConfiguration(lc *autoscaling.LaunchConfiguration) {
 	if lc != nil {
