@@ -20,6 +20,7 @@ import (
 	"os"
 	runt "runtime"
 
+	"github.com/keikoproj/aws-sdk-go-cache/cache"
 	instancemgrv1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers"
 	"github.com/keikoproj/instance-manager/controllers/providers/aws"
@@ -103,10 +104,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	cacheCfg := cache.NewConfig(aws.CacheDefaultTTL, aws.CacheMaxItems, aws.CacheItemsToPrune)
+
 	awsWorker := aws.AwsWorker{
-		IamClient: aws.GetAwsIamClient(awsRegion),
-		AsgClient: aws.GetAwsAsgClient(awsRegion),
-		EksClient: aws.GetAwsEksClient(awsRegion),
+		IamClient: aws.GetAwsIamClient(awsRegion, cacheCfg),
+		AsgClient: aws.GetAwsAsgClient(awsRegion, cacheCfg),
+		EksClient: aws.GetAwsEksClient(awsRegion, cacheCfg),
 	}
 
 	kube := kubeprovider.KubernetesClientSet{
