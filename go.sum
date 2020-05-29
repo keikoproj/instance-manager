@@ -204,10 +204,8 @@ github.com/karlseguin/ccache v2.0.3+incompatible h1:j68C9tWOROiOLWTS/kCGg9IcJG+A
 github.com/karlseguin/ccache v2.0.3+incompatible/go.mod h1:CM9tNPzT6EdRh14+jiW8mEF9mkNZuuE51qmgGYUB93w=
 github.com/karlseguin/expect v1.0.1 h1:z4wy4npwwHSWKjGWH85WNJO42VQhovxTCZDSzhjo8hY=
 github.com/karlseguin/expect v1.0.1/go.mod h1:zNBxMY8P21owkeogJELCLeHIt+voOSduHYTFUbwRAV8=
-github.com/keikoproj/aws-auth v0.0.0-20200519230504-67c8d09ec1b3 h1:iftFwKRZphQwlJLAP7AnHzgcIdetqbF5kZ0fax5br7A=
-github.com/keikoproj/aws-auth v0.0.0-20200519230504-67c8d09ec1b3/go.mod h1:3uzLNZsb9kA7gsmMavI/Svq59lemTEKAuyrPswTo7RI=
-github.com/keikoproj/aws-auth v0.0.0-20200529195926-d5c07c5ca0f4 h1:YFshr6UkryIr2laEyNJ1FIMdYXQlxDQ/3BSOElltwsA=
-github.com/keikoproj/aws-auth v0.0.0-20200529195926-d5c07c5ca0f4/go.mod h1:3uzLNZsb9kA7gsmMavI/Svq59lemTEKAuyrPswTo7RI=
+github.com/keikoproj/aws-auth v0.0.0-20200529211237-b481594963fa h1:UbB7HFHZ8jbmzbuepliGfD3+bPbH0KGZzvKXTHL/8SQ=
+github.com/keikoproj/aws-auth v0.0.0-20200529211237-b481594963fa/go.mod h1:3uzLNZsb9kA7gsmMavI/Svq59lemTEKAuyrPswTo7RI=
 github.com/keikoproj/aws-sdk-go-cache v0.0.0-20200124200058-ab3c8c94044a h1:T4PGY8X0NbpEPM3U7HxLX616PBgjWxvn2YQNYkdaEeU=
 github.com/keikoproj/aws-sdk-go-cache v0.0.0-20200124200058-ab3c8c94044a/go.mod h1:PqUW3kzHKLscAxysVG6mJz5wmk4JV9GSwX+k4qjqi1c=
 github.com/kisielk/errcheck v1.2.0/go.mod h1:/BMXB+zMLi60iA8Vv6Ksmxu/1UDYcXs4uQLJ+jE2L00=
