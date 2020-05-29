@@ -33,9 +33,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	// Included. Temporarily marked for traceability purposes: labelbug fix @agaro
-	//######################################################################################
-	//######################################################################################
 )
 
 func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput(name string) *autoscaling.CreateLaunchConfigurationInput {
@@ -145,8 +142,6 @@ func (ctx *EksInstanceGroupContext) GetTaintList() []string {
 	return taintList
 }
 
-// Edited. Temporarily marked for traceability purposes: labelbug fix @agaro
-//######################################################################################
 func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 	var (
 		labelList     []string
@@ -162,19 +157,21 @@ func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 	}
 	sort.Strings(labelList)
 
-	// add role label according to the cluster's k8s version
-	addOldStyleLabel := false
-	clusterVersion, err := ctx.DiscoveredState.GetClusterVersion()
-	if err == nil {
-		c, err := semver.NewConstraint("< 1.16-0")
-		if err == nil {
-			addOldStyleLabel = c.Check(clusterVersion)
-		}
-	}
-
+	// add the new style role label
 	labelList = append(labelList, fmt.Sprintf(RoleNewLabelFmt, instanceGroup.GetName()))
 
-	if addOldStyleLabel {
+	// add the old style role label if the cluster's k8s version is < 1.16
+	clusterVersion := ctx.DiscoveredState.GetClusterVersion()
+	ver, err := semver.NewVersion(clusterVersion)
+	if err != nil {
+		//log error
+		ctx.Log.Error(err, "Failed parsing the cluster's kubernetes version", "instancegroup", instanceGroup.GetName())
+		labelList = append(labelList, fmt.Sprintf(RoleOldLabelFmt, instanceGroup.GetName()))
+		return labelList
+	}
+
+	c, _ := semver.NewConstraint("< 1.16-0")
+	if addOldStyleRoleLabel := c.Check(ver); addOldStyleRoleLabel {
 		labelList = append(labelList, fmt.Sprintf(RoleOldLabelFmt, instanceGroup.GetName()))
 	}
 	return labelList

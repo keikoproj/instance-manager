@@ -415,7 +415,6 @@ func (w *AwsWorker) DescribeEKSCluster(clusterName string) (*eks.Cluster, error)
 
 	output, err := w.EksClient.DescribeCluster(input)
 	if err != nil {
-		log.Error(err, "failed to describe cluster")
 		return cluster, err
 	}
 	return output.Cluster, nil

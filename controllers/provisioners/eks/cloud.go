@@ -24,7 +24,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/Masterminds/semver"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/eks"
@@ -104,11 +103,10 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	}
 
 	cluster, err := ctx.AwsWorker.DescribeEKSCluster(clusterName)
-	if err == nil {
-		state.SetCluster(cluster)
-	} else {
+	if err != nil {
 		return errors.Wrap(err, "failed to describe cluster")
 	}
+	state.SetCluster(cluster)
 
 	// find all owned scaling groups
 	ownedScalingGroups := ctx.findOwnedScalingGroups(scalingGroups)
@@ -201,13 +199,9 @@ func (d *DiscoveredState) GetScalingGroup() *autoscaling.Group {
 func (d *DiscoveredState) SetCluster(cluster *eks.Cluster) {
 	d.Cluster = cluster
 }
-func (d *DiscoveredState) GetClusterVersion() (*semver.Version, error) {
 
-	ver, err := semver.NewVersion(*d.Cluster.Version)
-	if err != nil {
-		return nil, err
-	}
-	return ver, nil
+func (d *DiscoveredState) GetClusterVersion() string {
+	return aws.StringValue(d.Cluster.Version)
 }
 
 func (d *DiscoveredState) SetOwnedScalingGroups(groups []*autoscaling.Group) {
