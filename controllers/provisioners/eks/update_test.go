@@ -22,6 +22,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
+	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/onsi/gomega"
@@ -37,10 +38,20 @@ func TestUpdateScalingGroupPositive(t *testing.T) {
 		ig      = MockInstanceGroup()
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock)
 	ctx := MockContext(ig, k, w)
+
+	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
+		Cluster: &eks.Cluster{
+			Version: aws.String("1.15"),
+		},
+	})
 
 	mockTags := []map[string]string{
 		{
@@ -97,6 +108,9 @@ func TestUpdateScalingGroupPositive(t *testing.T) {
 		Publisher: kubeprovider.EventPublisher{
 			Client: k.Kubernetes,
 		},
+		Cluster: &eks.Cluster{
+			Version: aws.String("1.15"),
+		},
 		ScalingGroup:                  mockScalingGroup,
 		ActiveLaunchConfigurationName: "some-launch-config",
 		LaunchConfiguration:           mockLaunchConfig,
@@ -116,9 +130,10 @@ func TestUpdateWithDriftRotationPositive(t *testing.T) {
 		ig      = MockInstanceGroup()
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock)
 	ctx := MockContext(ig, k, w)
 
 	mockScalingGroup := &autoscaling.Group{
@@ -170,6 +185,9 @@ func TestUpdateWithDriftRotationPositive(t *testing.T) {
 			Arn: aws.String("some-instance-arn"),
 		},
 		ClusterNodes: nodes,
+		Cluster: &eks.Cluster{
+			Version: aws.String("1.15"),
+		},
 	})
 
 	err = ctx.Update()
@@ -185,10 +203,20 @@ func TestUpdateWithRotationPositive(t *testing.T) {
 		ig      = MockInstanceGroup()
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock)
 	ctx := MockContext(ig, k, w)
+
+	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
+		Cluster: &eks.Cluster{
+			Version: aws.String("1.15"),
+		},
+	})
 
 	// avoid drift / rotation
 	input := ctx.GetLaunchConfigurationInput("some-launch-config")
@@ -235,6 +263,9 @@ func TestUpdateWithRotationPositive(t *testing.T) {
 		ActiveLaunchConfigurationName: "some-launch-config",
 		LaunchConfiguration:           mockLaunchConfig,
 		ClusterNodes:                  nodes,
+		Cluster: &eks.Cluster{
+			Version: aws.String("1.15"),
+		},
 	})
 
 	err = ctx.Update()
@@ -249,10 +280,21 @@ func TestLaunchConfigurationDrifted(t *testing.T) {
 		ig      = MockInstanceGroup()
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock)
 	ctx := MockContext(ig, k, w)
+
+	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
+		Cluster: &eks.Cluster{
+			Version: aws.String("1.15"),
+		},
+	})
+
 	input := ctx.GetLaunchConfigurationInput("some-launch-config")
 
 	var (
@@ -298,6 +340,9 @@ func TestLaunchConfigurationDrifted(t *testing.T) {
 			},
 			ActiveLaunchConfigurationName: "some-launch-config",
 			LaunchConfiguration:           tc.input,
+			Cluster: &eks.Cluster{
+				Version: aws.String("1.15"),
+			},
 		})
 		got := ctx.LaunchConfigurationDrifted()
 		g.Expect(got).To(gomega.Equal(tc.expected))
@@ -311,9 +356,10 @@ func TestUpdateScalingGroupNegative(t *testing.T) {
 		ig      = MockInstanceGroup()
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock)
 	ctx := MockContext(ig, k, w)
 	ig.GetEKSConfiguration().SetMetricsCollection([]string{"GroupMinSize", "GroupMaxSize", "GroupDesiredCapacity"})
 
@@ -331,6 +377,9 @@ func TestUpdateScalingGroupNegative(t *testing.T) {
 		ScalingGroup: mockScalingGroup,
 		InstanceProfile: &iam.InstanceProfile{
 			Arn: aws.String("some-instance-arn"),
+		},
+		Cluster: &eks.Cluster{
+			Version: aws.String("1.15"),
 		},
 	})
 
@@ -380,9 +429,10 @@ func TestScalingGroupUpdatePredicate(t *testing.T) {
 		configuration = ig.GetEKSConfiguration()
 		asgMock       = NewAutoScalingMocker()
 		iamMock       = NewIamMocker()
+		eksMock       = NewEksMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock)
 	ctx := MockContext(ig, k, w)
 	spec.MinSize = int64(3)
 	spec.MaxSize = int64(6)
@@ -429,9 +479,10 @@ func TestUpdateManagedPolicies(t *testing.T) {
 		configuration = ig.GetEKSConfiguration()
 		asgMock       = NewAutoScalingMocker()
 		iamMock       = NewIamMocker()
+		eksMock       = NewEksMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock)
 	ctx := MockContext(ig, k, w)
 
 	tests := []struct {

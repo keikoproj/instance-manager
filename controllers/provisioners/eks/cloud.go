@@ -201,6 +201,9 @@ func (d *DiscoveredState) SetCluster(cluster *eks.Cluster) {
 }
 
 func (d *DiscoveredState) GetClusterVersion() string {
+	if d.Cluster == nil {
+		return ""
+	}
 	return aws.StringValue(d.Cluster.Version)
 }
 

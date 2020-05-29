@@ -23,6 +23,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
+	"github.com/aws/aws-sdk-go/service/eks"
+	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
@@ -58,10 +60,15 @@ func NewIamMocker() *MockIamClient {
 	return &MockIamClient{}
 }
 
-func MockAwsWorker(asgClient *MockAutoScalingClient, iamClient *MockIamClient) awsprovider.AwsWorker {
+func NewEksMocker() *MockEksClient {
+	return &MockEksClient{}
+}
+
+func MockAwsWorker(asgClient *MockAutoScalingClient, iamClient *MockIamClient, eksClient *MockEksClient) awsprovider.AwsWorker {
 	return awsprovider.AwsWorker{
 		AsgClient: asgClient,
 		IamClient: iamClient,
+		EksClient: eksClient,
 	}
 }
 
@@ -359,6 +366,16 @@ func (a *MockAutoScalingClient) DescribeLaunchConfigurationsPages(input *autosca
 
 func (a *MockAutoScalingClient) UpdateAutoScalingGroup(input *autoscaling.UpdateAutoScalingGroupInput) (*autoscaling.UpdateAutoScalingGroupOutput, error) {
 	return &autoscaling.UpdateAutoScalingGroupOutput{}, a.UpdateAutoScalingGroupErr
+}
+
+type MockEksClient struct {
+	eksiface.EKSAPI
+	DescribeClusterErr error
+	EksCluster         *eks.Cluster
+}
+
+func (e *MockEksClient) DescribeCluster(input *eks.DescribeClusterInput) (*eks.DescribeClusterOutput, error) {
+	return &eks.DescribeClusterOutput{Cluster: e.EksCluster}, e.DescribeClusterErr
 }
 
 type MockIamClient struct {
