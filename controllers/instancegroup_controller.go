@@ -264,6 +264,8 @@ func (r *InstanceGroupReconciler) nodeReconciler(obj handler.MapObject) []ctrl.R
 
 	if val, ok := labels["node.kubernetes.io/role"]; ok {
 		labels["kubernetes.io/role"] = val
+	} else {
+		return nil
 	}
 
 	patchJSON, err := json.Marshal(&nodeLabelPatch{
