@@ -26,6 +26,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
+	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/pkg/errors"
 )
@@ -43,6 +44,7 @@ type DiscoveredState struct {
 	AttachedPolicies              []*iam.AttachedPolicy
 	InstanceProfile               *iam.InstanceProfile
 	Publisher                     kubeprovider.EventPublisher
+	Cluster                       *eks.Cluster
 }
 
 func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
@@ -99,6 +101,12 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to describe autoscaling groups")
 	}
+
+	cluster, err := ctx.AwsWorker.DescribeEKSCluster(clusterName)
+	if err != nil {
+		return errors.Wrap(err, "failed to describe cluster")
+	}
+	state.SetCluster(cluster)
 
 	// find all owned scaling groups
 	ownedScalingGroups := ctx.findOwnedScalingGroups(scalingGroups)
@@ -187,6 +195,18 @@ func (d *DiscoveredState) GetScalingGroup() *autoscaling.Group {
 	}
 	return &autoscaling.Group{}
 }
+
+func (d *DiscoveredState) SetCluster(cluster *eks.Cluster) {
+	d.Cluster = cluster
+}
+
+func (d *DiscoveredState) GetClusterVersion() string {
+	if d.Cluster == nil {
+		return ""
+	}
+	return aws.StringValue(d.Cluster.Version)
+}
+
 func (d *DiscoveredState) SetOwnedScalingGroups(groups []*autoscaling.Group) {
 	d.OwnedScalingGroups = groups
 }

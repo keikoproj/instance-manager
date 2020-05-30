@@ -421,6 +421,19 @@ func (w *AwsWorker) IsNodeGroupExist() bool {
 	return true
 }
 
+func (w *AwsWorker) DescribeEKSCluster(clusterName string) (*eks.Cluster, error) {
+	cluster := &eks.Cluster{}
+	input := &eks.DescribeClusterInput{
+		Name: aws.String(clusterName),
+	}
+
+	output, err := w.EksClient.DescribeCluster(input)
+	if err != nil {
+		return cluster, err
+	}
+	return output.Cluster, nil
+}
+
 // TODO: Rename - GetNodeGroup
 func (w *AwsWorker) GetSelfNodeGroup() (error, *eks.Nodegroup) {
 	input := &eks.DescribeNodegroupInput{

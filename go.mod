@@ -3,6 +3,7 @@ module github.com/keikoproj/instance-manager
 go 1.13
 
 require (
+	github.com/Masterminds/semver v1.5.0
 	github.com/aws/aws-sdk-go v1.30.24
 	github.com/cucumber/godog v0.8.1
 	github.com/ghodss/yaml v1.0.0

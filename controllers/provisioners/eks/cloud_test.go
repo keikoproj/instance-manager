@@ -37,9 +37,10 @@ func TestCloudDiscoveryPositive(t *testing.T) {
 		ig      = MockInstanceGroup()
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock)
 	ctx := MockContext(ig, k, w)
 	state := ctx.GetDiscoveredState()
 	status := ig.GetStatus()
@@ -106,9 +107,10 @@ func TestCloudDiscoveryExistingRole(t *testing.T) {
 		ig      = MockInstanceGroup()
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock)
 	ctx := MockContext(ig, k, w)
 	configuration := ig.GetEKSConfiguration()
 	state := ctx.GetDiscoveredState()
@@ -138,9 +140,10 @@ func TestCloudDiscoverySpotPrice(t *testing.T) {
 		ig      = MockInstanceGroup()
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock)
 	ctx := MockContext(ig, k, w)
 	status := ig.GetStatus()
 	configuration := ig.GetEKSConfiguration()
@@ -218,9 +221,10 @@ func TestLaunchConfigDeletion(t *testing.T) {
 		ig      = MockInstanceGroup()
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock)
 	ctx := MockContext(ig, k, w)
 	configuration := ig.GetEKSConfiguration()
 

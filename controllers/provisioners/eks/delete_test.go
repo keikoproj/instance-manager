@@ -38,9 +38,10 @@ func TestDeletePositive(t *testing.T) {
 		ig      = MockInstanceGroup()
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock)
 	ctx := MockContext(ig, k, w)
 
 	ctx.SetDiscoveredState(&DiscoveredState{
@@ -65,9 +66,10 @@ func TestDeleteManagedRoleNegative(t *testing.T) {
 		configuration = ig.GetEKSConfiguration()
 		asgMock       = NewAutoScalingMocker()
 		iamMock       = NewIamMocker()
+		eksMock       = NewEksMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock)
 	ctx := MockContext(ig, k, w)
 
 	ctx.SetDiscoveredState(&DiscoveredState{
@@ -96,9 +98,10 @@ func TestDeleteLaunchConfigurationNegative(t *testing.T) {
 		ig      = MockInstanceGroup()
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock)
 	ctx := MockContext(ig, k, w)
 
 	ctx.SetDiscoveredState(&DiscoveredState{
@@ -125,9 +128,10 @@ func TestDeleteAutoScalingGroupNegative(t *testing.T) {
 		ig      = MockInstanceGroup()
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock)
 	ctx := MockContext(ig, k, w)
 
 	ctx.SetDiscoveredState(&DiscoveredState{
@@ -152,9 +156,10 @@ func TestRemoveAuthRoleNegative(t *testing.T) {
 		ig2     = MockInstanceGroup()
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock)
 	ctx := MockContext(ig, k, w)
 
 	// two instancegroups with same role arn

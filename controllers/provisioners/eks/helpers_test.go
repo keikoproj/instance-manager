@@ -18,7 +18,9 @@ package eks
 import (
 	"testing"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
+	"github.com/aws/aws-sdk-go/service/eks"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/onsi/gomega"
@@ -31,9 +33,10 @@ func TestGetDisabledMetrics(t *testing.T) {
 		ig      = MockInstanceGroup()
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock)
 	ctx := MockContext(ig, k, w)
 
 	// No disable required
@@ -89,9 +92,10 @@ func TestGetEnabledMetrics(t *testing.T) {
 		ig      = MockInstanceGroup()
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock)
 	ctx := MockContext(ig, k, w)
 
 	// Enable all metrics
@@ -123,4 +127,74 @@ func TestGetEnabledMetrics(t *testing.T) {
 	metrics, ok = ctx.GetEnabledMetrics()
 	g.Expect(ok).To(gomega.BeTrue())
 	g.Expect(metrics).To(gomega.ContainElement("GroupMaxSize"))
+}
+
+func TestGetLabelList(t *testing.T) {
+	var (
+		g                        = gomega.NewGomegaWithT(t)
+		k                        = MockKubernetesClientSet()
+		ig                       = MockInstanceGroup()
+		configuration            = ig.GetEKSConfiguration()
+		asgMock                  = NewAutoScalingMocker()
+		iamMock                  = NewIamMocker()
+		eksMock                  = NewEksMocker()
+		expectedLabels115        = []string{"node.kubernetes.io/role=instance-group-1", "node-role.kubernetes.io/instance-group-1=\"\""}
+		expectedLabels116        = []string{"node.kubernetes.io/role=instance-group-1"}
+		expectedLabelsWithCustom = []string{"node.kubernetes.io/role=instance-group-1", "testing.kubernetes.io=customlabel"}
+	)
+
+	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	ctx := MockContext(ig, k, w)
+
+	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
+		Cluster: &eks.Cluster{
+			Version: aws.String("1.15"),
+		},
+	})
+
+	labels := ctx.GetLabelList()
+
+	g.Expect(labels).To(gomega.ConsistOf(expectedLabels115))
+
+	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
+		Cluster: &eks.Cluster{
+			Version: aws.String("1.16"),
+		},
+	})
+
+	labels = ctx.GetLabelList()
+
+	g.Expect(labels).To(gomega.ConsistOf(expectedLabels116))
+	configuration.SetLabels(map[string]string{"testing.kubernetes.io": "customlabel"})
+	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
+		Cluster: &eks.Cluster{
+			Version: aws.String("1.16"),
+		},
+	})
+
+	labels = ctx.GetLabelList()
+
+	g.Expect(labels).To(gomega.ConsistOf(expectedLabelsWithCustom))
+	configuration.SetLabels(map[string]string{})
+	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
+		Cluster: &eks.Cluster{
+			Version: aws.String(""),
+		},
+	})
+
+	labels = ctx.GetLabelList()
+
+	g.Expect(labels).To(gomega.ConsistOf(expectedLabels115))
 }
