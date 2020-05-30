@@ -230,59 +230,52 @@ func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-type nodeLabelPatch struct {
-	Metadata *nodeLabelPatchMetadata `json:"metadata,omitempty"`
-}
-
-type nodeLabelPatchMetadata struct {
+type NodeLabels struct {
 	Labels map[string]string `json:"labels,omitempty"`
 }
 
+type LabelPatch struct {
+	Metadata *NodeLabels `json:"metadata,omitempty"`
+}
+
 func (r *InstanceGroupReconciler) nodeReconciler(obj handler.MapObject) []ctrl.Request {
-	unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj.Object)
-	if err != nil {
+	var (
+		nodeName          = obj.Meta.GetName()
+		nodeLabels        = obj.Meta.GetLabels()
+		roleLabelKey      = "kubernetes.io/role"
+		bootstrapLabelKey = "node.kubernetes.io/role"
+	)
+
+	// if node already has a role label, don't modify it
+	if _, ok := nodeLabels[roleLabelKey]; ok {
 		return nil
 	}
 
-	name, ok, _ := unstructured.NestedString(unstructuredObj, "metadata", "name")
-	if !ok {
+	// if node does not have the bootstrap label, don't modify it
+	var val string
+	var ok bool
+	if val, ok = nodeLabels[bootstrapLabelKey]; !ok {
 		return nil
 	}
 
-	labels, ok, _ := unstructured.NestedStringMap(unstructuredObj, "metadata", "labels")
-	if !ok {
-		return nil
-	}
+	nodeLabels[roleLabelKey] = val
 
-	if len(labels) == 0 {
-		return nil
-	}
-
-	if _, ok := labels["kubernetes.io/role"]; ok {
-		return nil
-	}
-
-	if val, ok := labels["node.kubernetes.io/role"]; ok {
-		labels["kubernetes.io/role"] = val
-	} else {
-		return nil
-	}
-
-	patchJSON, err := json.Marshal(&nodeLabelPatch{
-		Metadata: &nodeLabelPatchMetadata{
-			Labels: labels,
+	labelPatch := &LabelPatch{
+		Metadata: &NodeLabels{
+			Labels: nodeLabels,
 		},
-	})
+	}
+
+	patchJSON, err := json.Marshal(labelPatch)
 	if err != nil {
-		r.Log.Error(err, "failed to marshal labels", "node", name)
+		r.Log.Error(err, "failed to marshal node labels", "node", nodeName, "patch", string(patchJSON))
 		return nil
 	}
 
-	_, err = r.Auth.Kubernetes.Kubernetes.CoreV1().Nodes().Patch(name, types.StrategicMergePatchType, patchJSON)
-	if err != nil {
-		r.Log.Error(err, "failed to patch node labels", "node", name)
-		return nil
+	if _, err = r.Auth.Kubernetes.Kubernetes.CoreV1().Nodes().Patch(nodeName, types.StrategicMergePatchType, patchJSON); err != nil {
+		r.Log.Error(err, "failed to patch node labels", "node", nodeName)
 	}
+
 	return nil
 }
 
