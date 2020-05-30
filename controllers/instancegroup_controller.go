@@ -17,6 +17,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -222,8 +223,61 @@ func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&source.Kind{Type: &corev1.Event{}}, &handler.EnqueueRequestsFromMapFunc{
 			ToRequests: handler.ToRequestsFunc(r.spotEventReconciler),
 		}).
+		Watches(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestsFromMapFunc{
+			ToRequests: handler.ToRequestsFunc(r.nodeReconciler),
+		}).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
 		Complete(r)
+}
+
+type nodeLabelPatch struct {
+	Metadata *nodeLabelPatchMetadata `json:"metadata,omitempty"`
+}
+
+type nodeLabelPatchMetadata struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+func (r *InstanceGroupReconciler) nodeReconciler(obj handler.MapObject) []ctrl.Request {
+	unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj.Object)
+	if err != nil {
+		return nil
+	}
+
+	name, ok, _ := unstructured.NestedString(unstructuredObj, "metadata", "name")
+	if !ok {
+		return nil
+	}
+
+	labels, ok, _ := unstructured.NestedStringMap(unstructuredObj, "metadata", "labels")
+	if !ok {
+		return nil
+	}
+
+	if len(labels) == 0 {
+		return nil
+	}
+
+	if val, ok := labels["node.kubernetes.io/role"]; ok {
+		labels["kubernetes.io/role"] = val
+	}
+
+	patchJson, err := json.Marshal(&nodeLabelPatch{
+		Metadata: &nodeLabelPatchMetadata{
+			Labels: labels,
+		},
+	})
+	if err != nil {
+		r.Log.Error(err, "failed to marshal labels", "node", name)
+		return nil
+	}
+
+	_, err = r.Auth.Kubernetes.Kubernetes.CoreV1().Nodes().Patch(name, types.StrategicMergePatchType, patchJson)
+	if err != nil {
+		r.Log.Error(err, "failed to patch node", "node", name)
+		return nil
+	}
+	return nil
 }
 
 func (r *InstanceGroupReconciler) spotEventReconciler(obj handler.MapObject) []ctrl.Request {
