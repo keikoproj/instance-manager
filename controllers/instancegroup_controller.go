@@ -258,11 +258,15 @@ func (r *InstanceGroupReconciler) nodeReconciler(obj handler.MapObject) []ctrl.R
 		return nil
 	}
 
+	if _, ok := labels["kubernetes.io/role"]; ok {
+		return nil
+	}
+
 	if val, ok := labels["node.kubernetes.io/role"]; ok {
 		labels["kubernetes.io/role"] = val
 	}
 
-	patchJson, err := json.Marshal(&nodeLabelPatch{
+	patchJSON, err := json.Marshal(&nodeLabelPatch{
 		Metadata: &nodeLabelPatchMetadata{
 			Labels: labels,
 		},
@@ -272,9 +276,9 @@ func (r *InstanceGroupReconciler) nodeReconciler(obj handler.MapObject) []ctrl.R
 		return nil
 	}
 
-	_, err = r.Auth.Kubernetes.Kubernetes.CoreV1().Nodes().Patch(name, types.StrategicMergePatchType, patchJson)
+	_, err = r.Auth.Kubernetes.Kubernetes.CoreV1().Nodes().Patch(name, types.StrategicMergePatchType, patchJSON)
 	if err != nil {
-		r.Log.Error(err, "failed to patch node", "node", name)
+		r.Log.Error(err, "failed to patch node labels", "node", name)
 		return nil
 	}
 	return nil
