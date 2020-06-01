@@ -29,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"github.com/keikoproj/aws-sdk-go-cache/cache"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/pkg/errors"
 	"os"
@@ -39,6 +40,19 @@ import (
 
 var (
 	log = ctrl.Log.WithName("aws-provider")
+)
+
+const (
+	CacheDefaultTTL                 time.Duration = time.Second * 0
+	DescribeAutoScalingGroupsTTL    time.Duration = 60 * time.Second
+	DescribeLaunchConfigurationsTTL time.Duration = 60 * time.Second
+	ListAttachedRolePoliciesTTL     time.Duration = 60 * time.Second
+	GetRoleTTL                      time.Duration = 60 * time.Second
+	GetInstanceProfileTTL           time.Duration = 60 * time.Second
+	DescribeNodegroupTTL            time.Duration = 60 * time.Second
+	DescribeClusterTTL              time.Duration = 180 * time.Second
+	CacheMaxItems                   int64         = 5000
+	CacheItemsToPrune               uint32        = 500
 )
 
 type AwsWorker struct {
@@ -403,6 +417,19 @@ func (w *AwsWorker) IsNodeGroupExist() bool {
 	return true
 }
 
+func (w *AwsWorker) DescribeEKSCluster(clusterName string) (*eks.Cluster, error) {
+	cluster := &eks.Cluster{}
+	input := &eks.DescribeClusterInput{
+		Name: aws.String(clusterName),
+	}
+
+	output, err := w.EksClient.DescribeCluster(input)
+	if err != nil {
+		return cluster, err
+	}
+	return output.Cluster, nil
+}
+
 // TODO: Rename - GetNodeGroup
 func (w *AwsWorker) GetSelfNodeGroup() (error, *eks.Nodegroup) {
 	input := &eks.DescribeNodegroupInput{
@@ -627,24 +654,47 @@ func GetRegion() (string, error) {
 }
 
 // GetAwsAsgClient returns an ASG client
-func GetAwsAsgClient(region string) autoscalingiface.AutoScalingAPI {
+func GetAwsAsgClient(region string, cacheCfg *cache.Config) autoscalingiface.AutoScalingAPI {
 	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
 	config = request.WithRetryer(config, NewRetryLogger(DefaultRetryer))
 	sess, err := session.NewSession(config)
 	if err != nil {
 		panic(err)
 	}
+
+	cache.AddCaching(sess, cacheCfg)
+	cacheCfg.SetCacheTTL("autoscaling", "DescribeAutoScalingGroups", DescribeAutoScalingGroupsTTL)
+	cacheCfg.SetCacheTTL("autoscaling", "DescribeLaunchConfigurations", DescribeLaunchConfigurationsTTL)
+	sess.Handlers.Complete.PushFront(func(r *request.Request) {
+		ctx := r.HTTPRequest.Context()
+		log.V(1).Info("AWS API call",
+			"cacheHit", cache.IsCacheHit(ctx),
+			"service", r.ClientInfo.ServiceName,
+			"operation", r.Operation.Name,
+		)
+	})
 	return autoscaling.New(sess)
 }
 
 // GetAwsEksClient returns an EKS client
-func GetAwsEksClient(region string) eksiface.EKSAPI {
+func GetAwsEksClient(region string, cacheCfg *cache.Config) eksiface.EKSAPI {
 	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
 	config = request.WithRetryer(config, NewRetryLogger(DefaultRetryer))
 	sess, err := session.NewSession(config)
 	if err != nil {
 		panic(err)
 	}
+	cache.AddCaching(sess, cacheCfg)
+	cacheCfg.SetCacheTTL("eks", "DescribeCluster", DescribeClusterTTL)
+	cacheCfg.SetCacheTTL("eks", "DescribeNodegroup", DescribeNodegroupTTL)
+	sess.Handlers.Complete.PushFront(func(r *request.Request) {
+		ctx := r.HTTPRequest.Context()
+		log.V(1).Info("AWS API call",
+			"cacheHit", cache.IsCacheHit(ctx),
+			"service", r.ClientInfo.ServiceName,
+			"operation", r.Operation.Name,
+		)
+	})
 	return eks.New(sess, config)
 }
 
@@ -673,13 +723,25 @@ var UnrecoverableError = CloudResourceReconcileState{UnrecoverableError: true}
 var UnrecoverableDeleteError = CloudResourceReconcileState{UnrecoverableDeleteError: true}
 
 // GetAwsIAMClient returns an IAM client
-func GetAwsIamClient(region string) iamiface.IAMAPI {
+func GetAwsIamClient(region string, cacheCfg *cache.Config) iamiface.IAMAPI {
 	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
 	config = request.WithRetryer(config, NewRetryLogger(DefaultRetryer))
 	sess, err := session.NewSession(config)
 	if err != nil {
 		panic(err)
 	}
+	cache.AddCaching(sess, cacheCfg)
+	cacheCfg.SetCacheTTL("iam", "GetInstanceProfile", GetInstanceProfileTTL)
+	cacheCfg.SetCacheTTL("iam", "GetRole", GetRoleTTL)
+	cacheCfg.SetCacheTTL("iam", "ListAttachedRolePolicies", ListAttachedRolePoliciesTTL)
+	sess.Handlers.Complete.PushFront(func(r *request.Request) {
+		ctx := r.HTTPRequest.Context()
+		log.V(1).Info("AWS API call",
+			"cacheHit", cache.IsCacheHit(ctx),
+			"service", r.ClientInfo.ServiceName,
+			"operation", r.Operation.Name,
+		)
+	})
 	return iam.New(sess, config)
 }
 

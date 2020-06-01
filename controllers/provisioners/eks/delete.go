@@ -16,6 +16,7 @@ limitations under the License.
 package eks
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
@@ -89,7 +90,8 @@ func (ctx *EksInstanceGroupContext) DeleteLaunchConfiguration() error {
 
 	for _, lc := range state.GetLaunchConfigurations() {
 		name := aws.StringValue(lc.LaunchConfigurationName)
-		if strings.HasPrefix(name, ctx.ResourcePrefix) {
+		matcher := fmt.Sprintf("%v-", ctx.ResourcePrefix)
+		if strings.HasPrefix(name, matcher) {
 			err := ctx.AwsWorker.DeleteLaunchConfig(name)
 			if err != nil {
 				return err

@@ -21,6 +21,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Masterminds/semver"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
@@ -156,9 +157,22 @@ func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 	}
 	sort.Strings(labelList)
 
-	// add role label
-	for _, label := range RoleLabelsFmt {
-		labelList = append(labelList, fmt.Sprintf(label, instanceGroup.GetName()))
+	// add the new style role label
+	labelList = append(labelList, fmt.Sprintf(RoleNewLabelFmt, instanceGroup.GetName()))
+
+	// add the old style role label if the cluster's k8s version is < 1.16
+	clusterVersion := ctx.DiscoveredState.GetClusterVersion()
+	ver, err := semver.NewVersion(clusterVersion)
+	if err != nil {
+		//log error
+		ctx.Log.Error(err, "Failed parsing the cluster's kubernetes version", "instancegroup", instanceGroup.GetName())
+		labelList = append(labelList, fmt.Sprintf(RoleOldLabelFmt, instanceGroup.GetName()))
+		return labelList
+	}
+
+	c, _ := semver.NewConstraint("< 1.16-0")
+	if addOldStyleRoleLabel := c.Check(ver); addOldStyleRoleLabel {
+		labelList = append(labelList, fmt.Sprintf(RoleOldLabelFmt, instanceGroup.GetName()))
 	}
 	return labelList
 }
@@ -480,7 +494,8 @@ func (ctx *EksInstanceGroupContext) GetTimeSortedLaunchConfigurations() []*autos
 	configurations := []*autoscaling.LaunchConfiguration{}
 	for _, lc := range state.GetLaunchConfigurations() {
 		name := aws.StringValue(lc.LaunchConfigurationName)
-		if strings.HasPrefix(name, ctx.ResourcePrefix) {
+		matcher := fmt.Sprintf("%v-", ctx.ResourcePrefix)
+		if strings.HasPrefix(name, matcher) {
 			configurations = append(configurations, lc)
 		}
 	}

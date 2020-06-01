@@ -16,12 +16,14 @@ limitations under the License.
 package common
 
 import (
+	"time"
+
 	awsauth "github.com/keikoproj/aws-auth/pkg/mapper"
 	"k8s.io/client-go/kubernetes"
 )
 
-func GetNodeBootstrapUpsert(arn string) *awsauth.UpsertArguments {
-	return &awsauth.UpsertArguments{
+func GetNodeBootstrapUpsert(arn string) *awsauth.MapperArguments {
+	return &awsauth.MapperArguments{
 		MapRoles: true,
 		RoleARN:  arn,
 		Username: "system:node:{{EC2PrivateDNSName}}",
@@ -29,11 +31,15 @@ func GetNodeBootstrapUpsert(arn string) *awsauth.UpsertArguments {
 			"system:bootstrappers",
 			"system:nodes",
 		},
+		WithRetries:   true,
+		MinRetryTime:  time.Millisecond * 100,
+		MaxRetryTime:  time.Second * 30,
+		MaxRetryCount: 12,
 	}
 }
 
-func GetNodeBootstrapRemove(arn string) *awsauth.RemoveArguments {
-	return &awsauth.RemoveArguments{
+func GetNodeBootstrapRemove(arn string) *awsauth.MapperArguments {
+	return &awsauth.MapperArguments{
 		MapRoles: true,
 		RoleARN:  arn,
 		Username: "system:node:{{EC2PrivateDNSName}}",
@@ -41,6 +47,10 @@ func GetNodeBootstrapRemove(arn string) *awsauth.RemoveArguments {
 			"system:bootstrappers",
 			"system:nodes",
 		},
+		WithRetries:   true,
+		MinRetryTime:  time.Millisecond * 100,
+		MaxRetryTime:  time.Second * 30,
+		MaxRetryCount: 12,
 	}
 }
 
