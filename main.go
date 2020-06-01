@@ -74,7 +74,7 @@ func main() {
 	flag.StringVar(&controllerConfPath, "controller-config", "/etc/config/controller.conf", "The controller config file")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
-	flag.BoolVar(&nodeRelabel, "node-relabel", true, "relabel nodes as the join with kubernetes.io/role label via controller")
+	flag.BoolVar(&nodeRelabel, "node-relabel", true, "relabel nodes as they join with kubernetes.io/role label via controller")
 	flag.Parse()
 	ctrl.SetLogger(zap.Logger(true))
 
