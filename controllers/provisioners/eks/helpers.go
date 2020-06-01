@@ -146,16 +146,28 @@ func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 	var (
 		labelList     []string
 		instanceGroup = ctx.GetInstanceGroup()
+		annotations   = instanceGroup.GetAnnotations()
 		configuration = instanceGroup.GetEKSConfiguration()
 		customLabels  = configuration.GetLabels()
 	)
+
+	defer sort.Strings(labelList)
+
 	// get custom labels
 	if len(customLabels) > 0 {
 		for k, v := range customLabels {
 			labelList = append(labelList, fmt.Sprintf("%v=%v", k, v))
 		}
 	}
-	sort.Strings(labelList)
+
+	// allow override default labels
+	if val, ok := annotations[OverrideDefaultLabelsAnnotationKey]; ok {
+		overrideLabels := strings.Split(val, ",")
+		for _, label := range overrideLabels {
+			labelList = append(labelList, label)
+		}
+		return labelList
+	}
 
 	// add the new style role label
 	labelList = append(labelList, fmt.Sprintf(RoleNewLabelFmt, instanceGroup.GetName()))
