@@ -265,7 +265,7 @@ spec:
   # provision for EKS using Fargate
   provisioner: eks-fargate
   strategy:
-    type: rollingUpdate
+    type: managed
   # provisioner configuration
   eks-fargate:
     fargateProfileName: "my-unique-profile-name"

@@ -50,15 +50,21 @@ const (
 	LifecycleStateSpot        = "spot"
 	CRDStrategyName           = "crd"
 	RollingUpdateStrategyName = "rollingupdate"
+	ManagedStrategyName       = "managed"
 	EKSProvisionerName        = "eks"
 	EKSManagedProvisionerName = "eks-managed"
+	EKSFargateProvisionerName = "eks-fargate"
 
 	NodesReady InstanceGroupConditionType = "NodesReady"
 )
 
 var (
-	Strategies   = []string{"crd", "rollingupdate", "managed"}
-	Provisioners = []string{"eks", "eks-managed"}
+	Strategies   = []string{CRDStrategyName, RollingUpdateStrategyName, ManagedStrategyName}
+	Provisioners = []string{
+		EKSProvisionerName,
+		EKSManagedProvisionerName,
+		EKSFargateProvisionerName,
+	}
 
 	DefaultRollingUpdateStrategy = &RollingUpdateStrategy{
 		MaxUnavailable: &intstr.IntOrString{
@@ -291,6 +297,14 @@ func (s *InstanceGroupSpec) Validate() error {
 	if strings.EqualFold(s.Provisioner, EKSProvisionerName) {
 		if err := s.EKSSpec.EKSConfiguration.Validate(); err != nil {
 			return err
+		}
+	}
+	if strings.EqualFold(s.Provisioner, EKSFargateProvisionerName) {
+		if err := s.EKSFargateSpec.Validate(); err != nil {
+			return err
+		}
+		if !strings.EqualFold(s.AwsUpgradeStrategy.Type, ManagedStrategyName) {
+			return errors.Errorf("validation failed, strategy '%v' is invalid for the eks-fargate provisioner", s.AwsUpgradeStrategy.Type)
 		}
 	}
 
@@ -633,6 +647,10 @@ func init() {
 
 func (ig *InstanceGroup) GetEKSFargateSpec() *EKSFargateSpec {
 	return ig.Spec.EKSFargateSpec
+}
+
+func (spec *EKSFargateSpec) Validate() error {
+	return nil
 }
 
 func (spec *EKSFargateSpec) GetProfileName() string {

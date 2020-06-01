@@ -6,7 +6,7 @@ metadata:
 spec:
   provisioner: eks-fargate
   strategy:
-      type: rollingUpdate
+      type: managed
   eks-fargate:
       fargateProfileName: "test-bdd-profile-name"
       clusterName: {{ .ClusterName }}

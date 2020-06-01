@@ -721,44 +721,6 @@ func IsNodeGroupInConditionState(key string, condition string) bool {
 	}
 }
 
-func IsStackInConditionState(key string, condition string) bool {
-	conditionStates := map[string]CloudResourceReconcileState{
-		"CREATE_COMPLETE":                              FiniteState,
-		"UPDATE_COMPLETE":                              FiniteState,
-		"DELETE_COMPLETE":                              FiniteDeleted,
-		"CREATE_IN_PROGRESS":                           OngoingState,
-		"DELETE_IN_PROGRESS":                           OngoingState,
-		"ROLLBACK_IN_PROGRESS":                         OngoingState,
-		"UPDATE_COMPLETE_CLEANUP_IN_PROGRESS":          OngoingState,
-		"UPDATE_IN_PROGRESS":                           OngoingState,
-		"UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS": OngoingState,
-		"UPDATE_ROLLBACK_IN_PROGRESS":                  OngoingState,
-		"UPDATE_ROLLBACK_COMPLETE":                     UpdateRecoverableError,
-		"UPDATE_ROLLBACK_FAILED":                       UnrecoverableError,
-		"CREATE_FAILED":                                UnrecoverableError,
-		"DELETE_FAILED":                                UnrecoverableDeleteError,
-		"ROLLBACK_COMPLETE":                            UnrecoverableError,
-	}
-	state := conditionStates[key]
-
-	switch condition {
-	case "OngoingState":
-		return state.OngoingState
-	case "FiniteState":
-		return state.FiniteState
-	case "FiniteDeleted":
-		return state.FiniteDeleted
-	case "UpdateRecoverableError":
-		return state.UpdateRecoverableError
-	case "UnrecoverableError":
-		return state.UnrecoverableError
-	case "UnrecoverableDeleteError":
-		return state.UnrecoverableDeleteError
-	default:
-		return false
-	}
-}
-
 func IsProfileInConditionState(key string, condition string) bool {
 
 	conditionStates := map[string]CloudResourceReconcileState{
