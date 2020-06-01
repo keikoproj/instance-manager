@@ -3,7 +3,6 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  creationTimestamp: null
   name: instance-manager
 rules:
 - apiGroups:
@@ -43,6 +42,7 @@ rules:
   - nodes
   verbs:
   - list
+  - patch
 - apiGroups:
   - instancemgr.keikoproj.io
   resources:

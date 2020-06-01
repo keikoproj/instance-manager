@@ -7,3 +7,4 @@
 # the repo. Unless a later match takes precedence,
 # review when someone opens a pull request.
 *       @keikoproj/authorized-approvers
+*       @keikoproj/instance-manager-approvers
