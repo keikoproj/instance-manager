@@ -49,6 +49,7 @@ import (
 type InstanceGroupReconciler struct {
 	client.Client
 	SpotRecommendationTime float64
+	NodeRelabel            bool
 	Log                    logr.Logger
 	ControllerConfPath     string
 	MaxParallel            int
@@ -218,16 +219,27 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 }
 
 func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.InstanceGroup{}).
-		Watches(&source.Kind{Type: &corev1.Event{}}, &handler.EnqueueRequestsFromMapFunc{
-			ToRequests: handler.ToRequestsFunc(r.spotEventReconciler),
-		}).
-		Watches(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestsFromMapFunc{
-			ToRequests: handler.ToRequestsFunc(r.nodeReconciler),
-		}).
-		WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
-		Complete(r)
+	switch r.NodeRelabel {
+	case true:
+		return ctrl.NewControllerManagedBy(mgr).
+			For(&v1alpha1.InstanceGroup{}).
+			Watches(&source.Kind{Type: &corev1.Event{}}, &handler.EnqueueRequestsFromMapFunc{
+				ToRequests: handler.ToRequestsFunc(r.spotEventReconciler),
+			}).
+			Watches(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestsFromMapFunc{
+				ToRequests: handler.ToRequestsFunc(r.nodeReconciler),
+			}).
+			WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
+			Complete(r)
+	default:
+		return ctrl.NewControllerManagedBy(mgr).
+			For(&v1alpha1.InstanceGroup{}).
+			Watches(&source.Kind{Type: &corev1.Event{}}, &handler.EnqueueRequestsFromMapFunc{
+				ToRequests: handler.ToRequestsFunc(r.spotEventReconciler),
+			}).
+			WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
+			Complete(r)
+	}
 }
 
 type NodeLabels struct {
