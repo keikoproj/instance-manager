@@ -201,6 +201,44 @@ func (w *AwsWorker) DeleteScalingGroup(name string) error {
 	return nil
 }
 
+func (w *AwsWorker) SetSuspendProcesses(name string, processesToSuspend []string) error {
+
+	var scalingProcesses []*string
+
+	for _, process := range processesToSuspend {
+		scalingProcesses = append(scalingProcesses, aws.String(process))
+	}
+
+	input := &autoscaling.ScalingProcessQuery{
+		AutoScalingGroupName: aws.String(name),
+		ScalingProcesses:     scalingProcesses,
+	}
+	_, err := w.AsgClient.SuspendProcesses(input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) SetResumeProcesses(name string, processesToResume []string) error {
+
+	var scalingProcesses []*string
+
+	for _, process := range processesToResume {
+		scalingProcesses = append(scalingProcesses, aws.String(process))
+	}
+
+	input := &autoscaling.ScalingProcessQuery{
+		AutoScalingGroupName: aws.String(name),
+		ScalingProcesses:     scalingProcesses,
+	}
+	_, err := w.AsgClient.ResumeProcesses(input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (w *AwsWorker) GetBasicUserData(clusterName, bootstrapArgs string) string {
 	userData := fmt.Sprintf(DefaultEksUserDataFmt(), clusterName, bootstrapArgs)
 	return base64.StdEncoding.EncodeToString([]byte(userData))
