@@ -81,6 +81,11 @@ func TestUpdateScalingGroupPositive(t *testing.T) {
 				Value: aws.String("some-value"),
 			},
 		},
+		SuspendedProcesses: []*autoscaling.SuspendedProcess{
+			{
+				ProcessName: aws.String("ScheduledActions"),
+			},
+		},
 	}
 	asgMock.AutoScalingGroups = []*autoscaling.Group{mockScalingGroup}
 
@@ -120,6 +125,12 @@ func TestUpdateScalingGroupPositive(t *testing.T) {
 	err = ctx.Update()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	g.Expect(ctx.TagsUpdateNeeded()).To(gomega.BeTrue())
+
+	isSuspendProcessesUpdateNeeded, processesToSuspend, processesToResume := ctx.SuspendProcessesUpdateNeeded()
+	g.Expect(isSuspendProcessesUpdateNeeded).To(gomega.BeTrue())
+	g.Expect(processesToSuspend).To(gomega.Equal([]string{"AZRebalance"}))
+	g.Expect(processesToResume).To(gomega.Equal([]string{"ScheduledActions"}))
+
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModified))
 }
 
