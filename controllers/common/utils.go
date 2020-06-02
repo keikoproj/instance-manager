@@ -69,6 +69,10 @@ func SliceEmpty(slice []string) bool {
 	return len(slice) == 0
 }
 
+func MapEmpty(m map[string]string) bool {
+	return len(m) == 0
+}
+
 func StringEmpty(str string) bool {
 	return str == ""
 }

@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [v0.7.0-alpha2] - 2020-6-1
+
+### Added
+
+- Event publishing (#110)
+- Metrics collection (#111)
+- AWS API calls optimization (#123, #124, #126)
+- AWS SDK caching (#127)
+- Default role labels according to cluster version (#125)
+- Node relabling & migration path to Kubernetes 1.16 (#129)
+
+### Fixed
+
+- Update examples to support Kubernetes 1.16 (#121)
+
+### Upgrade Notes
+
+- This version includes support for Kubernetes 1.16, see further instructions in #129
+- RBAC has been added for patching node objects
+- This version includes CRD changes
+
+## [v0.6.3-alpha2] - 2020-5-19
+
+### Fixed
+
+- Pagination & Launch config deletion fixes (#114)
+- CR Spec validation fixes (#109)
+
 ## [v0.6.2-alpha2] - 2020-5-16
 
 ### Fixed
