@@ -20,9 +20,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 - Update examples to support Kubernetes 1.16 (#121)
 
-### Migration notes
+### Upgrade Notes
 
 - This version includes support for Kubernetes 1.16, see further instructions in #129
+- RBAC has been added for patching node objects
+- This version includes CRD changes
 
 ## [v0.6.3-alpha2] - 2020-5-19
 
