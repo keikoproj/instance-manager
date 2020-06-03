@@ -89,11 +89,13 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup(lcName string) error {
 	}
 	ctx.Log.Info("created scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 
-	err = ctx.AwsWorker.SetSuspendProcesses(asgName, spec.EKSConfiguration.SuspendedProcesses)
-	if err != nil {
-		return err
+	if len(spec.EKSConfiguration.SuspendedProcesses) > 0 {
+		err = ctx.UpdateScalingProcesses(asgName)
+		if err != nil {
+			return err
+		}
+		ctx.Log.Info("suspended scaling processes", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 	}
-	ctx.Log.Info("suspended scaling processes", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 
 	if err := ctx.UpdateMetricsCollection(asgName); err != nil {
 		return err
