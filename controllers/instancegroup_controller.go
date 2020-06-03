@@ -112,12 +112,13 @@ func (r *InstanceGroupReconciler) NewProvisionerInput(instanceGroup *v1alpha1.In
 	return input, nil
 }
 
-// +kubebuilder:rbac:groups=core,resources=nodes,verbs=list;patch
+// +kubebuilder:rbac:groups=core,resources=nodes,verbs=list;patch;watch
 // +kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch;create
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;create;update;patch
 // +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=instancemgr.keikoproj.io,resources=instancegroups,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=instancemgr.keikoproj.io,resources=instancegroups/status,verbs=get;update;patch
+
 func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	_ = context.Background()
 	_ = r.Log.WithValues("instancegroup", req.NamespacedName)
