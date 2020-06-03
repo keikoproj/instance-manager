@@ -153,7 +153,7 @@ type EKSConfiguration struct {
 	NodeSecurityGroups          []string            `json:"securityGroups,omitempty"`
 	Volumes                     []NodeVolume        `json:"volumes,omitempty"`
 	Subnets                     []string            `json:"subnets"`
-	SuspendedProcesses          []string            `json:"suspendProcesses"`
+	SuspendedProcesses          []string            `json:"suspendProcesses,omitempty"`
 	BootstrapArguments          string              `json:"bootstrapArguments,omitempty"`
 	SpotPrice                   string              `json:"spotPrice,omitempty"`
 	Tags                        []map[string]string `json:"tags,omitempty"`
