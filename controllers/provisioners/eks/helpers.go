@@ -110,6 +110,33 @@ func (ctx *EksInstanceGroupContext) GetRemovedTags(asgName string) []*autoscalin
 	return removal
 }
 
+func (ctx *EksInstanceGroupContext) UpdateScalingProcesses(asgName string) error {
+	var (
+		instanceGroup         = ctx.GetInstanceGroup()
+		configuration         = instanceGroup.GetEKSConfiguration()
+		state                 = ctx.GetDiscoveredState()
+		scalingGroup          = state.GetScalingGroup()
+		specSuspendProcesses  = configuration.GetSuspendProcesses()
+		groupSuspendProcesses []string
+	)
+
+	for _, element := range scalingGroup.SuspendedProcesses {
+		groupSuspendProcesses = append(groupSuspendProcesses, *element.ProcessName)
+	}
+
+	err := ctx.AwsWorker.SetSuspendProcesses(asgName, common.Difference(specSuspendProcesses, groupSuspendProcesses))
+	if err != nil {
+		return err
+	}
+
+	err = ctx.AwsWorker.SetResumeProcesses(asgName, common.Difference(groupSuspendProcesses, specSuspendProcesses))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (ctx *EksInstanceGroupContext) GetBlockDeviceList() []*autoscaling.BlockDeviceMapping {
 	var (
 		devices       []*autoscaling.BlockDeviceMapping

@@ -116,24 +116,11 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 		ctx.Log.Info("updated scaling group tags", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 	}
 
-	isSuspendProcessesUpdateNeeded, processesToSuspend, processesToResume := ctx.SuspendProcessesUpdateNeeded()
-
-	if isSuspendProcessesUpdateNeeded {
-
-		if processesToSuspend != nil {
-			err := ctx.AwsWorker.SetSuspendProcesses(asgName, processesToSuspend)
-			if err != nil {
-				return err
-			}
+	if ctx.SuspendProcessesUpdateNeeded() {
+		err := ctx.UpdateScalingProcesses(asgName)
+		if err != nil {
+			return err
 		}
-
-		if processesToResume != nil {
-			err := ctx.AwsWorker.SetResumeProcesses(asgName, processesToResume)
-			if err != nil {
-				return err
-			}
-		}
-
 		ctx.Log.Info("updated list of suspended process", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 	}
 
@@ -227,7 +214,7 @@ func (ctx *EksInstanceGroupContext) ScalingGroupUpdateNeeded() bool {
 	return false
 }
 
-func (ctx *EksInstanceGroupContext) SuspendProcessesUpdateNeeded() (bool, []string, []string) {
+func (ctx *EksInstanceGroupContext) SuspendProcessesUpdateNeeded() bool {
 	var (
 		instanceGroup         = ctx.GetInstanceGroup()
 		configuration         = instanceGroup.GetEKSConfiguration()
@@ -242,26 +229,10 @@ func (ctx *EksInstanceGroupContext) SuspendProcessesUpdateNeeded() (bool, []stri
 	}
 
 	if !common.StringSliceEqualFold(specSuspendProcesses, groupSuspendProcesses) {
-		return true, difference(specSuspendProcesses, groupSuspendProcesses), difference(groupSuspendProcesses, specSuspendProcesses)
+		return true
 	}
 
-	return false, nil, nil
-}
-
-// Set Difference: A - B
-func difference(a, b []string) (diff []string) {
-	m := make(map[string]bool)
-
-	for _, item := range b {
-		m[item] = true
-	}
-
-	for _, item := range a {
-		if _, ok := m[item]; !ok {
-			diff = append(diff, item)
-		}
-	}
-	return
+	return false
 }
 
 func (ctx *EksInstanceGroupContext) LaunchConfigurationDrifted() bool {
