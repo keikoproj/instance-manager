@@ -29,6 +29,7 @@ import (
 const (
 	ProvisionerName                     = "eks"
 	defaultLaunchConfigurationRetention = 2
+	OverrideDefaultLabelsAnnotationKey  = "instancemgr.keikoproj.io/default-labels"
 )
 
 var (

@@ -17,6 +17,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -48,6 +49,7 @@ import (
 type InstanceGroupReconciler struct {
 	client.Client
 	SpotRecommendationTime float64
+	NodeRelabel            bool
 	Log                    logr.Logger
 	ControllerConfPath     string
 	MaxParallel            int
@@ -110,7 +112,7 @@ func (r *InstanceGroupReconciler) NewProvisionerInput(instanceGroup *v1alpha1.In
 	return input, nil
 }
 
-// +kubebuilder:rbac:groups=core,resources=nodes,verbs=list
+// +kubebuilder:rbac:groups=core,resources=nodes,verbs=list;patch
 // +kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch;create
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;create;update;patch
 // +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch;create;update;patch;delete
@@ -217,13 +219,76 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 }
 
 func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.InstanceGroup{}).
-		Watches(&source.Kind{Type: &corev1.Event{}}, &handler.EnqueueRequestsFromMapFunc{
-			ToRequests: handler.ToRequestsFunc(r.spotEventReconciler),
-		}).
-		WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
-		Complete(r)
+	switch r.NodeRelabel {
+	case true:
+		return ctrl.NewControllerManagedBy(mgr).
+			For(&v1alpha1.InstanceGroup{}).
+			Watches(&source.Kind{Type: &corev1.Event{}}, &handler.EnqueueRequestsFromMapFunc{
+				ToRequests: handler.ToRequestsFunc(r.spotEventReconciler),
+			}).
+			Watches(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestsFromMapFunc{
+				ToRequests: handler.ToRequestsFunc(r.nodeReconciler),
+			}).
+			WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
+			Complete(r)
+	default:
+		return ctrl.NewControllerManagedBy(mgr).
+			For(&v1alpha1.InstanceGroup{}).
+			Watches(&source.Kind{Type: &corev1.Event{}}, &handler.EnqueueRequestsFromMapFunc{
+				ToRequests: handler.ToRequestsFunc(r.spotEventReconciler),
+			}).
+			WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
+			Complete(r)
+	}
+}
+
+type NodeLabels struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+type LabelPatch struct {
+	Metadata *NodeLabels `json:"metadata,omitempty"`
+}
+
+func (r *InstanceGroupReconciler) nodeReconciler(obj handler.MapObject) []ctrl.Request {
+	var (
+		nodeName          = obj.Meta.GetName()
+		nodeLabels        = obj.Meta.GetLabels()
+		roleLabelKey      = "kubernetes.io/role"
+		bootstrapLabelKey = "node.kubernetes.io/role"
+	)
+
+	// if node already has a role label, don't modify it
+	if _, ok := nodeLabels[roleLabelKey]; ok {
+		return nil
+	}
+
+	// if node does not have the bootstrap label, don't modify it
+	var val string
+	var ok bool
+	if val, ok = nodeLabels[bootstrapLabelKey]; !ok {
+		return nil
+	}
+
+	nodeLabels[roleLabelKey] = val
+
+	labelPatch := &LabelPatch{
+		Metadata: &NodeLabels{
+			Labels: nodeLabels,
+		},
+	}
+
+	patchJSON, err := json.Marshal(labelPatch)
+	if err != nil {
+		r.Log.Error(err, "failed to marshal node labels", "node", nodeName, "patch", string(patchJSON))
+		return nil
+	}
+
+	if _, err = r.Auth.Kubernetes.Kubernetes.CoreV1().Nodes().Patch(nodeName, types.StrategicMergePatchType, patchJSON); err != nil {
+		r.Log.Error(err, "failed to patch node labels", "node", nodeName)
+	}
+
+	return nil
 }
 
 func (r *InstanceGroupReconciler) spotEventReconciler(obj handler.MapObject) []ctrl.Request {
