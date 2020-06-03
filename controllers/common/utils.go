@@ -121,3 +121,20 @@ func GetTimeString() string {
 	n := time.Now().UTC()
 	return n.Format("20060102150405")
 }
+
+// Set Difference: A - B
+func Difference(a, b []string) []string {
+	var diff []string
+	m := make(map[string]bool)
+
+	for _, item := range b {
+		m[item] = true
+	}
+
+	for _, item := range a {
+		if _, ok := m[item]; !ok {
+			diff = append(diff, item)
+		}
+	}
+	return diff
+}
