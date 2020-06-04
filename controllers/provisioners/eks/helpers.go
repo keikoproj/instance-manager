@@ -124,15 +124,19 @@ func (ctx *EksInstanceGroupContext) UpdateScalingProcesses(asgName string) error
 		groupSuspendProcesses = append(groupSuspendProcesses, *element.ProcessName)
 	}
 
-	err := ctx.AwsWorker.SetSuspendProcesses(asgName, common.Difference(specSuspendProcesses, groupSuspendProcesses))
+	processesToSuspend := common.Difference(specSuspendProcesses, groupSuspendProcesses)
+	err := ctx.AwsWorker.SetSuspendProcesses(asgName, processesToSuspend)
 	if err != nil {
 		return err
 	}
+	ctx.Log.Info("suspended scaling processes", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName, "difference", processesToSuspend)
 
-	err = ctx.AwsWorker.SetResumeProcesses(asgName, common.Difference(groupSuspendProcesses, specSuspendProcesses))
+	processesToResume := common.Difference(groupSuspendProcesses, specSuspendProcesses)
+	err = ctx.AwsWorker.SetResumeProcesses(asgName, processesToResume)
 	if err != nil {
 		return err
 	}
+	ctx.Log.Info("resumed scaling processes", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName, "difference", processesToResume)
 
 	return nil
 }

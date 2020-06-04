@@ -117,11 +117,9 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 	}
 
 	if ctx.SuspendProcessesUpdateNeeded() {
-		err := ctx.UpdateScalingProcesses(asgName)
-		if err != nil {
+		if err := ctx.UpdateScalingProcesses(asgName); err != nil {
 			return err
 		}
-		ctx.Log.Info("updated list of suspended process", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 	}
 
 	if err := ctx.UpdateMetricsCollection(asgName); err != nil {
