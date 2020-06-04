@@ -3,7 +3,7 @@
 [![codecov](https://codecov.io/gh/keikoproj/instance-manager/branch/master/graph/badge.svg)](https://codecov.io/gh/keikoproj/instance-manager)
 [![Go Report Card](https://goreportcard.com/badge/github.com/keikoproj/instance-manager)](https://goreportcard.com/report/github.com/keikoproj/instance-manager)
 [![slack](https://img.shields.io/badge/slack-join%20the%20conversation-ff69b4.svg)][SlackUrl]
-![version](https://img.shields.io/badge/version-0.6.2-blue.svg?cacheSeconds=2592000)
+![version](https://img.shields.io/badge/version-0.7.0-blue.svg?cacheSeconds=2592000)
 > Create and manage instance groups with Kubernetes.
 
 **instance-manager** simplifies the creation of worker nodes from within a Kubernetes cluster and creates `InstanceGroup` objects in your cluster. Additionally, **instance-manager** will provision the actual machines and bootstrap them to the cluster.

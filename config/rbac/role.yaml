@@ -43,6 +43,8 @@ rules:
   - nodes
   verbs:
   - list
+  - patch
+  - watch
 - apiGroups:
   - instancemgr.keikoproj.io
   resources:
