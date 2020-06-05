@@ -87,12 +87,12 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 
 	var isRunning bool
 	if len(activeResources) > 0 && strings.EqualFold(strategy.GetConcurrencyPolicy(), v1alpha1.ReplaceConcurrencyPolicy) {
-		log.Info("active custom resource/s exists, will replace", "instancegroup", instanceGroup.GetName())
 		for _, resource := range activeResources {
 			if strings.HasSuffix(resource.GetName(), launchID) {
 				isRunning = true
 				continue
 			}
+			log.Info("active custom resource/s exists, will replace", "instancegroup", instanceGroup.GetName())
 			err = kube.Resource(GVR).Namespace(resource.GetNamespace()).Delete(resource.GetName(), &metav1.DeleteOptions{})
 			if err != nil {
 				return false, errors.Wrap(err, "failed to delete custom resource")
