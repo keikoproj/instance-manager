@@ -116,10 +116,8 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 		ctx.Log.Info("updated scaling group tags", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 	}
 
-	if ctx.SuspendProcessesUpdateNeeded() {
-		if err := ctx.UpdateScalingProcesses(asgName); err != nil {
-			return err
-		}
+	if err := ctx.UpdateScalingProcesses(asgName); err != nil {
+		return err
 	}
 
 	if err := ctx.UpdateMetricsCollection(asgName); err != nil {
@@ -206,27 +204,6 @@ func (ctx *EksInstanceGroupContext) ScalingGroupUpdateNeeded() bool {
 	}
 
 	if !common.StringSliceEqualFold(specSubnets, groupSubnets) {
-		return true
-	}
-
-	return false
-}
-
-func (ctx *EksInstanceGroupContext) SuspendProcessesUpdateNeeded() bool {
-	var (
-		instanceGroup         = ctx.GetInstanceGroup()
-		configuration         = instanceGroup.GetEKSConfiguration()
-		state                 = ctx.GetDiscoveredState()
-		scalingGroup          = state.GetScalingGroup()
-		specSuspendProcesses  = configuration.GetSuspendProcesses()
-		groupSuspendProcesses []string
-	)
-
-	for _, element := range scalingGroup.SuspendedProcesses {
-		groupSuspendProcesses = append(groupSuspendProcesses, *element.ProcessName)
-	}
-
-	if !common.StringSliceEqualFold(specSuspendProcesses, groupSuspendProcesses) {
 		return true
 	}
 
