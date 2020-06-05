@@ -54,6 +54,10 @@ const (
 	EKSManagedProvisionerName = "eks-managed"
 
 	NodesReady InstanceGroupConditionType = "NodesReady"
+
+	ForbidConcurrencyPolicy  = "forbid"
+	AllowConcurrencyPolicy   = "allow"
+	ReplaceConcurrencyPolicy = "replace"
 )
 
 var (
@@ -437,12 +441,10 @@ func (c *CRDUpdateStrategy) Validate() error {
 		return errors.New("spec is empty")
 	}
 
-	if strings.ToLower(c.ConcurrencyPolicy) != "forbid" && strings.ToLower(c.ConcurrencyPolicy) != "allow" {
-		c.SetConcurrencyPolicy("forbid")
-	}
+	allowedPolicies := []string{ReplaceConcurrencyPolicy, AllowConcurrencyPolicy, ForbidConcurrencyPolicy}
 
-	if strings.ToLower(c.ConcurrencyPolicy) == "" {
-		c.SetConcurrencyPolicy("forbid")
+	if !common.ContainsEqualFold(allowedPolicies, c.ConcurrencyPolicy) {
+		c.SetConcurrencyPolicy(ForbidConcurrencyPolicy)
 	}
 
 	if c.GetCRDName() == "" {
