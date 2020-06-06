@@ -124,19 +124,19 @@ func (ctx *EksInstanceGroupContext) UpdateScalingProcesses(asgName string) error
 		groupSuspendProcesses = append(groupSuspendProcesses, *element.ProcessName)
 	}
 
-	processesToSuspend := common.Difference(specSuspendProcesses, groupSuspendProcesses)
-	err := ctx.AwsWorker.SetSuspendProcesses(asgName, processesToSuspend)
-	if err != nil {
-		return err
+	if suspend := common.Difference(specSuspendProcesses, groupSuspendProcesses); len(suspend) > 0 {
+		if err := ctx.AwsWorker.SetSuspendProcesses(asgName, suspend); err != nil {
+			return err
+		}
+		ctx.Log.Info("suspended scaling processes", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName, "processes", suspend)
 	}
-	ctx.Log.Info("suspended scaling processes", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName, "difference", processesToSuspend)
 
-	processesToResume := common.Difference(groupSuspendProcesses, specSuspendProcesses)
-	err = ctx.AwsWorker.SetResumeProcesses(asgName, processesToResume)
-	if err != nil {
-		return err
+	if resume := common.Difference(groupSuspendProcesses, specSuspendProcesses); len(resume) > 0 {
+		if err := ctx.AwsWorker.SetResumeProcesses(asgName, resume); err != nil {
+			return err
+		}
+		ctx.Log.Info("resumed scaling processes", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName, "processes", resume)
 	}
-	ctx.Log.Info("resumed scaling processes", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName, "difference", processesToResume)
 
 	return nil
 }
