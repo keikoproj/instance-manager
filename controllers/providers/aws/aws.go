@@ -202,11 +202,6 @@ func (w *AwsWorker) DeleteScalingGroup(name string) error {
 }
 
 func (w *AwsWorker) SetSuspendProcesses(name string, processesToSuspend []string) error {
-
-	if len(processesToSuspend) == 0 {
-		return nil
-	}
-
 	input := &autoscaling.ScalingProcessQuery{
 		AutoScalingGroupName: aws.String(name),
 		ScalingProcesses:     aws.StringSlice(processesToSuspend),
@@ -219,11 +214,6 @@ func (w *AwsWorker) SetSuspendProcesses(name string, processesToSuspend []string
 }
 
 func (w *AwsWorker) SetResumeProcesses(name string, processesToResume []string) error {
-
-	if len(processesToResume) == 0 {
-		return nil
-	}
-
 	input := &autoscaling.ScalingProcessQuery{
 		AutoScalingGroupName: aws.String(name),
 		ScalingProcesses:     aws.StringSlice(processesToResume),
