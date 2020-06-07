@@ -89,6 +89,10 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup(lcName string) error {
 	}
 	ctx.Log.Info("created scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 
+	if err := ctx.UpdateScalingProcesses(asgName); err != nil {
+		return err
+	}
+
 	if err := ctx.UpdateMetricsCollection(asgName); err != nil {
 		return err
 	}
