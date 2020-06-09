@@ -157,6 +157,7 @@ type EKSConfiguration struct {
 	NodeSecurityGroups          []string            `json:"securityGroups,omitempty"`
 	Volumes                     []NodeVolume        `json:"volumes,omitempty"`
 	Subnets                     []string            `json:"subnets"`
+	SuspendedProcesses          []string            `json:"suspendProcesses,omitempty"`
 	BootstrapArguments          string              `json:"bootstrapArguments,omitempty"`
 	SpotPrice                   string              `json:"spotPrice,omitempty"`
 	Tags                        []map[string]string `json:"tags,omitempty"`
@@ -376,6 +377,12 @@ func (c *EKSConfiguration) GetSubnets() []string {
 	}
 	return c.Subnets
 }
+func (c *EKSConfiguration) GetSuspendProcesses() []string {
+	if c.SuspendedProcesses == nil {
+		return []string{}
+	}
+	return c.SuspendedProcesses
+}
 func (c *EKSConfiguration) GetSpotPrice() string {
 	return c.SpotPrice
 }
@@ -384,6 +391,9 @@ func (c *EKSConfiguration) SetSpotPrice(price string) {
 }
 func (c *EKSConfiguration) SetSubnets(subnets []string) {
 	c.Subnets = subnets
+}
+func (c *EKSConfiguration) SetSuspendProcesses(suspendProcesses []string) {
+	c.SuspendedProcesses = suspendProcesses
 }
 func (spec *EKSSpec) GetMaxSize() int64 {
 	return spec.MaxSize

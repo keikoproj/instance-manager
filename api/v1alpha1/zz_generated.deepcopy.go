@@ -83,6 +83,11 @@ func (in *EKSConfiguration) DeepCopyInto(out *EKSConfiguration) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.SuspendedProcesses != nil {
+		in, out := &in.SuspendedProcesses, &out.SuspendedProcesses
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.Tags != nil {
 		in, out := &in.Tags, &out.Tags
 		*out = make([]map[string]string, len(*in))

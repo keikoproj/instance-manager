@@ -102,6 +102,9 @@ func MockInstanceGroup() *v1alpha1.InstanceGroup {
 				MinSize: 1,
 				EKSConfiguration: &v1alpha1.EKSConfiguration{
 					EksClusterName: "my-cluster",
+					SuspendedProcesses: []string{
+						"AZRebalance",
+					},
 				},
 			},
 			AwsUpgradeStrategy: v1alpha1.AwsUpgradeStrategy{
@@ -294,6 +297,7 @@ type MockAutoScalingClient struct {
 	TerminateInstanceInAutoScalingGroupErr error
 	EnableMetricsCollectionErr             error
 	DisableMetricsCollectionErr            error
+	UpdateSuspendProcessesErr              error
 	DeleteLaunchConfigurationCallCount     int
 	LaunchConfiguration                    *autoscaling.LaunchConfiguration
 	LaunchConfigurations                   []*autoscaling.LaunchConfiguration
@@ -366,6 +370,14 @@ func (a *MockAutoScalingClient) DescribeLaunchConfigurationsPages(input *autosca
 
 func (a *MockAutoScalingClient) UpdateAutoScalingGroup(input *autoscaling.UpdateAutoScalingGroupInput) (*autoscaling.UpdateAutoScalingGroupOutput, error) {
 	return &autoscaling.UpdateAutoScalingGroupOutput{}, a.UpdateAutoScalingGroupErr
+}
+
+func (a *MockAutoScalingClient) SuspendProcesses(input *autoscaling.ScalingProcessQuery) (*autoscaling.SuspendProcessesOutput, error) {
+	return &autoscaling.SuspendProcessesOutput{}, a.UpdateSuspendProcessesErr
+}
+
+func (a *MockAutoScalingClient) ResumeProcesses(input *autoscaling.ScalingProcessQuery) (*autoscaling.ResumeProcessesOutput, error) {
+	return &autoscaling.ResumeProcessesOutput{}, a.UpdateSuspendProcessesErr
 }
 
 type MockEksClient struct {

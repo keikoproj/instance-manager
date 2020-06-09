@@ -66,17 +66,15 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 
 	launchID := common.GetLastElementBy(lcName, "-")
 	NormalizeName(customResource, launchID)
+	crdFullName := strings.Join([]string{GVR.Resource, GVR.Group}, ".")
+	if !CRDExists(kube, crdFullName) {
+		return false, errors.Errorf("custom resource definition '%v' is missing, could not upgrade", crdFullName)
+	}
 	status.SetStrategyResourceName(customResource.GetName())
 
 	activeResources, err := GetActiveResources(kube, instanceGroup, customResource)
 	if err != nil {
 		return false, errors.Wrap(err, "failed to discover active custom resources")
-	}
-
-	crdFullName := strings.Join([]string{GVR.Resource, GVR.Group}, ".")
-
-	if !CRDExists(kube, crdFullName) {
-		return false, errors.Errorf("custom resource definition '%v' is missing, could not upgrade", crdFullName)
 	}
 
 	if len(activeResources) > 0 && strings.EqualFold(strategy.GetConcurrencyPolicy(), v1alpha1.ForbidConcurrencyPolicy) {
