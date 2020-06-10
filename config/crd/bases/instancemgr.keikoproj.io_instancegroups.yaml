@@ -110,6 +110,10 @@ spec:
                       items:
                         type: string
                       type: array
+                    suspendProcesses:
+                      items:
+                        type: string
+                      type: array
                     tags:
                       items:
                         additionalProperties:

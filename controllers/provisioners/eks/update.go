@@ -116,6 +116,10 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 		ctx.Log.Info("updated scaling group tags", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 	}
 
+	if err := ctx.UpdateScalingProcesses(asgName); err != nil {
+		return err
+	}
+
 	if err := ctx.UpdateMetricsCollection(asgName); err != nil {
 		return err
 	}
