@@ -35,7 +35,7 @@ import (
 
 type EksFargateUnitTest struct {
 	Description                           string
-	Provisioner                           *InstanceGroupContext
+	Provisioner                           *FargateInstanceGroupContext
 	InstanceGroup                         *v1alpha1.InstanceGroup
 	ProfileBasic                          *eks.FargateProfile
 	ProfileFromDescribe                   *eks.FargateProfile
@@ -243,7 +243,7 @@ func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 
 	return instanceGroup
 }
-func (u *EksFargateUnitTest) BuildProvisioner(t *testing.T) *InstanceGroupContext {
+func (u *EksFargateUnitTest) BuildProvisioner(t *testing.T) *FargateInstanceGroupContext {
 	aws := &awsprovider.AwsWorker{
 		EksClient: &stubEKS{
 			ProfileBasic:            u.ProfileBasic,
@@ -497,16 +497,23 @@ func TestCreateFargateTags(t *testing.T) {
 		t.Fatalf("TestCreateFargateTags: output is %v", output)
 	}
 }
-func TestCreateFargateSubnets(t *testing.T) {
-	subnets := []string{"subnet1", "subnet2", "subnet3"}
-	output := CreateFargateSubnets(subnets)
-	if len(output) != 3 {
-		t.Fatalf("TestCreateFargateTags: output length is %v", len(output))
+func TestCreateFargateSelectors(t *testing.T) {
+	input := []v1alpha1.EKSFargateSelectors{
+		{
+			Namespace: "default",
+			Labels:    map[string]string{"foo": "bar"},
+		},
 	}
-	for i, _ := range output {
-		if *output[i] != subnets[i] {
-			t.Fatalf("TestCreateFargateTags: bad subnet. Got %v", *output[i])
-		}
+	output := CreateFargateSelectors(input)
+	if len(output) != 1 {
+		t.Fatalf("TestCreateFargateSelectors: length is %v", len(output))
+	}
+	if *output[0].Namespace != "default" || len(output[0].Labels) != 1 {
+		t.Fatalf("TestCreateFargateSelectors: label length is %v", len(output[0].Labels))
+
+	}
+	if *output[0].Labels["foo"] != "bar" {
+		t.Fatalf("TestCreateFargateSelectors: bad label value: %v", output[0].Labels["foo"])
 	}
 }
 func TestCloudDiscoveryFailureGettingProfile(t *testing.T) {

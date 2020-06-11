@@ -57,8 +57,8 @@ func becauseErrorContains(err error, code string) bool {
 	return false
 }
 
-func New(p provisioners.ProvisionerInput) *InstanceGroupContext {
-	ctx := &InstanceGroupContext{
+func New(p provisioners.ProvisionerInput) *FargateInstanceGroupContext {
+	ctx := &FargateInstanceGroupContext{
 		InstanceGroup: p.InstanceGroup,
 		AwsWorker:     p.AwsWorker,
 		Log:           p.Log.WithName("eks-fargate"),
@@ -72,7 +72,7 @@ func New(p provisioners.ProvisionerInput) *InstanceGroupContext {
 	return ctx
 }
 
-func (ctx *InstanceGroupContext) processParameters() {
+func (ctx *FargateInstanceGroupContext) processParameters() {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
 		spec          = instanceGroup.GetEKSFargateSpec()
@@ -82,30 +82,9 @@ func (ctx *InstanceGroupContext) processParameters() {
 	params["ClusterName"] = spec.GetClusterName()
 	params["ProfileName"] = spec.GetProfileName()
 	params["Selectors"] = CreateFargateSelectors(spec.GetSelectors())
-	params["Subnets"] = CreateFargateSubnets(spec.GetSubnets())
+	params["Subnets"] = spec.GetSubnets()
 	params["Tags"] = CreateFargateTags(spec.GetTags())
 	ctx.AwsWorker.Parameters = params
-}
-
-func CreateFargateSubnets(subnets []string) []*string {
-	stringReferences := []*string{}
-	for _, s := range subnets {
-		temp := new(string)
-		*temp = s
-		stringReferences = append(stringReferences, temp)
-	}
-	return stringReferences
-}
-func CreateFargateTags(tagArray []map[string]string) map[string]*string {
-	tags := make(map[string]*string)
-	for _, t := range tagArray {
-		for k, v := range t {
-			va := new(string)
-			*va = v
-			tags[k] = va
-		}
-	}
-	return tags
 }
 
 func CreateFargateSelectors(selectors []v1alpha1.EKSFargateSelectors) []*eks.FargateProfileSelector {
@@ -117,9 +96,23 @@ func CreateFargateSelectors(selectors []v1alpha1.EKSFargateSelectors) []*eks.Far
 			*vv = v
 			m[k] = vv
 		}
-		eksSelectors = append(eksSelectors, &eks.FargateProfileSelector{Namespace: &selector.Namespace, Labels: m})
+		eksSelectors = append(eksSelectors,
+			&eks.FargateProfileSelector{
+				Namespace: &selector.Namespace,
+				Labels:    m})
 	}
 	return eksSelectors
+}
+func CreateFargateTags(tagArray []map[string]string) map[string]*string {
+	tags := make(map[string]*string)
+	for _, t := range tagArray {
+		for k, v := range t {
+			vv := new(string)
+			*vv = v
+			tags[k] = vv
+		}
+	}
+	return tags
 }
 func IsRetryable(instanceGroup *v1alpha1.InstanceGroup) bool {
 	for _, state := range NonRetryableStates {
@@ -129,7 +122,7 @@ func IsRetryable(instanceGroup *v1alpha1.InstanceGroup) bool {
 	}
 	return true
 }
-func (ctx *InstanceGroupContext) Create() error {
+func (ctx *FargateInstanceGroupContext) Create() error {
 	var arn string
 	instanceGroup := ctx.GetInstanceGroup()
 	spec := instanceGroup.GetEKSFargateSpec()
@@ -212,7 +205,7 @@ func (ctx *InstanceGroupContext) Create() error {
 
 	return nil
 }
-func (ctx *InstanceGroupContext) CloudDiscovery() error {
+func (ctx *FargateInstanceGroupContext) CloudDiscovery() error {
 	profile, err := ctx.AwsWorker.DescribeFargateProfile()
 	if err != nil {
 		profile = &eks.FargateProfile{
@@ -226,7 +219,7 @@ func (ctx *InstanceGroupContext) CloudDiscovery() error {
 	}
 	return nil
 }
-func (ctx *InstanceGroupContext) Delete() error {
+func (ctx *FargateInstanceGroupContext) Delete() error {
 	instanceGroup := ctx.GetInstanceGroup()
 	spec := instanceGroup.GetEKSFargateSpec()
 
@@ -303,7 +296,7 @@ func (ctx *InstanceGroupContext) Delete() error {
 	return nil
 }
 
-func (ctx *InstanceGroupContext) Update() error {
+func (ctx *FargateInstanceGroupContext) Update() error {
 	instanceGroup := ctx.GetInstanceGroup()
 	annos := instanceGroup.GetObjectMeta().GetAnnotations()
 	// If there is a last-applied-configuration then assume
@@ -314,20 +307,20 @@ func (ctx *InstanceGroupContext) Update() error {
 	instanceGroup.SetState(v1alpha1.ReconcileModified)
 	return nil
 }
-func (ctx *InstanceGroupContext) UpgradeNodes() error {
+func (ctx *FargateInstanceGroupContext) UpgradeNodes() error {
 	return nil
 }
-func (ctx *InstanceGroupContext) BootstrapNodes() error {
+func (ctx *FargateInstanceGroupContext) BootstrapNodes() error {
 	return nil
 }
-func (ctx *InstanceGroupContext) IsReady() bool {
+func (ctx *FargateInstanceGroupContext) IsReady() bool {
 	instanceGroup := ctx.GetInstanceGroup()
 	if instanceGroup.GetState() == v1alpha1.ReconcileModified || instanceGroup.GetState() == v1alpha1.ReconcileDeleted {
 		return true
 	}
 	return false
 }
-func (ctx *InstanceGroupContext) StateDiscovery() {
+func (ctx *FargateInstanceGroupContext) StateDiscovery() {
 	instanceGroup := ctx.GetInstanceGroup()
 	if instanceGroup.GetState() == v1alpha1.ReconcileInit {
 
@@ -365,9 +358,9 @@ func (ctx *InstanceGroupContext) StateDiscovery() {
 	}
 }
 
-func (ctx *InstanceGroupContext) SetState(state v1alpha1.ReconcileState) {
+func (ctx *FargateInstanceGroupContext) SetState(state v1alpha1.ReconcileState) {
 	ctx.GetInstanceGroup().SetState(state)
 }
-func (ctx *InstanceGroupContext) GetState() v1alpha1.ReconcileState {
+func (ctx *FargateInstanceGroupContext) GetState() v1alpha1.ReconcileState {
 	return ctx.GetInstanceGroup().GetState()
 }

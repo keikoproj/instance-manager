@@ -33,17 +33,17 @@ func (ds *DiscoveredState) IsProvisioned() bool {
 	return ds.GetProfileStatus() != aws.StringValue(nil)
 }
 
-type InstanceGroupContext struct {
+type FargateInstanceGroupContext struct {
 	InstanceGroup   *v1alpha1.InstanceGroup
 	AwsWorker       awsprovider.AwsWorker
 	DiscoveredState DiscoveredState
 	Log             logr.Logger
 }
 
-func (ctx *InstanceGroupContext) GetDiscoveredState() *DiscoveredState {
+func (ctx *FargateInstanceGroupContext) GetDiscoveredState() *DiscoveredState {
 	return &ctx.DiscoveredState
 }
-func (ctx *InstanceGroupContext) GetInstanceGroup() *v1alpha1.InstanceGroup {
+func (ctx *FargateInstanceGroupContext) GetInstanceGroup() *v1alpha1.InstanceGroup {
 	if ctx != nil {
 		return ctx.InstanceGroup
 	}

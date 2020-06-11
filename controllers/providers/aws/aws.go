@@ -896,13 +896,22 @@ func (w *AwsWorker) AttachDefaultPolicyToDefaultRole() error {
 }
 
 func (w *AwsWorker) CreateFargateProfile(arn string) error {
+	tags := w.Parameters["Tags"].(map[string]*string)
+	if len(tags) == 0 {
+		tags = nil
+	}
+	selectors := w.Parameters["Selectors"].([]*eks.FargateProfileSelector)
+	if len(selectors) == 0 {
+		selectors = nil
+	}
+
 	fargateInput := &eks.CreateFargateProfileInput{
 		ClusterName:         aws.String(w.Parameters["ClusterName"].(string)),
 		FargateProfileName:  aws.String(w.Parameters["ProfileName"].(string)),
 		PodExecutionRoleArn: aws.String(arn),
-		Selectors:           w.Parameters["Selectors"].([]*eks.FargateProfileSelector),
-		Subnets:             w.Parameters["Subnets"].([]*string),
-		Tags:                w.Parameters["Tags"].(map[string]*string),
+		Selectors:           selectors,
+		Subnets:             aws.StringSlice(w.Parameters["Subnets"].([]string)),
+		Tags:                tags,
 	}
 
 	_, err := w.EksClient.CreateFargateProfile(fargateInput)

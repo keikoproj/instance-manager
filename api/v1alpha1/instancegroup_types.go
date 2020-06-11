@@ -181,9 +181,9 @@ type EKSFargateSpec struct {
 	ProfileName         string                `json:"fargateProfileName"`
 	ClusterName         string                `json:"clusterName"`
 	PodExecutionRoleArn string                `json:"podExecutionRoleArn,omitempty"`
-	Subnets             []string              `json:"subnets"`
+	Subnets             []string              `json:"subnets,omitempty"`
 	Selectors           []EKSFargateSelectors `json:"selectors"`
-	Tags                []map[string]string   `json:"tags"`
+	Tags                []map[string]string   `json:"tags,omitempty"`
 }
 
 type EKSManagedConfiguration struct {
@@ -203,7 +203,7 @@ type EKSManagedConfiguration struct {
 
 type EKSFargateSelectors struct {
 	Namespace string            `json:"namespace"`
-	Labels    map[string]string `json:"labels"`
+	Labels    map[string]string `json:"labels,omitempty"`
 }
 
 // InstanceGroupStatus defines the schema of resource Status

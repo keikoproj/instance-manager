@@ -4,7 +4,7 @@ apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.2.9
+    controller-gen.kubebuilder.io/version: v0.2.4
   creationTimestamp: null
   name: instancegroups.instancemgr.keikoproj.io
 spec:
@@ -196,7 +196,6 @@ spec:
                       namespace:
                         type: string
                     required:
-                    - labels
                     - namespace
                     type: object
                   type: array
@@ -214,8 +213,6 @@ spec:
               - clusterName
               - fargateProfileName
               - selectors
-              - subnets
-              - tags
               type: object
             eks-managed:
               properties:

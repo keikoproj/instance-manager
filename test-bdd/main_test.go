@@ -121,7 +121,7 @@ func FeatureContext(s *godog.Suite) {
 	s.Step(`^the resource condition ([^"]*) should be (true|false)$`, t.theResourceConditionShouldBe)
 	s.Step(`^I (create|delete) a resource ([^"]*)$`, t.iOperateOnResource)
 	s.Step(`^I update a resource ([^"]*) with ([^"]*) set to ([^"]*)$`, t.iUpdateResourceWithField)
-	s.Step(`^the fargate profile should be (found|not found)$`, t.theProfileShouldBeFound)
+	s.Step(`^the fargate profile should be (found|not found)$`, t.theFargateProfileShouldBeFound)
 
 }
 
@@ -371,7 +371,7 @@ func (t *FunctionalTest) nodesShouldBeWithLabel(count int, state, key, value str
 	return t.waitForNodeCountState(count, state, selector)
 }
 
-func (t *FunctionalTest) theProfileShouldBeFound(state string) error {
+func (t *FunctionalTest) theFargateProfileShouldBeFound(state string) error {
 	const profileName = "test-bdd-profile-name"
 	var (
 		counter int
