@@ -839,28 +839,26 @@ func IsProfileInConditionState(key string, condition string) bool {
 const defaultPolicyArn = "arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy"
 
 func (w *AwsWorker) DetachDefaultPolicyFromDefaultRole() error {
+	var roleName = w.Parameters["DefaultRoleName"].(string)
 	rolePolicy := &iam.DetachRolePolicyInput{
 		PolicyArn: aws.String(defaultPolicyArn),
-		RoleName:  aws.String(w.FargateRoleName()),
+		RoleName:  aws.String(roleName),
 	}
 	_, err := w.IamClient.DetachRolePolicy(rolePolicy)
 	return err
 }
 
 func (w *AwsWorker) DeleteDefaultFargateRole() error {
+	var roleName = w.Parameters["DefaultRoleName"].(string)
 	role := &iam.DeleteRoleInput{
-		RoleName: aws.String(w.FargateRoleName()),
+		RoleName: aws.String(roleName),
 	}
 	_, err := w.IamClient.DeleteRole(role)
 	return err
 }
-func (w *AwsWorker) FargateRoleName() string {
-	s := fmt.Sprintf("%v_Role", w.Parameters["ProfileName"].(string))
-	return s
-}
 
 func (w *AwsWorker) GetDefaultFargateRole() (*iam.Role, error) {
-	var roleName = w.FargateRoleName()
+	var roleName = w.Parameters["DefaultRoleName"].(string)
 	return w.GetRole(roleName)
 }
 func (w *AwsWorker) GetRole(roleName string) (*iam.Role, error) {
@@ -875,7 +873,7 @@ func (w *AwsWorker) GetRole(roleName string) (*iam.Role, error) {
 	return resp.Role, nil
 }
 func (w *AwsWorker) CreateDefaultFargateRole() error {
-	var roleName = w.FargateRoleName()
+	var roleName = w.Parameters["DefaultRoleName"].(string)
 	var template = `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"eks-fargate-pods.amazonaws.com"},"Action":"sts:AssumeRole"}]}`
 	role := &iam.CreateRoleInput{
 		AssumeRolePolicyDocument: &template,
@@ -887,9 +885,10 @@ func (w *AwsWorker) CreateDefaultFargateRole() error {
 }
 
 func (w *AwsWorker) AttachDefaultPolicyToDefaultRole() error {
+	var roleName = w.Parameters["DefaultRoleName"].(string)
 	rolePolicy := &iam.AttachRolePolicyInput{
 		PolicyArn: aws.String(defaultPolicyArn),
-		RoleName:  aws.String(w.FargateRoleName()),
+		RoleName:  aws.String(roleName),
 	}
 	_, err := w.IamClient.AttachRolePolicy(rolePolicy)
 	return err

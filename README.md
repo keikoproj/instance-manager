@@ -341,7 +341,7 @@ AWS's Fargate Profiles are immutable.  Once one is created, it cannot be directl
 
 The **eks-fargate** provisioner is built on top of that immutability.  Therefore, if an attempt is made to modify an existing profile, the provisioner will return an error.  You first have to `delete` the profile and follow that with a `create`.
 
-##### Bring your own role
+#### Bring your own role
 
 You can choose to provide an IAM role that is managed externally to instance-manager by providing the name of the instance profile and the role name.
 

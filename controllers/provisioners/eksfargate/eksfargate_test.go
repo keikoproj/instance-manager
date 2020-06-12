@@ -934,8 +934,8 @@ func TestCreateProfileName(t *testing.T) {
 		InstanceGroup: instanceGroup,
 	}
 	ctx := testCase.BuildProvisioner(t)
-	profileName := ctx.createFargateProfileName()
-	if profileName != "TestNameCluster-namespace-1-instancegroup-1" {
+	profileName := ctx.generateUniqueName()
+	if profileName != "TestNameCluster-13281223259712081633" {
 		t.Fatalf("TestCreateProfileName: profile name is %v.", profileName)
 	}
 }

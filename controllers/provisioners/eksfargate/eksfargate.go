@@ -25,6 +25,8 @@ import (
 	v1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
+	"hash/fnv"
+	"strconv"
 )
 
 const ProvisionerName = "eks-fargate"
@@ -49,6 +51,13 @@ const (
 	UnrecoverableDeleteErrorString = "UnrecoverableDeleteError"
 )
 
+func hash(s string) string {
+	h := fnv.New64a()
+	h.Write([]byte(s))
+	i := h.Sum64()
+	return strconv.FormatUint(i, 10)
+}
+
 func becauseErrorContains(err error, code string) bool {
 	if aerr, ok := err.(awserr.Error); ok {
 		if aerr.Code() == code {
@@ -72,10 +81,12 @@ func New(p provisioners.ProvisionerInput) *FargateInstanceGroupContext {
 
 	return ctx
 }
-func (ctx *FargateInstanceGroupContext) createFargateProfileName() string {
+func (ctx *FargateInstanceGroupContext) generateUniqueName() string {
 	instanceGroup := ctx.GetInstanceGroup()
 	spec := instanceGroup.GetEKSFargateSpec()
-	return fmt.Sprintf("%v-%v-%v", spec.GetClusterName(), instanceGroup.GetNamespace(), instanceGroup.GetName())
+	name := fmt.Sprintf("%v-%v-%v", spec.GetClusterName(), instanceGroup.GetNamespace(), instanceGroup.GetName())
+	return fmt.Sprintf("%v-%v", spec.GetClusterName(), hash(name))
+
 }
 
 func (ctx *FargateInstanceGroupContext) processParameters() {
@@ -86,10 +97,11 @@ func (ctx *FargateInstanceGroupContext) processParameters() {
 	)
 
 	params["ClusterName"] = spec.GetClusterName()
-	params["ProfileName"] = ctx.createFargateProfileName()
+	params["ProfileName"] = ctx.generateUniqueName()
 	params["Selectors"] = CreateFargateSelectors(spec.GetSelectors())
 	params["Subnets"] = spec.GetSubnets()
 	params["Tags"] = CreateFargateTags(spec.GetTags())
+	params["DefaultRoleName"] = fmt.Sprintf("%v-role", ctx.generateUniqueName())
 	ctx.AwsWorker.Parameters = params
 }
 
@@ -184,7 +196,7 @@ func (ctx *FargateInstanceGroupContext) Create() error {
 				"cluster",
 				spec.GetClusterName(),
 				"profile",
-				ctx.createFargateProfileName(),
+				ctx.generateUniqueName(),
 				"error", err)
 			return nil
 		}
@@ -195,7 +207,7 @@ func (ctx *FargateInstanceGroupContext) Create() error {
 			"cluster",
 			spec.GetClusterName(),
 			"profile",
-			ctx.createFargateProfileName())
+			ctx.generateUniqueName())
 		return err
 	}
 
@@ -205,7 +217,7 @@ func (ctx *FargateInstanceGroupContext) Create() error {
 		"cluster",
 		spec.GetClusterName(),
 		"profile",
-		ctx.createFargateProfileName())
+		ctx.generateUniqueName())
 
 	instanceGroup.SetState(v1alpha1.ReconcileModifying)
 
@@ -274,7 +286,7 @@ func (ctx *FargateInstanceGroupContext) Delete() error {
 				"cluster",
 				spec.GetClusterName(),
 				"profile",
-				ctx.createFargateProfileName(),
+				ctx.generateUniqueName(),
 				"error", err)
 			return nil
 		}
@@ -285,7 +297,7 @@ func (ctx *FargateInstanceGroupContext) Delete() error {
 			"cluster",
 			spec.GetClusterName(),
 			"profile",
-			ctx.createFargateProfileName())
+			ctx.generateUniqueName())
 		return err
 	}
 
@@ -295,7 +307,7 @@ func (ctx *FargateInstanceGroupContext) Delete() error {
 		"cluster",
 		spec.GetClusterName(),
 		"profile",
-		ctx.createFargateProfileName())
+		ctx.generateUniqueName())
 
 	instanceGroup.SetState(v1alpha1.ReconcileDeleting)
 
