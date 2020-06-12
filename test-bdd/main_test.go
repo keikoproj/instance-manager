@@ -383,7 +383,7 @@ func (t *FunctionalTest) theFargateProfileShouldBeFound(state string) error {
 			return errors.New("waiter timed out waiting for fargate profile state")
 		}
 		log.Infof("BDD >> waiting for resource %v/%v to become %v", t.ResourceNamespace, t.ResourceName, state)
-		resource, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Get(t.ResourceName, metav1.GetOptions{})
+		_, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Get(t.ResourceName, metav1.GetOptions{})
 
 		if err != nil {
 			if !kerrors.IsNotFound(err) {
@@ -395,14 +395,8 @@ func (t *FunctionalTest) theFargateProfileShouldBeFound(state string) error {
 		switch state {
 		case FargateProfileFound:
 			if exists {
-				r := resource.UnstructuredContent()
-				spec := r["spec"].(map[string]interface{})
-				prov := spec["eks-fargate"].(map[string]interface{})
-				name := prov["fargateProfileName"]
-				if name == profileName {
-					log.Infof("BDD >> success - resource %v/%v found", t.ResourceNamespace, t.ResourceName)
-					return nil
-				}
+				log.Infof("BDD >> success - resource %v/%v found", t.ResourceNamespace, t.ResourceName)
+				return nil
 			}
 		case FargateProfileNotFound:
 			if !exists {

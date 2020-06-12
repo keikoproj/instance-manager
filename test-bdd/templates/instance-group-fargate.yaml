@@ -8,7 +8,6 @@ spec:
   strategy:
       type: managed
   eks-fargate:
-      fargateProfileName: "test-bdd-profile-name"
       clusterName: {{ .ClusterName }}
       podExecutionRoleArn: ""
       subnets: {{range $element := .Subnets}}

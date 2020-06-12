@@ -17,6 +17,7 @@ package eksfargate
 
 import (
 	"errors"
+	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/eks"
@@ -71,6 +72,11 @@ func New(p provisioners.ProvisionerInput) *FargateInstanceGroupContext {
 
 	return ctx
 }
+func (ctx *FargateInstanceGroupContext) createFargateProfileName() string {
+	instanceGroup := ctx.GetInstanceGroup()
+	spec := instanceGroup.GetEKSFargateSpec()
+	return fmt.Sprintf("%v-%v-%v", spec.GetClusterName(), instanceGroup.GetNamespace(), instanceGroup.GetName())
+}
 
 func (ctx *FargateInstanceGroupContext) processParameters() {
 	var (
@@ -80,7 +86,7 @@ func (ctx *FargateInstanceGroupContext) processParameters() {
 	)
 
 	params["ClusterName"] = spec.GetClusterName()
-	params["ProfileName"] = spec.GetProfileName()
+	params["ProfileName"] = ctx.createFargateProfileName()
 	params["Selectors"] = CreateFargateSelectors(spec.GetSelectors())
 	params["Subnets"] = spec.GetSubnets()
 	params["Tags"] = CreateFargateTags(spec.GetTags())
@@ -178,7 +184,7 @@ func (ctx *FargateInstanceGroupContext) Create() error {
 				"cluster",
 				spec.GetClusterName(),
 				"profile",
-				spec.GetProfileName(),
+				ctx.createFargateProfileName(),
 				"error", err)
 			return nil
 		}
@@ -189,7 +195,7 @@ func (ctx *FargateInstanceGroupContext) Create() error {
 			"cluster",
 			spec.GetClusterName(),
 			"profile",
-			spec.GetProfileName())
+			ctx.createFargateProfileName())
 		return err
 	}
 
@@ -199,7 +205,7 @@ func (ctx *FargateInstanceGroupContext) Create() error {
 		"cluster",
 		spec.GetClusterName(),
 		"profile",
-		spec.GetProfileName())
+		ctx.createFargateProfileName())
 
 	instanceGroup.SetState(v1alpha1.ReconcileModifying)
 
@@ -268,7 +274,7 @@ func (ctx *FargateInstanceGroupContext) Delete() error {
 				"cluster",
 				spec.GetClusterName(),
 				"profile",
-				spec.GetProfileName(),
+				ctx.createFargateProfileName(),
 				"error", err)
 			return nil
 		}
@@ -279,7 +285,7 @@ func (ctx *FargateInstanceGroupContext) Delete() error {
 			"cluster",
 			spec.GetClusterName(),
 			"profile",
-			spec.GetProfileName())
+			ctx.createFargateProfileName())
 		return err
 	}
 
@@ -289,7 +295,7 @@ func (ctx *FargateInstanceGroupContext) Delete() error {
 		"cluster",
 		spec.GetClusterName(),
 		"profile",
-		spec.GetProfileName())
+		ctx.createFargateProfileName())
 
 	instanceGroup.SetState(v1alpha1.ReconcileDeleting)
 

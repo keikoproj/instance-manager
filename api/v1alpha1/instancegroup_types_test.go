@@ -88,7 +88,6 @@ func buildEKSFargateInstanceGroupSpec(provisioner, strategy string) InstanceGrou
 		},
 		EKSFargateSpec: &EKSFargateSpec{
 			ClusterName:         "",
-			ProfileName:         "",
 			PodExecutionRoleArn: "",
 			Subnets:             []string{"subnet-1111111", "subnet-222222"},
 			Tags: []map[string]string{

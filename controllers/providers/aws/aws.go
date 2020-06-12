@@ -855,7 +855,7 @@ func (w *AwsWorker) DeleteDefaultFargateRole() error {
 	return err
 }
 func (w *AwsWorker) FargateRoleName() string {
-	s := fmt.Sprintf("%v_%v_Role", w.Parameters["ClusterName"].(string), w.Parameters["ProfileName"].(string))
+	s := fmt.Sprintf("%v_Role", w.Parameters["ProfileName"].(string))
 	return s
 }
 

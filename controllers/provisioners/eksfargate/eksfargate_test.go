@@ -225,7 +225,6 @@ func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 			Provisioner: "eks-fargate",
 			EKSFargateSpec: &v1alpha1.EKSFargateSpec{
 				ClusterName:         "",
-				ProfileName:         "",
 				PodExecutionRoleArn: "",
 				Subnets:             []string{"subnet-1111111", "subnet-222222"},
 				Tags: []map[string]string{
@@ -546,8 +545,7 @@ func TestCloudDiscoverySuccessGettingProfile(t *testing.T) {
 func TestCreateWithSuppliedArnSuccessProfileCreation(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName("TestNameCluster")
 	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn("a:b:c:d:e:f")
 	testCase := EksFargateUnitTest{
 		InstanceGroup: instanceGroup,
@@ -561,8 +559,7 @@ func TestCreateWithSuppliedArnSuccessProfileCreation(t *testing.T) {
 func TestCreateWithoutArnCreateRoleFail(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName("TestNameCluster")
 	testCase := EksFargateUnitTest{
 		InstanceGroup:      instanceGroup,
 		MakeCreateRoleFail: true,
@@ -579,8 +576,7 @@ func TestCreateWithoutArnCreateRoleFail(t *testing.T) {
 func TestCreateWithoutArnCreateRoleFindsDup(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName("TestNameCluster")
 	testCase := EksFargateUnitTest{
 		InstanceGroup:      instanceGroup,
 		CreateRoleDupFound: true,
@@ -594,8 +590,7 @@ func TestCreateWithoutArnCreateRoleFindsDup(t *testing.T) {
 func TestCreateWithoutArnAttachRolePolicyFails(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName("TestNameCluster")
 	testCase := EksFargateUnitTest{
 		InstanceGroup:            instanceGroup,
 		CreateRoleDupFound:       true,
@@ -613,8 +608,7 @@ func TestCreateWithoutArnAttachRolePolicyFails(t *testing.T) {
 func TestCreateWithoutArnGetRoleFailed(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName("TestNameCluster")
 	testCase := EksFargateUnitTest{
 		InstanceGroup:      instanceGroup,
 		CreateRoleDupFound: true,
@@ -632,8 +626,7 @@ func TestCreateWithoutArnGetRoleFailed(t *testing.T) {
 func TestCreateWithoutArnCreateProfileSucceeds(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName("TestNameCluster")
 	testCase := EksFargateUnitTest{
 		InstanceGroup:      instanceGroup,
 		CreateRoleDupFound: true,
@@ -650,8 +643,7 @@ func TestCreateWithoutArnCreateProfileSucceeds(t *testing.T) {
 func TestCreateWithoutArnCreateProfileFails(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName("TestNameCluster")
 	testCase := EksFargateUnitTest{
 		InstanceGroup:         instanceGroup,
 		CreateRoleDupFound:    true,
@@ -672,8 +664,7 @@ func TestCreateWithoutArnCreateProfileFails(t *testing.T) {
 func TestCreateProfileWithRetry(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName("TestNameCluster")
 	testCase := EksFargateUnitTest{
 		InstanceGroup:          instanceGroup,
 		CreateRoleDupFound:     true,
@@ -716,8 +707,7 @@ func TestUpdate1(t *testing.T) {
 func TestDeleteWithArnDeleteProfileSuccess(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName("TestNameCluster")
 	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn("a:b:c:d:e:f")
 	testCase := EksFargateUnitTest{
 		InstanceGroup: instanceGroup,
@@ -734,8 +724,7 @@ func TestDeleteWithArnDeleteProfileSuccess(t *testing.T) {
 func TestDeleteWithArnDeleteProfileFail(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName("TestNameCluster")
 	instanceGroup.Spec.EKSFargateSpec.SetPodExecutionRoleArn("a:b:c:d:e:f")
 	testCase := EksFargateUnitTest{
 		InstanceGroup:         instanceGroup,
@@ -757,8 +746,7 @@ func TestDeleteWithArnDeleteProfileFail(t *testing.T) {
 func TestDeleteWithoutArnDetachPolicyFromRoleCreated(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName("TestNameCluster")
 	testCase := EksFargateUnitTest{
 		InstanceGroup:                         instanceGroup,
 		DetachRolePolicyNoSuchEntityException: true,
@@ -775,8 +763,7 @@ func TestDeleteWithoutArnDetachPolicyFromRoleCreated(t *testing.T) {
 func TestDeleteWithoutArnDetachPolicyFromRoleFailed(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName("TestNameCluster")
 	testCase := EksFargateUnitTest{
 		InstanceGroup:                         instanceGroup,
 		DetachRolePolicyFail:                  true,
@@ -797,8 +784,7 @@ func TestDeleteWithoutArnDetachPolicyFromRoleFailed(t *testing.T) {
 func TestDeleteWithoutArnDeleteRoleFailed(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName("TestNameCluster")
 	testCase := EksFargateUnitTest{
 		InstanceGroup:                         instanceGroup,
 		DetachRolePolicyFail:                  true,
@@ -821,8 +807,7 @@ func TestDeleteWithoutArnDeleteRoleFailed(t *testing.T) {
 func TestDeleteWithoutArnDeleteRoleCreated(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName("TestNameCluster")
 	testCase := EksFargateUnitTest{
 		InstanceGroup:                         instanceGroup,
 		DetachRolePolicyNoSuchEntityException: false,
@@ -840,8 +825,7 @@ func TestDeleteWithoutArnDeleteRoleCreated(t *testing.T) {
 func TestDeleteWithoutArnDeleteProfileFailed(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName("TestNameCluster")
 	testCase := EksFargateUnitTest{
 		InstanceGroup:                         instanceGroup,
 		DetachRolePolicyFail:                  true,
@@ -865,8 +849,7 @@ func TestDeleteWithoutArnDeleteProfileFailed(t *testing.T) {
 func TestDeleteWithoutArnDeleteProfileSuccess(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName("TestNameCluster")
 	testCase := EksFargateUnitTest{
 		InstanceGroup:                         instanceGroup,
 		DetachRolePolicyFail:                  true,
@@ -887,8 +870,7 @@ func TestDeleteWithoutArnDeleteProfileSuccess(t *testing.T) {
 func TestDeleteWithRetry(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.Spec.EKSFargateSpec.SetClusterName("DinahCluster")
-	instanceGroup.Spec.EKSFargateSpec.SetProfileName("DinahProfile")
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName("TestNameCluster")
 	testCase := EksFargateUnitTest{
 		InstanceGroup:                         instanceGroup,
 		DetachRolePolicyFail:                  true,
@@ -943,4 +925,17 @@ func TestIsRetryableTrue(t *testing.T) {
 		t.Fatal("TestIsRetryableTrue: expected true.")
 	}
 
+}
+func TestCreateProfileName(t *testing.T) {
+	ig := FakeIG{}
+	instanceGroup := ig.getInstanceGroup()
+	instanceGroup.Spec.EKSFargateSpec.SetClusterName("TestNameCluster")
+	testCase := EksFargateUnitTest{
+		InstanceGroup: instanceGroup,
+	}
+	ctx := testCase.BuildProvisioner(t)
+	profileName := ctx.createFargateProfileName()
+	if profileName != "TestNameCluster-namespace-1-instancegroup-1" {
+		t.Fatalf("TestCreateProfileName: profile name is %v.", profileName)
+	}
 }

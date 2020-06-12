@@ -178,7 +178,6 @@ type NodeVolume struct {
 	Size int64  `json:"size,omitempty"`
 }
 type EKSFargateSpec struct {
-	ProfileName         string                `json:"fargateProfileName"`
 	ClusterName         string                `json:"clusterName"`
 	PodExecutionRoleArn string                `json:"podExecutionRoleArn,omitempty"`
 	Subnets             []string              `json:"subnets,omitempty"`
@@ -661,14 +660,6 @@ func (ig *InstanceGroup) GetEKSFargateSpec() *EKSFargateSpec {
 
 func (spec *EKSFargateSpec) Validate() error {
 	return nil
-}
-
-func (spec *EKSFargateSpec) GetProfileName() string {
-	return spec.ProfileName
-}
-
-func (spec *EKSFargateSpec) SetProfileName(name string) {
-	spec.ProfileName = name
 }
 
 func (spec *EKSFargateSpec) GetClusterName() string {

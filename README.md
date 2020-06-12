@@ -268,7 +268,6 @@ spec:
     type: managed
   # provisioner configuration
   eks-fargate:
-    fargateProfileName: "my-unique-profile-name"
     clusterName: "the-cluster-for-my-pods"
     podExecutionRoleArn: "arn:aws:iam::123456789012:role/MyPodRole"
     subnets:
@@ -291,7 +290,9 @@ spec:
 ```
 Read more about the [Fargate Profile](https://docs.aws.amazon.com/eks/latest/userguide/fargate-profile.html).
 
-If the above *podExecutionRoleArn* parameter is not specified, the provisioner will create a simple, limited role and policy that enables the pod to start but not access any AWS resources.  That role and policy is shown below. 
+Note that the eks-fargate provisioner does not accept a Fargate profile name.  Instead, the provisioner creates a unique profile name based upon the cluster name, instance group name and namespace.
+
+If the above *podExecutionRoleArn* parameter is not specified, the provisioner will create a simple, limited role and policy that enables the pod to start but not access any AWS resources.  The role's name will be prefixed by the generated Fargate profile name from above.  That role and policy are shown below. 
 
 ```yaml
 Type: 'AWS::IAM::Role'

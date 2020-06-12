@@ -182,8 +182,6 @@ spec:
               properties:
                 clusterName:
                   type: string
-                fargateProfileName:
-                  type: string
                 podExecutionRoleArn:
                   type: string
                 selectors:
@@ -211,7 +209,6 @@ spec:
                   type: array
               required:
               - clusterName
-              - fargateProfileName
               - selectors
               type: object
             eks-managed:
