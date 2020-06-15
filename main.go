@@ -65,10 +65,12 @@ func main() {
 		nodeRelabel            bool
 		controllerConfPath     string
 		maxParallel            int
+		maxAPIRetries          int
 		err                    error
 	)
 
 	flag.IntVar(&maxParallel, "max-workers", 5, "The number of maximum parallel reconciles")
+	flag.IntVar(&maxAPIRetries, "max-api-retries", 12, "The number of maximum retries for failed AWS API calls")
 	flag.Float64Var(&spotRecommendationTime, "spot-recommendation-time", 10.0, "The maximum age of spot recommendation events to consider in minutes")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&controllerConfPath, "controller-config", "/etc/config/controller.conf", "The controller config file")
@@ -109,9 +111,9 @@ func main() {
 	cacheCfg := cache.NewConfig(aws.CacheDefaultTTL, aws.CacheMaxItems, aws.CacheItemsToPrune)
 
 	awsWorker := aws.AwsWorker{
-		IamClient: aws.GetAwsIamClient(awsRegion, cacheCfg),
-		AsgClient: aws.GetAwsAsgClient(awsRegion, cacheCfg),
-		EksClient: aws.GetAwsEksClient(awsRegion, cacheCfg),
+		IamClient: aws.GetAwsIamClient(awsRegion, cacheCfg, maxAPIRetries),
+		AsgClient: aws.GetAwsAsgClient(awsRegion, cacheCfg, maxAPIRetries),
+		EksClient: aws.GetAwsEksClient(awsRegion, cacheCfg, maxAPIRetries),
 	}
 
 	kube := kubeprovider.KubernetesClientSet{
