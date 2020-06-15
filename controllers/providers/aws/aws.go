@@ -18,10 +18,6 @@ package aws
 import (
 	"encoding/base64"
 	"fmt"
-	"os"
-	"strings"
-	"time"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
@@ -36,7 +32,10 @@ import (
 	"github.com/keikoproj/aws-sdk-go-cache/cache"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/pkg/errors"
+	"os"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"strings"
+	"time"
 )
 
 var (
@@ -96,15 +95,12 @@ set -o xtrace
 }
 
 func (w *AwsWorker) RoleExist(name string) (*iam.Role, bool) {
-	var role *iam.Role
-	input := &iam.GetRoleInput{
-		RoleName: aws.String(name),
-	}
-	out, err := w.IamClient.GetRole(input)
+	out, err := w.GetRole(name)
 	if err != nil {
+		var role *iam.Role
 		return role, false
 	}
-	return out.Role, true
+	return out, true
 }
 
 func (w *AwsWorker) InstanceProfileExist(name string) (*iam.InstanceProfile, bool) {
@@ -726,6 +722,30 @@ func GetAwsEksClient(region string, cacheCfg *cache.Config) eksiface.EKSAPI {
 	return eks.New(sess, config)
 }
 
+func (w *AwsWorker) DeriveEksVpcID(clusterName string) (string, error) {
+	out, err := w.EksClient.DescribeCluster(&eks.DescribeClusterInput{Name: aws.String(clusterName)})
+	if err != nil {
+		return "", err
+	}
+	return aws.StringValue(out.Cluster.ResourcesVpcConfig.VpcId), nil
+}
+
+type CloudResourceReconcileState struct {
+	OngoingState             bool
+	FiniteState              bool
+	FiniteDeleted            bool
+	UpdateRecoverableError   bool
+	UnrecoverableError       bool
+	UnrecoverableDeleteError bool
+}
+
+var OngoingState = CloudResourceReconcileState{OngoingState: true}
+var FiniteState = CloudResourceReconcileState{FiniteState: true}
+var FiniteDeleted = CloudResourceReconcileState{FiniteDeleted: true}
+var UpdateRecoverableError = CloudResourceReconcileState{UpdateRecoverableError: true}
+var UnrecoverableError = CloudResourceReconcileState{UnrecoverableError: true}
+var UnrecoverableDeleteError = CloudResourceReconcileState{UnrecoverableDeleteError: true}
+
 // GetAwsIAMClient returns an IAM client
 func GetAwsIamClient(region string, cacheCfg *cache.Config) iamiface.IAMAPI {
 	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
@@ -785,4 +805,135 @@ func IsNodeGroupInConditionState(key string, condition string) bool {
 	default:
 		return false
 	}
+}
+
+func IsProfileInConditionState(key string, condition string) bool {
+
+	conditionStates := map[string]CloudResourceReconcileState{
+		aws.StringValue(nil):                 FiniteDeleted,
+		eks.FargateProfileStatusCreating:     OngoingState,
+		eks.FargateProfileStatusActive:       FiniteState,
+		eks.FargateProfileStatusDeleting:     OngoingState,
+		eks.FargateProfileStatusCreateFailed: UpdateRecoverableError,
+		eks.FargateProfileStatusDeleteFailed: UnrecoverableDeleteError,
+	}
+	state := conditionStates[key]
+	switch condition {
+	case "OngoingState":
+		return state.OngoingState
+	case "FiniteState":
+		return state.FiniteState
+	case "FiniteDeleted":
+		return state.FiniteDeleted
+	case "UpdateRecoverableError":
+		return state.UpdateRecoverableError
+	case "UnrecoverableError":
+		return state.UnrecoverableError
+	case "UnrecoverableDeleteError":
+		return state.UnrecoverableDeleteError
+	default:
+		return false
+	}
+}
+
+const defaultPolicyArn = "arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy"
+
+func (w *AwsWorker) DetachDefaultPolicyFromDefaultRole() error {
+	var roleName = w.Parameters["DefaultRoleName"].(string)
+	rolePolicy := &iam.DetachRolePolicyInput{
+		PolicyArn: aws.String(defaultPolicyArn),
+		RoleName:  aws.String(roleName),
+	}
+	_, err := w.IamClient.DetachRolePolicy(rolePolicy)
+	return err
+}
+
+func (w *AwsWorker) DeleteDefaultFargateRole() error {
+	var roleName = w.Parameters["DefaultRoleName"].(string)
+	role := &iam.DeleteRoleInput{
+		RoleName: aws.String(roleName),
+	}
+	_, err := w.IamClient.DeleteRole(role)
+	return err
+}
+
+func (w *AwsWorker) GetDefaultFargateRole() (*iam.Role, error) {
+	var roleName = w.Parameters["DefaultRoleName"].(string)
+	return w.GetRole(roleName)
+}
+func (w *AwsWorker) GetRole(roleName string) (*iam.Role, error) {
+	role := &iam.GetRoleInput{
+		RoleName: aws.String(roleName),
+	}
+	resp, err := w.IamClient.GetRole(role)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.Role, nil
+}
+func (w *AwsWorker) CreateDefaultFargateRole() error {
+	var roleName = w.Parameters["DefaultRoleName"].(string)
+	var template = `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"eks-fargate-pods.amazonaws.com"},"Action":"sts:AssumeRole"}]}`
+	role := &iam.CreateRoleInput{
+		AssumeRolePolicyDocument: &template,
+		Path:                     aws.String("/"),
+		RoleName:                 aws.String(roleName),
+	}
+	_, err := w.IamClient.CreateRole(role)
+	return err
+}
+
+func (w *AwsWorker) AttachDefaultPolicyToDefaultRole() error {
+	var roleName = w.Parameters["DefaultRoleName"].(string)
+	rolePolicy := &iam.AttachRolePolicyInput{
+		PolicyArn: aws.String(defaultPolicyArn),
+		RoleName:  aws.String(roleName),
+	}
+	_, err := w.IamClient.AttachRolePolicy(rolePolicy)
+	return err
+}
+
+func (w *AwsWorker) CreateFargateProfile(arn string) error {
+	tags := w.Parameters["Tags"].(map[string]*string)
+	if len(tags) == 0 {
+		tags = nil
+	}
+	selectors := w.Parameters["Selectors"].([]*eks.FargateProfileSelector)
+	if len(selectors) == 0 {
+		selectors = nil
+	}
+
+	fargateInput := &eks.CreateFargateProfileInput{
+		ClusterName:         aws.String(w.Parameters["ClusterName"].(string)),
+		FargateProfileName:  aws.String(w.Parameters["ProfileName"].(string)),
+		PodExecutionRoleArn: aws.String(arn),
+		Selectors:           selectors,
+		Subnets:             aws.StringSlice(w.Parameters["Subnets"].([]string)),
+		Tags:                tags,
+	}
+
+	_, err := w.EksClient.CreateFargateProfile(fargateInput)
+	return err
+}
+
+func (w *AwsWorker) DeleteFargateProfile() error {
+	deleteInput := &eks.DeleteFargateProfileInput{
+		ClusterName:        aws.String(w.Parameters["ClusterName"].(string)),
+		FargateProfileName: aws.String(w.Parameters["ProfileName"].(string)),
+	}
+	_, err := w.EksClient.DeleteFargateProfile(deleteInput)
+	return err
+}
+
+func (w *AwsWorker) DescribeFargateProfile() (*eks.FargateProfile, error) {
+	describeInput := &eks.DescribeFargateProfileInput{
+		ClusterName:        aws.String(w.Parameters["ClusterName"].(string)),
+		FargateProfileName: aws.String(w.Parameters["ProfileName"].(string)),
+	}
+	output, err := w.EksClient.DescribeFargateProfile(describeInput)
+	if err != nil {
+		return nil, err
+	}
+	return output.FargateProfile, nil
 }

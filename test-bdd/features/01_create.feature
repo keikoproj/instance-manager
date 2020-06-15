@@ -34,3 +34,9 @@ Feature: CRUD Create
     And the resource should converge to selector .status.currentState=ready
     And 2 nodes should be ready
 
+  Scenario: Create a fargate profile with default execution role 
+    Given an EKS cluster
+    Then I create a resource instance-group-fargate.yaml
+    And the resource should be created
+    And the fargate profile should be found
+

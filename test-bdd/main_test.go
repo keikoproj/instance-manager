@@ -18,13 +18,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
-	"testing"
-	"time"
-
 	"github.com/cucumber/godog"
 	"github.com/cucumber/godog/colors"
 	"github.com/cucumber/godog/gherkin"
@@ -39,6 +32,12 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
 )
 
 type FunctionalTest struct {
@@ -61,6 +60,9 @@ const (
 
 	DefaultWaiterInterval = time.Second * 30
 	DefaultWaiterRetries  = 40
+
+	FargateProfileFound    = "found"
+	FargateProfileNotFound = "not found"
 )
 
 var InstanceGroupSchema = schema.GroupVersionResource{
@@ -119,6 +121,7 @@ func FeatureContext(s *godog.Suite) {
 	s.Step(`^the resource condition ([^"]*) should be (true|false)$`, t.theResourceConditionShouldBe)
 	s.Step(`^I (create|delete) a resource ([^"]*)$`, t.iOperateOnResource)
 	s.Step(`^I update a resource ([^"]*) with ([^"]*) set to ([^"]*)$`, t.iUpdateResourceWithField)
+	s.Step(`^the fargate profile should be (found|not found)$`, t.theFargateProfileShouldBeFound)
 
 }
 
@@ -324,7 +327,6 @@ func (t *FunctionalTest) theResourceShouldBe(state string) error {
 	}
 
 }
-
 func (t *FunctionalTest) theResourceShouldConvergeToSelector(selector string) error {
 	var (
 		counter  int
@@ -367,6 +369,44 @@ func (t *FunctionalTest) nodesShouldBe(count int, state string) error {
 func (t *FunctionalTest) nodesShouldBeWithLabel(count int, state, key, value string) error {
 	selector := fmt.Sprintf("test=%v,%v=%v", t.ResourceName, key, value)
 	return t.waitForNodeCountState(count, state, selector)
+}
+
+func (t *FunctionalTest) theFargateProfileShouldBeFound(state string) error {
+	const profileName = "test-bdd-profile-name"
+	var (
+		counter int
+		exists  bool
+	)
+	for {
+		exists = true
+		if counter >= DefaultWaiterRetries {
+			return errors.New("waiter timed out waiting for fargate profile state")
+		}
+		log.Infof("BDD >> waiting for resource %v/%v to become %v", t.ResourceNamespace, t.ResourceName, state)
+		_, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Get(t.ResourceName, metav1.GetOptions{})
+
+		if err != nil {
+			if !kerrors.IsNotFound(err) {
+				return err
+			}
+			log.Infof("BDD >> %v/%v is not found: %v", t.ResourceNamespace, t.ResourceName, err)
+			exists = false
+		}
+		switch state {
+		case FargateProfileFound:
+			if exists {
+				log.Infof("BDD >> success - resource %v/%v found", t.ResourceNamespace, t.ResourceName)
+				return nil
+			}
+		case FargateProfileNotFound:
+			if !exists {
+				log.Infof("BDD >> success - resource %v/%v not found", t.ResourceNamespace, t.ResourceName)
+				return nil
+			}
+		}
+		counter++
+		time.Sleep(DefaultWaiterInterval)
+	}
 }
 
 func (t *FunctionalTest) waitForNodeCountState(count int, state, selector string) error {

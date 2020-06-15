@@ -50,15 +50,21 @@ const (
 	LifecycleStateSpot        = "spot"
 	CRDStrategyName           = "crd"
 	RollingUpdateStrategyName = "rollingupdate"
+	ManagedStrategyName       = "managed"
 	EKSProvisionerName        = "eks"
 	EKSManagedProvisionerName = "eks-managed"
+	EKSFargateProvisionerName = "eks-fargate"
 
 	NodesReady InstanceGroupConditionType = "NodesReady"
 )
 
 var (
-	Strategies   = []string{"crd", "rollingupdate", "managed"}
-	Provisioners = []string{"eks", "eks-managed"}
+	Strategies   = []string{CRDStrategyName, RollingUpdateStrategyName, ManagedStrategyName}
+	Provisioners = []string{
+		EKSProvisionerName,
+		EKSManagedProvisionerName,
+		EKSFargateProvisionerName,
+	}
 
 	DefaultRollingUpdateStrategy = &RollingUpdateStrategy{
 		MaxUnavailable: &intstr.IntOrString{
@@ -129,6 +135,7 @@ type CRDUpdateStrategy struct {
 type InstanceGroupSpec struct {
 	Provisioner        string             `json:"provisioner"`
 	EKSManagedSpec     *EKSManagedSpec    `json:"eks-managed,omitempty"`
+	EKSFargateSpec     *EKSFargateSpec    `json:"eks-fargate,omitempty"`
 	EKSSpec            *EKSSpec           `json:"eks,omitempty"`
 	AwsUpgradeStrategy AwsUpgradeStrategy `json:"strategy"`
 }
@@ -170,6 +177,13 @@ type NodeVolume struct {
 	Type string `json:"type,omitempty"`
 	Size int64  `json:"size,omitempty"`
 }
+type EKSFargateSpec struct {
+	ClusterName         string                `json:"clusterName"`
+	PodExecutionRoleArn string                `json:"podExecutionRoleArn,omitempty"`
+	Subnets             []string              `json:"subnets,omitempty"`
+	Selectors           []EKSFargateSelectors `json:"selectors"`
+	Tags                []map[string]string   `json:"tags,omitempty"`
+}
 
 type EKSManagedConfiguration struct {
 	EksClusterName     string              `json:"clusterName,omitempty"`
@@ -184,6 +198,11 @@ type EKSManagedConfiguration struct {
 	AmiType            string              `json:"amiType,omitempty"`
 	ReleaseVersion     string              `json:"releaseVersion,omitempty"`
 	Version            string              `json:"version,omitempty"`
+}
+
+type EKSFargateSelectors struct {
+	Namespace string            `json:"namespace"`
+	Labels    map[string]string `json:"labels,omitempty"`
 }
 
 // InstanceGroupStatus defines the schema of resource Status
@@ -278,6 +297,14 @@ func (s *InstanceGroupSpec) Validate() error {
 	if strings.EqualFold(s.Provisioner, EKSProvisionerName) {
 		if err := s.EKSSpec.EKSConfiguration.Validate(); err != nil {
 			return err
+		}
+	}
+	if strings.EqualFold(s.Provisioner, EKSFargateProvisionerName) {
+		if err := s.EKSFargateSpec.Validate(); err != nil {
+			return err
+		}
+		if !strings.EqualFold(s.AwsUpgradeStrategy.Type, ManagedStrategyName) {
+			return errors.Errorf("validation failed, strategy '%v' is invalid for the eks-fargate provisioner", s.AwsUpgradeStrategy.Type)
 		}
 	}
 
@@ -625,4 +652,52 @@ func (ig *InstanceGroup) SetState(s ReconcileState) {
 
 func init() {
 	SchemeBuilder.Register(&InstanceGroup{}, &InstanceGroupList{})
+}
+
+func (ig *InstanceGroup) GetEKSFargateSpec() *EKSFargateSpec {
+	return ig.Spec.EKSFargateSpec
+}
+
+func (spec *EKSFargateSpec) Validate() error {
+	return nil
+}
+
+func (spec *EKSFargateSpec) GetClusterName() string {
+	return spec.ClusterName
+}
+
+func (spec *EKSFargateSpec) SetClusterName(name string) {
+	spec.ClusterName = name
+}
+
+func (spec *EKSFargateSpec) GetPodExecutionRoleArn() string {
+	return spec.PodExecutionRoleArn
+}
+
+func (spec *EKSFargateSpec) SetPodExecutionRoleArn(arn string) {
+	spec.PodExecutionRoleArn = arn
+}
+
+func (spec *EKSFargateSpec) GetSubnets() []string {
+	return spec.Subnets
+}
+
+func (spec *EKSFargateSpec) SetSubnets(subnets []string) {
+	spec.Subnets = subnets
+}
+
+func (spec *EKSFargateSpec) GetSelectors() []EKSFargateSelectors {
+	return spec.Selectors
+}
+
+func (spec *EKSFargateSpec) SetSelectors(selectors []EKSFargateSelectors) {
+	spec.Selectors = selectors
+}
+
+func (spec *EKSFargateSpec) GetTags() []map[string]string {
+	return spec.Tags
+}
+
+func (spec *EKSFargateSpec) SetTags(tags []map[string]string) {
+	spec.Tags = tags
 }
