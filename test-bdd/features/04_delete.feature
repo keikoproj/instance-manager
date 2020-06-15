@@ -26,3 +26,8 @@ Feature: CRUD Delete
     When I delete a resource instance-group-managed.yaml
     Then 0 nodes should be found
     And the resource should be deleted
+
+  Scenario: Delete a fargate profile
+    Given an EKS cluster
+    Then I delete a resource instance-group-fargate.yaml
+    And the fargate profile should be not found

@@ -31,6 +31,7 @@ import (
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/eks"
+	"github.com/keikoproj/instance-manager/controllers/provisioners/eksfargate"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/eksmanaged"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -204,6 +205,31 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 			)
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
+
+	case eksfargate.ProvisionerName:
+
+		ctx := eksfargate.New(input)
+		defer r.Update(context.Background(), ctx.GetInstanceGroup())
+		err = HandleReconcileRequest(ctx)
+		if err != nil {
+			r.Log.Error(err,
+				"reconcile failed",
+				"instancegroup", instanceGroup.GetName(),
+				"provisioner", provisionerKind,
+			)
+			ctx.SetState(v1alpha1.ReconcileErr)
+		}
+		if eksfargate.IsRetryable(instanceGroup) {
+			r.Log.Info(
+				"reconcile event ended with requeue",
+				"instancegroup", req.Name,
+				"namespace", req.Namespace,
+				"provisioner", provisionerKind,
+				"resourceVersion", instanceGroup.GetResourceVersion(),
+			)
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+		}
+
 	default:
 		return ctrl.Result{}, errors.Errorf("provisioner '%v' does not exist", provisionerKind)
 	}
