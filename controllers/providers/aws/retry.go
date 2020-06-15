@@ -13,16 +13,17 @@ type RetryLogger struct {
 }
 
 var _ request.Retryer = &RetryLogger{}
-
 var DefaultRetryer = client.DefaultRetryer{
-	NumMaxRetries:    50,
+	NumMaxRetries:    12,
 	MinThrottleDelay: time.Second * 5,
 	MaxThrottleDelay: time.Second * 60,
 	MinRetryDelay:    time.Second * 1,
 	MaxRetryDelay:    time.Second * 5,
 }
 
-func NewRetryLogger(retryer client.DefaultRetryer) *RetryLogger {
+func NewRetryLogger(maxRetries int) *RetryLogger {
+	retryer := DefaultRetryer
+	retryer.NumMaxRetries = maxRetries
 	return &RetryLogger{
 		retryer,
 	}

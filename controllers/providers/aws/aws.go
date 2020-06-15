@@ -18,6 +18,10 @@ package aws
 import (
 	"encoding/base64"
 	"fmt"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
@@ -32,10 +36,7 @@ import (
 	"github.com/keikoproj/aws-sdk-go-cache/cache"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/pkg/errors"
-	"os"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"strings"
-	"time"
 )
 
 var (
@@ -678,9 +679,9 @@ func GetRegion() (string, error) {
 }
 
 // GetAwsAsgClient returns an ASG client
-func GetAwsAsgClient(region string, cacheCfg *cache.Config) autoscalingiface.AutoScalingAPI {
+func GetAwsAsgClient(region string, cacheCfg *cache.Config, maxRetries int) autoscalingiface.AutoScalingAPI {
 	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
-	config = request.WithRetryer(config, NewRetryLogger(DefaultRetryer))
+	config = request.WithRetryer(config, NewRetryLogger(maxRetries))
 	sess, err := session.NewSession(config)
 	if err != nil {
 		panic(err)
@@ -701,9 +702,9 @@ func GetAwsAsgClient(region string, cacheCfg *cache.Config) autoscalingiface.Aut
 }
 
 // GetAwsEksClient returns an EKS client
-func GetAwsEksClient(region string, cacheCfg *cache.Config) eksiface.EKSAPI {
+func GetAwsEksClient(region string, cacheCfg *cache.Config, maxRetries int) eksiface.EKSAPI {
 	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
-	config = request.WithRetryer(config, NewRetryLogger(DefaultRetryer))
+	config = request.WithRetryer(config, NewRetryLogger(maxRetries))
 	sess, err := session.NewSession(config)
 	if err != nil {
 		panic(err)
@@ -747,9 +748,9 @@ var UnrecoverableError = CloudResourceReconcileState{UnrecoverableError: true}
 var UnrecoverableDeleteError = CloudResourceReconcileState{UnrecoverableDeleteError: true}
 
 // GetAwsIAMClient returns an IAM client
-func GetAwsIamClient(region string, cacheCfg *cache.Config) iamiface.IAMAPI {
+func GetAwsIamClient(region string, cacheCfg *cache.Config, maxRetries int) iamiface.IAMAPI {
 	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
-	config = request.WithRetryer(config, NewRetryLogger(DefaultRetryer))
+	config = request.WithRetryer(config, NewRetryLogger(maxRetries))
 	sess, err := session.NewSession(config)
 	if err != nil {
 		panic(err)
