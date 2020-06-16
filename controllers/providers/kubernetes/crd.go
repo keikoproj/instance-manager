@@ -33,7 +33,6 @@ const (
 	OwnershipAnnotationKey   = "app.kubernetes.io/managed-by"
 	ScopeAnnotationKey       = "instancemgr.keikoproj.io/upgrade-scope"
 	OwnershipAnnotationValue = "instance-manager"
-	DefaultConcurrencyPolicy = "forbid"
 )
 
 func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGroup) (bool, error) {
@@ -65,12 +64,12 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 	AddAnnotation(customResource, ScopeAnnotationKey, asgName)
 	GVR := GetGVR(customResource, strategy.GetCRDName())
 
+	launchID := common.GetLastElementBy(lcName, "-")
+	NormalizeName(customResource, launchID)
 	crdFullName := strings.Join([]string{GVR.Resource, GVR.Group}, ".")
 	if !CRDExists(kube, crdFullName) {
 		return false, errors.Errorf("custom resource definition '%v' is missing, could not upgrade", crdFullName)
 	}
-
-	NormalizeName(customResource, common.GetLastElementBy(lcName, "-"))
 	status.SetStrategyResourceName(customResource.GetName())
 
 	activeResources, err := GetActiveResources(kube, instanceGroup, customResource)
@@ -78,10 +77,28 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 		return false, errors.Wrap(err, "failed to discover active custom resources")
 	}
 
-	if len(activeResources) > 0 && strings.ToLower(strategy.GetConcurrencyPolicy()) == "forbid" {
+	if len(activeResources) > 0 && strings.EqualFold(strategy.GetConcurrencyPolicy(), v1alpha1.ForbidConcurrencyPolicy) {
 		log.Info("custom resource/s still active, will requeue", "instancegroup", instanceGroup.GetName())
 		instanceGroup.SetState(v1alpha1.ReconcileModifying)
 		return false, nil
+	}
+
+	var isRunning bool
+	if len(activeResources) > 0 && strings.EqualFold(strategy.GetConcurrencyPolicy(), v1alpha1.ReplaceConcurrencyPolicy) {
+		for _, resource := range activeResources {
+			if strings.HasSuffix(resource.GetName(), launchID) {
+				isRunning = true
+				continue
+			}
+			log.Info("active custom resource/s exists, will replace", "instancegroup", instanceGroup.GetName())
+			err = kube.Resource(GVR).Namespace(resource.GetNamespace()).Delete(resource.GetName(), &metav1.DeleteOptions{})
+			if err != nil {
+				return false, errors.Wrap(err, "failed to delete custom resource")
+			}
+		}
+		if isRunning {
+			return false, nil
+		}
 	}
 
 	err = SubmitCustomResource(kube, customResource, strategy.GetCRDName())

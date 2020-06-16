@@ -242,7 +242,7 @@ func (ctx *EksInstanceGroupContext) discoverSpotPrice() error {
 	)
 
 	// Ignore recommendations until instance group is provisioned
-	if !state.IsNodesReady() {
+	if !state.IsProvisioned() {
 		return nil
 	}
 
