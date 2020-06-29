@@ -138,7 +138,7 @@ func TestGetLabelList(t *testing.T) {
 		asgMock                    = NewAutoScalingMocker()
 		iamMock                    = NewIamMocker()
 		eksMock                    = NewEksMocker()
-		expectedLabels115          = []string{"node.kubernetes.io/role=instance-group-1", "node-role.kubernetes.io/instance-group-1=\"\""}
+		expectedLabels115          = []string{"node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
 		expectedLabels116          = []string{"node.kubernetes.io/role=instance-group-1"}
 		expectedLabelsWithCustom   = []string{"custom.kubernetes.io=customlabel", "node.kubernetes.io/role=instance-group-1"}
 		expectedLabelsWithOverride = []string{"custom.kubernetes.io=customlabel", "override.kubernetes.io=instance-group-1", "override2.kubernetes.io=instance-group-1"}

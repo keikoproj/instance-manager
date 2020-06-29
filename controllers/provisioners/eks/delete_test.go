@@ -214,7 +214,6 @@ func TestRemoveAuthRoleNegative(t *testing.T) {
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileDeleting))
 
 	auth, _, err = awsauth.ReadAuthMap(k.Kubernetes)
-	t.Log(auth)
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	g.Expect(len(auth.MapRoles)).To(gomega.Equal(0))
 }

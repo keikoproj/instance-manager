@@ -209,10 +209,9 @@ func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 		if err != nil {
 			ctx.Log.Error(err, "Failed parsing the cluster's kubernetes version", "instancegroup", instanceGroup.GetName())
 			labelList = append(labelList, fmt.Sprintf(RoleOldLabelFmt, instanceGroup.GetName()))
-		}
-
-		if c, err := semver.NewConstraint("< 1.16-0"); err != nil {
-			if addOldStyleRoleLabel := c.Check(ver); addOldStyleRoleLabel {
+		} else {
+			c, _ := semver.NewConstraint("< 1.16-0")
+			if c.Check(ver) {
 				labelList = append(labelList, fmt.Sprintf(RoleOldLabelFmt, instanceGroup.GetName()))
 			}
 		}
