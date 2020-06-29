@@ -16,6 +16,8 @@ limitations under the License.
 package common
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"reflect"
@@ -42,6 +44,12 @@ func ContainsEqualFold(slice []string, s string) bool {
 		}
 	}
 	return false
+}
+
+func StringMD5(s string) string {
+	h := md5.New()
+	h.Write([]byte(s))
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 func StringMapSliceContains(m []map[string]string, contains map[string]string) bool {

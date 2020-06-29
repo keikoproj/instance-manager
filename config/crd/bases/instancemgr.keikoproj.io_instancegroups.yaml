@@ -50,7 +50,8 @@ spec:
     - ig
     singular: instancegroup
   scope: Namespaced
-  subresources: {}
+  subresources:
+    status: {}
   validation:
     openAPIV3Schema:
       description: InstanceGroup is the Schema for the instancegroups API
@@ -160,12 +161,6 @@ spec:
                             type: string
                         type: object
                       type: array
-                  required:
-                  - clusterName
-                  - image
-                  - instanceType
-                  - keyPairName
-                  - subnets
                   type: object
                 maxSize:
                   format: int64
@@ -293,12 +288,7 @@ spec:
                   type: object
                 type:
                   type: string
-              required:
-              - type
               type: object
-          required:
-          - provisioner
-          - strategy
           type: object
         status:
           description: InstanceGroupStatus defines the schema of resource Status
@@ -318,6 +308,8 @@ spec:
                     type: string
                 type: object
               type: array
+            configMD5:
+              type: string
             currentMax:
               type: integer
             currentMin:

@@ -94,7 +94,7 @@ func TestUpgradeCRDStrategyValidation(t *testing.T) {
 		t.Logf("#%v - %+v", i, tc.input)
 		var errOccured bool
 		ig.SetUpgradeStrategy(tc.input)
-		err := ig.Spec.Validate()
+		err := ig.Validate()
 		if err != nil {
 			t.Log(err)
 			errOccured = true

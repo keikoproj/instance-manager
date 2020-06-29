@@ -176,13 +176,12 @@ func (ctx *EksInstanceGroupContext) GetTaintList() []string {
 func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 	var (
 		labelList     []string
+		isOverride    bool
 		instanceGroup = ctx.GetInstanceGroup()
 		annotations   = instanceGroup.GetAnnotations()
 		configuration = instanceGroup.GetEKSConfiguration()
 		customLabels  = configuration.GetLabels()
 	)
-
-	defer sort.Strings(labelList)
 
 	// get custom labels
 	if len(customLabels) > 0 {
@@ -193,30 +192,33 @@ func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 
 	// allow override default labels
 	if val, ok := annotations[OverrideDefaultLabelsAnnotationKey]; ok {
+		isOverride = true
 		overrideLabels := strings.Split(val, ",")
 		for _, label := range overrideLabels {
 			labelList = append(labelList, label)
 		}
-		return labelList
 	}
 
-	// add the new style role label
-	labelList = append(labelList, fmt.Sprintf(RoleNewLabelFmt, instanceGroup.GetName()))
+	if !isOverride {
+		// add default labels
+		labelList = append(labelList, fmt.Sprintf(RoleNewLabelFmt, instanceGroup.GetName()))
 
-	// add the old style role label if the cluster's k8s version is < 1.16
-	clusterVersion := ctx.DiscoveredState.GetClusterVersion()
-	ver, err := semver.NewVersion(clusterVersion)
-	if err != nil {
-		//log error
-		ctx.Log.Error(err, "Failed parsing the cluster's kubernetes version", "instancegroup", instanceGroup.GetName())
-		labelList = append(labelList, fmt.Sprintf(RoleOldLabelFmt, instanceGroup.GetName()))
-		return labelList
+		// add the old style role label if the cluster's k8s version is < 1.16
+		clusterVersion := ctx.DiscoveredState.GetClusterVersion()
+		ver, err := semver.NewVersion(clusterVersion)
+		if err != nil {
+			ctx.Log.Error(err, "Failed parsing the cluster's kubernetes version", "instancegroup", instanceGroup.GetName())
+			labelList = append(labelList, fmt.Sprintf(RoleOldLabelFmt, instanceGroup.GetName()))
+		}
+
+		if c, err := semver.NewConstraint("< 1.16-0"); err != nil {
+			if addOldStyleRoleLabel := c.Check(ver); addOldStyleRoleLabel {
+				labelList = append(labelList, fmt.Sprintf(RoleOldLabelFmt, instanceGroup.GetName()))
+			}
+		}
 	}
 
-	c, _ := semver.NewConstraint("< 1.16-0")
-	if addOldStyleRoleLabel := c.Check(ver); addOldStyleRoleLabel {
-		labelList = append(labelList, fmt.Sprintf(RoleOldLabelFmt, instanceGroup.GetName()))
-	}
+	sort.Strings(labelList)
 	return labelList
 }
 

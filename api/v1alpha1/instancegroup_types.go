@@ -37,11 +37,13 @@ const (
 	ReconcileInitUpdate  ReconcileState = "InitUpdate"
 	ReconcileInitCreate  ReconcileState = "InitCreate"
 	ReconcileInitUpgrade ReconcileState = "InitUpgrade"
+
 	// Ongoing States
 	ReconcileDeleting  ReconcileState = "Deleting"
 	ReconcileDeleted   ReconcileState = "Deleted"
 	ReconcileModifying ReconcileState = "ReconcileModifying"
 	ReconcileModified  ReconcileState = "ReconcileModified"
+
 	// End States
 	ReconcileReady ReconcileState = "Ready"
 	ReconcileErr   ReconcileState = "Error"
@@ -83,6 +85,7 @@ var (
 // InstanceGroup is the Schema for the instancegroups API
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:path=instancegroups,scope=Namespaced,shortName=ig
+// +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="State",type="string",JSONPath=".status.currentState",description="current state of the instancegroup"
 // +kubebuilder:printcolumn:name="Min",type="integer",JSONPath=".status.currentMin",description="currently set min instancegroup size"
 // +kubebuilder:printcolumn:name="Max",type="integer",JSONPath=".status.currentMax",description="currently set max instancegroup size"
@@ -109,7 +112,7 @@ type InstanceGroupList struct {
 
 // AwsUpgradeStrategy defines the upgrade strategy of an AWS Instance Group
 type AwsUpgradeStrategy struct {
-	Type              string                 `json:"type"`
+	Type              string                 `json:"type,omitempty"`
 	CRDType           *CRDUpdateStrategy     `json:"crd,omitempty"`
 	RollingUpdateType *RollingUpdateStrategy `json:"rollingUpdate,omitempty"`
 }
@@ -137,11 +140,11 @@ type CRDUpdateStrategy struct {
 
 // InstanceGroupSpec defines the schema of resource Spec
 type InstanceGroupSpec struct {
-	Provisioner        string             `json:"provisioner"`
+	Provisioner        string             `json:"provisioner,omitempty"`
 	EKSManagedSpec     *EKSManagedSpec    `json:"eks-managed,omitempty"`
 	EKSFargateSpec     *EKSFargateSpec    `json:"eks-fargate,omitempty"`
 	EKSSpec            *EKSSpec           `json:"eks,omitempty"`
-	AwsUpgradeStrategy AwsUpgradeStrategy `json:"strategy"`
+	AwsUpgradeStrategy AwsUpgradeStrategy `json:"strategy,omitempty"`
 }
 
 type EKSManagedSpec struct {
@@ -157,13 +160,13 @@ type EKSSpec struct {
 }
 
 type EKSConfiguration struct {
-	EksClusterName              string              `json:"clusterName"`
-	KeyPairName                 string              `json:"keyPairName"`
-	Image                       string              `json:"image"`
-	InstanceType                string              `json:"instanceType"`
+	EksClusterName              string              `json:"clusterName,omitempty"`
+	KeyPairName                 string              `json:"keyPairName,omitempty"`
+	Image                       string              `json:"image,omitempty"`
+	InstanceType                string              `json:"instanceType,omitempty"`
 	NodeSecurityGroups          []string            `json:"securityGroups,omitempty"`
 	Volumes                     []NodeVolume        `json:"volumes,omitempty"`
-	Subnets                     []string            `json:"subnets"`
+	Subnets                     []string            `json:"subnets,omitempty"`
 	SuspendedProcesses          []string            `json:"suspendProcesses,omitempty"`
 	BootstrapArguments          string              `json:"bootstrapArguments,omitempty"`
 	SpotPrice                   string              `json:"spotPrice,omitempty"`
@@ -220,6 +223,7 @@ type InstanceGroupStatus struct {
 	StrategyResourceName          string                   `json:"strategyResourceName,omitempty"`
 	UsingSpotRecommendation       bool                     `json:"usingSpotRecommendation,omitempty"`
 	Lifecycle                     string                   `json:"lifecycle,omitempty"`
+	ConfigHash                    string                   `json:"configMD5,omitempty"`
 	Conditions                    []InstanceGroupCondition `json:"conditions,omitempty"`
 }
 
@@ -255,7 +259,7 @@ func (ig *InstanceGroup) SetUpgradeStrategy(strategy AwsUpgradeStrategy) {
 }
 func (c *EKSConfiguration) Validate() error {
 	if common.StringEmpty(c.EksClusterName) {
-		return errors.Errorf("validation failed, 'eksClusterName' is a required parameter")
+		return errors.Errorf("validation failed, 'clusterName' is a required parameter")
 	}
 	if common.SliceEmpty(c.Subnets) {
 		return errors.Errorf("validation failed, 'subnets' is a required parameter")
@@ -293,16 +297,13 @@ func (c *EKSConfiguration) Validate() error {
 	}
 	return nil
 }
-func (s *InstanceGroupSpec) Validate() error {
+func (ig *InstanceGroup) Validate() error {
+	s := ig.Spec
+
 	if !common.ContainsEqualFold(Provisioners, s.Provisioner) {
 		return errors.Errorf("validation failed, provisioner '%v' is invalid", s.Provisioner)
 	}
 
-	if strings.EqualFold(s.Provisioner, EKSProvisionerName) {
-		if err := s.EKSSpec.EKSConfiguration.Validate(); err != nil {
-			return err
-		}
-	}
 	if strings.EqualFold(s.Provisioner, EKSFargateProvisionerName) {
 		if err := s.EKSFargateSpec.Validate(); err != nil {
 			return err
@@ -312,7 +313,12 @@ func (s *InstanceGroupSpec) Validate() error {
 		}
 	}
 
-	// TODO: Add validation for EKSManagedProvisioner
+	if strings.EqualFold(s.Provisioner, EKSProvisionerName) {
+		config := ig.GetEKSConfiguration()
+		if err := config.Validate(); err != nil {
+			return err
+		}
+	}
 
 	if s.AwsUpgradeStrategy.Type == "" {
 		s.AwsUpgradeStrategy.Type = RollingUpdateStrategyName
@@ -556,6 +562,14 @@ func (status *InstanceGroupStatus) GetActiveLaunchConfigurationName() string {
 
 func (status *InstanceGroupStatus) SetActiveLaunchConfigurationName(name string) {
 	status.ActiveLaunchConfigurationName = name
+}
+
+func (status *InstanceGroupStatus) GetConfigHash() string {
+	return status.ConfigHash
+}
+
+func (status *InstanceGroupStatus) SetConfigHash(hash string) {
+	status.ConfigHash = hash
 }
 
 func (status *InstanceGroupStatus) GetNodesReadyCondition() corev1.ConditionStatus {
