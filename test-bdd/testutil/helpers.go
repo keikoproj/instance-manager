@@ -41,6 +41,7 @@ type TemplateArguments struct {
 	KeyPairName        string
 	AmiID              string
 	NodeRole           string
+	NodeRoleArn        string
 	NodeSecurityGroups []string
 	Subnets            []string
 }
@@ -51,6 +52,7 @@ func NewTemplateArguments() *TemplateArguments {
 		KeyPairName:        os.Getenv("KEYPAIR_NAME"),
 		AmiID:              os.Getenv("AMI_ID"),
 		NodeRole:           os.Getenv("NODE_ROLE"),
+		NodeRoleArn:        os.Getenv("NODE_ROLE_ARN"),
 		NodeSecurityGroups: strings.Split(os.Getenv("SECURITY_GROUPS"), ","),
 		Subnets:            strings.Split(os.Getenv("NODE_SUBNETS"), ","),
 	}
