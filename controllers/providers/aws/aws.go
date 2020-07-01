@@ -892,6 +892,9 @@ func (w *AwsWorker) AttachDefaultPolicyToDefaultRole() error {
 		RoleName:  aws.String(roleName),
 	}
 	_, err := w.IamClient.AttachRolePolicy(rolePolicy)
+	if err == nil {
+		time.Sleep(DefaultInstanceProfilePropagationDelay)
+	}
 	return err
 }
 

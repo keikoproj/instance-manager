@@ -85,7 +85,7 @@ func (ctx *FargateInstanceGroupContext) generateUniqueName() string {
 	instanceGroup := ctx.GetInstanceGroup()
 	spec := instanceGroup.GetEKSFargateSpec()
 	name := fmt.Sprintf("%v-%v-%v", spec.GetClusterName(), instanceGroup.GetNamespace(), instanceGroup.GetName())
-	return fmt.Sprintf("%v-%v", spec.GetClusterName(), hash(name))
+	return fmt.Sprintf("keikoproj-%v-%v", spec.GetClusterName(), hash(name))
 
 }
 
