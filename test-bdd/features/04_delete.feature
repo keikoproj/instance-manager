@@ -8,6 +8,7 @@ Feature: CRUD Delete
     Then I delete a resource instance-group.yaml
     And I delete a resource instance-group-crd.yaml
     And I delete a resource instance-group-managed.yaml
+    And I delete a resource instance-group-fargate.yaml
 
   Scenario: Delete an instance-group with rollingUpdate strategy
     Given an EKS cluster

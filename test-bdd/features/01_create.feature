@@ -8,6 +8,7 @@ Feature: CRUD Create
     Then I create a resource instance-group.yaml
     And I create a resource instance-group-crd.yaml
     And I create a resource instance-group-managed.yaml
+    And I create a resource instance-group-fargate.yaml
 
   Scenario: Create an instance-group with rollingUpdate strategy
     Given an EKS cluster
@@ -34,7 +35,7 @@ Feature: CRUD Create
     And the resource should converge to selector .status.currentState=ready
     And 2 nodes should be ready
 
-  Scenario: Create a fargate profile with default execution role 
+  Scenario: Create a fargate profile with default execution role
     Given an EKS cluster
     Then I create a resource instance-group-fargate.yaml
     And the resource should be created
