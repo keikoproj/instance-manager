@@ -19,17 +19,21 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
-	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/util/json"
-	"k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	serializer "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/discovery/cached/memory"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/restmapper"
 )
 
 type TemplateArguments struct {
@@ -77,55 +81,6 @@ func PathToOSFile(relativePath string) (*os.File, error) {
 	return manifest, nil
 }
 
-func ParseInstanceGroupYaml(relativePath string, args *TemplateArguments) (*unstructured.Unstructured, error) {
-	var renderBuffer bytes.Buffer
-	var err error
-
-	var ig *unstructured.Unstructured
-
-	if _, err = PathToOSFile(relativePath); err != nil {
-		return nil, err
-	}
-
-	fileData, err := common.ReadFile(relativePath)
-	if err != nil {
-		return nil, err
-	}
-
-	rawTemplate := string(fileData)
-
-	template, err := template.New("InstanceGroup").Parse(rawTemplate)
-	if err != nil {
-		return nil, err
-	}
-
-	err = template.Execute(&renderBuffer, &args)
-	if err != nil {
-		return nil, err
-	}
-
-	decoder := yaml.NewYAMLOrJSONDecoder(&renderBuffer, 100)
-	for {
-		var out unstructured.Unstructured
-		err = decoder.Decode(&out)
-		if err != nil {
-			break
-		}
-
-		if out.GetKind() == "InstanceGroup" {
-			var marshaled []byte
-			marshaled, err = out.MarshalJSON()
-			json.Unmarshal(marshaled, &ig)
-			break
-		}
-	}
-
-	if err != io.EOF && err != nil {
-		return nil, err
-	}
-	return ig, nil
-}
-
 func DeleteEmpty(s []string) []string {
 	var r []string
 	for _, str := range s {
@@ -134,4 +89,50 @@ func DeleteEmpty(s []string) []string {
 		}
 	}
 	return r
+}
+
+// find the corresponding GVR (available in *meta.RESTMapping) for gvk
+func FindGVR(gvk *schema.GroupVersionKind, cfg *rest.Config) (*meta.RESTMapping, error) {
+
+	// DiscoveryClient queries API server about the resources
+	dc, err := discovery.NewDiscoveryClientForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	mapper := restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(dc))
+
+	return mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+}
+
+func GetResourceFromYaml(path string, config *rest.Config, args *TemplateArguments) (*meta.RESTMapping, *unstructured.Unstructured, error) {
+	resource := &unstructured.Unstructured{}
+
+	d, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, resource, err
+	}
+
+	template, err := template.New("InstanceGroup").Parse(string(d))
+	if err != nil {
+		return nil, resource, err
+	}
+
+	var renderBuffer bytes.Buffer
+	err = template.Execute(&renderBuffer, &args)
+	if err != nil {
+		return nil, resource, err
+	}
+	dec := serializer.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+
+	_, gvk, err := dec.Decode(renderBuffer.Bytes(), nil, resource)
+	if err != nil {
+		return nil, resource, err
+	}
+
+	gvr, err := FindGVR(gvk, config)
+	if err != nil {
+		return nil, resource, err
+	}
+
+	return gvr, resource, nil
 }

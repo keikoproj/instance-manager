@@ -1,0 +1,16 @@
+apiVersion: instancemgr.keikoproj.io/v1alpha1
+kind: InstanceGroup
+metadata:
+  name: bdd-test-gitops
+  namespace: instance-manager
+spec:
+  eks:
+    maxSize: 4
+    minSize: 2
+    configuration:
+      labels:
+        test: bdd-test-gitops
+      instanceType: t2.small
+      tags:
+      - key: cr-tag
+        value: a-tag
