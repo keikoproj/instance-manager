@@ -134,11 +134,6 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	status.SetActiveScalingGroupName(aws.StringValue(targetScalingGroup.AutoScalingGroupName))
 	status.SetCurrentMin(int(aws.Int64Value(targetScalingGroup.MinSize)))
 	status.SetCurrentMax(int(aws.Int64Value(targetScalingGroup.MaxSize)))
-	if configuration.GetSpotPrice() == "" {
-		status.SetLifecycle(v1alpha1.LifecycleStateNormal)
-	} else {
-		status.SetLifecycle(v1alpha1.LifecycleStateSpot)
-	}
 
 	// cache the launch configuration we are reconciling for if it exists
 	for _, lc := range launchConfigurations {
@@ -179,6 +174,12 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	err = ctx.discoverSpotPrice()
 	if err != nil {
 		ctx.Log.Error(err, "failed to discover spot price")
+	}
+
+	if configuration.GetSpotPrice() == "" {
+		status.SetLifecycle(v1alpha1.LifecycleStateNormal)
+	} else {
+		status.SetLifecycle(v1alpha1.LifecycleStateSpot)
 	}
 
 	return nil
