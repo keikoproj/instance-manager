@@ -31,4 +31,4 @@ Feature: CRUD Delete
   Scenario: Delete a fargate profile
     Given an EKS cluster
     Then I delete a resource instance-group-fargate.yaml
-    And the fargate profile should be not found
+    And the resource should be deleted
