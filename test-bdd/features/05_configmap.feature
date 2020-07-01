@@ -1,4 +1,3 @@
-@wip
 Feature: GitOps / ConfigMap Defaults
   In order to use GitOps for instance groups
   As an EKS cluster operator

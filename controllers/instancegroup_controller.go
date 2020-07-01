@@ -86,12 +86,6 @@ func (r *InstanceGroupReconciler) SetFinalizer(instanceGroup *v1alpha1.InstanceG
 	}
 }
 
-func (r *InstanceGroupReconciler) NewProvisionerInput(instanceGroup *v1alpha1.InstanceGroup) (provisioners.ProvisionerInput, error) {
-	var input provisioners.ProvisionerInput
-
-	return input, nil
-}
-
 // +kubebuilder:rbac:groups=core,resources=nodes,verbs=list;patch;watch
 // +kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch;create
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;create;update;patch;watch
@@ -117,6 +111,7 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	// set/unset finalizer
 	finalizerName := fmt.Sprintf("finalizers.%v.instancegroups.keikoproj.io", instanceGroup.Spec.Provisioner)
 	r.SetFinalizer(instanceGroup, finalizerName)
+	defer r.Finalize(instanceGroup, finalizerName)
 
 	var defaultConfig *provisioners.DefaultConfiguration
 	if defaultConfig, err = provisioners.UnmarshalConfiguration(r.ConfigMap); err != nil {
@@ -203,7 +198,6 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
-	r.Finalize(instanceGroup, finalizerName)
 	return ctrl.Result{}, nil
 }
 
