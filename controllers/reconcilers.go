@@ -80,6 +80,7 @@ func (r *InstanceGroupReconciler) configMapReconciler(obj handler.MapObject) []c
 		ctrl.Log.Info("configmap watch event", "name", obj.Meta.GetName(), "namespace", obj.Meta.GetNamespace())
 
 		if !obj.Meta.GetDeletionTimestamp().IsZero() {
+			r.ConfigMap = &corev1.ConfigMap{}
 			return nil
 		}
 

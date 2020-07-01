@@ -119,8 +119,10 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		return ctrl.Result{}, err
 	}
 
-	var configuredInstanceGroup *v1alpha1.InstanceGroup
-	if configuredInstanceGroup, err = provisioners.SetConfigurationDefaults(instanceGroup, defaultConfig); err != nil {
+	configuredInstanceGroup := &v1alpha1.InstanceGroup{}
+	instanceGroup.DeepCopyInto(configuredInstanceGroup)
+
+	if configuredInstanceGroup, err = provisioners.SetConfigurationDefaults(configuredInstanceGroup, defaultConfig); err != nil {
 		r.Log.Error(err, "failed to set configuration defaults", "instancegroup", instanceGroup.NamespacedName())
 		return ctrl.Result{}, err
 	}
