@@ -16,6 +16,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/keikoproj/instance-manager/controllers/common"
@@ -247,6 +248,9 @@ func (ig *InstanceGroup) GetEKSConfiguration() *EKSConfiguration {
 }
 func (ig *InstanceGroup) GetEKSSpec() *EKSSpec {
 	return ig.Spec.EKSSpec
+}
+func (ig *InstanceGroup) NamespacedName() string {
+	return fmt.Sprintf("%v/%v", ig.GetNamespace(), ig.GetName())
 }
 func (ig *InstanceGroup) GetStatus() *InstanceGroupStatus {
 	return &ig.Status

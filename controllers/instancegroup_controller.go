@@ -114,20 +114,20 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		return ctrl.Result{}, err
 	}
 
+	// set/unset finalizer
+	finalizerName := fmt.Sprintf("finalizers.%v.instancegroups.keikoproj.io", instanceGroup.Spec.Provisioner)
+	r.SetFinalizer(instanceGroup, finalizerName)
+
 	var defaultConfig *provisioners.DefaultConfiguration
 	if defaultConfig, err = provisioners.UnmarshalConfiguration(r.ConfigMap); err != nil {
-		r.Log.Error(err, "failed to unmarshal configuration", "instancegroup", instanceGroup.GetName())
+		r.Log.Error(err, "failed to unmarshal configuration", "instancegroup", instanceGroup.NamespacedName())
 		return ctrl.Result{}, err
 	}
 
 	if instanceGroup, err = provisioners.SetConfigurationDefaults(instanceGroup, defaultConfig); err != nil {
-		r.Log.Error(err, "failed to set configuration defaults", "instancegroup", instanceGroup.GetName())
+		r.Log.Error(err, "failed to set configuration defaults", "instancegroup", instanceGroup.NamespacedName())
 		return ctrl.Result{}, err
 	}
-
-	// Add Finalizer if not present, and set the initial state
-	finalizerName := fmt.Sprintf("finalizers.%v.instancegroups.keikoproj.io", instanceGroup.Spec.Provisioner)
-	r.SetFinalizer(instanceGroup, finalizerName)
 
 	input := provisioners.ProvisionerInput{
 		AwsWorker:     r.Auth.Aws,
@@ -146,7 +146,6 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	r.Log.Info("reconcile event started", "instancegroup", req.NamespacedName, "provisioner", provisionerKind)
 
 	// defer updates for the instanceGroup CR
-	defer r.Finalize(instanceGroup, finalizerName)
 	defer r.UpdateStatus(instanceGroup)
 
 	var isRetryable bool
@@ -156,13 +155,12 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		if err = instanceGroup.Validate(); err != nil {
 			r.Log.Error(err, "reconcile failed")
 			ctx.SetState(v1alpha1.ReconcileErr)
-			return ctrl.Result{}, err
+			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 		}
 
 		if err = HandleReconcileRequest(ctx); err != nil {
-			r.Log.Error(err, "reconcile failed", "instancegroup", req.NamespacedName, "provisioner", provisionerKind)
 			ctx.SetState(v1alpha1.ReconcileErr)
-			return ctrl.Result{}, err
+			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 		}
 
 		isRetryable = eks.IsRetryable(instanceGroup)
@@ -172,15 +170,13 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		ctx := eksmanaged.New(input)
 
 		if err = instanceGroup.Validate(); err != nil {
-			r.Log.Error(err, "reconcile failed")
 			ctx.SetState(v1alpha1.ReconcileErr)
-			return ctrl.Result{}, err
+			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 		}
 
 		if err = HandleReconcileRequest(ctx); err != nil {
-			r.Log.Error(err, "reconcile failed", "instancegroup", req.NamespacedName, "provisioner", provisionerKind)
 			ctx.SetState(v1alpha1.ReconcileErr)
-			return ctrl.Result{}, err
+			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 		}
 
 		isRetryable = eksmanaged.IsRetryable(instanceGroup)
@@ -190,15 +186,13 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		ctx := eksfargate.New(input)
 
 		if err = instanceGroup.Validate(); err != nil {
-			r.Log.Error(err, "reconcile failed")
 			ctx.SetState(v1alpha1.ReconcileErr)
-			return ctrl.Result{}, err
+			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 		}
 
 		if err = HandleReconcileRequest(ctx); err != nil {
-			r.Log.Error(err, "reconcile failed", "instancegroup", req.NamespacedName, "provisioner", provisionerKind)
 			ctx.SetState(v1alpha1.ReconcileErr)
-			return ctrl.Result{}, err
+			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 		}
 
 		isRetryable = eksfargate.IsRetryable(instanceGroup)
@@ -209,11 +203,12 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
-	r.Log.Info("reconcile event ended successfully", "instancegroup", req.NamespacedName, "provisioner", provisionerKind)
+	r.Finalize(instanceGroup, finalizerName)
 	return ctrl.Result{}, nil
 }
 
 func (r *InstanceGroupReconciler) UpdateStatus(ig *v1alpha1.InstanceGroup) {
+	r.Log.Info("updating resource status", "instancegroup", ig.NamespacedName())
 	if err := r.Status().Update(context.Background(), ig); err != nil {
 		r.Log.Error(err, "failed to update status")
 	}
