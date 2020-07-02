@@ -171,7 +171,7 @@ func TestUnmarshalConfiguration(t *testing.T) {
 		g = gomega.NewGomegaWithT(t)
 	)
 
-	defaultConfig, err := UnmarshalConfiguration(MockConfigMap(nil))
+	defaultConfig, err := UnmarshalConfiguration(nil)
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	g.Expect(defaultConfig).To(gomega.Equal(&DefaultConfiguration{}))
 
