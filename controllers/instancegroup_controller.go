@@ -207,6 +207,6 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 func (r *InstanceGroupReconciler) UpdateStatus(ig *v1alpha1.InstanceGroup) {
 	r.Log.Info("updating resource status", "instancegroup", ig.NamespacedName())
 	if err := r.Status().Update(context.Background(), ig); err != nil {
-		r.Log.Error(err, "failed to update status")
+		r.Log.Info("failed to update status", "error", err, "instancegroup", ig.NamespacedName())
 	}
 }

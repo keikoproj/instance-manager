@@ -27,6 +27,7 @@ import (
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
 	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -79,8 +80,19 @@ func (r *InstanceGroupReconciler) configMapReconciler(obj handler.MapObject) []c
 	if strings.EqualFold(name, ConfigMapName) && strings.EqualFold(namespace, r.ConfigNamespace) {
 		ctrl.Log.Info("configmap watch event", "name", obj.Meta.GetName(), "namespace", obj.Meta.GetNamespace())
 
-		if !obj.Meta.GetDeletionTimestamp().IsZero() {
-			r.ConfigMap = &corev1.ConfigMap{}
+		namespacedName := types.NamespacedName{
+			Namespace: namespace,
+			Name:      name,
+		}
+
+		err := r.Get(context.Background(), namespacedName, obj.Object)
+		if err != nil {
+			if kerrors.IsNotFound(err) {
+				r.Log.Info("configmap deleted", "object", namespacedName)
+				r.ConfigMap = &corev1.ConfigMap{}
+				return nil
+			}
+			r.Log.Error(err, "could not get configmap")
 			return nil
 		}
 
@@ -90,7 +102,7 @@ func (r *InstanceGroupReconciler) configMapReconciler(obj handler.MapObject) []c
 		ctrl.Log.Info("configmap MD5", "hash", configHash)
 
 		var instanceGroupList v1alpha1.InstanceGroupList
-		err := r.List(context.Background(), &instanceGroupList)
+		err = r.List(context.Background(), &instanceGroupList)
 		if err != nil {
 			ctrl.Log.Error(err, "failed to convert to configmap")
 			return nil
