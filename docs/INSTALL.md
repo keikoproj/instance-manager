@@ -216,25 +216,3 @@ EOF
 ```
 
 instance group should now be modifying, since `rollingUpdate` was the selected upgrade strategy, the controller will start rotating out the nodes according to `maxUnavailable`
-
-#### CRD Strategy
-
-There might be cases where you would want to implement custom behavior as part of your upgrade, this can be achieved by the `crd` strategy - it allows you to create any custom resource and watch it for a success condition.
-
-In [this](./examples/crd-strategy.yaml) example, we submit an [argo](https://github.com/argoproj/argo) workflow as a response to an upgrade events, but you can submit any kind of resource you wish, such as [upgrade-manager](https://github.com/keikoproj/upgrade-manager)'s RollingUpgrade.
-
-#### Using spot instances
-
-You can switch to spot instances in two ways:
-
-- Manually set the `spec.eks.configuration.spotPrice` to a spot price value, if the price is available, the instances will rotate, if the price is no longer available, it's up to you to change it to a different value.
-
-- Use a spot recommendation controller such as [minion-manager](https://github.com/keikoproj/minion-manager), instance-manager will look at events published with the following message format:
-
-```json
-{"apiVersion":"v1alpha1","spotPrice":"0.0067", "useSpot": true}
-```
-
-In addition, the event `involvedObject.name`, must be the name of the autoscaling group to switch, and the event `.reason` must be `SpotRecommendationGiven`.
-
-When recommendations are not available (no events for an hour / recommendation controller is down), instance-group will retain the last provided configuration, until a human either changes back to on-demand (by setting `spotPrice: ""`) or until recommendation events are found again.

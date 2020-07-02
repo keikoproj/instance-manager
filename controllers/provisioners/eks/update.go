@@ -86,6 +86,7 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 		instanceGroup = ctx.GetInstanceGroup()
 		spec          = instanceGroup.GetEKSSpec()
 		configuration = instanceGroup.GetEKSConfiguration()
+		status        = instanceGroup.GetStatus()
 		state         = ctx.GetDiscoveredState()
 		scalingGroup  = state.GetScalingGroup()
 		asgName       = aws.StringValue(scalingGroup.AutoScalingGroupName)
@@ -107,6 +108,9 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 
 		ctx.Log.Info("updated scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 	}
+
+	status.SetCurrentMin(int(spec.GetMinSize()))
+	status.SetCurrentMax(int(spec.GetMaxSize()))
 
 	if ctx.TagsUpdateNeeded() {
 		err := ctx.AwsWorker.UpdateScalingGroupTags(tags, rmTags)

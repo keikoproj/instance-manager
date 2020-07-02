@@ -170,8 +170,6 @@ spec:
                   type: integer
               required:
               - configuration
-              - maxSize
-              - minSize
               type: object
             eks-fargate:
               properties:

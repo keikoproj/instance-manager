@@ -120,6 +120,11 @@ func (ctx *EksInstanceGroupContext) UpdateScalingProcesses(asgName string) error
 		groupSuspendProcesses []string
 	)
 
+	// handle 'all' metrics provided
+	if common.ContainsEqualFold(specSuspendProcesses, "all") {
+		specSuspendProcesses = awsprovider.DefaultSuspendProcesses
+	}
+
 	for _, element := range scalingGroup.SuspendedProcesses {
 		groupSuspendProcesses = append(groupSuspendProcesses, *element.ProcessName)
 	}

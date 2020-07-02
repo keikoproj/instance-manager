@@ -151,7 +151,6 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		ctx := eks.New(input)
 
 		if err = configuredInstanceGroup.Validate(); err != nil {
-			r.Log.Error(err, "reconcile failed")
 			ctx.SetState(v1alpha1.ReconcileErr)
 			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 		}

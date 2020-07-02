@@ -155,8 +155,8 @@ type EKSManagedSpec struct {
 }
 
 type EKSSpec struct {
-	MaxSize          int64             `json:"maxSize"`
-	MinSize          int64             `json:"minSize"`
+	MaxSize          int64             `json:"maxSize,omitempty"`
+	MinSize          int64             `json:"minSize,omitempty"`
 	EKSConfiguration *EKSConfiguration `json:"configuration"`
 }
 
@@ -281,6 +281,18 @@ func (c *EKSConfiguration) Validate() error {
 		}
 		c.MetricsCollection = metrics
 	}
+
+	for _, m := range c.SuspendedProcesses {
+		processes := make([]string, 0)
+		if strings.EqualFold(m, "all") {
+			continue
+		}
+		if common.ContainsString(awsprovider.DefaultSuspendProcesses, m) {
+			processes = append(processes, m)
+		}
+		c.SuspendedProcesses = processes
+	}
+
 	if common.StringEmpty(c.Image) {
 		return errors.Errorf("validation failed, 'image' is a required parameter")
 	}
