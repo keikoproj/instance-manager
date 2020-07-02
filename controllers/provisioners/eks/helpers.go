@@ -564,3 +564,12 @@ func (ctx *EksInstanceGroupContext) GetTimeSortedLaunchConfigurations() []*autos
 
 	return configurations
 }
+
+func IsRetryable(instanceGroup *v1alpha1.InstanceGroup) bool {
+	for _, state := range NonRetryableStates {
+		if state == instanceGroup.GetState() {
+			return false
+		}
+	}
+	return true
+}

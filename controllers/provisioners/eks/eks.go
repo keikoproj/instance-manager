@@ -63,15 +63,6 @@ func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 	return ctx
 }
 
-func IsRetryable(instanceGroup *v1alpha1.InstanceGroup) bool {
-	for _, state := range NonRetryableStates {
-		if state == instanceGroup.GetState() {
-			return false
-		}
-	}
-	return true
-}
-
 type EksInstanceGroupContext struct {
 	sync.Mutex
 	InstanceGroup    *v1alpha1.InstanceGroup
