@@ -1,6 +1,18 @@
 export GO111MODULE=on
 
+CONTROLLER_GEN_VERSION := v0.2.9
 GO_MIN_VERSION := 11100 # go1.11
+
+define generate_int_from_semver
+  echo $(1) |cut -dv -f2 |awk '{split($$0,a,"."); print  a[3]+(100*a[2])+(10000* a[1])}'
+endef
+
+CONTROLLER_GEN_VERSION_CHECK = \
+  $(shell expr \
+    $(shell $(call generate_int_from_semver,$(shell $(CONTROLLER_GEN) --version | awk '{print $$2}' | cut -dv -f2))) \
+    \>= $(shell $(call generate_int_from_semver,$(shell echo $(CONTROLLER_GEN_VERSION) | cut -dv -f2))) \
+  )
+
 GO_VERSION_CHECK := \
   $(shell expr \
     $(shell go version | \
@@ -97,12 +109,22 @@ docker-build:
 docker-push:
 	docker push ${IMG}
 
+.PHONY: check-controller-gen
+check-controller-gen:
+	@if [ $(CONTROLLER_GEN_VERSION_CHECK) -eq 0 ]; then \
+	    echo "Need to upgrade controller-gen to $(CONTROLLER_GEN_VERSION) or higher"; \
+	    exit 1; \
+	fi
+
 # find or download controller-gen
 # download controller-gen if necessary
 .PHONY: controller-gen
-controller-gen:
+controller-gen: controller-gen-find check-controller-gen
+
+.PHONY: controller-gen-real
+controller-gen-find: 
 ifeq (, $(shell which controller-gen))
-	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.9
+	go get sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
 CONTROLLER_GEN=$(shell go env GOPATH)/bin/controller-gen
 else
 CONTROLLER_GEN=$(shell which controller-gen)
@@ -128,4 +150,4 @@ vendor:
 
 .PHONY: clean
 clean:
-	@rm -rf ./bin	
+	@rm -rf ./bin
