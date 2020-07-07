@@ -243,6 +243,10 @@ func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 	return instanceGroup
 }
 func (u *EksFargateUnitTest) BuildProvisioner(t *testing.T) *FargateInstanceGroupContext {
+
+	// Speeds up sleep in the AttachRolePolicy logic
+	awsprovider.DefaultInstanceProfilePropagationDelay = time.Millisecond * 1
+
 	aws := &awsprovider.AwsWorker{
 		EksClient: &stubEKS{
 			ProfileBasic:            u.ProfileBasic,
@@ -935,7 +939,7 @@ func TestCreateProfileName(t *testing.T) {
 	}
 	ctx := testCase.BuildProvisioner(t)
 	profileName := ctx.generateUniqueName()
-	if profileName != "TestNameCluster-13281223259712081633" {
+	if profileName != "fargate-TestNameCluster-13281223259712081633" {
 		t.Fatalf("TestCreateProfileName: profile name is %v.", profileName)
 	}
 }
