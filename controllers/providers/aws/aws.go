@@ -68,6 +68,18 @@ var (
 	DefaultWaiterDuration                  = time.Second * 5
 	DefaultWaiterRetries                   = 12
 
+	DefaultSuspendProcesses = []string{
+		"Launch",
+		"Terminate",
+		"AddToLoadBalancer",
+		"AlarmNotification",
+		"AZRebalance",
+		"HealthCheck",
+		"InstanceRefresh",
+		"ReplaceUnhealthy",
+		"ScheduledActions",
+	}
+
 	DefaultAutoscalingMetrics = []string{
 		"GroupMinSize",
 		"GroupMaxSize",

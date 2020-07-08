@@ -18,6 +18,13 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/cucumber/godog"
 	"github.com/cucumber/godog/colors"
 	"github.com/cucumber/godog/gherkin"
@@ -31,18 +38,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
-	"testing"
-	"time"
 )
 
 type FunctionalTest struct {
 	KubeClient        kubernetes.Interface
 	DynamicClient     dynamic.Interface
+	RESTConfig        *rest.Config
 	ResourceName      string
 	ResourceNamespace string
 }
@@ -60,9 +63,6 @@ const (
 
 	DefaultWaiterInterval = time.Second * 30
 	DefaultWaiterRetries  = 40
-
-	FargateProfileFound    = "found"
-	FargateProfileNotFound = "not found"
 )
 
 var InstanceGroupSchema = schema.GroupVersionResource{
@@ -121,8 +121,6 @@ func FeatureContext(s *godog.Suite) {
 	s.Step(`^the resource condition ([^"]*) should be (true|false)$`, t.theResourceConditionShouldBe)
 	s.Step(`^I (create|delete) a resource ([^"]*)$`, t.iOperateOnResource)
 	s.Step(`^I update a resource ([^"]*) with ([^"]*) set to ([^"]*)$`, t.iUpdateResourceWithField)
-	s.Step(`^the fargate profile should be (found|not found)$`, t.theFargateProfileShouldBeFound)
-
 }
 
 func (t *FunctionalTest) anEKSCluster() error {
@@ -161,25 +159,26 @@ func (t *FunctionalTest) anEKSCluster() error {
 
 	t.KubeClient = client
 	t.DynamicClient = dynClient
+	t.RESTConfig = config
 
 	return nil
 }
 
-func (t *FunctionalTest) iOperateOnResource(operation, resource string) error {
-	resourcePath := filepath.Join("templates", resource)
+func (t *FunctionalTest) iOperateOnResource(operation, fileName string) error {
+	resourcePath := filepath.Join("templates", fileName)
 	args := testutil.NewTemplateArguments()
 
-	instanceGroup, err := testutil.ParseInstanceGroupYaml(resourcePath, args)
+	gvr, resource, err := testutil.GetResourceFromYaml(resourcePath, t.RESTConfig, args)
 	if err != nil {
 		return err
 	}
 
-	t.ResourceName = instanceGroup.GetName()
-	t.ResourceNamespace = instanceGroup.GetNamespace()
+	t.ResourceName = resource.GetName()
+	t.ResourceNamespace = resource.GetNamespace()
 
 	switch operation {
 	case OperationCreate:
-		_, err = t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Create(instanceGroup, metav1.CreateOptions{})
+		_, err = t.DynamicClient.Resource(gvr.Resource).Namespace(t.ResourceNamespace).Create(resource, metav1.CreateOptions{})
 		if err != nil {
 			if kerrors.IsAlreadyExists(err) {
 				// already created
@@ -188,7 +187,7 @@ func (t *FunctionalTest) iOperateOnResource(operation, resource string) error {
 			return err
 		}
 	case OperationDelete:
-		err = t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Delete(t.ResourceName, &metav1.DeleteOptions{})
+		err = t.DynamicClient.Resource(gvr.Resource).Namespace(t.ResourceNamespace).Delete(t.ResourceName, &metav1.DeleteOptions{})
 		if err != nil {
 			if kerrors.IsNotFound(err) {
 				// already deleted
@@ -200,14 +199,14 @@ func (t *FunctionalTest) iOperateOnResource(operation, resource string) error {
 	return nil
 }
 
-func (t *FunctionalTest) iUpdateResourceWithField(resource, key string, value string) error {
+func (t *FunctionalTest) iUpdateResourceWithField(fileName, key string, value string) error {
 	var (
 		keySlice     = testutil.DeleteEmpty(strings.Split(key, "."))
 		overrideType bool
 		intValue     int64
 	)
 
-	resourcePath := filepath.Join("templates", resource)
+	resourcePath := filepath.Join("templates", fileName)
 	args := testutil.NewTemplateArguments()
 
 	n, err := strconv.ParseInt(value, 10, 64)
@@ -216,15 +215,15 @@ func (t *FunctionalTest) iUpdateResourceWithField(resource, key string, value st
 		intValue = n
 	}
 
-	instanceGroup, err := testutil.ParseInstanceGroupYaml(resourcePath, args)
+	gvr, resource, err := testutil.GetResourceFromYaml(resourcePath, t.RESTConfig, args)
 	if err != nil {
 		return err
 	}
 
-	t.ResourceName = instanceGroup.GetName()
-	t.ResourceNamespace = instanceGroup.GetNamespace()
+	t.ResourceName = resource.GetName()
+	t.ResourceNamespace = resource.GetNamespace()
 
-	updateTarget, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Get(t.ResourceName, metav1.GetOptions{})
+	updateTarget, err := t.DynamicClient.Resource(gvr.Resource).Namespace(t.ResourceNamespace).Get(t.ResourceName, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -371,44 +370,6 @@ func (t *FunctionalTest) nodesShouldBeWithLabel(count int, state, key, value str
 	return t.waitForNodeCountState(count, state, selector)
 }
 
-func (t *FunctionalTest) theFargateProfileShouldBeFound(state string) error {
-	const profileName = "test-bdd-profile-name"
-	var (
-		counter int
-		exists  bool
-	)
-	for {
-		exists = true
-		if counter >= DefaultWaiterRetries {
-			return errors.New("waiter timed out waiting for fargate profile state")
-		}
-		log.Infof("BDD >> waiting for resource %v/%v to become %v", t.ResourceNamespace, t.ResourceName, state)
-		_, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Get(t.ResourceName, metav1.GetOptions{})
-
-		if err != nil {
-			if !kerrors.IsNotFound(err) {
-				return err
-			}
-			log.Infof("BDD >> %v/%v is not found: %v", t.ResourceNamespace, t.ResourceName, err)
-			exists = false
-		}
-		switch state {
-		case FargateProfileFound:
-			if exists {
-				log.Infof("BDD >> success - resource %v/%v found", t.ResourceNamespace, t.ResourceName)
-				return nil
-			}
-		case FargateProfileNotFound:
-			if !exists {
-				log.Infof("BDD >> success - resource %v/%v not found", t.ResourceNamespace, t.ResourceName)
-				return nil
-			}
-		}
-		counter++
-		time.Sleep(DefaultWaiterInterval)
-	}
-}
-
 func (t *FunctionalTest) waitForNodeCountState(count int, state, selector string) error {
 	var (
 		counter int
@@ -464,12 +425,12 @@ func (t *FunctionalTest) deleteAll() error {
 			return nil
 		}
 
-		resource, err := testutil.ParseInstanceGroupYaml(path, testutil.NewTemplateArguments())
+		gvr, resource, err := testutil.GetResourceFromYaml(path, t.RESTConfig, testutil.NewTemplateArguments())
 		if err != nil {
 			return err
 		}
 
-		t.DynamicClient.Resource(InstanceGroupSchema).Namespace(resource.GetNamespace()).Delete(resource.GetName(), &metav1.DeleteOptions{})
+		t.DynamicClient.Resource(gvr.Resource).Namespace(resource.GetNamespace()).Delete(resource.GetName(), &metav1.DeleteOptions{})
 		log.Infof("BDD >> submitted deletion for %v/%v", resource.GetNamespace(), resource.GetName())
 		return nil
 	}
@@ -483,7 +444,7 @@ func (t *FunctionalTest) deleteAll() error {
 			return nil
 		}
 
-		resource, err := testutil.ParseInstanceGroupYaml(path, testutil.NewTemplateArguments())
+		gvr, resource, err := testutil.GetResourceFromYaml(path, t.RESTConfig, testutil.NewTemplateArguments())
 		if err != nil {
 			return err
 		}
@@ -493,7 +454,7 @@ func (t *FunctionalTest) deleteAll() error {
 				return errors.New("waiter timed out waiting for deletion")
 			}
 			log.Infof("BDD >> waiting for resource deletion of %v/%v", resource.GetNamespace(), resource.GetName())
-			_, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(resource.GetNamespace()).Get(resource.GetName(), metav1.GetOptions{})
+			_, err := t.DynamicClient.Resource(gvr.Resource).Namespace(resource.GetNamespace()).Get(resource.GetName(), metav1.GetOptions{})
 			if err != nil {
 				if kerrors.IsNotFound(err) {
 					log.Infof("BDD >> resource %v/%v is deleted", resource.GetNamespace(), resource.GetName())

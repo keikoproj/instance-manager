@@ -11,7 +11,7 @@ spec:
     maxSize: 4
     minSize: 2
     configuration:
-      nodeRole: {{ .NodeRole }}
+      nodeRole: {{ .NodeRoleArn }}
       clusterName: {{ .ClusterName }}
       amiType: AL2_x86_64
       instanceType: t2.small

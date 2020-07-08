@@ -26,6 +26,8 @@ import (
 	"github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -60,10 +62,10 @@ func main() {
 
 	var (
 		metricsAddr            string
+		configNamespace        string
 		spotRecommendationTime float64
 		enableLeaderElection   bool
 		nodeRelabel            bool
-		controllerConfPath     string
 		maxParallel            int
 		maxAPIRetries          int
 		err                    error
@@ -72,8 +74,8 @@ func main() {
 	flag.IntVar(&maxParallel, "max-workers", 5, "The number of maximum parallel reconciles")
 	flag.IntVar(&maxAPIRetries, "max-api-retries", 12, "The number of maximum retries for failed AWS API calls")
 	flag.Float64Var(&spotRecommendationTime, "spot-recommendation-time", 10.0, "The maximum age of spot recommendation events to consider in minutes")
+	flag.StringVar(&configNamespace, "config-namespace", "instance-manager", "the namespace to watch for instance-manager configmap")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
-	flag.StringVar(&controllerConfPath, "controller-config", "/etc/config/controller.conf", "The controller config file")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&nodeRelabel, "node-relabel", true, "relabel nodes as they join with kubernetes.io/role label via controller")
@@ -121,12 +123,22 @@ func main() {
 		KubeDynamic: dynClient,
 	}
 
+	cm, err := client.CoreV1().ConfigMaps(configNamespace).Get(controllers.ConfigMapName, metav1.GetOptions{})
+	if err != nil {
+		if !kerrors.IsNotFound(err) {
+			setupLog.Error(err, "could not get instance-manager configmap")
+			os.Exit(1)
+		}
+		setupLog.Info("instance-manager configmap does not exist, will not load defaults/boundaries")
+	}
+
 	err = (&controllers.InstanceGroupReconciler{
+		ConfigMap:              cm,
 		SpotRecommendationTime: spotRecommendationTime,
+		ConfigNamespace:        configNamespace,
 		NodeRelabel:            nodeRelabel,
 		Client:                 mgr.GetClient(),
 		Log:                    ctrl.Log.WithName("controllers").WithName("instancegroup"),
-		ControllerConfPath:     controllerConfPath,
 		MaxParallel:            maxParallel,
 		Auth: &controllers.InstanceGroupAuthenticator{
 			Aws:        awsWorker,

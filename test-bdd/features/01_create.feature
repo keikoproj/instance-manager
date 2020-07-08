@@ -39,5 +39,5 @@ Feature: CRUD Create
     Given an EKS cluster
     Then I create a resource instance-group-fargate.yaml
     And the resource should be created
-    And the fargate profile should be found
+    And the resource should converge to selector .status.currentState=ready
 

@@ -21,6 +21,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/eks"
+	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/onsi/gomega"
@@ -138,7 +139,7 @@ func TestGetLabelList(t *testing.T) {
 		asgMock                    = NewAutoScalingMocker()
 		iamMock                    = NewIamMocker()
 		eksMock                    = NewEksMocker()
-		expectedLabels115          = []string{"node.kubernetes.io/role=instance-group-1", "node-role.kubernetes.io/instance-group-1=\"\""}
+		expectedLabels115          = []string{"node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
 		expectedLabels116          = []string{"node.kubernetes.io/role=instance-group-1"}
 		expectedLabelsWithCustom   = []string{"custom.kubernetes.io=customlabel", "node.kubernetes.io/role=instance-group-1"}
 		expectedLabelsWithOverride = []string{"custom.kubernetes.io=customlabel", "override.kubernetes.io=instance-group-1", "override2.kubernetes.io=instance-group-1"}
@@ -181,5 +182,37 @@ func TestGetLabelList(t *testing.T) {
 
 		labels := ctx.GetLabelList()
 		g.Expect(labels).To(gomega.Equal(tc.expectedLabels))
+	}
+}
+
+func TestIsRetryable(t *testing.T) {
+	var (
+		g  = gomega.NewGomegaWithT(t)
+		ig = MockInstanceGroup()
+	)
+
+	tests := []struct {
+		state             v1alpha1.ReconcileState
+		expectedRetryable bool
+	}{
+		{state: v1alpha1.ReconcileErr, expectedRetryable: false},
+		{state: v1alpha1.ReconcileReady, expectedRetryable: false},
+		{state: v1alpha1.ReconcileDeleted, expectedRetryable: false},
+		{state: v1alpha1.ReconcileDeleting, expectedRetryable: true},
+		{state: v1alpha1.ReconcileInit, expectedRetryable: true},
+		{state: v1alpha1.ReconcileInitCreate, expectedRetryable: true},
+		{state: v1alpha1.ReconcileInitDelete, expectedRetryable: true},
+		{state: v1alpha1.ReconcileInitUpdate, expectedRetryable: true},
+		{state: v1alpha1.ReconcileInitUpgrade, expectedRetryable: true},
+		{state: v1alpha1.ReconcileModified, expectedRetryable: true},
+		{state: v1alpha1.ReconcileModifying, expectedRetryable: true},
+	}
+
+	for i, tc := range tests {
+		t.Logf("Test #%v - %+v", i, tc)
+		ig.SetState(tc.state)
+
+		retryable := IsRetryable(ig)
+		g.Expect(retryable).To(gomega.Equal(tc.expectedRetryable))
 	}
 }

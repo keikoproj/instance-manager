@@ -16,6 +16,10 @@ limitations under the License.
 package eksfargate
 
 import (
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/eks"
@@ -29,8 +33,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"testing"
-	"time"
 )
 
 type EksFargateUnitTest struct {
@@ -658,7 +660,7 @@ func TestCreateWithoutArnCreateProfileFails(t *testing.T) {
 	if err == nil {
 		t.Fatal("TestCreateWithoutArnCreateProfileFails: expected error")
 	}
-	if err.Error() != "create profile failed" {
+	if !strings.Contains(err.Error(), "create profile failed") {
 		t.Fatalf("TestCreateWithoutArnCreateProfileFails: Bad error message.  Got %v", err.Error())
 	}
 	if instanceGroup.GetState() != v1alpha1.ReconcileInit {

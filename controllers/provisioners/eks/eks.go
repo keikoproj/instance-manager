@@ -20,6 +20,7 @@ import (
 	"sync"
 
 	"github.com/go-logr/logr"
+
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
@@ -41,42 +42,25 @@ var (
 
 // New constructs a new instance group provisioner of EKS type
 func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
+	var (
+		instanceGroup = p.InstanceGroup
+		configuration = instanceGroup.GetEKSConfiguration()
+		status        = instanceGroup.GetStatus()
+		configHash    = kubeprovider.ConfigmapHash(p.Configuration)
+	)
 
 	ctx := &EksInstanceGroupContext{
-		InstanceGroup:    p.InstanceGroup,
+		InstanceGroup:    instanceGroup,
 		KubernetesClient: p.Kubernetes,
 		AwsWorker:        p.AwsWorker,
 		Log:              p.Log.WithName("eks"),
+		ResourcePrefix:   fmt.Sprintf("%v-%v-%v", configuration.GetClusterName(), instanceGroup.GetNamespace(), instanceGroup.GetName()),
 	}
-	instanceGroup := ctx.GetInstanceGroup()
-	configuration := instanceGroup.GetEKSConfiguration()
-	ctx.ResourcePrefix = fmt.Sprintf("%v-%v-%v", configuration.GetClusterName(), instanceGroup.GetNamespace(), instanceGroup.GetName())
 
 	instanceGroup.SetState(v1alpha1.ReconcileInit)
-
-	if len(p.Configuration.DefaultSubnets) != 0 {
-		configuration.SetSubnets(p.Configuration.DefaultSubnets)
-	}
-
-	if p.Configuration.DefaultClusterName != "" {
-		configuration.SetClusterName(p.Configuration.DefaultClusterName)
-	}
+	status.SetConfigHash(configHash)
 
 	return ctx
-}
-
-func IsRetryable(instanceGroup *v1alpha1.InstanceGroup) bool {
-	for _, state := range NonRetryableStates {
-		if state == instanceGroup.GetState() {
-			return false
-		}
-	}
-	return true
-}
-
-type EksDefaultConfiguration struct {
-	DefaultSubnets []string `yaml:"defaultSubnets,omitempty"`
-	EksClusterName string   `yaml:"defaultClusterName,omitempty"`
 }
 
 type EksInstanceGroupContext struct {
@@ -86,6 +70,7 @@ type EksInstanceGroupContext struct {
 	AwsWorker        awsprovider.AwsWorker
 	DiscoveredState  *DiscoveredState
 	Log              logr.Logger
+	Configuration    *provisioners.DefaultConfiguration
 	ResourcePrefix   string
 }
 
@@ -95,6 +80,7 @@ func (ctx *EksInstanceGroupContext) GetInstanceGroup() *v1alpha1.InstanceGroup {
 	}
 	return &v1alpha1.InstanceGroup{}
 }
+
 func (ctx *EksInstanceGroupContext) GetUpgradeStrategy() *v1alpha1.AwsUpgradeStrategy {
 	if &ctx.InstanceGroup.Spec.AwsUpgradeStrategy != nil {
 		return &ctx.InstanceGroup.Spec.AwsUpgradeStrategy

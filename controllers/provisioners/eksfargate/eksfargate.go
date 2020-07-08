@@ -16,8 +16,10 @@ limitations under the License.
 package eksfargate
 
 import (
-	"errors"
 	"fmt"
+	"hash/fnv"
+	"strconv"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/eks"
@@ -25,8 +27,7 @@ import (
 	v1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
-	"hash/fnv"
-	"strconv"
+	"github.com/pkg/errors"
 )
 
 const ProvisionerName = "eks-fargate"
@@ -190,7 +191,7 @@ func (ctx *FargateInstanceGroupContext) Create() error {
 	if err != nil {
 
 		if becauseErrorContains(err, eks.ErrCodeResourceInUseException) {
-			ctx.Log.Info("Creation of the fargate profile delayed.",
+			ctx.Log.Info("creation of the fargate profile delayed.",
 				"instancegroup",
 				instanceGroup.GetName(),
 				"cluster",
@@ -201,14 +202,7 @@ func (ctx *FargateInstanceGroupContext) Create() error {
 			return nil
 		}
 
-		ctx.Log.Error(err, "Creation of the fargate profile failed",
-			"instancegroup",
-			instanceGroup.GetName(),
-			"cluster",
-			spec.GetClusterName(),
-			"profile",
-			ctx.generateUniqueName())
-		return err
+		return errors.Wrapf(err, "creation of the fargate profile %v failed", ctx.generateUniqueName())
 	}
 
 	ctx.Log.Info("Fargate profile creation started.",

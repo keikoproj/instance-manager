@@ -1,7 +1,7 @@
 apiVersion: instancemgr.keikoproj.io/v1alpha1
 kind: InstanceGroup
 metadata:
-  name: hello-world-fargate
+  name: bdd-test-fargate
   namespace: instance-manager
 spec:
   provisioner: eks-fargate

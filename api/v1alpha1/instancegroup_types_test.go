@@ -15,16 +15,17 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"github.com/aws/aws-sdk-go/aws"
 	"testing"
+
+	"github.com/aws/aws-sdk-go/aws"
 )
 
 type EksUnitTest struct {
-	Spec InstanceGroupSpec
+	InstanceGroup InstanceGroup
 }
 
 func (u *EksUnitTest) Run(t *testing.T) string {
-	err := u.Spec.Validate()
+	err := u.InstanceGroup.Validate()
 	if err == nil {
 		return aws.StringValue(nil)
 	} else {
@@ -34,11 +35,11 @@ func (u *EksUnitTest) Run(t *testing.T) string {
 
 func TestInstanceGroupSpecValidate(t *testing.T) {
 	type args struct {
-		spec InstanceGroupSpec
+		instancegroup InstanceGroup
 	}
 	testFunction := func(t *testing.T, args args) string {
 		testCase := EksUnitTest{
-			Spec: args.spec,
+			InstanceGroup: args.instancegroup,
 		}
 		return testCase.Run(t)
 	}
@@ -50,21 +51,21 @@ func TestInstanceGroupSpecValidate(t *testing.T) {
 		{
 			name: "eks-fargate with managed strategy",
 			args: args{
-				spec: buildEKSFargateInstanceGroupSpec("eks-fargate", "managed"),
+				instancegroup: MockInstanceGroup("eks-fargate", "managed"),
 			},
 			want: "",
 		},
 		{
 			name: "eks-bogus provisioner",
 			args: args{
-				spec: buildEKSFargateInstanceGroupSpec("eks-bogus", "managed"),
+				instancegroup: MockInstanceGroup("eks-bogus", "managed"),
 			},
 			want: "validation failed, provisioner 'eks-bogus' is invalid",
 		},
 		{
 			name: "eks-fargate with bad strategy",
 			args: args{
-				spec: buildEKSFargateInstanceGroupSpec("eks-fargate", "rollingUpdate"),
+				instancegroup: MockInstanceGroup("eks-fargate", "rollingUpdate"),
 			},
 			want: "validation failed, strategy 'rollingUpdate' is invalid for the eks-fargate provisioner",
 		},
@@ -80,23 +81,26 @@ func TestInstanceGroupSpecValidate(t *testing.T) {
 	}
 }
 
-func buildEKSFargateInstanceGroupSpec(provisioner, strategy string) InstanceGroupSpec {
-	igs := InstanceGroupSpec{
-		Provisioner: provisioner,
-		AwsUpgradeStrategy: AwsUpgradeStrategy{
-			Type: strategy,
-		},
-		EKSFargateSpec: &EKSFargateSpec{
-			ClusterName:         "",
-			PodExecutionRoleArn: "",
-			Subnets:             []string{"subnet-1111111", "subnet-222222"},
-			Tags: []map[string]string{
-				{
-					"key":   "a-key",
-					"value": "a-value",
+func MockInstanceGroup(provisioner, strategy string) InstanceGroup {
+	ig := InstanceGroup{
+		Spec: InstanceGroupSpec{
+			Provisioner: provisioner,
+			AwsUpgradeStrategy: AwsUpgradeStrategy{
+				Type: strategy,
+			},
+			EKSFargateSpec: &EKSFargateSpec{
+				ClusterName:         "",
+				PodExecutionRoleArn: "",
+				Subnets:             []string{"subnet-1111111", "subnet-222222"},
+				Tags: []map[string]string{
+					{
+						"key":   "a-key",
+						"value": "a-value",
+					},
 				},
 			},
-		}}
+		},
+	}
 
-	return igs
+	return ig
 }

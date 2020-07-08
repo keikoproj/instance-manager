@@ -17,13 +17,10 @@ package controllers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
-	"github.com/ghodss/yaml"
 	"github.com/go-logr/logr"
 	v1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
@@ -36,25 +33,20 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	runtime "k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 // InstanceGroupReconciler reconciles an InstanceGroup object
 type InstanceGroupReconciler struct {
 	client.Client
 	SpotRecommendationTime float64
+	ConfigNamespace        string
 	NodeRelabel            bool
 	Log                    logr.Logger
-	ControllerConfPath     string
 	MaxParallel            int
 	Auth                   *InstanceGroupAuthenticator
+	ConfigMap              *corev1.ConfigMap
 }
 
 type InstanceGroupAuthenticator struct {
@@ -72,6 +64,9 @@ func (r *InstanceGroupReconciler) Finalize(instanceGroup *v1alpha1.InstanceGroup
 			// Unset Finalizer if present
 			if common.ContainsString(meta.GetFinalizers(), finalizerName) {
 				meta.SetFinalizers(common.RemoveString(instanceGroup.ObjectMeta.Finalizers, finalizerName))
+				if err := r.Update(context.Background(), instanceGroup); err != nil {
+					r.Log.Error(err, "failed to update custom resource")
+				}
 			}
 		}
 	}
@@ -84,38 +79,16 @@ func (r *InstanceGroupReconciler) SetFinalizer(instanceGroup *v1alpha1.InstanceG
 		if !common.ContainsString(instanceGroup.ObjectMeta.Finalizers, finalizerName) {
 			// Set Finalizer
 			instanceGroup.ObjectMeta.Finalizers = append(instanceGroup.ObjectMeta.Finalizers, finalizerName)
+			if err := r.Update(context.Background(), instanceGroup); err != nil {
+				r.Log.Error(err, "failed to update custom resource")
+			}
 		}
 	}
-}
-
-func (r *InstanceGroupReconciler) NewProvisionerInput(instanceGroup *v1alpha1.InstanceGroup) (provisioners.ProvisionerInput, error) {
-	var input provisioners.ProvisionerInput
-	config := provisioners.ProvisionerConfiguration{}
-	if _, err := os.Stat(r.ControllerConfPath); os.IsExist(err) {
-		ctrlConfig, err := common.ReadFile(r.ControllerConfPath)
-		if err != nil {
-			return input, err
-		}
-
-		err = yaml.Unmarshal(ctrlConfig, &config)
-		if err != nil {
-			return input, err
-		}
-	}
-
-	input = provisioners.ProvisionerInput{
-		AwsWorker:     r.Auth.Aws,
-		Kubernetes:    r.Auth.Kubernetes,
-		InstanceGroup: instanceGroup,
-		Configuration: config,
-		Log:           r.Log,
-	}
-	return input, nil
 }
 
 // +kubebuilder:rbac:groups=core,resources=nodes,verbs=list;patch;watch
 // +kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch;create
-// +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;create;update;patch
+// +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;create;update;patch;watch
 // +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=instancemgr.keikoproj.io,resources=instancegroups,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=instancemgr.keikoproj.io,resources=instancegroups/status,verbs=get;update;patch
@@ -128,242 +101,111 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	err := r.Get(context.Background(), req.NamespacedName, instanceGroup)
 	if err != nil {
 		if kerrors.IsNotFound(err) {
-			r.Log.Info("instancegroup not found", "instancegroup", req.Name, "namespace", req.Namespace)
+			r.Log.Info("instancegroup not found", "instancegroup", req.NamespacedName)
 			return ctrl.Result{}, nil
 		}
 		r.Log.Error(err, "reconcile failed")
 		return ctrl.Result{}, err
 	}
 
-	if err = instanceGroup.Spec.Validate(); err != nil {
-		r.Log.Error(err, "reconcile failed")
-		instanceGroup.SetState(v1alpha1.ReconcileErr)
-		r.Update(context.Background(), instanceGroup)
+	// set/unset finalizer
+	finalizerName := fmt.Sprintf("finalizers.%v.instancegroups.keikoproj.io", instanceGroup.Spec.Provisioner)
+	r.SetFinalizer(instanceGroup, finalizerName)
+	defer r.Finalize(instanceGroup, finalizerName)
+
+	var defaultConfig *provisioners.DefaultConfiguration
+	if defaultConfig, err = provisioners.UnmarshalConfiguration(r.ConfigMap); err != nil {
+		r.Log.Error(err, "failed to unmarshal configuration", "instancegroup", instanceGroup.NamespacedName())
 		return ctrl.Result{}, err
 	}
 
-	// Add Finalizer if not present, and set the initial state
-	finalizerName := fmt.Sprintf("finalizers.%v.instancegroups.keikoproj.io", instanceGroup.Spec.Provisioner)
-	r.SetFinalizer(instanceGroup, finalizerName)
+	configuredInstanceGroup := &v1alpha1.InstanceGroup{}
+	instanceGroup.DeepCopyInto(configuredInstanceGroup)
 
-	input, err := r.NewProvisionerInput(instanceGroup)
-	if err != nil {
-		r.Log.Error(err, "failed to initialize provisioner", instanceGroup.GetName())
-		return ctrl.Result{}, nil
+	if configuredInstanceGroup, err = provisioners.SetConfigurationDefaults(configuredInstanceGroup, defaultConfig); err != nil {
+		r.Log.Error(err, "failed to set configuration defaults", "instancegroup", instanceGroup.NamespacedName())
+		return ctrl.Result{}, err
 	}
-	provisionerKind := strings.ToLower(instanceGroup.Spec.Provisioner)
-	r.Log.Info(
-		"reconcile event started",
-		"instancegroup", req.Name,
-		"namespace", req.Namespace,
-		"provisioner", provisionerKind,
-		"resourceVersion", instanceGroup.GetResourceVersion(),
-	)
 
-	switch provisionerKind {
-	case eks.ProvisionerName:
-		ctx := eks.New(input)
-		defer r.Update(context.Background(), ctx.GetInstanceGroup())
-		err = HandleReconcileRequest(ctx)
-		if err != nil {
-			r.Log.Error(err,
-				"reconcile failed",
-				"instancegroup", instanceGroup.GetName(),
-				"provisioner", provisionerKind,
-			)
-			ctx.SetState(v1alpha1.ReconcileErr)
-		}
-		if eks.IsRetryable(instanceGroup) {
-			r.Log.Info(
-				"reconcile event ended with requeue",
-				"instancegroup", req.Name,
-				"namespace", req.Namespace,
-				"provisioner", provisionerKind,
-				"resourceVersion", instanceGroup.GetResourceVersion(),
-			)
-			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
-		}
-	case eksmanaged.ProvisionerName:
-		ctx := eksmanaged.New(input)
-		defer r.Update(context.Background(), ctx.GetInstanceGroup())
-		err = HandleReconcileRequest(ctx)
-		if err != nil {
-			r.Log.Error(err,
-				"reconcile failed",
-				"instancegroup", instanceGroup.GetName(),
-				"provisioner", provisionerKind,
-			)
-			ctx.SetState(v1alpha1.ReconcileErr)
-		}
-		if eksmanaged.IsRetryable(instanceGroup) {
-			r.Log.Info(
-				"reconcile event ended with requeue",
-				"instancegroup", req.Name,
-				"namespace", req.Namespace,
-				"provisioner", provisionerKind,
-				"resourceVersion", instanceGroup.GetResourceVersion(),
-			)
-			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
-		}
+	input := provisioners.ProvisionerInput{
+		AwsWorker:     r.Auth.Aws,
+		Kubernetes:    r.Auth.Kubernetes,
+		InstanceGroup: configuredInstanceGroup,
+		Configuration: r.ConfigMap,
+		Log:           r.Log,
+	}
 
-	case eksfargate.ProvisionerName:
+	provisionerKind := strings.ToLower(configuredInstanceGroup.Spec.Provisioner)
 
-		ctx := eksfargate.New(input)
-		defer r.Update(context.Background(), ctx.GetInstanceGroup())
-		err = HandleReconcileRequest(ctx)
-		if err != nil {
-			r.Log.Error(err,
-				"reconcile failed",
-				"instancegroup", instanceGroup.GetName(),
-				"provisioner", provisionerKind,
-			)
-			ctx.SetState(v1alpha1.ReconcileErr)
-		}
-		if eksfargate.IsRetryable(instanceGroup) {
-			r.Log.Info(
-				"reconcile event ended with requeue",
-				"instancegroup", req.Name,
-				"namespace", req.Namespace,
-				"provisioner", provisionerKind,
-				"resourceVersion", instanceGroup.GetResourceVersion(),
-			)
-			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
-		}
-
-	default:
+	if !common.ContainsEqualFold(v1alpha1.Provisioners, provisionerKind) {
 		return ctrl.Result{}, errors.Errorf("provisioner '%v' does not exist", provisionerKind)
 	}
 
-	r.Finalize(instanceGroup, finalizerName)
-	r.Log.Info(
-		"reconcile event ended",
-		"instancegroup", req.Name,
-		"namespace", req.Namespace,
-		"provisioner", provisionerKind,
-		"resourceVersion", instanceGroup.GetResourceVersion(),
-	)
+	r.Log.Info("reconcile event started", "instancegroup", req.NamespacedName, "provisioner", provisionerKind)
+
+	// defer updates for the instanceGroup CR
+	defer r.UpdateStatus(configuredInstanceGroup)
+
+	var isRetryable bool
+	if strings.EqualFold(provisionerKind, eks.ProvisionerName) {
+		ctx := eks.New(input)
+
+		if err = configuredInstanceGroup.Validate(); err != nil {
+			ctx.SetState(v1alpha1.ReconcileErr)
+			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
+		}
+
+		if err = HandleReconcileRequest(ctx); err != nil {
+			ctx.SetState(v1alpha1.ReconcileErr)
+			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
+		}
+
+		isRetryable = eks.IsRetryable(configuredInstanceGroup)
+	}
+
+	if strings.EqualFold(provisionerKind, eksmanaged.ProvisionerName) {
+		ctx := eksmanaged.New(input)
+
+		if err = configuredInstanceGroup.Validate(); err != nil {
+			ctx.SetState(v1alpha1.ReconcileErr)
+			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
+		}
+
+		if err = HandleReconcileRequest(ctx); err != nil {
+			ctx.SetState(v1alpha1.ReconcileErr)
+			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
+		}
+
+		isRetryable = eksmanaged.IsRetryable(configuredInstanceGroup)
+	}
+
+	if strings.EqualFold(provisionerKind, eksfargate.ProvisionerName) {
+		ctx := eksfargate.New(input)
+
+		if err = configuredInstanceGroup.Validate(); err != nil {
+			ctx.SetState(v1alpha1.ReconcileErr)
+			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
+		}
+
+		if err = HandleReconcileRequest(ctx); err != nil {
+			ctx.SetState(v1alpha1.ReconcileErr)
+			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
+		}
+
+		isRetryable = eksfargate.IsRetryable(configuredInstanceGroup)
+	}
+
+	if isRetryable {
+		r.Log.Info("reconcile event ended with requeue", "instancegroup", req.NamespacedName, "provisioner", provisionerKind)
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+	}
+
 	return ctrl.Result{}, nil
 }
 
-func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	switch r.NodeRelabel {
-	case true:
-		return ctrl.NewControllerManagedBy(mgr).
-			For(&v1alpha1.InstanceGroup{}).
-			Watches(&source.Kind{Type: &corev1.Event{}}, &handler.EnqueueRequestsFromMapFunc{
-				ToRequests: handler.ToRequestsFunc(r.spotEventReconciler),
-			}).
-			Watches(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestsFromMapFunc{
-				ToRequests: handler.ToRequestsFunc(r.nodeReconciler),
-			}).
-			WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
-			Complete(r)
-	default:
-		return ctrl.NewControllerManagedBy(mgr).
-			For(&v1alpha1.InstanceGroup{}).
-			Watches(&source.Kind{Type: &corev1.Event{}}, &handler.EnqueueRequestsFromMapFunc{
-				ToRequests: handler.ToRequestsFunc(r.spotEventReconciler),
-			}).
-			WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
-			Complete(r)
-	}
-}
-
-type NodeLabels struct {
-	Labels map[string]string `json:"labels,omitempty"`
-}
-
-type LabelPatch struct {
-	Metadata *NodeLabels `json:"metadata,omitempty"`
-}
-
-func (r *InstanceGroupReconciler) nodeReconciler(obj handler.MapObject) []ctrl.Request {
-	var (
-		nodeName          = obj.Meta.GetName()
-		nodeLabels        = obj.Meta.GetLabels()
-		roleLabelKey      = "kubernetes.io/role"
-		bootstrapLabelKey = "node.kubernetes.io/role"
-	)
-
-	// if node already has a role label, don't modify it
-	if _, ok := nodeLabels[roleLabelKey]; ok {
-		return nil
-	}
-
-	// if node does not have the bootstrap label, don't modify it
-	var val string
-	var ok bool
-	if val, ok = nodeLabels[bootstrapLabelKey]; !ok {
-		return nil
-	}
-
-	nodeLabels[roleLabelKey] = val
-
-	labelPatch := &LabelPatch{
-		Metadata: &NodeLabels{
-			Labels: nodeLabels,
-		},
-	}
-
-	patchJSON, err := json.Marshal(labelPatch)
-	if err != nil {
-		r.Log.Error(err, "failed to marshal node labels", "node", nodeName, "patch", string(patchJSON))
-		return nil
-	}
-
-	if _, err = r.Auth.Kubernetes.Kubernetes.CoreV1().Nodes().Patch(nodeName, types.StrategicMergePatchType, patchJSON); err != nil {
-		r.Log.Error(err, "failed to patch node labels", "node", nodeName)
-	}
-
-	return nil
-}
-
-func (r *InstanceGroupReconciler) spotEventReconciler(obj handler.MapObject) []ctrl.Request {
-	unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj.Object)
-	if err != nil {
-		return nil
-	}
-
-	if reason, ok, _ := unstructured.NestedString(unstructuredObj, "reason"); ok {
-		if reason != kubeprovider.SpotRecommendationReason {
-			return nil
-		}
-	} else {
-		return nil
-	}
-
-	creationTime := obj.Meta.GetCreationTimestamp()
-	minutesSince := time.Since(creationTime.Time).Minutes()
-	if minutesSince > r.SpotRecommendationTime {
-		return nil
-	}
-
-	ctrl.Log.Info(fmt.Sprintf("spot recommendation %v/%v", obj.Meta.GetNamespace(), obj.Meta.GetName()))
-
-	involvedObjectName, exists, err := unstructured.NestedString(unstructuredObj, "involvedObject", "name")
-	if err != nil || !exists {
-		r.Log.Error(err,
-			"failed to process v1.event",
-			"event", obj.Meta.GetName(),
-		)
-		return nil
-	}
-
-	tags, err := awsprovider.GetScalingGroupTagsByName(involvedObjectName, r.Auth.Aws.AsgClient)
-	if err != nil {
-		return nil
-	}
-
-	instanceGroup := types.NamespacedName{}
-	instanceGroup.Name = awsprovider.GetTagValueByKey(tags, provisioners.TagInstanceGroupName)
-	instanceGroup.Namespace = awsprovider.GetTagValueByKey(tags, provisioners.TagInstanceGroupNamespace)
-	if instanceGroup.Name == "" || instanceGroup.Namespace == "" {
-		return nil
-	}
-
-	return []ctrl.Request{
-		{
-			NamespacedName: instanceGroup,
-		},
+func (r *InstanceGroupReconciler) UpdateStatus(ig *v1alpha1.InstanceGroup) {
+	r.Log.Info("updating resource status", "instancegroup", ig.NamespacedName())
+	if err := r.Status().Update(context.Background(), ig); err != nil {
+		r.Log.Info("failed to update status", "error", err, "instancegroup", ig.NamespacedName())
 	}
 }

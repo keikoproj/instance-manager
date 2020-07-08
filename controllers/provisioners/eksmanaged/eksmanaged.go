@@ -231,15 +231,6 @@ func New(p provisioners.ProvisionerInput) *EksManagedInstanceGroupContext {
 	}
 
 	instanceGroup := ctx.GetInstanceGroup()
-	configuration := instanceGroup.GetEKSManagedConfiguration()
-
-	if len(p.Configuration.DefaultSubnets) != 0 {
-		configuration.SetSubnets(p.Configuration.DefaultSubnets)
-	}
-
-	if p.Configuration.DefaultClusterName != "" {
-		configuration.SetClusterName(p.Configuration.DefaultClusterName)
-	}
 
 	instanceGroup.SetState(v1alpha1.ReconcileInit)
 	ctx.processParameters()
