@@ -149,6 +149,15 @@ spec:
                         - key
                         type: object
                       type: array
+                    userData:
+                      items:
+                        properties:
+                          data:
+                            type: string
+                          stage:
+                            type: string
+                        type: object
+                      type: array
                     volumes:
                       items:
                         properties:

@@ -49,6 +49,10 @@ const (
 	ReconcileReady ReconcileState = "Ready"
 	ReconcileErr   ReconcileState = "Error"
 
+	// Userdata bootstrap stages
+	PreBootstrapStage  = "PreBootstrap"
+	PostBootstrapStage = "PostBootstrap"
+
 	LifecycleStateNormal      = "normal"
 	LifecycleStateSpot        = "spot"
 	CRDStrategyName           = "crd"
@@ -174,10 +178,16 @@ type EKSConfiguration struct {
 	Tags                        []map[string]string `json:"tags,omitempty"`
 	Labels                      map[string]string   `json:"labels,omitempty"`
 	Taints                      []corev1.Taint      `json:"taints,omitempty"`
+	UserData                    []UserDataStage     `json:"userData,omitempty"`
 	ExistingRoleName            string              `json:"roleName,omitempty"`
 	ExistingInstanceProfileName string              `json:"instanceProfileName,omitempty"`
 	ManagedPolicies             []string            `json:"managedPolicies,omitempty"`
 	MetricsCollection           []string            `json:"metricsCollection,omitempty"`
+}
+
+type UserDataStage struct {
+	Stage string `json:"stage,omitempty"`
+	Data  string `json:"data,omitempty"`
 }
 
 type NodeVolume struct {
@@ -395,6 +405,9 @@ func (c *EKSConfiguration) SetTaints(taints []corev1.Taint) {
 }
 func (c *EKSConfiguration) GetManagedPolicies() []string {
 	return c.ManagedPolicies
+}
+func (c *EKSConfiguration) GetUserData() []UserDataStage {
+	return c.UserData
 }
 func (c *EKSConfiguration) SetManagedPolicies(policies []string) {
 	c.ManagedPolicies = policies

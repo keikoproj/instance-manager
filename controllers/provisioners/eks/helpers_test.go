@@ -185,6 +185,49 @@ func TestGetLabelList(t *testing.T) {
 	}
 }
 
+func TestGetUserDataStages(t *testing.T) {
+	var (
+		g             = gomega.NewGomegaWithT(t)
+		k             = MockKubernetesClientSet()
+		ig            = MockInstanceGroup()
+		configuration = ig.GetEKSConfiguration()
+		asgMock       = NewAutoScalingMocker()
+		iamMock       = NewIamMocker()
+		eksMock       = NewEksMocker()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	ctx := MockContext(ig, k, w)
+
+	tests := []struct {
+		preBootstrapScript  string
+		postBootstrapScript string
+	}{
+		{},
+		{preBootstrapScript: "", postBootstrapScript: ""},
+		{preBootstrapScript: "prebootstrap", postBootstrapScript: "postbootstrap"},
+	}
+
+	for i, tc := range tests {
+		t.Logf("Test #%v - %+v", i, tc)
+		configuration.UserData = append(configuration.UserData, v1alpha1.UserDataStage{
+			Stage: v1alpha1.PreBootstrapStage,
+			Data:  tc.preBootstrapScript,
+		})
+		configuration.UserData = append(configuration.UserData, v1alpha1.UserDataStage{
+			Stage: v1alpha1.PostBootstrapStage,
+			Data:  tc.postBootstrapScript,
+		})
+		configuration.UserData = append(configuration.UserData, v1alpha1.UserDataStage{
+			Stage: "invalid-stage",
+			Data:  "test",
+		})
+		preScript, postScript := ctx.GetUserDataStages()
+		g.Expect(preScript).To(gomega.Equal(tc.preBootstrapScript))
+		g.Expect(postScript).To(gomega.Equal(tc.postBootstrapScript))
+	}
+}
+
 func TestIsRetryable(t *testing.T) {
 	var (
 		g  = gomega.NewGomegaWithT(t)
