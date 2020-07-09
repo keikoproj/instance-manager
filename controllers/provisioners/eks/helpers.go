@@ -37,14 +37,15 @@ import (
 
 func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput(name string) *autoscaling.CreateLaunchConfigurationInput {
 	var (
-		instanceGroup   = ctx.GetInstanceGroup()
-		configuration   = instanceGroup.GetEKSConfiguration()
-		clusterName     = configuration.GetClusterName()
-		state           = ctx.GetDiscoveredState()
-		instanceProfile = state.GetInstanceProfile()
-		devices         = ctx.GetBlockDeviceList()
-		args            = ctx.GetBootstrapArgs()
-		userData        = ctx.AwsWorker.GetBasicUserData(clusterName, args)
+		instanceGroup         = ctx.GetInstanceGroup()
+		configuration         = instanceGroup.GetEKSConfiguration()
+		clusterName           = configuration.GetClusterName()
+		state                 = ctx.GetDiscoveredState()
+		instanceProfile       = state.GetInstanceProfile()
+		devices               = ctx.GetBlockDeviceList()
+		args                  = ctx.GetBootstrapArgs()
+		preScript, postScript = ctx.GetUserDataStages()
+		userData              = ctx.AwsWorker.GetBasicUserData(clusterName, args, preScript, postScript)
 	)
 
 	input := &autoscaling.CreateLaunchConfigurationInput{
@@ -63,6 +64,27 @@ func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput(name string) *au
 	}
 
 	return input
+}
+
+func (ctx *EksInstanceGroupContext) GetUserDataStages() (string, string) {
+	var (
+		instanceGroup = ctx.GetInstanceGroup()
+		configuration = instanceGroup.GetEKSConfiguration()
+		userData      = configuration.GetUserData()
+	)
+
+	var preScript, postScript string
+	for _, stage := range userData {
+		switch {
+		case strings.EqualFold(stage.Stage, v1alpha1.PreBootstrapStage):
+			preScript = stage.Data
+		case strings.EqualFold(stage.Stage, v1alpha1.PostBootstrapStage):
+			postScript = stage.Data
+		default:
+			ctx.Log.Info("invalid userdata stage will not be rendered", "stage", stage.Stage, "data", stage.Data)
+		}
+	}
+	return preScript, postScript
 }
 
 func (ctx *EksInstanceGroupContext) GetAddedTags(asgName string) []*autoscaling.Tag {

@@ -1,4 +1,5 @@
 # instance-manager
+
 [![Build Status](https://travis-ci.org/keikoproj/instance-manager.svg?branch=master)](https://travis-ci.org/keikoproj/instance-manager)
 [![codecov](https://codecov.io/gh/keikoproj/instance-manager/branch/master/graph/badge.svg)](https://codecov.io/gh/keikoproj/instance-manager)
 [![Go Report Card](https://goreportcard.com/badge/github.com/keikoproj/instance-manager)](https://goreportcard.com/report/github.com/keikoproj/instance-manager)
@@ -12,14 +13,13 @@
 
 - [Installation](#installation)
 - [Usage Example](#usage-example)
-    * [Currently supported provisioners](#currently-supported-provisioners)
-    * [EKS sample spec](#EKS-sample-spec)
-    * [Submit and Verify](#submit-and-verify)
-    * [Features](#features)
-    * [Alpha-2 Version](#alpha-2-version)
+  - [Currently supported provisioners](#currently-supported-provisioners)
+  - [EKS sample spec](#EKS-sample-spec)
+  - [Submit and Verify](#submit-and-verify)
+  - [Features](#features)
+  - [Alpha-2 Version](#alpha-2-version)
 - [Contributing](#contributing)
 - [Developer Guide](#developer-guide)
-
 
 Worker nodes in Kubernetes clusters work best if provisioned and managed using a logical grouping. Kops introduced the term “InstanceGroup” for this logical grouping. In AWS, an InstanceGroup maps to an AutoScalingGroup.
 
@@ -44,7 +44,6 @@ _For installation instructions and more examples of usage, please refer to the [
 | eks-fargate | provision a cluster to run pods on EKS Fargate|
 
 To create an instance group, submit an InstanceGroup custom resource in your cluster, and the controller will provision and bootstrap it to your cluster, and allow you to modify it from within the cluster.
-
 
 ### EKS sample spec
 
@@ -89,7 +88,6 @@ spec:
       - key: my-ec2-tag
         value: some-value
 ```
-
 
 ### Submit and Verify
 
@@ -242,6 +240,7 @@ spec:
 ```
 
 #### EKS Fargate
+
 The purpose of the fargate provisioner is to enable the management of Fargate profiles.
 
 By associating EKS clusters with a Fargate Profile, pods can be identified for execution through profile selectors. If a to-be-scheduled pod matches any of the selectors in the Fargate Profile, then that pod is scheduled on Fargate.
@@ -286,8 +285,8 @@ spec:
     tags:
       key1: "value1"
       key2: "value2"
-
 ```
+
 Read more about the [Fargate Profile](https://docs.aws.amazon.com/eks/latest/userguide/fargate-profile.html).
 
 Note that the eks-fargate provisioner does not accept a Fargate profile name.  Instead, the provisioner creates a unique profile name based upon the cluster name, instance group name and namespace.
@@ -307,8 +306,8 @@ Properties:
   ManagedPolicyArns:
   - "arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy"
   Path: /
-
 ```
+
 Most likely an execution role with access to addtional AWS resources will be required.  In this case, the above IAM role can be used as the basis to create a new, custom role with the IAM policies specific to your pods. Create your new role and your pod specific policies and use the new role's ARN as the *podExecutionRoleArn* parameter value in eks-fargate spec.
 
 Here is an example of a role with an additional policy for S3 access.
