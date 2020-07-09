@@ -82,9 +82,28 @@ spec:
       # GroupTotalCapacity
       # All (will enable all above metrics)
       metricsCollection: <[]string> : must be a list of metric names to enable collection for
+
+      # customize UserData passed into launch configuration
+      userData: <[]UserDataStage> : must be a list of UserDataStage
+```
+
+### UserDataStage
+
+UserDataStage represents a custom userData script
+
+```yaml
+spec:
+  provisioner: eks
+  eks:
+    configuration:
+      userData:
+      - stage: <string> : represents the stage of the script, allowed values are PreBootstrap, PostBootstrap
+        data: <string> : represents the script payload to inject
 ```
 
 ### NodeVolume
+
+NodeVolume represents a custom EBS volume
 
 ```yaml
 spec:
