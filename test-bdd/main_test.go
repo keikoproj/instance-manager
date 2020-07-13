@@ -244,7 +244,8 @@ func (t *FunctionalTest) iUpdateResourceWithField(fileName, key string, value st
 
 func (t *FunctionalTest) theResourceConditionShouldBe(cType string, cond string) error {
 	var (
-		counter int
+		counter        int
+		expectedStatus = strings.Title(cond)
 	)
 
 	for {
@@ -277,7 +278,7 @@ func (t *FunctionalTest) theResourceConditionShouldBe(cType string, cond string)
 				}
 				if condType == cType {
 					status := condition["status"].(string)
-					if corev1.ConditionStatus(status) == corev1.ConditionStatus(cond) {
+					if corev1.ConditionStatus(status) == corev1.ConditionStatus(expectedStatus) {
 						return nil
 					}
 				}
