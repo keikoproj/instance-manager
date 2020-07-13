@@ -277,7 +277,7 @@ func (t *FunctionalTest) theResourceConditionShouldBe(cType string, cond string)
 				}
 				if condType == cType {
 					status := condition["status"].(string)
-					if corev1.ConditionStatus(status) == corev1.ConditionTrue {
+					if corev1.ConditionStatus(status) == corev1.ConditionStatus(cond) {
 						return nil
 					}
 				}
