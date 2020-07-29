@@ -81,7 +81,7 @@ func ProcessRollingUpgradeStrategy(req *RollingUpdateRequest) (bool, error) {
 	log.Info("terminating targets", "scalinggroup", req.ScalingGroupName, "targets", terminateTargets)
 	if err := req.AwsWorker.TerminateScalingInstances(terminateTargets); err != nil {
 		// terminate failures are retryable
-		log.Info("failed to terminate targets", "reason", err.Error, "scalinggroup", req.ScalingGroupName, "targets", terminateTargets)
+		log.Info("failed to terminate targets", "reason", err.Error(), "scalinggroup", req.ScalingGroupName, "targets", terminateTargets)
 		return false, nil
 	}
 	return false, nil
