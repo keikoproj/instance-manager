@@ -105,17 +105,6 @@ func GetLastElementBy(s, sep string) string {
 	return sp[len(sp)-1]
 }
 
-// RemoveString removes a string 's' from slice 'slice'
-func RemoveString(slice []string, s string) (result []string) {
-	for _, item := range slice {
-		if item == s {
-			continue
-		}
-		result = append(result, item)
-	}
-	return
-}
-
 // ConcatenateList joins lists to strings delimited with `delimiter`
 func ConcatenateList(list []string, delimiter string) string {
 	return strings.Trim(strings.Join(strings.Fields(fmt.Sprint(list)), delimiter), "[]")
