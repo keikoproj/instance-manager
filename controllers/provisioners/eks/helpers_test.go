@@ -16,6 +16,7 @@ limitations under the License.
 package eks
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -144,6 +145,8 @@ func TestGetLabelList(t *testing.T) {
 		expectedLabelsWithCustom   = []string{"custom.kubernetes.io=customlabel", "node.kubernetes.io/role=instance-group-1"}
 		expectedLabelsWithOverride = []string{"custom.kubernetes.io=customlabel", "override.kubernetes.io=instance-group-1", "override2.kubernetes.io=instance-group-1"}
 		overrideAnnotation         = map[string]string{OverrideDefaultLabelsAnnotationKey: "override.kubernetes.io=instance-group-1,override2.kubernetes.io=instance-group-1"}
+		expectedSpotLable          = []string{"instancemgr.keikoproj.io/lifecycle=spot", "node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
+		defaultLifecycleLable      = "instancemgr.keikoproj.io/lifecycle=normal"
 	)
 
 	w := MockAwsWorker(asgMock, iamMock, eksMock)
@@ -154,7 +157,9 @@ func TestGetLabelList(t *testing.T) {
 		instanceGroupLabels      map[string]string
 		instanceGroupAnnotations map[string]string
 		expectedLabels           []string
+		spotPrice                string
 	}{
+		{clusterVersion: "", spotPrice: "0.7773", expectedLabels: expectedSpotLable},
 		// Default labels with missing cluster version
 		{clusterVersion: "", expectedLabels: expectedLabels115},
 		// Kubernetes 1.15 default labels
@@ -171,6 +176,7 @@ func TestGetLabelList(t *testing.T) {
 		t.Logf("Test #%v - %+v", i, tc)
 		configuration.SetLabels(tc.instanceGroupLabels)
 		ig.SetAnnotations(tc.instanceGroupAnnotations)
+		configuration.SetSpotPrice(tc.spotPrice)
 		ctx.SetDiscoveredState(&DiscoveredState{
 			Publisher: kubeprovider.EventPublisher{
 				Client: k.Kubernetes,
@@ -179,7 +185,10 @@ func TestGetLabelList(t *testing.T) {
 				Version: aws.String(tc.clusterVersion),
 			},
 		})
-
+		if tc.spotPrice == "" {
+			tc.expectedLabels = append(tc.expectedLabels, defaultLifecycleLable)
+		}
+		sort.Strings(tc.expectedLabels)
 		labels := ctx.GetLabelList()
 		g.Expect(labels).To(gomega.Equal(tc.expectedLabels))
 	}
