@@ -34,8 +34,9 @@ const (
 )
 
 var (
-	RoleNewLabelFmt = "node.kubernetes.io/role=%s"
-	RoleOldLabelFmt = "node-role.kubernetes.io/%s=\"\""
+	RoleNewLabelFmt     = "node.kubernetes.io/role=%s"
+	RoleOldLabelFmt     = "node-role.kubernetes.io/%s=\"\""
+	InstanceMgrLabelFmt = "instancemgr.keikoproj.io/%s=%s"
 
 	DefaultManagedPolicies = []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}
 )

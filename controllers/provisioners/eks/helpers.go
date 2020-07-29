@@ -244,6 +244,12 @@ func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 		}
 	}
 
+	if configuration.GetSpotPrice() == "" {
+		labelList = append(labelList, fmt.Sprintf(InstanceMgrLabelFmt, "lifecycle", v1alpha1.LifecycleStateNormal))
+	} else {
+		labelList = append(labelList, fmt.Sprintf(InstanceMgrLabelFmt, "lifecycle", v1alpha1.LifecycleStateSpot))
+	}
+
 	sort.Strings(labelList)
 	return labelList
 }
