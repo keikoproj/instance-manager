@@ -51,29 +51,33 @@ The below are the minimum required policies needed to run the basic operations o
 iam:GetRole
 iam:GetInstanceProfile
 iam:PassRole
-autoscaling:DescribeLaunchConfigurations
-autoscaling:CreateLaunchConfigurations
-autoscaling:DeleteLaunchConfigurations
 autoscaling:DescribeAutoScalingGroups
-autoscaling:CreateAutoScalingGroups
-autoscaling:DeleteAutoScalingGroups
-eks:DescribeNodegroup
+autoscaling:UpdateAutoScalingGroup
+autoscaling:TerminateInstanceInAutoScalingGroup
+autoscaling:CreateLaunchConfiguration
+autoscaling:DeleteLaunchConfiguration
+autoscaling:DeleteAutoScalingGroup
+autoscaling:CreateAutoScalingGroup
 eks:CreateNodegroup
+eks:DescribeNodegroup
 eks:DeleteNodegroup
 eks:UpdateNodegroupConfig
+eks:DescribeCluster
 ```
 
 The following are also required if you want the controller to be creating IAM roles for your instance groups, otherwise you can omit this and provide an existing role in the custom resource.
 
 ```text
-iam:CreateRole
-iam:DeleteRole
 iam:CreateInstanceProfile
-iam:DeleteInstanceProfile
-iam:AttachRolePolicy
-iam:DetachRolePolicy
 iam:RemoveRoleFromInstanceProfile
+iam:CreateRole
+iam:AttachRolePolicy
 iam:AddRoleToInstanceProfile
+iam:DetachRolePolicy
+iam:ListAttachedRolePolicies
+iam:DeleteInstanceProfile
+iam:DeleteRole
+autoscaling:DescribeLaunchConfigurations
 ```
 
 You can choose to create the initial instance-manager IAM role with these additional policies attached directly, or create a new role and use other solutions such as KIAM to assume it. You can refer to the documentation provided by KIAM [here](https://github.com/uswitch/kiam#overview).
