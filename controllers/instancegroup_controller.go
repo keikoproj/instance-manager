@@ -17,7 +17,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -54,31 +53,33 @@ type InstanceGroupAuthenticator struct {
 	Kubernetes kubeprovider.KubernetesClientSet
 }
 
-func (r *InstanceGroupReconciler) Finalize(instanceGroup *v1alpha1.InstanceGroup, finalizerName string) {
+const (
+	FinalizerStr = "finalizer.instancegroups.keikoproj.io"
+)
+
+func (r *InstanceGroupReconciler) Finalize(instanceGroup *v1alpha1.InstanceGroup) {
 	// Resource is being deleted
 	meta := &instanceGroup.ObjectMeta
 	deletionTimestamp := meta.GetDeletionTimestamp()
 	if !deletionTimestamp.IsZero() {
 		// And state is "Deleted"
 		if instanceGroup.GetState() == v1alpha1.ReconcileDeleted {
-			// Unset Finalizer if present
-			if common.ContainsString(meta.GetFinalizers(), finalizerName) {
-				meta.SetFinalizers(common.RemoveString(instanceGroup.ObjectMeta.Finalizers, finalizerName))
-				if err := r.Update(context.Background(), instanceGroup); err != nil {
-					r.Log.Error(err, "failed to update custom resource")
-				}
+			// remove all finalizers
+			meta.SetFinalizers([]string{})
+			if err := r.Update(context.Background(), instanceGroup); err != nil {
+				r.Log.Error(err, "failed to update custom resource")
 			}
 		}
 	}
 }
 
-func (r *InstanceGroupReconciler) SetFinalizer(instanceGroup *v1alpha1.InstanceGroup, finalizerName string) {
+func (r *InstanceGroupReconciler) SetFinalizer(instanceGroup *v1alpha1.InstanceGroup) {
 	// Resource is not being deleted
 	if instanceGroup.ObjectMeta.DeletionTimestamp.IsZero() {
 		// And does not contain finalizer
-		if !common.ContainsString(instanceGroup.ObjectMeta.Finalizers, finalizerName) {
+		if !common.ContainsString(instanceGroup.ObjectMeta.Finalizers, FinalizerStr) {
 			// Set Finalizer
-			instanceGroup.ObjectMeta.Finalizers = append(instanceGroup.ObjectMeta.Finalizers, finalizerName)
+			instanceGroup.ObjectMeta.Finalizers = append(instanceGroup.ObjectMeta.Finalizers, FinalizerStr)
 			if err := r.Update(context.Background(), instanceGroup); err != nil {
 				r.Log.Error(err, "failed to update custom resource")
 			}
@@ -109,9 +110,8 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	}
 
 	// set/unset finalizer
-	finalizerName := fmt.Sprintf("finalizers.%v.instancegroups.keikoproj.io", instanceGroup.Spec.Provisioner)
-	r.SetFinalizer(instanceGroup, finalizerName)
-	defer r.Finalize(instanceGroup, finalizerName)
+	r.SetFinalizer(instanceGroup)
+	defer r.Finalize(instanceGroup)
 
 	var defaultConfig *provisioners.DefaultConfiguration
 	if defaultConfig, err = provisioners.UnmarshalConfiguration(r.ConfigMap); err != nil {
