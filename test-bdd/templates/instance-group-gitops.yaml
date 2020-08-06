@@ -12,5 +12,7 @@ spec:
         test: bdd-test-gitops
       instanceType: t2.small
       tags:
+      - key: a-default-tag
+        value: some-other-value
       - key: cr-tag
         value: a-tag

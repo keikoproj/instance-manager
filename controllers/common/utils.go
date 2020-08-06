@@ -24,6 +24,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 // ContainsString returns true if a given slice 'slice' contains string 's', otherwise return false
@@ -59,6 +61,89 @@ func StringMapSliceContains(m []map[string]string, contains map[string]string) b
 		}
 	}
 	return false
+}
+
+func FieldValue(path string, obj map[string]interface{}) interface{} {
+	var resourceField interface{}
+
+	p := FieldPath(path)
+
+	if field, ok, _ := unstructured.NestedFieldCopy(obj, p...); ok {
+		resourceField = field
+	}
+
+	return resourceField
+}
+
+func SetFieldValue(path string, obj map[string]interface{}, value interface{}) error {
+	p := FieldPath(path)
+	if err := unstructured.SetNestedField(obj, value, p...); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func FieldPathString(path ...string) string {
+	return strings.Join(path, ".")
+}
+
+func FieldPath(path string) []string {
+	return strings.Split(path, ".")
+}
+
+func AppendUnique(slice []interface{}, i interface{}) []interface{} {
+	for _, ele := range slice {
+		if reflect.DeepEqual(ele, i) {
+			return slice
+		}
+	}
+	return append(slice, i)
+}
+
+func AppendUniqueIndex(slice []interface{}, i interface{}, idx string, override bool) []interface{} {
+	var fieldStr, fieldStr2 string
+	appendIdxVal := reflect.ValueOf(i)
+
+	switch appendIdxVal.Kind() {
+	case reflect.Map:
+		for _, e := range appendIdxVal.MapKeys() {
+			if strings.EqualFold(e.String(), idx) {
+				fieldStr = appendIdxVal.MapIndex(e).Elem().String()
+			}
+		}
+
+		for ix, ele := range slice {
+			compareIdxVal := reflect.ValueOf(ele)
+			for _, e := range compareIdxVal.MapKeys() {
+				if strings.EqualFold(e.String(), idx) {
+					fieldStr2 = compareIdxVal.MapIndex(e).Elem().String()
+				}
+			}
+			if strings.EqualFold(fieldStr, fieldStr2) {
+				if override {
+					slice[ix] = i
+				}
+				return slice
+			}
+		}
+	}
+
+	return append(slice, i)
+}
+
+func MergeSliceByUnique(sl1, sl2 []interface{}) []interface{} {
+	for _, ele := range sl2 {
+		sl1 = AppendUnique(sl1, ele)
+	}
+	return sl1
+}
+
+func MergeSliceByIndex(sl1, sl2 []interface{}, idx string, override bool) []interface{} {
+	for _, ele := range sl2 {
+		sl1 = AppendUniqueIndex(sl1, ele, idx, override)
+	}
+	return sl1
 }
 
 func StringSliceEqualFold(x []string, y []string) bool {

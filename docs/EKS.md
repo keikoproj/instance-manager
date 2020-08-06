@@ -280,6 +280,58 @@ spec:
 
 In order to support use-cases around GitOps or platform management, the controller allows operators to define 'boundaries' of configurations into `restricted` and `shared` configurations, along with the default values to enforce.
 
+`shared` fields can be referenced with a `merge`, `mergeOverride` or `replace` directive, which provide controls over how default values should be combined with the resource values. `merge` will provide a simple merge, if there is a conflict between the default value and the resource value, the resource value will not be allowed to override the default, for example consider ethe following default / resource values.
+
+```yaml
+# default values
+tags:
+- key: tag-A
+  value: value-A
+- key: tag-B
+  value: value-B
+
+# resource values
+tags:
+- key: tag-A
+  value: value-D
+- key: tag-C
+  value: value-C
+```
+
+If `spec.eks.configuration.tags` was referenced as a `merge` field the result would be:
+
+```yaml
+tags:
+- key: tag-A
+  value: value-A
+- key: tag-B
+  value: value-B
+- key: tag-C
+  value: value-C
+```
+
+`mergeOverride` allows the CR to override the default will have a different result:
+
+```yaml
+tags:
+- key: tag-A
+  value: value-D
+- key: tag-B
+  value: value-B
+- key: tag-C
+  value: value-C
+```
+
+`replace` would allow the CR to completely replace the default values:
+
+```yaml
+tags:
+- key: tag-A
+  value: value-D
+- key: tag-C
+  value: value-C
+```
+
 For example, if you'd like your cluster tenants to only be able to control certain fields such as `minSize`, `maxSize`, `instanceType`, `labels` and `tags` while the rest is controlled via the operator you could achieve this by creating a config-map the defines these boundaries.
 
 By default the controller watches configmaps with the name `instance-manager` in the namespaace `instance-manager`, namespace can be customized via a controller flag `--config-namespace`.
@@ -299,8 +351,12 @@ metadata:
 data:
   boundaries: |
     shared:
-    - spec.eks.configuration.tags
-    - spec.eks.configuration.labels
+      merge:
+      - spec.eks.configuration.labels
+      mergeOverride:
+      - spec.eks.configuration.tags
+      replace:
+      - spec.eks.strategy
     restricted:
     - spec.eks.configuration.clusterName
     - spec.eks.configuration.image

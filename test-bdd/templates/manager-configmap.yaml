@@ -2,11 +2,13 @@ apiVersion: v1
 data:
   boundaries: |
     shared:
-    - spec.strategy
-    - spec.eks.configuration.securityGroups
-    - spec.eks.configuration.tags
-    - spec.eks.configuration.labels
-    - spec.eks.configuration.volumes
+      mergeOverride:
+      - spec.eks.configuration.tags
+      merge:
+      - spec.strategy
+      - spec.eks.configuration.securityGroups
+      - spec.eks.configuration.labels
+      - spec.eks.configuration.volumes
     restricted:
     - spec.provisioner
     - spec.eks.configuration.clusterName
