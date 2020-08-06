@@ -16,6 +16,7 @@ limitations under the License.
 package eks
 
 import (
+	"fmt"
 	"sort"
 	"testing"
 
@@ -209,31 +210,42 @@ func TestGetUserDataStages(t *testing.T) {
 	ctx := MockContext(ig, k, w)
 
 	tests := []struct {
-		preBootstrapScript  string
-		postBootstrapScript string
+		preBootstrapScript  []string
+		postBootstrapScript []string
 	}{
 		{},
-		{preBootstrapScript: "", postBootstrapScript: ""},
-		{preBootstrapScript: "prebootstrap", postBootstrapScript: "postbootstrap"},
+		{preBootstrapScript: []string{""}, postBootstrapScript: []string{""}},
+		{preBootstrapScript: []string{"prebootstrap"}, postBootstrapScript: []string{"postbootstrap"}},
+		{preBootstrapScript: []string{"prebootstrap1", "prebootstrap2"}, postBootstrapScript: []string{"postbootstrap1", "postbootstrap2"}},
 	}
 
 	for i, tc := range tests {
 		t.Logf("Test #%v - %+v", i, tc)
+		configuration.UserData = []v1alpha1.UserDataStage{}
+		for _, data := range tc.preBootstrapScript {
+			configuration.UserData = append(configuration.UserData, v1alpha1.UserDataStage{
+				Name:  fmt.Sprintf("stage-%v", i),
+				Stage: v1alpha1.PreBootstrapStage,
+				Data:  data,
+			})
+		}
+
+		for _, data := range tc.postBootstrapScript {
+			configuration.UserData = append(configuration.UserData, v1alpha1.UserDataStage{
+				Name:  fmt.Sprintf("stage-%v", i),
+				Stage: v1alpha1.PostBootstrapStage,
+				Data:  data,
+			})
+		}
+
 		configuration.UserData = append(configuration.UserData, v1alpha1.UserDataStage{
-			Stage: v1alpha1.PreBootstrapStage,
-			Data:  tc.preBootstrapScript,
-		})
-		configuration.UserData = append(configuration.UserData, v1alpha1.UserDataStage{
-			Stage: v1alpha1.PostBootstrapStage,
-			Data:  tc.postBootstrapScript,
-		})
-		configuration.UserData = append(configuration.UserData, v1alpha1.UserDataStage{
+			Name:  fmt.Sprintf("stage-%v", i),
 			Stage: "invalid-stage",
 			Data:  "test",
 		})
 		preScript, postScript := ctx.GetUserDataStages()
-		g.Expect(preScript).To(gomega.Equal(tc.preBootstrapScript))
-		g.Expect(postScript).To(gomega.Equal(tc.postBootstrapScript))
+		g.Expect(preScript).To(gomega.ConsistOf(tc.preBootstrapScript))
+		g.Expect(postScript).To(gomega.ConsistOf(tc.postBootstrapScript))
 	}
 }
 
