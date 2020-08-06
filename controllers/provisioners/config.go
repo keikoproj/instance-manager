@@ -17,7 +17,6 @@ package provisioners
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 
 	"github.com/ghodss/yaml"
@@ -71,23 +70,18 @@ type ResourceFieldBoundary struct {
 	Shared     SharedBoundaries `yaml:"shared,omitempty"`
 }
 
-type FieldSchema struct {
-	Index string
-	Type  reflect.Type
-}
-
 func (c *ProvisionerConfiguration) Unmarshal(cm *corev1.ConfigMap) error {
 	var (
 		boundariesPath = common.FieldPath("data.boundaries")
 		defaultsPath   = common.FieldPath("data.defaults")
 	)
 
-	unstructuredConfig, err := runtime.DefaultUnstructuredConverter.ToUnstructured(cm)
+	config, err := runtime.DefaultUnstructuredConverter.ToUnstructured(cm)
 	if err != nil {
 		return errors.Wrap(err, "failed to convert configmap to unstructured")
 	}
 
-	if boundaries, ok, _ := unstructured.NestedString(unstructuredConfig, boundariesPath...); ok {
+	if boundaries, ok, _ := unstructured.NestedString(config, boundariesPath...); ok {
 		boundaryConfig := &ResourceFieldBoundary{}
 		err := yaml.Unmarshal([]byte(boundaries), boundaryConfig)
 		if err != nil {
@@ -96,7 +90,7 @@ func (c *ProvisionerConfiguration) Unmarshal(cm *corev1.ConfigMap) error {
 		c.Boundaries = *boundaryConfig
 	}
 
-	if defaults, ok, _ := unstructured.NestedString(unstructuredConfig, defaultsPath...); ok {
+	if defaults, ok, _ := unstructured.NestedString(config, defaultsPath...); ok {
 		defaultConfig := &map[string]interface{}{}
 		err := yaml.Unmarshal([]byte(defaults), defaultConfig)
 		if err != nil {

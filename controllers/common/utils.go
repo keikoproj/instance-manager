@@ -127,6 +127,8 @@ func AppendUniqueIndex(slice []interface{}, i interface{}, idx string, override 
 				return slice
 			}
 		}
+	default:
+		return slice
 	}
 
 	return append(slice, i)
