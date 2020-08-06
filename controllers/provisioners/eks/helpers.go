@@ -46,9 +46,8 @@ func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput(name string) *au
 		args                  = ctx.GetBootstrapArgs()
 		preScript, postScript = ctx.GetUserDataStages()
 		userData              = ctx.AwsWorker.GetBasicUserData(clusterName, args, preScript, postScript)
+		sgs                   = ctx.ResolveSecurityGroups()
 	)
-
-	sgs := ctx.ResolveSecurityGroups()
 
 	input := &autoscaling.CreateLaunchConfigurationInput{
 		LaunchConfigurationName: aws.String(name),
