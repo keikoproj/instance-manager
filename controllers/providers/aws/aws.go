@@ -30,6 +30,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
+	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -45,8 +47,9 @@ var (
 )
 
 const (
-	CacheDefaultTTL                 time.Duration = time.Second * 0
+	CacheDefaultTTL                 time.Duration = 0 * time.Second
 	DescribeAutoScalingGroupsTTL    time.Duration = 60 * time.Second
+	DescribeSecurityGroupsTTL       time.Duration = 60 * time.Second
 	DescribeLaunchConfigurationsTTL time.Duration = 60 * time.Second
 	ListAttachedRolePoliciesTTL     time.Duration = 60 * time.Second
 	GetRoleTTL                      time.Duration = 60 * time.Second
@@ -61,6 +64,7 @@ type AwsWorker struct {
 	AsgClient  autoscalingiface.AutoScalingAPI
 	EksClient  eksiface.EKSAPI
 	IamClient  iamiface.IAMAPI
+	Ec2Client  ec2iface.EC2API
 	Parameters map[string]interface{}
 }
 
@@ -617,6 +621,84 @@ func (w *AwsWorker) compactTags(tags []map[string]string) map[string]string {
 	return compacted
 }
 
+func (w *AwsWorker) SubnetByName(name, vpc string) (*ec2.Subnet, error) {
+	subnets := []*ec2.Subnet{}
+	filteredSubnets := []*ec2.Subnet{}
+
+	err := w.Ec2Client.DescribeSubnetsPages(
+		&ec2.DescribeSubnetsInput{
+			Filters: []*ec2.Filter{
+				{
+					Name:   aws.String("vpc-id"),
+					Values: []*string{aws.String(vpc)},
+				},
+			},
+		},
+		func(page *ec2.DescribeSubnetsOutput, lastPage bool) bool {
+			for _, p := range page.Subnets {
+				subnets = append(subnets, p)
+			}
+			return page.NextToken != nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, s := range subnets {
+		for _, tag := range s.Tags {
+			k := aws.StringValue(tag.Key)
+			v := aws.StringValue(tag.Value)
+			if strings.EqualFold(k, "Name") && strings.EqualFold(v, name) {
+				filteredSubnets = append(filteredSubnets, s)
+			}
+		}
+	}
+
+	if len(filteredSubnets) == 0 {
+		return nil, nil
+	}
+	return filteredSubnets[0], nil
+}
+
+func (w *AwsWorker) SecurityGroupByName(name, vpc string) (*ec2.SecurityGroup, error) {
+	groups := []*ec2.SecurityGroup{}
+	filteredGroups := []*ec2.SecurityGroup{}
+	err := w.Ec2Client.DescribeSecurityGroupsPages(
+		&ec2.DescribeSecurityGroupsInput{
+			Filters: []*ec2.Filter{
+				{
+					Name:   aws.String("vpc-id"),
+					Values: []*string{aws.String(vpc)},
+				},
+			},
+		},
+		func(page *ec2.DescribeSecurityGroupsOutput, lastPage bool) bool {
+			for _, p := range page.SecurityGroups {
+				groups = append(groups, p)
+			}
+			return page.NextToken != nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, g := range groups {
+		for _, tag := range g.Tags {
+			k := aws.StringValue(tag.Key)
+			v := aws.StringValue(tag.Value)
+			if strings.EqualFold(k, "Name") && strings.EqualFold(v, name) {
+				filteredGroups = append(filteredGroups, g)
+			}
+		}
+	}
+	if len(filteredGroups) == 0 {
+		return nil, nil
+	}
+	return filteredGroups[0], nil
+}
+
 func (w *AwsWorker) DescribeAutoscalingGroups() ([]*autoscaling.Group, error) {
 	scalingGroups := []*autoscaling.Group{}
 	err := w.AsgClient.DescribeAutoScalingGroupsPages(&autoscaling.DescribeAutoScalingGroupsInput{}, func(page *autoscaling.DescribeAutoScalingGroupsOutput, lastPage bool) bool {
@@ -736,6 +818,28 @@ func GetAwsAsgClient(region string, cacheCfg *cache.Config, maxRetries int) auto
 		)
 	})
 	return autoscaling.New(sess)
+}
+
+// GetAwsEc2Client returns an EC2 client
+func GetAwsEc2Client(region string, cacheCfg *cache.Config, maxRetries int) ec2iface.EC2API {
+	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
+	config = request.WithRetryer(config, NewRetryLogger(maxRetries))
+	sess, err := session.NewSession(config)
+	if err != nil {
+		panic(err)
+	}
+
+	cache.AddCaching(sess, cacheCfg)
+	cacheCfg.SetCacheTTL("ec2", "DescribeSecurityGroups", DescribeSecurityGroupsTTL)
+	sess.Handlers.Complete.PushFront(func(r *request.Request) {
+		ctx := r.HTTPRequest.Context()
+		log.V(1).Info("AWS API call",
+			"cacheHit", cache.IsCacheHit(ctx),
+			"service", r.ClientInfo.ServiceName,
+			"operation", r.Operation.Name,
+		)
+	})
+	return ec2.New(sess)
 }
 
 // GetAwsEksClient returns an EKS client

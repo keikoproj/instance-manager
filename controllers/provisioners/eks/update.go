@@ -84,7 +84,6 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
 		spec          = instanceGroup.GetEKSSpec()
-		configuration = instanceGroup.GetEKSConfiguration()
 		status        = instanceGroup.GetStatus()
 		state         = ctx.GetDiscoveredState()
 		scalingGroup  = state.GetScalingGroup()
@@ -99,7 +98,7 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 			LaunchConfigurationName: aws.String(state.GetActiveLaunchConfigurationName()),
 			MinSize:                 aws.Int64(spec.GetMinSize()),
 			MaxSize:                 aws.Int64(spec.GetMaxSize()),
-			VPCZoneIdentifier:       aws.String(common.ConcatenateList(configuration.GetSubnets(), ",")),
+			VPCZoneIdentifier:       aws.String(common.ConcatenateList(ctx.ResolveSubnets(), ",")),
 		})
 		if err != nil {
 			return err
@@ -186,12 +185,11 @@ func (ctx *EksInstanceGroupContext) ScalingGroupUpdateNeeded() bool {
 	var (
 		instanceGroup  = ctx.GetInstanceGroup()
 		spec           = instanceGroup.GetEKSSpec()
-		configuration  = instanceGroup.GetEKSConfiguration()
 		state          = ctx.GetDiscoveredState()
 		scalingGroup   = state.GetScalingGroup()
 		zoneIdentifier = aws.StringValue(scalingGroup.VPCZoneIdentifier)
 		groupSubnets   = strings.Split(zoneIdentifier, ",")
-		specSubnets    = configuration.GetSubnets()
+		specSubnets    = ctx.ResolveSubnets()
 	)
 
 	if state.GetActiveLaunchConfigurationName() != aws.StringValue(scalingGroup.LaunchConfigurationName) {
