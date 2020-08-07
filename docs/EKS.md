@@ -97,7 +97,8 @@ spec:
   eks:
     configuration:
       userData:
-      - stage: <string> : represents the stage of the script, allowed values are PreBootstrap, PostBootstrap
+      - name: <string> : name of the stage
+        stage: <string> : represents the stage of the script, allowed values are PreBootstrap, PostBootstrap
         data: <string> : represents the script payload to inject
 ```
 
