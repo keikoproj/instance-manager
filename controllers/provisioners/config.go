@@ -33,13 +33,11 @@ var (
 	EKSConfigurationPath = "spec.eks.configuration"
 	EKSTagsPath          = fmt.Sprintf("%v.tags", EKSConfigurationPath)
 	EKSVolumesPath       = fmt.Sprintf("%v.volumes", EKSConfigurationPath)
-	EKSUserDataPath      = fmt.Sprintf("%v.userData", EKSConfigurationPath)
 
 	// MergeSchema defines the key to merge by
 	MergeSchema = map[string]string{
-		EKSTagsPath:     "key",
-		EKSVolumesPath:  "name",
-		EKSUserDataPath: "stage",
+		EKSTagsPath:    "key",
+		EKSVolumesPath: "name",
 	}
 )
 
