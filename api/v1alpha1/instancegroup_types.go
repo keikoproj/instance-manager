@@ -187,14 +187,18 @@ type EKSConfiguration struct {
 
 type UserDataStage struct {
 	Name  string `json:"name,omitempty"`
-	Stage string `json:"stage,omitempty"`
-	Data  string `json:"data,omitempty"`
+	Stage string `json:"stage"`
+	Data  string `json:"data"`
 }
 
 type NodeVolume struct {
-	Name string `json:"name,omitempty"`
-	Type string `json:"type,omitempty"`
-	Size int64  `json:"size,omitempty"`
+	Name                string `json:"name"`
+	Type                string `json:"type"`
+	Size                int64  `json:"size"`
+	Iops                int64  `json:"iops,omitempty"`
+	DeleteOnTermination *bool  `json:"deleteOnTermination,omitempty"`
+	Encrypted           *bool  `json:"encrypted,omitempty"`
+	SnapshotID          string `json:"snapshotId,omitempty"`
 }
 type EKSFargateSpec struct {
 	ClusterName         string                `json:"clusterName"`
@@ -313,6 +317,21 @@ func (c *EKSConfiguration) Validate() error {
 	if common.StringEmpty(c.KeyPairName) {
 		return errors.Errorf("validation failed, 'keyPair' is a required parameter")
 	}
+
+	for _, v := range c.Volumes {
+		if !common.ContainsEqualFold(awsprovider.AllowedVolumeTypes, v.Type) {
+			return errors.Errorf("validation failed, volume type '%v' is unsuppoeted", v.Type)
+		}
+		if v.SnapshotID != "" {
+			if v.Size > 0 {
+				return errors.Errorf("validation failed, 'volume.snapshotId' and 'volume.size' are mutually exclusive")
+			}
+		}
+		if v.Iops != 0 && v.Iops < 100 {
+			return errors.Errorf("validation failed, volume IOPS must be min 100")
+		}
+	}
+
 	if len(c.Volumes) == 0 {
 		c.Volumes = []NodeVolume{
 			{

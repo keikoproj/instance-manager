@@ -98,8 +98,8 @@ spec:
     configuration:
       userData:
       - name: <string> : name of the stage
-        stage: <string> : represents the stage of the script, allowed values are PreBootstrap, PostBootstrap
-        data: <string> : represents the script payload to inject
+        stage: <string> : represents the stage of the script, allowed values are PreBootstrap, PostBootstrap (required)
+        data: <string> : represents the script payload to inject (required)
 ```
 
 ### NodeVolume
@@ -112,9 +112,13 @@ spec:
   eks:
     configuration:
       volumes:
-      - name: <string> : represents the device name, e.g. /dev/xvda
-        type: <string> : represents the type of volume, must be one of supported types "standard", "io1", "gp2", "st1", "sc1".
-        size: <int64> : represents a volume size in gigabytes
+      - name: <string> : represents the device name, e.g. /dev/xvda (required)
+        type: <string> : represents the type of volume, must be one of supported types "standard", "io1", "gp2", "st1", "sc1" (required)
+        size: <int64> : represents a volume size in gigabytes, cannot be used with snapshotId
+        snapshotId : <string> : represents a snapshot ID to use, cannot be used with size
+        iops: <int64> : represents number of IOPS to provision volume with (min 100)
+        deleteOnTermination : <bool> : delete the EBS volume when the instance is terminated (defaults to true)
+        encrypted: <bool> : encrypt the EBS volume with a KMS key
 ```
 
 ### Taint
