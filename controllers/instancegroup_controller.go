@@ -113,29 +113,29 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	r.SetFinalizer(instanceGroup)
 	defer r.Finalize(instanceGroup)
 
-	var defaultConfig *provisioners.DefaultConfiguration
-	if defaultConfig, err = provisioners.UnmarshalConfiguration(r.ConfigMap); err != nil {
-		r.Log.Error(err, "failed to unmarshal configuration", "instancegroup", instanceGroup.NamespacedName())
-		return ctrl.Result{}, err
-	}
-
-	configuredInstanceGroup := &v1alpha1.InstanceGroup{}
-	instanceGroup.DeepCopyInto(configuredInstanceGroup)
-
-	if configuredInstanceGroup, err = provisioners.SetConfigurationDefaults(configuredInstanceGroup, defaultConfig); err != nil {
-		r.Log.Error(err, "failed to set configuration defaults", "instancegroup", instanceGroup.NamespacedName())
-		return ctrl.Result{}, err
-	}
-
 	input := provisioners.ProvisionerInput{
 		AwsWorker:     r.Auth.Aws,
 		Kubernetes:    r.Auth.Kubernetes,
-		InstanceGroup: configuredInstanceGroup,
 		Configuration: r.ConfigMap,
+		InstanceGroup: instanceGroup,
 		Log:           r.Log,
 	}
 
-	provisionerKind := strings.ToLower(configuredInstanceGroup.Spec.Provisioner)
+	if r.ConfigMap != nil {
+		var defaultConfig *provisioners.ProvisionerConfiguration
+		if defaultConfig, err = provisioners.NewProvisionerConfiguration(r.ConfigMap, instanceGroup); err != nil {
+			return ctrl.Result{}, err
+		}
+
+		if err = defaultConfig.SetDefaults(); err != nil {
+			r.Log.Error(err, "failed to set configuration defaults", "instancegroup", instanceGroup.NamespacedName())
+			return ctrl.Result{}, err
+		}
+
+		input.InstanceGroup = defaultConfig.InstanceGroup
+	}
+
+	provisionerKind := strings.ToLower(input.InstanceGroup.Spec.Provisioner)
 
 	if !common.ContainsEqualFold(v1alpha1.Provisioners, provisionerKind) {
 		return ctrl.Result{}, errors.Errorf("provisioner '%v' does not exist", provisionerKind)
@@ -144,13 +144,13 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	r.Log.Info("reconcile event started", "instancegroup", req.NamespacedName, "provisioner", provisionerKind)
 
 	// defer updates for the instanceGroup CR
-	defer r.UpdateStatus(configuredInstanceGroup)
+	defer r.UpdateStatus(input.InstanceGroup)
 
 	var isRetryable bool
 	if strings.EqualFold(provisionerKind, eks.ProvisionerName) {
 		ctx := eks.New(input)
 
-		if err = configuredInstanceGroup.Validate(); err != nil {
+		if err = input.InstanceGroup.Validate(); err != nil {
 			ctx.SetState(v1alpha1.ReconcileErr)
 			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 		}
@@ -160,13 +160,13 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 		}
 
-		isRetryable = eks.IsRetryable(configuredInstanceGroup)
+		isRetryable = eks.IsRetryable(input.InstanceGroup)
 	}
 
 	if strings.EqualFold(provisionerKind, eksmanaged.ProvisionerName) {
 		ctx := eksmanaged.New(input)
 
-		if err = configuredInstanceGroup.Validate(); err != nil {
+		if err = input.InstanceGroup.Validate(); err != nil {
 			ctx.SetState(v1alpha1.ReconcileErr)
 			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 		}
@@ -176,13 +176,13 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 		}
 
-		isRetryable = eksmanaged.IsRetryable(configuredInstanceGroup)
+		isRetryable = eksmanaged.IsRetryable(input.InstanceGroup)
 	}
 
 	if strings.EqualFold(provisionerKind, eksfargate.ProvisionerName) {
 		ctx := eksfargate.New(input)
 
-		if err = configuredInstanceGroup.Validate(); err != nil {
+		if err = input.InstanceGroup.Validate(); err != nil {
 			ctx.SetState(v1alpha1.ReconcileErr)
 			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 		}
@@ -192,7 +192,7 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 		}
 
-		isRetryable = eksfargate.IsRetryable(configuredInstanceGroup)
+		isRetryable = eksfargate.IsRetryable(input.InstanceGroup)
 	}
 
 	if isRetryable {

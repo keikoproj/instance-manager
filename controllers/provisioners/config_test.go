@@ -47,58 +47,62 @@ func MockConfigData(keysAndValues ...string) map[string]string {
 	return d
 }
 
-func TestSetConfigurationDefaults(t *testing.T) {
+func MockResource() *v1alpha1.InstanceGroup {
+	return &v1alpha1.InstanceGroup{
+		Spec: v1alpha1.InstanceGroupSpec{
+			EKSSpec: &v1alpha1.EKSSpec{
+				EKSConfiguration: &v1alpha1.EKSConfiguration{},
+			},
+		},
+	}
+}
+
+func MockVolume(name, tp string, size int64) v1alpha1.NodeVolume {
+	return v1alpha1.NodeVolume{
+		Name: name,
+		Type: tp,
+		Size: size,
+	}
+}
+
+func MockLabels(keysAndValues ...string) map[string]string {
+	lbl := map[string]string{}
+	for i := 0; i < len(keysAndValues); i = i + 2 {
+		lbl[keysAndValues[i]] = keysAndValues[i+1]
+	}
+	return lbl
+}
+
+func MockTag(key, value string) map[string]string {
+	tag := map[string]string{}
+	tag["key"] = key
+	tag["value"] = value
+	return tag
+}
+
+func MockTaint(key, value, effect string) corev1.Taint {
+	return corev1.Taint{
+		Key:    key,
+		Value:  value,
+		Effect: corev1.TaintEffect(effect),
+	}
+}
+
+func TestSetDefaultsRestricted(t *testing.T) {
 	var (
 		g = gomega.NewGomegaWithT(t)
 	)
 
-	crVolume := v1alpha1.NodeVolume{
-		Name: "/dev/crvolume",
-		Type: "gp2",
-		Size: 60,
-	}
-
-	crTags := map[string]string{
-		"key":   "cr-tag-key",
-		"value": "cr-tag-value",
-	}
-
-	crSecurityGroups := []string{"sg-123456789012"}
-
-	instanceGroup := &v1alpha1.InstanceGroup{
-		Spec: v1alpha1.InstanceGroupSpec{
-			AwsUpgradeStrategy: v1alpha1.AwsUpgradeStrategy{
-				Type:    "crd",
-				CRDType: &v1alpha1.CRDUpdateStrategy{},
-			},
-			EKSSpec: &v1alpha1.EKSSpec{
-				EKSConfiguration: &v1alpha1.EKSConfiguration{
-					Taints: []corev1.Taint{
-						{
-							Key:    "cr-taint-key",
-							Value:  "cr-taint-value",
-							Effect: "NoSchedule",
-						},
-					},
-					Labels:             map[string]string{},
-					Volumes:            []v1alpha1.NodeVolume{crVolume},
-					Tags:               []map[string]string{crTags},
-					NodeSecurityGroups: crSecurityGroups,
-				},
-			},
-		},
-	}
+	// Restricted fields are always replaced with default values
 
 	mockBoundaries := `
-restricted:
-- spec.eks.configuration.taints
-- spec.eks.configuration.labels
-shared:
-- spec.eks.configuration.volumes
-- spec.eks.configuration.tags
-- spec.eks.configuration.securityGroups
-- spec.eks.configuration.instanceType
-- spec.strategy`
+    restricted:
+    - spec.eks.configuration.keyPairName
+    - spec.eks.configuration.taints
+    - spec.eks.configuration.labels
+    - spec.eks.configuration.securityGroups
+    - spec.eks.configuration.instanceType
+    - spec.strategy`
 
 	mockDefaults := `
 spec:
@@ -108,62 +112,376 @@ spec:
       maxUnavailable: 30%
   eks:
     configuration:
+      keyPairName: TestKeyPair
+      image: ami-025bf02d663404bbc
+      securityGroups:
+      - sg-123456789012
       instanceType: m5.large
       labels:
         label-key: label-value
       taints:
       - key: taint-key
         value: taint-value
-        effect: NoSchedule
-      volumes:
-      - size: 50
-        type: gp2
-        name: /dev/xvda
-      tags:
-      - key: tag-key
-        value: tag-value`
+        effect: NoSchedule`
 
-	defaultLabels := map[string]string{"label-key": "label-value"}
-	defaultTags := map[string]string{"key": "tag-key", "value": "tag-value"}
-	defaultVolume := v1alpha1.NodeVolume{
-		Name: "/dev/xvda",
-		Type: "gp2",
-		Size: 50,
-	}
+	cm := MockConfigMap(MockConfigData("boundaries", mockBoundaries, "defaults", mockDefaults))
+	cr := MockResource()
+	cr.Spec.EKSSpec.EKSConfiguration.EksClusterName = "someCluster"
+	cr.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups = []string{"sg-000000000000"}
+	cr.Spec.EKSSpec.EKSConfiguration.InstanceType = "m5.xlarge"
+	cr.Spec.EKSSpec.EKSConfiguration.Labels = MockLabels("other-label-key", "other-label-value")
+	cr.Spec.EKSSpec.EKSConfiguration.Taints = []corev1.Taint{MockTaint("other-taint-key", "other-taint-value", "NoExecute")}
+	cr.Spec.AwsUpgradeStrategy = v1alpha1.AwsUpgradeStrategy{Type: "crd"}
+	c, err := NewProvisionerConfiguration(cm, cr)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
 
-	defaultTaints := []corev1.Taint{
-		{
-			Key:    "taint-key",
-			Value:  "taint-value",
-			Effect: "NoSchedule",
-		},
-	}
+	err = c.SetDefaults()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
 
-	defaultStrategy := v1alpha1.AwsUpgradeStrategy{
-		Type:    "rollingUpdate",
-		CRDType: &v1alpha1.CRDUpdateStrategy{},
+	// All restricted fields must be overwritten with default value even if the user sets them
+	g.Expect(c.InstanceGroup.Spec.AwsUpgradeStrategy).To(gomega.Equal(v1alpha1.AwsUpgradeStrategy{
+		Type: "rollingUpdate",
 		RollingUpdateType: &v1alpha1.RollingUpdateStrategy{
-			MaxUnavailable: &intstr.IntOrString{
-				Type:   intstr.String,
-				StrVal: "30%",
-			},
+			MaxUnavailable: &intstr.IntOrString{Type: intstr.String, StrVal: "30%"},
 		},
+	}))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups).To(gomega.Equal([]string{"sg-123456789012"}))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.InstanceType).To(gomega.Equal("m5.large"))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Labels).To(gomega.Equal(MockLabels("label-key", "label-value")))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Taints).To(gomega.Equal([]corev1.Taint{MockTaint("taint-key", "taint-value", "NoSchedule")}))
+
+	// Fields without defaults should stay as provided
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.EksClusterName).To(gomega.Equal("someCluster"))
+
+	// Defaults without boundary should not be set
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Image).To(gomega.Equal(""))
+
+	// Fields with defaults are used when CR does not provide it
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.KeyPairName).To(gomega.Equal("TestKeyPair"))
+}
+
+func TestSetDefaultsSharedMergeOverride(t *testing.T) {
+	var (
+		g = gomega.NewGomegaWithT(t)
+	)
+
+	// Shared merge override fields are resource-provided values merged with default values (favoring the custom resource on conflict)
+
+	mockBoundaries := `
+    shared:
+      mergeOverride:
+      - spec.eks.configuration.roleName
+      - spec.eks.configuration.keyPairName
+      - spec.eks.configuration.taints
+      - spec.eks.configuration.labels
+      - spec.eks.configuration.securityGroups
+      - spec.eks.configuration.instanceType
+      - spec.strategy`
+
+	mockDefaults := `
+spec:
+  strategy:
+    type: rollingUpdate
+    rollingUpdate:
+      maxUnavailable: 30%
+  eks:
+    configuration:
+      image: ami-025bf02d663404bbc
+      securityGroups:
+      - sg-123456789012
+      instanceType: m5.large
+      keyPairName: TestKeyPair
+      labels:
+        label-key: label-value
+      taints:
+      - key: taint-key
+        value: taint-value
+        effect: NoSchedule`
+
+	cm := MockConfigMap(MockConfigData("boundaries", mockBoundaries, "defaults", mockDefaults))
+	cr := MockResource()
+	cr.Spec.AwsUpgradeStrategy = v1alpha1.AwsUpgradeStrategy{
+		Type: "crd",
+		CRDType: &v1alpha1.CRDUpdateStrategy{
+			CRDName: "myCrd",
+		},
+		RollingUpdateType: &v1alpha1.RollingUpdateStrategy{},
 	}
-
-	defaultConfig, err := UnmarshalConfiguration(MockConfigMap(MockConfigData("boundaries", mockBoundaries, "defaults", mockDefaults)))
+	cr.Spec.EKSSpec.EKSConfiguration.EksClusterName = "someCluster"
+	cr.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups = []string{"sg-000000000000"}
+	cr.Spec.EKSSpec.EKSConfiguration.InstanceType = "m5.xlarge"
+	cr.Spec.EKSSpec.EKSConfiguration.Labels = MockLabels("other-label-key", "other-label-value", "label-key", "other-value")
+	cr.Spec.EKSSpec.EKSConfiguration.Taints = []corev1.Taint{MockTaint("other-taint-key", "other-taint-value", "NoExecute")}
+	c, err := NewProvisionerConfiguration(cm, cr)
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
-	instanceGroup, err = SetConfigurationDefaults(instanceGroup, defaultConfig)
+	err = c.SetDefaults()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
-	// Restricted values get 1st priority
-	g.Expect(instanceGroup.Spec.EKSSpec.EKSConfiguration.Taints).To(gomega.Equal(defaultTaints))
-	g.Expect(instanceGroup.Spec.EKSSpec.EKSConfiguration.Labels).To(gomega.Equal(defaultLabels))
-	// Shared values get merged
-	g.Expect(instanceGroup.Spec.EKSSpec.EKSConfiguration.Volumes).To(gomega.ConsistOf(defaultVolume, crVolume))
-	g.Expect(instanceGroup.Spec.EKSSpec.EKSConfiguration.Tags).To(gomega.ConsistOf(defaultTags, crTags))
-	g.Expect(instanceGroup.Spec.AwsUpgradeStrategy).To(gomega.Equal(defaultStrategy))
-	g.Expect(instanceGroup.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups).To(gomega.Equal(crSecurityGroups))
-	g.Expect(instanceGroup.Spec.EKSSpec.EKSConfiguration.InstanceType).To(gomega.Equal("m5.large"))
+
+	// Shared merge fields must merge slices/maps and consist of both CR/Default objects if there is no conflict
+	g.Expect(c.InstanceGroup.Spec.AwsUpgradeStrategy).To(gomega.Equal(v1alpha1.AwsUpgradeStrategy{
+		Type: "crd",
+		CRDType: &v1alpha1.CRDUpdateStrategy{
+			CRDName: "myCrd",
+		},
+		RollingUpdateType: &v1alpha1.RollingUpdateStrategy{},
+	}))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups).To(gomega.ConsistOf("sg-000000000000", "sg-123456789012"))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.InstanceType).To(gomega.Equal("m5.xlarge"))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Labels).To(gomega.Equal(MockLabels("label-key", "other-value", "other-label-key", "other-label-value")))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Taints).To(gomega.Equal([]corev1.Taint{
+		MockTaint("taint-key", "taint-value", "NoSchedule"),
+		MockTaint("other-taint-key", "other-taint-value", "NoExecute"),
+	}))
+
+	// Fields without defaults should stay as provided
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.EksClusterName).To(gomega.Equal("someCluster"))
+
+	// Defaults without boundary should not be set
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Image).To(gomega.Equal(""))
+
+	// Fields with defaults are used when CR does not provide it
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.KeyPairName).To(gomega.Equal("TestKeyPair"))
+}
+
+func TestSetDefaultsSharedMerge(t *testing.T) {
+	var (
+		g = gomega.NewGomegaWithT(t)
+	)
+
+	// Shared merge fields are resource-provided values merged with default values (favoring the default on conflict)
+
+	mockBoundaries := `
+    shared:
+      merge:
+      - spec.eks.configuration.roleName
+      - spec.eks.configuration.keyPairName
+      - spec.eks.configuration.taints
+      - spec.eks.configuration.labels
+      - spec.eks.configuration.securityGroups
+      - spec.eks.configuration.instanceType`
+
+	mockDefaults := `
+spec:
+  strategy:
+    type: rollingUpdate
+    rollingUpdate:
+      maxUnavailable: 30%
+  eks:
+    configuration:
+      image: ami-025bf02d663404bbc
+      securityGroups:
+      - sg-123456789012
+      instanceType: m5.large
+      keyPairName: TestKeyPair
+      labels:
+        label-key: label-value
+      taints:
+      - key: taint-key
+        value: taint-value
+        effect: NoSchedule`
+
+	cm := MockConfigMap(MockConfigData("boundaries", mockBoundaries, "defaults", mockDefaults))
+	cr := MockResource()
+
+	cr.Spec.EKSSpec.EKSConfiguration.EksClusterName = "someCluster"
+	cr.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups = []string{"sg-000000000000"}
+	cr.Spec.EKSSpec.EKSConfiguration.InstanceType = "m5.xlarge"
+	cr.Spec.EKSSpec.EKSConfiguration.Labels = MockLabels("other-label-key", "other-label-value", "label-key", "other-value")
+	cr.Spec.EKSSpec.EKSConfiguration.Taints = []corev1.Taint{MockTaint("other-taint-key", "other-taint-value", "NoExecute")}
+	c, err := NewProvisionerConfiguration(cm, cr)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	err = c.SetDefaults()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	// Shared merge fields must merge slices/maps and consist of both CR/Default objects if there is no conflict
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups).To(gomega.ConsistOf("sg-000000000000", "sg-123456789012"))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.InstanceType).To(gomega.Equal("m5.xlarge"))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Labels).To(gomega.Equal(MockLabels("label-key", "label-value", "other-label-key", "other-label-value")))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Taints).To(gomega.Equal([]corev1.Taint{
+		MockTaint("taint-key", "taint-value", "NoSchedule"),
+		MockTaint("other-taint-key", "other-taint-value", "NoExecute"),
+	}))
+
+	// Fields without defaults should stay as provided
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.EksClusterName).To(gomega.Equal("someCluster"))
+
+	// Defaults without boundary should not be set
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Image).To(gomega.Equal(""))
+
+	// Fields with defaults are used when CR does not provide it
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.KeyPairName).To(gomega.Equal("TestKeyPair"))
+}
+
+func TestSetDefaultsSharedMergeOverrideConflict(t *testing.T) {
+	var (
+		g = gomega.NewGomegaWithT(t)
+	)
+
+	// When there are merge conflicts, the resource value should override the default
+
+	mockBoundaries := `
+    shared:
+      mergeOverride:
+      - spec.eks.configuration.tags
+      - spec.eks.configuration.volumes
+      - spec.eks.configuration.taints
+      - spec.eks.configuration.labels
+      - spec.eks.configuration.securityGroups
+      - spec.eks.configuration.instanceType
+      - spec.strategy`
+
+	mockDefaults := `
+spec:
+  strategy:
+    type: rollingUpdate
+    rollingUpdate:
+      maxUnavailable: 30%
+  eks:
+    configuration:
+      image: ami-025bf02d663404bbc
+      securityGroups:
+      - sg-123456789012
+      instanceType: m5.large
+      tags:
+      - key: tag
+        value: tag-value
+      - key: tag2
+        value: tag-value-2
+      volumes:
+      - name: /dev/xvda
+        type: gp2
+        size: 30
+      - name: /dev/xvdc
+        type: gp2
+        size: 30
+      labels:
+        test: test
+        label-key: label-value
+      taints:
+      - key: taint-key
+        value: taint-value
+        effect: NoSchedule`
+
+	cm := MockConfigMap(MockConfigData("boundaries", mockBoundaries, "defaults", mockDefaults))
+	cr := MockResource()
+
+	cr.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups = []string{"sg-025bf02d663404bbc"}
+	cr.Spec.EKSSpec.EKSConfiguration.InstanceType = "m5.large"
+	cr.Spec.EKSSpec.EKSConfiguration.Labels = MockLabels("label-key", "other-label-value")
+	cr.Spec.EKSSpec.EKSConfiguration.Taints = []corev1.Taint{MockTaint("taint-key", "taint-value", "NoExecute")}
+	cr.Spec.EKSSpec.EKSConfiguration.Tags = []map[string]string{
+		MockTag("tag", "other-value"),
+		MockTag("other-tag", "value"),
+		MockTag("tag2", "tag-value-2"),
+	}
+	cr.Spec.EKSSpec.EKSConfiguration.Volumes = []v1alpha1.NodeVolume{
+		MockVolume("/dev/xvda", "gp2", 35),
+		MockVolume("/dev/xvdb", "gp2", 30),
+		MockVolume("/dev/xvdc", "gp2", 30),
+	}
+	c, err := NewProvisionerConfiguration(cm, cr)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	err = c.SetDefaults()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	// Shared merge fields must merge slices/maps and consist of both CR/Default objects if there is no conflict
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups).To(gomega.ConsistOf("sg-025bf02d663404bbc", "sg-123456789012"))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.InstanceType).To(gomega.Equal("m5.large"))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Labels).To(gomega.Equal(MockLabels("test", "test", "label-key", "other-label-value")))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Taints).To(gomega.Equal([]corev1.Taint{
+		MockTaint("taint-key", "taint-value", "NoSchedule"),
+		MockTaint("taint-key", "taint-value", "NoExecute"),
+	}))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Tags).To(gomega.ConsistOf(
+		MockTag("tag", "other-value"),
+		MockTag("other-tag", "value"),
+		MockTag("tag2", "tag-value-2"),
+	))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Volumes).To(gomega.ConsistOf(
+		MockVolume("/dev/xvda", "gp2", 35),
+		MockVolume("/dev/xvdb", "gp2", 30),
+		MockVolume("/dev/xvdc", "gp2", 30),
+	))
+}
+
+func TestSetDefaultsSharedReplace(t *testing.T) {
+	var (
+		g = gomega.NewGomegaWithT(t)
+	)
+
+	// Shared replace fields are resource-provided values which can replace default values
+
+	mockBoundaries := `
+    shared:
+      replace:
+      - spec.eks.configuration.roleName
+      - spec.eks.configuration.keyPairName
+      - spec.eks.configuration.taints
+      - spec.eks.configuration.labels
+      - spec.eks.configuration.securityGroups
+      - spec.eks.configuration.instanceType
+      - spec.strategy`
+
+	mockDefaults := `
+spec:
+  strategy:
+    type: rollingUpdate
+    rollingUpdate:
+      maxUnavailable: 30%
+  eks:
+    configuration:
+      keyPairName: TestKeyPair
+      image: ami-025bf02d663404bbc
+      securityGroups:
+      - sg-123456789012
+      instanceType: m5.large
+      labels:
+        label-key: label-value
+      taints:
+      - key: taint-key
+        value: taint-value
+        effect: NoSchedule`
+
+	cm := MockConfigMap(MockConfigData("boundaries", mockBoundaries, "defaults", mockDefaults))
+	cr := MockResource()
+	cr.Spec.AwsUpgradeStrategy = v1alpha1.AwsUpgradeStrategy{
+		Type: "crd",
+		CRDType: &v1alpha1.CRDUpdateStrategy{
+			CRDName: "myCrd",
+		},
+		RollingUpdateType: &v1alpha1.RollingUpdateStrategy{},
+	}
+	cr.Spec.EKSSpec.EKSConfiguration.EksClusterName = "someCluster"
+	cr.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups = []string{"sg-000000000000"}
+	cr.Spec.EKSSpec.EKSConfiguration.InstanceType = "m5.xlarge"
+	cr.Spec.EKSSpec.EKSConfiguration.Labels = MockLabels("other-label-key", "other-label-value")
+	cr.Spec.EKSSpec.EKSConfiguration.Taints = []corev1.Taint{MockTaint("other-taint-key", "other-taint-value", "NoExecute")}
+
+	c, err := NewProvisionerConfiguration(cm, cr)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	err = c.SetDefaults()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	// Shared merge fields must merge slices/maps and consist of both CR/Default objects if there is no conflict
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups).To(gomega.ConsistOf("sg-000000000000"))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.InstanceType).To(gomega.Equal("m5.xlarge"))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Labels).To(gomega.Equal(MockLabels("other-label-key", "other-label-value")))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Taints).To(gomega.Equal([]corev1.Taint{
+		MockTaint("other-taint-key", "other-taint-value", "NoExecute"),
+	}))
+
+	// Fields without defaults should stay as provided
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.EksClusterName).To(gomega.Equal("someCluster"))
+
+	// Defaults without boundary should not be set
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Image).To(gomega.Equal(""))
+
+	// Fields with defaults are used when CR does not provide it
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.KeyPairName).To(gomega.Equal("TestKeyPair"))
 }
 
 func TestUnmarshalConfiguration(t *testing.T) {
@@ -171,17 +489,19 @@ func TestUnmarshalConfiguration(t *testing.T) {
 		g = gomega.NewGomegaWithT(t)
 	)
 
-	defaultConfig, err := UnmarshalConfiguration(nil)
-	g.Expect(err).NotTo(gomega.HaveOccurred())
-	g.Expect(defaultConfig).To(gomega.Equal(&DefaultConfiguration{}))
-
 	mockBoundaries := `
 restricted:
 - spec.eks.configuration.taints
 - spec.eks.configuration.labels
 shared:
-- spec.eks.configuration.volumes
-- spec.eks.configuration.tags`
+  mergeOverride:
+  - spec.eks.configuration.volumes
+  merge:
+  - spec.eks.configuration.volumes
+  - spec.eks.configuration.tags
+  replace:
+  - spec.eks.configuration.taints
+  - spec.eks.configuration.labels`
 
 	mockDefaults := `
 spec:
@@ -202,12 +522,15 @@ spec:
         value: tag-value`
 
 	expectedDefaults := map[string]interface{}{}
-	err = yaml.Unmarshal([]byte(mockDefaults), &expectedDefaults)
+	err := yaml.Unmarshal([]byte(mockDefaults), &expectedDefaults)
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
-	defaultConfig, err = UnmarshalConfiguration(MockConfigMap(MockConfigData("boundaries", mockBoundaries, "defaults", mockDefaults)))
+	cm := MockConfigMap(MockConfigData("boundaries", mockBoundaries, "defaults", mockDefaults))
+	c, err := NewProvisionerConfiguration(cm, &v1alpha1.InstanceGroup{})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
-	g.Expect(defaultConfig.Boundaries.Restricted).To(gomega.ConsistOf("spec.eks.configuration.taints", "spec.eks.configuration.labels"))
-	g.Expect(defaultConfig.Boundaries.Shared).To(gomega.ConsistOf("spec.eks.configuration.volumes", "spec.eks.configuration.tags"))
-	g.Expect(defaultConfig.Defaults).To(gomega.Equal(expectedDefaults))
+	g.Expect(c.Boundaries.Restricted).To(gomega.ConsistOf("spec.eks.configuration.taints", "spec.eks.configuration.labels"))
+	g.Expect(c.Boundaries.Shared.Merge).To(gomega.ConsistOf("spec.eks.configuration.volumes", "spec.eks.configuration.tags"))
+	g.Expect(c.Boundaries.Shared.MergeOverride).To(gomega.ConsistOf("spec.eks.configuration.volumes"))
+	g.Expect(c.Boundaries.Shared.Replace).To(gomega.ConsistOf("spec.eks.configuration.taints", "spec.eks.configuration.labels"))
+	g.Expect(c.Defaults).To(gomega.Equal(expectedDefaults))
 }

@@ -71,7 +71,7 @@ type EksInstanceGroupContext struct {
 	AwsWorker        awsprovider.AwsWorker
 	DiscoveredState  *DiscoveredState
 	Log              logr.Logger
-	Configuration    *provisioners.DefaultConfiguration
+	Configuration    *provisioners.ProvisionerConfiguration
 	ResourcePrefix   string
 }
 
