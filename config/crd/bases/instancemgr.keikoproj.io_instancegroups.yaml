@@ -160,7 +160,6 @@ spec:
                             type: string
                         required:
                         - data
-                        - name
                         - stage
                         type: object
                       type: array

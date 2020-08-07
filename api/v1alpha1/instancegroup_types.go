@@ -186,7 +186,7 @@ type EKSConfiguration struct {
 }
 
 type UserDataStage struct {
-	Name  string `json:"name"`
+	Name  string `json:"name,omitempty"`
 	Stage string `json:"stage"`
 	Data  string `json:"data"`
 }
