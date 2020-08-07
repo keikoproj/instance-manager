@@ -66,20 +66,20 @@ func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput(name string) *au
 	return input
 }
 
-func (ctx *EksInstanceGroupContext) GetUserDataStages() (string, string) {
+func (ctx *EksInstanceGroupContext) GetUserDataStages() ([]string, []string) {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
 		configuration = instanceGroup.GetEKSConfiguration()
 		userData      = configuration.GetUserData()
 	)
 
-	var preScript, postScript string
+	var preScript, postScript []string
 	for _, stage := range userData {
 		switch {
 		case strings.EqualFold(stage.Stage, v1alpha1.PreBootstrapStage):
-			preScript = stage.Data
+			preScript = append(preScript, stage.Data)
 		case strings.EqualFold(stage.Stage, v1alpha1.PostBootstrapStage):
-			postScript = stage.Data
+			postScript = append(postScript, stage.Data)
 		default:
 			ctx.Log.Info("invalid userdata stage will not be rendered", "stage", stage.Stage, "data", stage.Data)
 		}

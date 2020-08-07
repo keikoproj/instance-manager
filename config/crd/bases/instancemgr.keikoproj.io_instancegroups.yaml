@@ -154,6 +154,8 @@ spec:
                         properties:
                           data:
                             type: string
+                          name:
+                            type: string
                           stage:
                             type: string
                         type: object
