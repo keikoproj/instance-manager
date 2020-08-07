@@ -46,6 +46,7 @@ func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput(name string) *au
 		args                  = ctx.GetBootstrapArgs()
 		preScript, postScript = ctx.GetUserDataStages()
 		userData              = ctx.AwsWorker.GetBasicUserData(clusterName, args, preScript, postScript)
+		sgs                   = ctx.ResolveSecurityGroups()
 	)
 
 	input := &autoscaling.CreateLaunchConfigurationInput{
@@ -54,7 +55,7 @@ func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput(name string) *au
 		ImageId:                 aws.String(configuration.Image),
 		InstanceType:            aws.String(configuration.InstanceType),
 		KeyName:                 aws.String(configuration.KeyPairName),
-		SecurityGroups:          aws.StringSlice(configuration.NodeSecurityGroups),
+		SecurityGroups:          aws.StringSlice(sgs),
 		BlockDeviceMappings:     devices,
 		UserData:                aws.String(userData),
 	}
@@ -66,7 +67,66 @@ func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput(name string) *au
 	return input
 }
 
+func (ctx *EksInstanceGroupContext) ResolveSubnets() []string {
+	var (
+		instanceGroup = ctx.GetInstanceGroup()
+		configuration = instanceGroup.GetEKSConfiguration()
+		state         = ctx.GetDiscoveredState()
+		resolved      = make([]string, 0)
+	)
+
+	for _, s := range configuration.GetSubnets() {
+		if strings.HasPrefix(s, "subnet-") {
+			resolved = append(resolved, s)
+			continue
+		}
+
+		sn, err := ctx.AwsWorker.SubnetByName(s, state.GetVPCId())
+		if err != nil {
+			ctx.Log.Error(err, "failed to resolve subnet id by name", "subnet", s)
+			continue
+		}
+		if sn == nil {
+			ctx.Log.Error(errors.New("subnet not found"), "failed to resolve subnet by name", "subnet", s)
+			continue
+		}
+		resolved = append(resolved, aws.StringValue(sn.SubnetId))
+	}
+
+	return resolved
+}
+
+func (ctx *EksInstanceGroupContext) ResolveSecurityGroups() []string {
+	var (
+		instanceGroup = ctx.GetInstanceGroup()
+		configuration = instanceGroup.GetEKSConfiguration()
+		state         = ctx.GetDiscoveredState()
+		resolved      = make([]string, 0)
+	)
+
+	for _, g := range configuration.GetSecurityGroups() {
+		if strings.HasPrefix(g, "sg-") {
+			resolved = append(resolved, g)
+			continue
+		}
+
+		sg, err := ctx.AwsWorker.SecurityGroupByName(g, state.GetVPCId())
+		if err != nil {
+			ctx.Log.Error(err, "failed to resolve security group by name", "security-group", g)
+			continue
+		}
+		if sg == nil {
+			ctx.Log.Error(errors.New("security group not found"), "failed to resolve security group by name", "security-group", g)
+			continue
+		}
+		resolved = append(resolved, aws.StringValue(sg.GroupId))
+	}
+
+	return resolved
+}
+
 func (ctx *EksInstanceGroupContext) GetUserDataStages() ([]string, []string) {
+
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
 		configuration = instanceGroup.GetEKSConfiguration()

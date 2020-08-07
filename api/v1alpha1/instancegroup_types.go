@@ -444,6 +444,12 @@ func (c *EKSConfiguration) GetVolumes() []NodeVolume {
 func (c *EKSConfiguration) GetBootstrapArguments() string {
 	return c.BootstrapArguments
 }
+func (c *EKSConfiguration) GetSecurityGroups() []string {
+	if c.NodeSecurityGroups == nil {
+		return []string{}
+	}
+	return c.NodeSecurityGroups
+}
 func (c *EKSConfiguration) GetTags() []map[string]string {
 	if c.Tags == nil {
 		return []map[string]string{}

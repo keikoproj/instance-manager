@@ -45,6 +45,7 @@ type DiscoveredState struct {
 	InstanceProfile               *iam.InstanceProfile
 	Publisher                     kubeprovider.EventPublisher
 	Cluster                       *eks.Cluster
+	VPCId                         string
 }
 
 func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
@@ -107,6 +108,9 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		return errors.Wrap(err, "failed to describe cluster")
 	}
 	state.SetCluster(cluster)
+
+	vpcId := aws.StringValue(cluster.ResourcesVpcConfig.VpcId)
+	state.SetVPCId(vpcId)
 
 	// find all owned scaling groups
 	ownedScalingGroups := ctx.findOwnedScalingGroups(scalingGroups)
@@ -199,6 +203,14 @@ func (d *DiscoveredState) GetScalingGroup() *autoscaling.Group {
 
 func (d *DiscoveredState) SetCluster(cluster *eks.Cluster) {
 	d.Cluster = cluster
+}
+
+func (d *DiscoveredState) SetVPCId(id string) {
+	d.VPCId = id
+}
+
+func (d *DiscoveredState) GetVPCId() string {
+	return d.VPCId
 }
 
 func (d *DiscoveredState) GetClusterVersion() string {

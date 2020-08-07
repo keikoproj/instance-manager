@@ -25,8 +25,8 @@ spec:
       keyPairName: <string> : must match the name of an EC2 Key Pair (required)
       image: <string> : must match the ID of an EKS AMI (required)
       instanceType: <string> : must match the type of an EC2 instance (required)
-      securityGroups: <[]string> : must match existing security group IDs (required)
-      subnets: <[]string> : must match existing subnet IDs (required)
+      securityGroups: <[]string> : must match existing security group IDs or Name (by value of tag "Name") (required)
+      subnets: <[]string> : must match existing subnet IDs or Name (by value of tag "Name") (required)
 
       # customize EBS volumes
       volumes: <[]NodeVolume> : list of NodeVolume objects
