@@ -325,7 +325,7 @@ func TestLaunchConfigurationDrifted(t *testing.T) {
 	keyDrift.KeyName = aws.String("some-key")
 	usrDrift.UserData = aws.String("some-userdata")
 	devDrift.BlockDeviceMappings = []*autoscaling.BlockDeviceMapping{
-		w.GetBasicBlockDevice("some-device", "some-type", 0),
+		w.GetBasicBlockDevice("some-device", "some-type", "", 32, 0, nil, nil),
 	}
 
 	tests := []struct {
