@@ -116,7 +116,7 @@ spec:
         type: <string> : represents the type of volume, must be one of supported types "standard", "io1", "gp2", "st1", "sc1" (required)
         size: <int64> : represents a volume size in gigabytes, cannot be used with snapshotId
         snapshotId : <string> : represents a snapshot ID to use, cannot be used with size
-        iops: <int64> : represents number of IOPS to provision volume with
+        iops: <int64> : represents number of IOPS to provision volume with (min 100)
         deleteOnTermination : <bool> : delete the EBS volume when the instance is terminated (defaults to true)
         encrypted: <bool> : encrypt the EBS volume with a KMS key
 ```

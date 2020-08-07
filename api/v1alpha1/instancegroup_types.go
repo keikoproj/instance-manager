@@ -327,6 +327,9 @@ func (c *EKSConfiguration) Validate() error {
 				return errors.Errorf("validation failed, 'volume.snapshotId' and 'volume.size' are mutually exclusive")
 			}
 		}
+		if v.Iops != 0 && v.Iops < 100 {
+			return errors.Errorf("validation failed, volume IOPS must be min 100")
+		}
 	}
 
 	if len(c.Volumes) == 0 {
