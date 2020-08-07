@@ -158,18 +158,35 @@ spec:
                             type: string
                           stage:
                             type: string
+                        required:
+                        - data
+                        - name
+                        - stage
                         type: object
                       type: array
                     volumes:
                       items:
                         properties:
+                          deleteOnTermination:
+                            type: boolean
+                          encrypted:
+                            type: boolean
+                          iops:
+                            format: int64
+                            type: integer
                           name:
                             type: string
                           size:
                             format: int64
                             type: integer
+                          snapshotId:
+                            type: string
                           type:
                             type: string
+                        required:
+                        - name
+                        - size
+                        - type
                         type: object
                       type: array
                   type: object

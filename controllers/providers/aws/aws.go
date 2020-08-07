@@ -151,15 +151,26 @@ func (w *AwsWorker) InstanceProfileExist(name string) (*iam.InstanceProfile, boo
 	return out.InstanceProfile, true
 }
 
-func (w *AwsWorker) GetBasicBlockDevice(name, volType string, volSize int64) *autoscaling.BlockDeviceMapping {
-	return &autoscaling.BlockDeviceMapping{
+func (w *AwsWorker) GetBasicBlockDevice(name, volType, snapshot string, volSize, iops int64, delete, encrypt bool) *autoscaling.BlockDeviceMapping {
+	device := &autoscaling.BlockDeviceMapping{
 		DeviceName: aws.String(name),
 		Ebs: &autoscaling.Ebs{
-			VolumeSize:          aws.Int64(volSize),
 			VolumeType:          aws.String(volType),
-			DeleteOnTermination: aws.Bool(true),
+			DeleteOnTermination: aws.Bool(delete),
+			Encrypted:           aws.Bool(encrypt),
 		},
 	}
+	if iops != 0 {
+		device.Ebs.Iops = aws.Int64(iops)
+	}
+	if !common.StringEmpty(snapshot) {
+		device.Ebs.SnapshotId = aws.String(snapshot)
+	}
+	if volSize != 0 {
+		device.Ebs.VolumeSize = aws.Int64(volSize)
+	}
+
+	return device
 }
 
 func (w *AwsWorker) CreateLaunchConfig(input *autoscaling.CreateLaunchConfigurationInput) error {
