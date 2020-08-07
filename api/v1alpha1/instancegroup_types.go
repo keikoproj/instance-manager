@@ -196,8 +196,8 @@ type NodeVolume struct {
 	Type                string `json:"type"`
 	Size                int64  `json:"size"`
 	Iops                int64  `json:"iops,omitempty"`
-	DeleteOnTermination bool   `json:"deleteOnTermination,omitempty"`
-	Encrypted           bool   `json:"encrypted,omitempty"`
+	DeleteOnTermination *bool  `json:"deleteOnTermination,omitempty"`
+	Encrypted           *bool  `json:"encrypted,omitempty"`
 	SnapshotID          string `json:"snapshotId,omitempty"`
 }
 type EKSFargateSpec struct {
@@ -319,6 +319,9 @@ func (c *EKSConfiguration) Validate() error {
 	}
 
 	for _, v := range c.Volumes {
+		if !common.ContainsEqualFold(awsprovider.AllowedVolumeTypes, v.Type) {
+			return errors.Errorf("validation failed, volume type '%v' is unsuppoeted", v.Type)
+		}
 		if v.SnapshotID != "" {
 			if v.Size > 0 {
 				return errors.Errorf("validation failed, 'volume.snapshotId' and 'volume.size' are mutually exclusive")

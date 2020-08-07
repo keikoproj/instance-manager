@@ -96,6 +96,8 @@ var (
 		"GroupTotalInstances",
 		"GroupTotalCapacity",
 	}
+
+	AllowedVolumeTypes = []string{"gp2", "io1", "sc1", "st1"}
 )
 
 const (
@@ -151,23 +153,29 @@ func (w *AwsWorker) InstanceProfileExist(name string) (*iam.InstanceProfile, boo
 	return out.InstanceProfile, true
 }
 
-func (w *AwsWorker) GetBasicBlockDevice(name, volType, snapshot string, volSize, iops int64, delete, encrypt bool) *autoscaling.BlockDeviceMapping {
+func (w *AwsWorker) GetBasicBlockDevice(name, volType, snapshot string, volSize, iops int64, delete, encrypt *bool) *autoscaling.BlockDeviceMapping {
 	device := &autoscaling.BlockDeviceMapping{
 		DeviceName: aws.String(name),
 		Ebs: &autoscaling.Ebs{
-			VolumeType:          aws.String(volType),
-			DeleteOnTermination: aws.Bool(delete),
-			Encrypted:           aws.Bool(encrypt),
+			VolumeType: aws.String(volType),
 		},
+	}
+	if delete != nil {
+		device.Ebs.DeleteOnTermination = delete
+	} else {
+		device.Ebs.DeleteOnTermination = aws.Bool(true)
+	}
+	if encrypt != nil {
+		device.Ebs.Encrypted = encrypt
 	}
 	if iops != 0 {
 		device.Ebs.Iops = aws.Int64(iops)
 	}
-	if !common.StringEmpty(snapshot) {
-		device.Ebs.SnapshotId = aws.String(snapshot)
-	}
 	if volSize != 0 {
 		device.Ebs.VolumeSize = aws.Int64(volSize)
+	}
+	if !common.StringEmpty(snapshot) {
+		device.Ebs.SnapshotId = aws.String(snapshot)
 	}
 
 	return device
