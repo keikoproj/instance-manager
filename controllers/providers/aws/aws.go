@@ -109,16 +109,16 @@ const (
 type EKSUserData struct {
 	ClusterName   string
 	Arguments     string
-	PreBootstrap  string
-	PostBootstrap string
+	PreBootstrap  []string
+	PostBootstrap []string
 }
 
 var UserDataPayload = `#!/bin/bash
-{{ .PreBootstrap }}
+{{range $pre := .PreBootstrap}}{{$pre}}{{end}}
 set -o xtrace
 /etc/eks/bootstrap.sh {{ .ClusterName }} {{ .Arguments }}
 set +o xtrace
-{{ .PostBootstrap }}`
+{{range $post := .PostBootstrap}}{{$post}}{{end}}`
 
 func RenderUserData(data EKSUserData) []byte {
 	out := &bytes.Buffer{}
@@ -258,7 +258,7 @@ func (w *AwsWorker) SetResumeProcesses(name string, processesToResume []string) 
 	return nil
 }
 
-func (w *AwsWorker) GetBasicUserData(clusterName, args, preScript, postScript string) string {
+func (w *AwsWorker) GetBasicUserData(clusterName, args string, preScript, postScript []string) string {
 	userData := RenderUserData(EKSUserData{
 		ClusterName:   clusterName,
 		Arguments:     args,
