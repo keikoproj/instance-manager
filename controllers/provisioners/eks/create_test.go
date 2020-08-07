@@ -40,9 +40,10 @@ func TestCreateManagedRolePositive(t *testing.T) {
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 	state := ctx.GetDiscoveredState()
 	state.SetCluster(&eks.Cluster{Version: aws.String("1.15")})
@@ -76,9 +77,10 @@ func TestCreateLaunchConfigurationPositive(t *testing.T) {
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 
 	// Skip role creation
@@ -118,9 +120,10 @@ func TestCreateScalingGroupPositive(t *testing.T) {
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 
 	// skip role creation
@@ -159,9 +162,10 @@ func TestCreateNoOp(t *testing.T) {
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 
 	// skip role creation
@@ -199,9 +203,10 @@ func TestCreateManagedRoleNegative(t *testing.T) {
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 
 	// Mock role/profile do not exist so they are always created
@@ -247,9 +252,10 @@ func TestCreateLaunchConfigNegative(t *testing.T) {
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 
 	ig.GetEKSConfiguration().SetRoleName("some-role")
@@ -287,9 +293,10 @@ func TestCreateAutoScalingGroupNegative(t *testing.T) {
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 
 	ig.GetEKSConfiguration().SetRoleName("some-role")

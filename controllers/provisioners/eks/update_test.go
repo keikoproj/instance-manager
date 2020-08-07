@@ -39,9 +39,10 @@ func TestUpdateScalingGroupPositive(t *testing.T) {
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 
 	ctx.SetDiscoveredState(&DiscoveredState{
@@ -137,9 +138,10 @@ func TestUpdateWithDriftRotationPositive(t *testing.T) {
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 
 	mockScalingGroup := &autoscaling.Group{
@@ -210,9 +212,10 @@ func TestUpdateWithRotationPositive(t *testing.T) {
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 
 	ctx.SetDiscoveredState(&DiscoveredState{
@@ -287,9 +290,10 @@ func TestLaunchConfigurationDrifted(t *testing.T) {
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 
 	ctx.SetDiscoveredState(&DiscoveredState{
@@ -363,9 +367,10 @@ func TestUpdateScalingGroupNegative(t *testing.T) {
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 	ig.GetEKSConfiguration().SetMetricsCollection([]string{"GroupMinSize", "GroupMaxSize", "GroupDesiredCapacity"})
 
@@ -436,9 +441,10 @@ func TestScalingGroupUpdatePredicate(t *testing.T) {
 		asgMock       = NewAutoScalingMocker()
 		iamMock       = NewIamMocker()
 		eksMock       = NewEksMocker()
+		ec2Mock       = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 	spec.MinSize = int64(3)
 	spec.MaxSize = int64(6)
@@ -486,9 +492,10 @@ func TestUpdateManagedPolicies(t *testing.T) {
 		asgMock       = NewAutoScalingMocker()
 		iamMock       = NewIamMocker()
 		eksMock       = NewEksMocker()
+		ec2Mock       = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 
 	tests := []struct {

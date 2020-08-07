@@ -65,7 +65,6 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup(lcName string) error {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
 		spec          = instanceGroup.GetEKSSpec()
-		configuration = instanceGroup.GetEKSConfiguration()
 		state         = ctx.GetDiscoveredState()
 		asgName       = ctx.ResourcePrefix
 		tags          = ctx.GetAddedTags(asgName)
@@ -81,7 +80,7 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup(lcName string) error {
 		LaunchConfigurationName: aws.String(lcName),
 		MinSize:                 aws.Int64(spec.GetMinSize()),
 		MaxSize:                 aws.Int64(spec.GetMaxSize()),
-		VPCZoneIdentifier:       aws.String(common.ConcatenateList(configuration.GetSubnets(), ",")),
+		VPCZoneIdentifier:       aws.String(common.ConcatenateList(ctx.ResolveSubnets(), ",")),
 		Tags:                    tags,
 	})
 	if err != nil {

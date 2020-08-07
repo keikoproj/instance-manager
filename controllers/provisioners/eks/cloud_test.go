@@ -22,6 +22,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
+	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
 	"github.com/onsi/gomega"
@@ -35,9 +36,10 @@ func TestCloudDiscoveryPositive(t *testing.T) {
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 	state := ctx.GetDiscoveredState()
 	status := ig.GetStatus()
@@ -58,6 +60,7 @@ func TestCloudDiscoveryPositive(t *testing.T) {
 		resourceNamespace     = "default"
 		launchConfigName      = "some-launch-configuration"
 		ownedScalingGroupName = "scaling-group-1"
+		vpcId                 = "vpc-1234567890"
 		ownershipTag          = MockTagDescription(provisioners.TagClusterName, clusterName)
 		nameTag               = MockTagDescription(provisioners.TagInstanceGroupName, resourceName)
 		namespaceTag          = MockTagDescription(provisioners.TagInstanceGroupNamespace, resourceNamespace)
@@ -81,6 +84,12 @@ func TestCloudDiscoveryPositive(t *testing.T) {
 		launchConfig,
 	}
 
+	eksMock.EksCluster = &eks.Cluster{
+		ResourcesVpcConfig: &eks.VpcConfigResponse{
+			VpcId: aws.String(vpcId),
+		},
+	}
+
 	err := ctx.CloudDiscovery()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	g.Expect(state.GetRole()).To(gomega.Equal(iamMock.Role))
@@ -90,6 +99,7 @@ func TestCloudDiscoveryPositive(t *testing.T) {
 	g.Expect(state.GetScalingGroup()).To(gomega.Equal(ownedScalingGroup))
 	g.Expect(state.GetLaunchConfiguration()).To(gomega.Equal(launchConfig))
 	g.Expect(state.GetActiveLaunchConfigurationName()).To(gomega.Equal(launchConfigName))
+	g.Expect(state.GetVPCId()).To(gomega.Equal(vpcId))
 	g.Expect(status.GetNodesArn()).To(gomega.Equal(aws.StringValue(iamMock.Role.Arn)))
 	g.Expect(status.GetActiveScalingGroupName()).To(gomega.Equal(ownedScalingGroupName))
 	g.Expect(status.GetActiveLaunchConfigurationName()).To(gomega.Equal(launchConfigName))
@@ -105,9 +115,10 @@ func TestCloudDiscoveryExistingRole(t *testing.T) {
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 	configuration := ig.GetEKSConfiguration()
 	state := ctx.GetDiscoveredState()
@@ -138,9 +149,10 @@ func TestCloudDiscoverySpotPrice(t *testing.T) {
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 	status := ig.GetStatus()
 	configuration := ig.GetEKSConfiguration()
@@ -215,9 +227,10 @@ func TestLaunchConfigDeletion(t *testing.T) {
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 	configuration := ig.GetEKSConfiguration()
 
