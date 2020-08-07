@@ -35,9 +35,10 @@ func TestStateDiscovery(t *testing.T) {
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 
 	tests := []struct {
@@ -85,9 +86,10 @@ func TestIsReady(t *testing.T) {
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 
 	tests := []struct {

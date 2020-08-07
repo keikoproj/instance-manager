@@ -51,6 +51,8 @@ The below are the minimum required policies needed to run the basic operations o
 iam:GetRole
 iam:GetInstanceProfile
 iam:PassRole
+ec2:DescribeSecurityGroups
+ec2:DescribeSubnets
 autoscaling:DescribeAutoScalingGroups
 autoscaling:UpdateAutoScalingGroup
 autoscaling:TerminateInstanceInAutoScalingGroup

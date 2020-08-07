@@ -23,6 +23,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
+	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -61,11 +63,21 @@ func NewIamMocker() *MockIamClient {
 }
 
 func NewEksMocker() *MockEksClient {
-	return &MockEksClient{}
+	mock := &MockEksClient{
+		EksCluster: &eks.Cluster{
+			ResourcesVpcConfig: &eks.VpcConfigResponse{},
+		},
+	}
+	return mock
 }
 
-func MockAwsWorker(asgClient *MockAutoScalingClient, iamClient *MockIamClient, eksClient *MockEksClient) awsprovider.AwsWorker {
+func NewEc2Mocker() *MockEc2Client {
+	return &MockEc2Client{}
+}
+
+func MockAwsWorker(asgClient *MockAutoScalingClient, iamClient *MockIamClient, eksClient *MockEksClient, ec2Client *MockEc2Client) awsprovider.AwsWorker {
 	return awsprovider.AwsWorker{
+		Ec2Client: ec2Client,
 		AsgClient: asgClient,
 		IamClient: iamClient,
 		EksClient: eksClient,
@@ -193,6 +205,36 @@ func MockScalingGroup(name string, t ...*autoscaling.TagDescription) *autoscalin
 		MaxSize:                 aws.Int64(6),
 		VPCZoneIdentifier:       aws.String("subnet-1,subnet-2,subnet-3"),
 	}
+}
+
+func MockSecurityGroup(id string, withTag bool, name string) *ec2.SecurityGroup {
+	sg := &ec2.SecurityGroup{
+		GroupId: aws.String(id),
+	}
+	if withTag {
+		sg.Tags = []*ec2.Tag{
+			{
+				Key:   aws.String("Name"),
+				Value: aws.String(name),
+			},
+		}
+	}
+	return sg
+}
+
+func MockSubnet(id string, withTag bool, name string) *ec2.Subnet {
+	sn := &ec2.Subnet{
+		SubnetId: aws.String(id),
+	}
+	if withTag {
+		sn.Tags = []*ec2.Tag{
+			{
+				Key:   aws.String("Name"),
+				Value: aws.String(name),
+			},
+		}
+	}
+	return sn
 }
 
 func MockAwsCRDStrategy(spec string) v1alpha1.AwsUpgradeStrategy {
@@ -378,6 +420,40 @@ func (a *MockAutoScalingClient) SuspendProcesses(input *autoscaling.ScalingProce
 
 func (a *MockAutoScalingClient) ResumeProcesses(input *autoscaling.ScalingProcessQuery) (*autoscaling.ResumeProcessesOutput, error) {
 	return &autoscaling.ResumeProcessesOutput{}, a.UpdateSuspendProcessesErr
+}
+
+type MockEc2Client struct {
+	ec2iface.EC2API
+	DescribeSubnetsErr        error
+	DescribeSecurityGroupsErr error
+	Subnets                   []*ec2.Subnet
+	SecurityGroups            []*ec2.SecurityGroup
+}
+
+func (c *MockEc2Client) DescribeSecurityGroupsPages(input *ec2.DescribeSecurityGroupsInput, callback func(*ec2.DescribeSecurityGroupsOutput, bool) bool) error {
+	page, err := c.DescribeSecurityGroups(input)
+	if err != nil {
+		return err
+	}
+	callback(page, false)
+	return nil
+}
+
+func (c *MockEc2Client) DescribeSubnetsPages(input *ec2.DescribeSubnetsInput, callback func(*ec2.DescribeSubnetsOutput, bool) bool) error {
+	page, err := c.DescribeSubnets(input)
+	if err != nil {
+		return err
+	}
+	callback(page, false)
+	return nil
+}
+
+func (c *MockEc2Client) DescribeSecurityGroups(input *ec2.DescribeSecurityGroupsInput) (*ec2.DescribeSecurityGroupsOutput, error) {
+	return &ec2.DescribeSecurityGroupsOutput{SecurityGroups: c.SecurityGroups}, c.DescribeSecurityGroupsErr
+}
+
+func (c *MockEc2Client) DescribeSubnets(input *ec2.DescribeSubnetsInput) (*ec2.DescribeSubnetsOutput, error) {
+	return &ec2.DescribeSubnetsOutput{Subnets: c.Subnets}, c.DescribeSubnetsErr
 }
 
 type MockEksClient struct {

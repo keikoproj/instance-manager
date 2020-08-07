@@ -22,12 +22,96 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/onsi/gomega"
+	"github.com/pkg/errors"
 )
+
+func TestResolveSecurityGroups(t *testing.T) {
+	var (
+		g       = gomega.NewGomegaWithT(t)
+		k       = MockKubernetesClientSet()
+		ig      = MockInstanceGroup()
+		config  = ig.GetEKSConfiguration()
+		asgMock = NewAutoScalingMocker()
+		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	ctx := MockContext(ig, k, w)
+
+	tests := []struct {
+		requested []string
+		groups    []*ec2.SecurityGroup
+		result    []string
+		withErr   bool
+	}{
+		{requested: []string{"sg-111", "sg-222"}, groups: []*ec2.SecurityGroup{MockSecurityGroup("sg-111", false, ""), MockSecurityGroup("sg-222", false, "")}, result: []string{"sg-111", "sg-222"}, withErr: false},
+		{requested: []string{"my-sg-1", "sg-222"}, groups: []*ec2.SecurityGroup{MockSecurityGroup("sg-111", true, "my-sg-1"), MockSecurityGroup("sg-222", false, "")}, result: []string{"sg-111", "sg-222"}, withErr: false},
+		{requested: []string{"my-sg-1", "my-sg-2"}, groups: []*ec2.SecurityGroup{MockSecurityGroup("sg-111", true, "my-sg-1"), MockSecurityGroup("sg-222", true, "my-sg-2")}, result: []string{"sg-111", "sg-222"}, withErr: false},
+		{requested: []string{"my-sg-1"}, groups: []*ec2.SecurityGroup{MockSecurityGroup("sg-111", true, "my-sg-1")}, result: []string{}, withErr: true},
+		{requested: []string{"my-sg-1", "my-sg-2"}, groups: []*ec2.SecurityGroup{MockSecurityGroup("sg-111", true, "my-sg-2")}, result: []string{"sg-111"}, withErr: false},
+	}
+
+	for i, tc := range tests {
+		t.Logf("Test #%v - %+v", i, tc)
+		config.NodeSecurityGroups = tc.requested
+		ec2Mock.DescribeSecurityGroupsErr = nil
+		ec2Mock.SecurityGroups = tc.groups
+		if tc.withErr {
+			ec2Mock.DescribeSecurityGroupsErr = errors.New("an error occured")
+		}
+		groups := ctx.ResolveSecurityGroups()
+		g.Expect(groups).To(gomega.Equal(tc.result))
+	}
+}
+
+func TestResolveSubnets(t *testing.T) {
+	var (
+		g       = gomega.NewGomegaWithT(t)
+		k       = MockKubernetesClientSet()
+		ig      = MockInstanceGroup()
+		config  = ig.GetEKSConfiguration()
+		asgMock = NewAutoScalingMocker()
+		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	ctx := MockContext(ig, k, w)
+
+	tests := []struct {
+		requested []string
+		subnets   []*ec2.Subnet
+		result    []string
+		withErr   bool
+	}{
+		{requested: []string{"subnet-111", "subnet-222"}, subnets: []*ec2.Subnet{MockSubnet("subnet-111", false, ""), MockSubnet("subnet-222", false, "")}, result: []string{"subnet-111", "subnet-222"}, withErr: false},
+		{requested: []string{"my-subnet-1", "subnet-222"}, subnets: []*ec2.Subnet{MockSubnet("subnet-111", true, "my-subnet-1"), MockSubnet("subnet-222", false, "")}, result: []string{"subnet-111", "subnet-222"}, withErr: false},
+		{requested: []string{"my-subnet-1", "my-subnet-2"}, subnets: []*ec2.Subnet{MockSubnet("subnet-111", true, "my-subnet-1"), MockSubnet("subnet-222", true, "my-subnet-2")}, result: []string{"subnet-111", "subnet-222"}, withErr: false},
+		{requested: []string{"my-subnet-1"}, subnets: []*ec2.Subnet{MockSubnet("subnet-111", true, "my-subnet-1")}, result: []string{}, withErr: true},
+		{requested: []string{"my-subnet-1", "my-subnet-2"}, subnets: []*ec2.Subnet{MockSubnet("subnet-111", true, "my-subnet-2")}, result: []string{"subnet-111"}, withErr: false},
+	}
+
+	for i, tc := range tests {
+		t.Logf("Test #%v - %+v", i, tc)
+		config.Subnets = tc.requested
+		ec2Mock.Subnets = tc.subnets
+		ec2Mock.DescribeSubnetsErr = nil
+		if tc.withErr {
+			ec2Mock.DescribeSubnetsErr = errors.New("an error occured")
+		}
+		groups := ctx.ResolveSubnets()
+		g.Expect(groups).To(gomega.Equal(tc.result))
+	}
+}
 
 func TestGetDisabledMetrics(t *testing.T) {
 	var (
@@ -37,9 +121,10 @@ func TestGetDisabledMetrics(t *testing.T) {
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 
 	// No disable required
@@ -96,9 +181,10 @@ func TestGetEnabledMetrics(t *testing.T) {
 		asgMock = NewAutoScalingMocker()
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 
 	// Enable all metrics
@@ -141,6 +227,7 @@ func TestGetLabelList(t *testing.T) {
 		asgMock                    = NewAutoScalingMocker()
 		iamMock                    = NewIamMocker()
 		eksMock                    = NewEksMocker()
+		ec2Mock                    = NewEc2Mocker()
 		expectedLabels115          = []string{"node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
 		expectedLabels116          = []string{"node.kubernetes.io/role=instance-group-1"}
 		expectedLabelsWithCustom   = []string{"custom.kubernetes.io=customlabel", "node.kubernetes.io/role=instance-group-1"}
@@ -150,7 +237,7 @@ func TestGetLabelList(t *testing.T) {
 		defaultLifecycleLable      = "instancemgr.keikoproj.io/lifecycle=normal"
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 
 	tests := []struct {
@@ -204,9 +291,10 @@ func TestGetUserDataStages(t *testing.T) {
 		asgMock       = NewAutoScalingMocker()
 		iamMock       = NewIamMocker()
 		eksMock       = NewEksMocker()
+		ec2Mock       = NewEc2Mocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 
 	tests := []struct {
