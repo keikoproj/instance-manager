@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [v0.8.0-alpha2] - 2020-8-7
+
+### Added
+
+- Basic GitOps/Platform Support (#157)
+- Suspend Processes (#132, #136)
+- "Replace" concurrency policy (#138)
+- Configurable AWS API retries (#139)
+- UserData support (#146, #160)
+- Node Label for Lifecycle State (#152)
+- Additional NodeVolume options (#161)
+- CRD Validation on Upgrade (#133)
+
+### Changed
+
+- Uniform finalizer (#153)
+- Accept "Name" tag for SecurityGroups / Subnets (#159)
+
+### Fixed
+
+- Documentation/RBAC/Logging fixes (#134, #154)
+- BDD Fixes (#140, #148)
+- Allow upgrade if nodes NotReady (#147)
+
 ## [v0.7.0-alpha2] - 2020-6-1
 
 ### Added
