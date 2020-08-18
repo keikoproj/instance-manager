@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
+	"github.com/keikoproj/instance-manager/controllers/provisioners/eks/scaling"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
@@ -30,105 +31,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-func TestUpdateScalingGroupPositive(t *testing.T) {
-	var (
-		g       = gomega.NewGomegaWithT(t)
-		k       = MockKubernetesClientSet()
-		ig      = MockInstanceGroup()
-		asgMock = NewAutoScalingMocker()
-		iamMock = NewIamMocker()
-		eksMock = NewEksMocker()
-		ec2Mock = NewEc2Mocker()
-	)
-
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
-	ctx := MockContext(ig, k, w)
-
-	ctx.SetDiscoveredState(&DiscoveredState{
-		Publisher: kubeprovider.EventPublisher{
-			Client: k.Kubernetes,
-		},
-		Cluster: &eks.Cluster{
-			Version: aws.String("1.15"),
-		},
-	})
-
-	mockTags := []map[string]string{
-		{
-			"key":   "some-tag",
-			"value": "some-different-value",
-		},
-	}
-	ig.GetEKSConfiguration().SetMetricsCollection([]string{"GroupMinSize", "GroupMaxSize", "GroupDesiredCapacity"})
-	ig.GetEKSConfiguration().SetTags(mockTags)
-
-	// avoid drift / rotation
-	input := ctx.GetLaunchConfigurationInput("some-launch-config")
-	mockLaunchConfig := MockLaunchConfigFromInput(input)
-	mockScalingGroup := &autoscaling.Group{
-		EnabledMetrics:       MockEnabledMetrics("GroupInServiceInstances", "GroupMinSize"),
-		AutoScalingGroupName: aws.String("some-scaling-group"),
-		DesiredCapacity:      aws.Int64(1),
-		Instances: []*autoscaling.Instance{
-			{
-				InstanceId:              aws.String("i-1234"),
-				LaunchConfigurationName: aws.String("some-launch-config"),
-			},
-		},
-		Tags: []*autoscaling.TagDescription{
-			{
-				Key:   aws.String("some-tag"),
-				Value: aws.String("some-value"),
-			},
-		},
-		SuspendedProcesses: []*autoscaling.SuspendedProcess{
-			{
-				ProcessName: aws.String("ScheduledActions"),
-			},
-		},
-	}
-	asgMock.AutoScalingGroups = []*autoscaling.Group{mockScalingGroup}
-
-	// create matching node object
-	mockNode := &corev1.Node{
-		Spec: corev1.NodeSpec{
-			ProviderID: "aws:///us-west-2a/i-1234",
-		},
-		Status: corev1.NodeStatus{
-			Conditions: []corev1.NodeCondition{
-				{
-					Type:   corev1.NodeReady,
-					Status: corev1.ConditionTrue,
-				},
-			},
-		},
-	}
-	_, err := k.Kubernetes.CoreV1().Nodes().Create(mockNode)
-	g.Expect(err).NotTo(gomega.HaveOccurred())
-
-	nodes, err := k.Kubernetes.CoreV1().Nodes().List(metav1.ListOptions{})
-	g.Expect(err).NotTo(gomega.HaveOccurred())
-
-	ctx.SetDiscoveredState(&DiscoveredState{
-		Publisher: kubeprovider.EventPublisher{
-			Client: k.Kubernetes,
-		},
-		Cluster: &eks.Cluster{
-			Version: aws.String("1.15"),
-		},
-		ScalingGroup:                  mockScalingGroup,
-		ActiveLaunchConfigurationName: "some-launch-config",
-		LaunchConfiguration:           mockLaunchConfig,
-		ClusterNodes:                  nodes,
-	})
-
-	err = ctx.Update()
-	g.Expect(err).NotTo(gomega.HaveOccurred())
-	g.Expect(ctx.TagsUpdateNeeded()).To(gomega.BeTrue())
-
-	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModified))
-}
 
 func TestUpdateWithDriftRotationPositive(t *testing.T) {
 	var (
@@ -187,8 +89,10 @@ func TestUpdateWithDriftRotationPositive(t *testing.T) {
 		Publisher: kubeprovider.EventPublisher{
 			Client: k.Kubernetes,
 		},
-		ScalingGroup:                  mockScalingGroup,
-		ActiveLaunchConfigurationName: "some-launch-config",
+		ScalingGroup: mockScalingGroup,
+		ScalingConfiguration: &scaling.LaunchConfiguration{
+			AwsWorker: w,
+		},
 		InstanceProfile: &iam.InstanceProfile{
 			Arn: aws.String("some-instance-arn"),
 		},
@@ -227,8 +131,9 @@ func TestUpdateWithRotationPositive(t *testing.T) {
 		},
 	})
 
-	// avoid drift / rotation
-	input := ctx.GetLaunchConfigurationInput("some-launch-config")
+	input := &autoscaling.CreateLaunchConfigurationInput{
+		LaunchConfigurationName: aws.String("some-launch-config"),
+	}
 	mockLaunchConfig := MockLaunchConfigFromInput(input)
 
 	mockScalingGroup := &autoscaling.Group{
@@ -268,10 +173,12 @@ func TestUpdateWithRotationPositive(t *testing.T) {
 		Publisher: kubeprovider.EventPublisher{
 			Client: k.Kubernetes,
 		},
-		ScalingGroup:                  mockScalingGroup,
-		ActiveLaunchConfigurationName: "some-launch-config",
-		LaunchConfiguration:           mockLaunchConfig,
-		ClusterNodes:                  nodes,
+		ScalingGroup: mockScalingGroup,
+		ScalingConfiguration: &scaling.LaunchConfiguration{
+			AwsWorker:      w,
+			TargetResource: mockLaunchConfig,
+		},
+		ClusterNodes: nodes,
 		Cluster: &eks.Cluster{
 			Version: aws.String("1.15"),
 		},
@@ -305,22 +212,51 @@ func TestLaunchConfigurationDrifted(t *testing.T) {
 		},
 	})
 
-	input := ctx.GetLaunchConfigurationInput("some-launch-config")
+	lcInput := &autoscaling.CreateLaunchConfigurationInput{
+		LaunchConfigurationName: aws.String("some-launch-config"),
+		ImageId:                 aws.String("ami-123456789"),
+		InstanceType:            aws.String("m5.large"),
+		IamInstanceProfile:      aws.String("some-profile"),
+		SpotPrice:               aws.String("1.0"),
+		SecurityGroups:          aws.StringSlice([]string{"sg-1", "sg-2"}),
+		KeyName:                 aws.String("somekey"),
+		UserData:                aws.String("userdata"),
+		BlockDeviceMappings:     []*autoscaling.BlockDeviceMapping{w.GetBasicBlockDevice("/dev/xvda", "gp2", "", 40, 100, nil, nil)},
+	}
+
+	existingConfig := &scaling.CreateConfigurationInput{
+		Name:                  "some-launch-config",
+		ImageId:               "ami-123456789",
+		InstanceType:          "m5.large",
+		IamInstanceProfileArn: "some-profile",
+		SpotPrice:             "1.0",
+		SecurityGroups:        []string{"sg-1", "sg-2"},
+		KeyName:               "somekey",
+		UserData:              "userdata",
+		Volumes: []v1alpha1.NodeVolume{
+			{
+				Name: "/dev/xvda",
+				Type: "gp2",
+				Size: 40,
+				Iops: 100,
+			},
+		},
+	}
 
 	var (
-		imgDrift  = MockLaunchConfigFromInput(input)
-		instDrift = MockLaunchConfigFromInput(input)
-		ipDrift   = MockLaunchConfigFromInput(input)
-		sgDrift   = MockLaunchConfigFromInput(input)
-		spDrift   = MockLaunchConfigFromInput(input)
-		keyDrift  = MockLaunchConfigFromInput(input)
-		usrDrift  = MockLaunchConfigFromInput(input)
-		devDrift  = MockLaunchConfigFromInput(input)
+		imgDrift  = MockLaunchConfigFromInput(lcInput)
+		instDrift = MockLaunchConfigFromInput(lcInput)
+		ipDrift   = MockLaunchConfigFromInput(lcInput)
+		sgDrift   = MockLaunchConfigFromInput(lcInput)
+		spDrift   = MockLaunchConfigFromInput(lcInput)
+		keyDrift  = MockLaunchConfigFromInput(lcInput)
+		usrDrift  = MockLaunchConfigFromInput(lcInput)
+		devDrift  = MockLaunchConfigFromInput(lcInput)
 	)
 	imgDrift.ImageId = aws.String("some-image")
 	instDrift.InstanceType = aws.String("some-type")
 	ipDrift.IamInstanceProfile = aws.String("some-instance-profile")
-	sgDrift.SecurityGroups = aws.StringSlice([]string{"sg-1", "sg-2"})
+	sgDrift.SecurityGroups = aws.StringSlice([]string{"sg-4", "sg-3"})
 	spDrift.SpotPrice = aws.String("some-price")
 	keyDrift.KeyName = aws.String("some-key")
 	usrDrift.UserData = aws.String("some-userdata")
@@ -332,7 +268,7 @@ func TestLaunchConfigurationDrifted(t *testing.T) {
 		input    *autoscaling.LaunchConfiguration
 		expected bool
 	}{
-		{input: MockLaunchConfigFromInput(input), expected: false},
+		{input: MockLaunchConfigFromInput(lcInput), expected: false},
 		{input: imgDrift, expected: true},
 		{input: instDrift, expected: true},
 		{input: ipDrift, expected: true},
@@ -343,18 +279,21 @@ func TestLaunchConfigurationDrifted(t *testing.T) {
 		{input: devDrift, expected: true},
 	}
 
-	for _, tc := range tests {
+	for i, tc := range tests {
+		t.Logf("Test #%v", i)
 		ctx.SetDiscoveredState(&DiscoveredState{
 			Publisher: kubeprovider.EventPublisher{
 				Client: k.Kubernetes,
 			},
-			ActiveLaunchConfigurationName: "some-launch-config",
-			LaunchConfiguration:           tc.input,
+			ScalingConfiguration: &scaling.LaunchConfiguration{
+				AwsWorker:      w,
+				TargetResource: tc.input,
+			},
 			Cluster: &eks.Cluster{
 				Version: aws.String("1.15"),
 			},
 		})
-		got := ctx.LaunchConfigurationDrifted()
+		got := ctx.DiscoveredState.ScalingConfiguration.Drifted(existingConfig)
 		g.Expect(got).To(gomega.Equal(tc.expected))
 	}
 }
@@ -388,6 +327,9 @@ func TestUpdateScalingGroupNegative(t *testing.T) {
 		ScalingGroup: mockScalingGroup,
 		InstanceProfile: &iam.InstanceProfile{
 			Arn: aws.String("some-instance-arn"),
+		},
+		ScalingConfiguration: &scaling.LaunchConfiguration{
+			AwsWorker: w,
 		},
 		Cluster: &eks.Cluster{
 			Version: aws.String("1.15"),
@@ -470,15 +412,21 @@ func TestScalingGroupUpdatePredicate(t *testing.T) {
 		{input: mockScalingGroupSubnets, expected: true},
 	}
 
-	for _, tc := range tests {
+	for i, tc := range tests {
+		t.Logf("Test #%v", i)
 		ctx.SetDiscoveredState(&DiscoveredState{
 			Publisher: kubeprovider.EventPublisher{
 				Client: k.Kubernetes,
 			},
-			ScalingGroup:                  tc.input,
-			ActiveLaunchConfigurationName: "some-launch-configuration",
+			ScalingGroup: tc.input,
+			ScalingConfiguration: &scaling.LaunchConfiguration{
+				AwsWorker: w,
+				TargetResource: &autoscaling.LaunchConfiguration{
+					LaunchConfigurationName: aws.String("some-launch-configuration"),
+				},
+			},
 		})
-		got := ctx.ScalingGroupUpdateNeeded()
+		got := ctx.ScalingGroupUpdateNeeded("some-launch-configuration")
 		g.Expect(got).To(gomega.Equal(tc.expected))
 	}
 }

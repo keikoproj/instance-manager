@@ -35,38 +35,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput(name string) *autoscaling.CreateLaunchConfigurationInput {
-	var (
-		instanceGroup         = ctx.GetInstanceGroup()
-		configuration         = instanceGroup.GetEKSConfiguration()
-		clusterName           = configuration.GetClusterName()
-		state                 = ctx.GetDiscoveredState()
-		instanceProfile       = state.GetInstanceProfile()
-		devices               = ctx.GetBlockDeviceList()
-		args                  = ctx.GetBootstrapArgs()
-		preScript, postScript = ctx.GetUserDataStages()
-		userData              = ctx.AwsWorker.GetBasicUserData(clusterName, args, preScript, postScript)
-		sgs                   = ctx.ResolveSecurityGroups()
-	)
-
-	input := &autoscaling.CreateLaunchConfigurationInput{
-		LaunchConfigurationName: aws.String(name),
-		IamInstanceProfile:      instanceProfile.Arn,
-		ImageId:                 aws.String(configuration.Image),
-		InstanceType:            aws.String(configuration.InstanceType),
-		KeyName:                 aws.String(configuration.KeyPairName),
-		SecurityGroups:          aws.StringSlice(sgs),
-		BlockDeviceMappings:     devices,
-		UserData:                aws.String(userData),
-	}
-
-	if configuration.SpotPrice != "" {
-		input.SpotPrice = aws.String(configuration.SpotPrice)
-	}
-
-	return input
-}
-
 func (ctx *EksInstanceGroupContext) ResolveSubnets() []string {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
@@ -621,36 +589,6 @@ func (ctx *EksInstanceGroupContext) RemoveAuthRole(arn string) error {
 	}
 
 	return common.RemoveAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{arn})
-}
-
-func (ctx *EksInstanceGroupContext) GetTimeSortedLaunchConfigurations() []*autoscaling.LaunchConfiguration {
-	var (
-		state = ctx.GetDiscoveredState()
-	)
-
-	configurations := []*autoscaling.LaunchConfiguration{}
-	for _, lc := range state.GetLaunchConfigurations() {
-		name := aws.StringValue(lc.LaunchConfigurationName)
-		matcher := fmt.Sprintf("%v-", ctx.ResourcePrefix)
-		if strings.HasPrefix(name, matcher) {
-			configurations = append(configurations, lc)
-		}
-	}
-
-	// sort matching launch configs by created time
-	sort.Slice(configurations, func(i, j int) bool {
-		ti := configurations[i].CreatedTime
-		tj := configurations[j].CreatedTime
-		if tj == nil {
-			return true
-		}
-		if ti == nil {
-			return false
-		}
-		return ti.UnixNano() < tj.UnixNano()
-	})
-
-	return configurations
 }
 
 func IsRetryable(instanceGroup *v1alpha1.InstanceGroup) bool {

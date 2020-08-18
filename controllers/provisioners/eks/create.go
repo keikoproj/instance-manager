@@ -18,6 +18,8 @@ package eks
 import (
 	"fmt"
 
+	"github.com/keikoproj/instance-manager/controllers/provisioners/eks/scaling"
+
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/pkg/errors"
@@ -29,9 +31,18 @@ import (
 
 func (ctx *EksInstanceGroupContext) Create() error {
 	var (
-		instanceGroup = ctx.GetInstanceGroup()
-		state         = ctx.GetDiscoveredState()
-		lcName        = state.GetActiveLaunchConfigurationName()
+		configName            string
+		instanceGroup         = ctx.GetInstanceGroup()
+		state                 = ctx.GetDiscoveredState()
+		scalingConfig         = state.GetScalingConfiguration()
+		configuration         = instanceGroup.GetEKSConfiguration()
+		instanceProfile       = state.GetInstanceProfile()
+		args                  = ctx.GetBootstrapArgs()
+		preScript, postScript = ctx.GetUserDataStages()
+		clusterName           = configuration.GetClusterName()
+		userData              = ctx.AwsWorker.GetBasicUserData(clusterName, args, preScript, postScript)
+		sgs                   = ctx.ResolveSecurityGroups()
+		spotPrice             = configuration.GetSpotPrice()
 	)
 
 	instanceGroup.SetState(v1alpha1.ReconcileModifying)
@@ -42,17 +53,27 @@ func (ctx *EksInstanceGroupContext) Create() error {
 		return errors.Wrap(err, "failed to create scaling group role")
 	}
 
-	// create launchconfig
-	if !state.HasLaunchConfiguration() {
-		lcName = fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
-		err := ctx.CreateLaunchConfiguration(lcName)
-		if err != nil {
-			return errors.Wrap(err, "failed to create launch configuration")
+	if !scalingConfig.Provisioned() {
+		configName = fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
+		if err := scalingConfig.Create(&scaling.CreateConfigurationInput{
+			Name:                  configName,
+			IamInstanceProfileArn: aws.StringValue(instanceProfile.Arn),
+			ImageId:               configuration.Image,
+			InstanceType:          configuration.InstanceType,
+			KeyName:               configuration.KeyPairName,
+			SecurityGroups:        sgs,
+			Volumes:               configuration.Volumes,
+			UserData:              userData,
+			SpotPrice:             spotPrice,
+		}); err != nil {
+			return errors.Wrap(err, "failed to create scaling configuration")
 		}
+	} else {
+		configName = scalingConfig.Name()
 	}
 
 	// create scaling group
-	err = ctx.CreateScalingGroup(lcName)
+	err = ctx.CreateScalingGroup(configName)
 	if err != nil {
 		return errors.Wrap(err, "failed to create scaling group")
 	}
@@ -64,6 +85,7 @@ func (ctx *EksInstanceGroupContext) Create() error {
 func (ctx *EksInstanceGroupContext) CreateScalingGroup(lcName string) error {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
+		status        = instanceGroup.GetStatus()
 		spec          = instanceGroup.GetEKSSpec()
 		state         = ctx.GetDiscoveredState()
 		asgName       = ctx.ResourcePrefix
@@ -86,6 +108,8 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup(lcName string) error {
 	if err != nil {
 		return err
 	}
+	status.SetActiveLaunchConfigurationName(lcName)
+
 	ctx.Log.Info("created scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 
 	if err := ctx.UpdateScalingProcesses(asgName); err != nil {
@@ -97,29 +121,6 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup(lcName string) error {
 	}
 
 	state.Publisher.Publish(kubeprovider.InstanceGroupCreatedEvent, "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
-	return nil
-}
-
-func (ctx *EksInstanceGroupContext) CreateLaunchConfiguration(name string) error {
-	var (
-		state         = ctx.GetDiscoveredState()
-		instanceGroup = ctx.GetInstanceGroup()
-		status        = instanceGroup.GetStatus()
-		input         = ctx.GetLaunchConfigurationInput(name)
-	)
-
-	if aws.StringValue(input.IamInstanceProfile) == "" {
-		return errors.Errorf("cannot create a launchconfiguration without iam instance profile")
-	}
-
-	err := ctx.AwsWorker.CreateLaunchConfig(input)
-	if err != nil {
-		return err
-	}
-
-	ctx.Log.Info("created launchconfig", "instancegroup", instanceGroup.GetName(), "launchconfig", name)
-	status.SetActiveLaunchConfigurationName(name)
-	state.SetActiveLaunchConfigurationName(name)
 	return nil
 }
 
