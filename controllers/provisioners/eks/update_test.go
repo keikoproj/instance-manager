@@ -469,6 +469,8 @@ func TestUpdateManagedPolicies(t *testing.T) {
 		{attachedPolicies: MockAttachedPolicies(), additionalPolicies: []string{}, expectedAttached: 3, expectedDetached: 0},
 		// additional policies need to be attached
 		{attachedPolicies: MockAttachedPolicies(DefaultManagedPolicies...), additionalPolicies: []string{"policy-1", "policy-2"}, expectedAttached: 2, expectedDetached: 0},
+		// additional policies with ARN
+		{attachedPolicies: MockAttachedPolicies(DefaultManagedPolicies...), additionalPolicies: []string{"arn:aws:iam::aws:policy/policy-1", "arn:aws:iam::12345679012:policy/policy-2"}, expectedAttached: 2, expectedDetached: 0},
 		// additional policies need to be detached
 		{attachedPolicies: MockAttachedPolicies("AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly", "policy-1"), additionalPolicies: []string{}, expectedAttached: 0, expectedDetached: 1},
 		// additional policies need to be attached & detached
