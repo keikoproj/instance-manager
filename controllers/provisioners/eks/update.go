@@ -35,7 +35,6 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		state                 = ctx.GetDiscoveredState()
 		scalingConfig         = state.GetScalingConfiguration()
 		configuration         = instanceGroup.GetEKSConfiguration()
-		instanceProfile       = state.GetInstanceProfile()
 		args                  = ctx.GetBootstrapArgs()
 		preScript, postScript = ctx.GetUserDataStages()
 		clusterName           = configuration.GetClusterName()
@@ -51,6 +50,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to update scaling group role")
 	}
+	instanceProfile := state.GetInstanceProfile()
 
 	config := &scaling.CreateConfigurationInput{
 		IamInstanceProfileArn: aws.StringValue(instanceProfile.Arn),

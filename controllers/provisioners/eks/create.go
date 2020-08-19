@@ -36,7 +36,6 @@ func (ctx *EksInstanceGroupContext) Create() error {
 		state                 = ctx.GetDiscoveredState()
 		scalingConfig         = state.GetScalingConfiguration()
 		configuration         = instanceGroup.GetEKSConfiguration()
-		instanceProfile       = state.GetInstanceProfile()
 		args                  = ctx.GetBootstrapArgs()
 		preScript, postScript = ctx.GetUserDataStages()
 		clusterName           = configuration.GetClusterName()
@@ -52,6 +51,7 @@ func (ctx *EksInstanceGroupContext) Create() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to create scaling group role")
 	}
+	instanceProfile := state.GetInstanceProfile()
 
 	if !scalingConfig.Provisioned() {
 		configName = fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
