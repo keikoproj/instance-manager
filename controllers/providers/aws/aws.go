@@ -107,6 +107,7 @@ var (
 
 const (
 	IAMPolicyPrefix = "arn:aws:iam::aws:policy"
+	IAMARNPrefix    = "arn:aws:iam::"
 )
 
 type EKSUserData struct {

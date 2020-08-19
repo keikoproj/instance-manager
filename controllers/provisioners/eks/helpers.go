@@ -527,9 +527,12 @@ func (ctx *EksInstanceGroupContext) UpdateMetricsCollection(asgName string) erro
 func (ctx *EksInstanceGroupContext) GetManagedPoliciesList(additionalPolicies []string) []string {
 	managedPolicies := make([]string, 0)
 	for _, name := range additionalPolicies {
-		if strings.HasPrefix(name, awsprovider.IAMPolicyPrefix) {
+		switch {
+		case strings.HasPrefix(name, awsprovider.IAMPolicyPrefix):
 			managedPolicies = append(managedPolicies, name)
-		} else {
+		case strings.HasPrefix(name, awsprovider.IAMARNPrefix):
+			managedPolicies = append(managedPolicies, name)
+		default:
 			managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, name))
 		}
 	}
@@ -537,6 +540,7 @@ func (ctx *EksInstanceGroupContext) GetManagedPoliciesList(additionalPolicies []
 	for _, name := range DefaultManagedPolicies {
 		managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, name))
 	}
+
 	return managedPolicies
 }
 
