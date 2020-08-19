@@ -196,21 +196,6 @@ func (ctx *EksInstanceGroupContext) UpdateScalingProcesses(asgName string) error
 	return nil
 }
 
-func (ctx *EksInstanceGroupContext) GetBlockDeviceList() []*autoscaling.BlockDeviceMapping {
-	var (
-		devices       []*autoscaling.BlockDeviceMapping
-		instanceGroup = ctx.GetInstanceGroup()
-		configuration = instanceGroup.GetEKSConfiguration()
-	)
-
-	customVolumes := configuration.GetVolumes()
-	for _, v := range customVolumes {
-		devices = append(devices, ctx.AwsWorker.GetBasicBlockDevice(v.Name, v.Type, v.SnapshotID, v.Size, v.Iops, v.DeleteOnTermination, v.Encrypted))
-	}
-
-	return devices
-}
-
 func (ctx *EksInstanceGroupContext) GetTaintList() []string {
 	var (
 		taintList     []string

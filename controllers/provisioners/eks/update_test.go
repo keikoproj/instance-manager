@@ -34,13 +34,14 @@ import (
 
 func TestUpdateWithDriftRotationPositive(t *testing.T) {
 	var (
-		g       = gomega.NewGomegaWithT(t)
-		k       = MockKubernetesClientSet()
-		ig      = MockInstanceGroup()
-		asgMock = NewAutoScalingMocker()
-		iamMock = NewIamMocker()
-		eksMock = NewEksMocker()
-		ec2Mock = NewEc2Mocker()
+		g             = gomega.NewGomegaWithT(t)
+		k             = MockKubernetesClientSet()
+		ig            = MockInstanceGroup()
+		configuration = ig.GetEKSConfiguration()
+		asgMock       = NewAutoScalingMocker()
+		iamMock       = NewIamMocker()
+		eksMock       = NewEksMocker()
+		ec2Mock       = NewEc2Mocker()
 	)
 
 	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
@@ -64,6 +65,16 @@ func TestUpdateWithDriftRotationPositive(t *testing.T) {
 	}
 	asgMock.AutoScalingGroups = []*autoscaling.Group{mockScalingGroup}
 
+	configuration.Tags = []map[string]string{
+		{
+			"key":   "some-tag",
+			"value": "some-value",
+		},
+		{
+			"key":   "other-tag",
+			"value": "other-value",
+		},
+	}
 	// create matching node object
 	mockNode := &corev1.Node{
 		Spec: corev1.NodeSpec{

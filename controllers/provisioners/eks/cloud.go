@@ -222,9 +222,6 @@ func (d *DiscoveredState) GetAttachedPolicies() []*iam.AttachedPolicy {
 func (d *DiscoveredState) HasRole() bool {
 	return d.IAMRole != nil
 }
-func (d *DiscoveredState) HasInstanceProfile() bool {
-	return d.InstanceProfile != nil
-}
 func (d *DiscoveredState) HasScalingGroup() bool {
 	return d.ScalingGroup != nil
 }
