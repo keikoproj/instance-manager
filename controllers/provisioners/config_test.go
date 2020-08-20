@@ -534,3 +534,35 @@ spec:
 	g.Expect(c.Boundaries.Shared.Replace).To(gomega.ConsistOf("spec.eks.configuration.taints", "spec.eks.configuration.labels"))
 	g.Expect(c.Defaults).To(gomega.Equal(expectedDefaults))
 }
+
+func TestIsRetryable(t *testing.T) {
+	var (
+		g  = gomega.NewGomegaWithT(t)
+		ig = &v1alpha1.InstanceGroup{}
+	)
+
+	tests := []struct {
+		state             v1alpha1.ReconcileState
+		expectedRetryable bool
+	}{
+		{state: v1alpha1.ReconcileErr, expectedRetryable: false},
+		{state: v1alpha1.ReconcileReady, expectedRetryable: false},
+		{state: v1alpha1.ReconcileDeleted, expectedRetryable: false},
+		{state: v1alpha1.ReconcileDeleting, expectedRetryable: true},
+		{state: v1alpha1.ReconcileInit, expectedRetryable: true},
+		{state: v1alpha1.ReconcileInitCreate, expectedRetryable: true},
+		{state: v1alpha1.ReconcileInitDelete, expectedRetryable: true},
+		{state: v1alpha1.ReconcileInitUpdate, expectedRetryable: true},
+		{state: v1alpha1.ReconcileInitUpgrade, expectedRetryable: true},
+		{state: v1alpha1.ReconcileModified, expectedRetryable: true},
+		{state: v1alpha1.ReconcileModifying, expectedRetryable: true},
+	}
+
+	for i, tc := range tests {
+		t.Logf("Test #%v - %+v", i, tc)
+		ig.SetState(tc.state)
+
+		retryable := IsRetryable(ig)
+		g.Expect(retryable).To(gomega.Equal(tc.expectedRetryable))
+	}
+}

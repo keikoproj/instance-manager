@@ -39,10 +39,6 @@ const (
 	PendingRoleCreation     = "pendingRoleCreation"
 )
 
-var (
-	NonRetryableStates = []v1alpha1.ReconcileState{v1alpha1.ReconcileErr, v1alpha1.ReconcileReady, v1alpha1.ReconcileDeleted}
-)
-
 const (
 	OngoingStateString             = "OngoingState"
 	FiniteStateString              = "FiniteState"
@@ -133,14 +129,7 @@ func CreateFargateTags(tagArray []map[string]string) map[string]*string {
 	}
 	return tags
 }
-func IsRetryable(instanceGroup *v1alpha1.InstanceGroup) bool {
-	for _, state := range NonRetryableStates {
-		if state == instanceGroup.GetState() {
-			return false
-		}
-	}
-	return true
-}
+
 func (ctx *FargateInstanceGroupContext) Create() error {
 	var arn string
 	instanceGroup := ctx.GetInstanceGroup()

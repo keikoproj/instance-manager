@@ -892,46 +892,6 @@ func TestDeleteWithRetry(t *testing.T) {
 		t.Fatalf("TestDeleteWithRetry: expected nil.  Got %v", err)
 	}
 }
-func TestIsRetryableFalse1(t *testing.T) {
-	ig := FakeIG{}
-	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.SetState(v1alpha1.ReconcileDeleted)
-	retryable := IsRetryable(instanceGroup)
-	if retryable {
-		t.Fatal("TestIsRetryableFalse1: expected false.")
-	}
-
-}
-func TestIsRetryableFalse2(t *testing.T) {
-	ig := FakeIG{}
-	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.SetState(v1alpha1.ReconcileReady)
-	retryable := IsRetryable(instanceGroup)
-	if retryable {
-		t.Fatal("TestIsRetryableFalse2: expected false.")
-	}
-
-}
-func TestIsRetryableFalse3(t *testing.T) {
-	ig := FakeIG{}
-	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.SetState(v1alpha1.ReconcileErr)
-	retryable := IsRetryable(instanceGroup)
-	if retryable {
-		t.Fatal("TestIsRetryableFalse3: expected false.")
-	}
-
-}
-func TestIsRetryableTrue(t *testing.T) {
-	ig := FakeIG{}
-	instanceGroup := ig.getInstanceGroup()
-	instanceGroup.SetState(v1alpha1.ReconcileModifying)
-	retryable := IsRetryable(instanceGroup)
-	if !retryable {
-		t.Fatal("TestIsRetryableTrue: expected true.")
-	}
-
-}
 func TestCreateProfileName(t *testing.T) {
 	ig := FakeIG{}
 	instanceGroup := ig.getInstanceGroup()

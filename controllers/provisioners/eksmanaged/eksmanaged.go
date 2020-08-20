@@ -33,10 +33,6 @@ const (
 	ProvisionerName                = "eks-managed"
 )
 
-var (
-	NonRetryableStates = []v1alpha1.ReconcileState{v1alpha1.ReconcileErr, v1alpha1.ReconcileReady, v1alpha1.ReconcileDeleted}
-)
-
 func (ctx *EksManagedInstanceGroupContext) CloudDiscovery() error {
 	var (
 		provisioned     = ctx.AwsWorker.IsNodeGroupExist()
@@ -262,13 +258,4 @@ func (ctx *EksManagedInstanceGroupContext) processParameters() {
 	params["MinSize"] = spec.GetMinSize()
 	params["MaxSize"] = spec.GetMaxSize()
 	ctx.AwsWorker.Parameters = params
-}
-
-func IsRetryable(instanceGroup *v1alpha1.InstanceGroup) bool {
-	for _, state := range NonRetryableStates {
-		if state == instanceGroup.GetState() {
-			return false
-		}
-	}
-	return true
 }

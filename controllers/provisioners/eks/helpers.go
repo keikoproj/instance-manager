@@ -579,12 +579,3 @@ func (ctx *EksInstanceGroupContext) RemoveAuthRole(arn string) error {
 
 	return common.RemoveAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{arn})
 }
-
-func IsRetryable(instanceGroup *v1alpha1.InstanceGroup) bool {
-	for _, state := range NonRetryableStates {
-		if state == instanceGroup.GetState() {
-			return false
-		}
-	}
-	return true
-}
