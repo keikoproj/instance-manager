@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/awserr"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
@@ -269,32 +271,44 @@ func TestDelete(t *testing.T) {
 	}))
 	g.Expect(lc.ResourceList).To(gomega.Equal(resourceList))
 
-	lc.Delete(&DeleteConfigurationInput{
+	err = lc.Delete(&DeleteConfigurationInput{
 		Name:           "prefix-my-launch-config",
 		Prefix:         "prefix-",
 		RetainVersions: 2,
 		DeleteAll:      false,
 	})
-
+	g.Expect(err).NotTo(gomega.HaveOccurred())
 	g.Expect(asgMock.DeleteLaunchConfigurationCallCount).To(gomega.Equal(2))
 	asgMock.DeleteLaunchConfigurationCallCount = 0
 
-	lc.Delete(&DeleteConfigurationInput{
+	err = lc.Delete(&DeleteConfigurationInput{
 		Name:           "prefix-my-launch-config",
 		Prefix:         "prefix-",
 		RetainVersions: 1,
 		DeleteAll:      false,
 	})
-
+	g.Expect(err).NotTo(gomega.HaveOccurred())
 	g.Expect(asgMock.DeleteLaunchConfigurationCallCount).To(gomega.Equal(3))
 	asgMock.DeleteLaunchConfigurationCallCount = 0
 
-	lc.Delete(&DeleteConfigurationInput{
+	err = lc.Delete(&DeleteConfigurationInput{
 		Name:      "prefix-my-launch-config",
 		Prefix:    "prefix-",
 		DeleteAll: true,
 	})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
 	g.Expect(asgMock.DeleteLaunchConfigurationCallCount).To(gomega.Equal(4))
+	asgMock.DeleteLaunchConfigurationCallCount = 0
+
+	asgMock.DeleteLaunchConfigurationErr = awserr.New("ValidationError", awsprovider.LaunchConfigurationNotFoundErrorMessage, errors.New("an error occured"))
+	err = lc.Delete(&DeleteConfigurationInput{
+		Name:      "prefix-my-launch-config",
+		Prefix:    "prefix-",
+		DeleteAll: true,
+	})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	g.Expect(asgMock.DeleteLaunchConfigurationCallCount).To(gomega.Equal(4))
+	asgMock.DeleteLaunchConfigurationCallCount = 0
 }
 
 func TestDrifted(t *testing.T) {

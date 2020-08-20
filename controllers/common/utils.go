@@ -38,6 +38,15 @@ func ContainsString(slice []string, s string) bool {
 	return false
 }
 
+func ContainsEqualFoldSubstring(str, substr string) bool {
+	x := strings.ToLower(str)
+	y := strings.ToLower(substr)
+	if strings.Contains(x, y) {
+		return true
+	}
+	return false
+}
+
 // ContainsEqualFold returns true if a given slice 'slice' contains string 's' under unicode case-folding
 func ContainsEqualFold(slice []string, s string) bool {
 	for _, item := range slice {

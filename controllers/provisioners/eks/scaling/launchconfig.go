@@ -24,6 +24,7 @@ import (
 	"github.com/keikoproj/instance-manager/controllers/common"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	"github.com/pkg/errors"
@@ -123,6 +124,12 @@ func (lc *LaunchConfiguration) Delete(input *DeleteConfigurationInput) error {
 		log.Info("deleting launch configuration", "instancegroup", lc.OwnerName, "name", name)
 
 		if err := lc.DeleteLaunchConfig(name); err != nil {
+			if awsErr, ok := err.(awserr.Error); ok {
+				if common.ContainsEqualFoldSubstring(awsErr.Message(), awsprovider.LaunchConfigurationNotFoundErrorMessage) {
+					log.Info("launch configuration not found", "instancegroup", lc.OwnerName, "name", name)
+					continue
+				}
+			}
 			return errors.Wrap(err, "failed to delete launch configuration")
 		}
 	}

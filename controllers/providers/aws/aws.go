@@ -108,6 +108,8 @@ var (
 const (
 	IAMPolicyPrefix = "arn:aws:iam::aws:policy"
 	IAMARNPrefix    = "arn:aws:iam::"
+
+	LaunchConfigurationNotFoundErrorMessage = "Launch configuration name not found"
 )
 
 type EKSUserData struct {

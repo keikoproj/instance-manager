@@ -112,7 +112,6 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 
 	// set/unset finalizer
 	r.SetFinalizer(instanceGroup)
-	defer r.Finalize(instanceGroup)
 
 	input := provisioners.ProvisionerInput{
 		AwsWorker:     r.Auth.Aws,
@@ -201,10 +200,16 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
+	r.Finalize(instanceGroup)
 	return ctrl.Result{}, nil
 }
 
 func (r *InstanceGroupReconciler) UpdateStatus(ig *v1alpha1.InstanceGroup) {
+	deletionTimestamp := ig.ObjectMeta.GetDeletionTimestamp()
+	if !deletionTimestamp.IsZero() {
+		return
+	}
+
 	r.Log.Info("updating resource status", "instancegroup", ig.NamespacedName())
 	if err := r.Status().Update(context.Background(), ig); err != nil {
 		r.Log.Info("failed to update status", "error", err, "instancegroup", ig.NamespacedName())
