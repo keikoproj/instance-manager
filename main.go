@@ -131,7 +131,7 @@ func main() {
 			setupLog.Error(err, "could not get instance-manager configmap")
 			os.Exit(1)
 		}
-		cm = nil
+		cm = &corev1.ConfigMap{}
 		setupLog.Info("instance-manager configmap does not exist, will not load defaults/boundaries")
 	}
 

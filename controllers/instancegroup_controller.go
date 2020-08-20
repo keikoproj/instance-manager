@@ -17,6 +17,7 @@ package controllers
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"time"
 
@@ -121,7 +122,7 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		Log:           r.Log,
 	}
 
-	if r.ConfigMap != nil {
+	if !reflect.DeepEqual(r.ConfigMap, &corev1.ConfigMap{}) {
 		var defaultConfig *provisioners.ProvisionerConfiguration
 		if defaultConfig, err = provisioners.NewProvisionerConfiguration(r.ConfigMap, instanceGroup); err != nil {
 			return ctrl.Result{}, err
