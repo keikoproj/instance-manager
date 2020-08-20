@@ -92,13 +92,16 @@ func TestCloudDiscoveryPositive(t *testing.T) {
 
 	err := ctx.CloudDiscovery()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	lc := state.ScalingConfiguration.Resource().(*autoscaling.LaunchConfiguration)
+
 	g.Expect(state.GetRole()).To(gomega.Equal(iamMock.Role))
 	g.Expect(state.GetInstanceProfile()).To(gomega.Equal(iamMock.InstanceProfile))
 	g.Expect(state.GetOwnedScalingGroups()).To(gomega.Equal(asgMock.AutoScalingGroups))
 	g.Expect(state.IsProvisioned()).To(gomega.BeTrue())
 	g.Expect(state.GetScalingGroup()).To(gomega.Equal(ownedScalingGroup))
-	g.Expect(state.GetLaunchConfiguration()).To(gomega.Equal(launchConfig))
-	g.Expect(state.GetActiveLaunchConfigurationName()).To(gomega.Equal(launchConfigName))
+	g.Expect(lc).To(gomega.Equal(launchConfig))
+	g.Expect(state.ScalingConfiguration.Name()).To(gomega.Equal(launchConfigName))
 	g.Expect(state.GetVPCId()).To(gomega.Equal(vpcId))
 	g.Expect(status.GetNodesArn()).To(gomega.Equal(aws.StringValue(iamMock.Role.Arn)))
 	g.Expect(status.GetActiveScalingGroupName()).To(gomega.Equal(ownedScalingGroupName))

@@ -124,12 +124,14 @@ func main() {
 		KubeDynamic: dynClient,
 	}
 
-	cm, err := client.CoreV1().ConfigMaps(configNamespace).Get(controllers.ConfigMapName, metav1.GetOptions{})
+	var cm *corev1.ConfigMap
+	cm, err = client.CoreV1().ConfigMaps(configNamespace).Get(controllers.ConfigMapName, metav1.GetOptions{})
 	if err != nil {
 		if !kerrors.IsNotFound(err) {
 			setupLog.Error(err, "could not get instance-manager configmap")
 			os.Exit(1)
 		}
+		cm = &corev1.ConfigMap{}
 		setupLog.Info("instance-manager configmap does not exist, will not load defaults/boundaries")
 	}
 

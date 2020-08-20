@@ -17,7 +17,6 @@ package eks
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -26,12 +25,22 @@ import (
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
+	"github.com/keikoproj/instance-manager/controllers/provisioners/eks/scaling"
 )
 
 func (ctx *EksInstanceGroupContext) Update() error {
 	var (
-		instanceGroup  = ctx.GetInstanceGroup()
-		rotationNeeded bool
+		rotationNeeded        bool
+		instanceGroup         = ctx.GetInstanceGroup()
+		state                 = ctx.GetDiscoveredState()
+		scalingConfig         = state.GetScalingConfiguration()
+		configuration         = instanceGroup.GetEKSConfiguration()
+		args                  = ctx.GetBootstrapArgs()
+		preScript, postScript = ctx.GetUserDataStages()
+		clusterName           = configuration.GetClusterName()
+		userData              = ctx.AwsWorker.GetBasicUserData(clusterName, args, preScript, postScript)
+		sgs                   = ctx.ResolveSecurityGroups()
+		spotPrice             = configuration.GetSpotPrice()
 	)
 
 	instanceGroup.SetState(v1alpha1.ReconcileModifying)
@@ -41,13 +50,27 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to update scaling group role")
 	}
+	instanceProfile := state.GetInstanceProfile()
 
+	config := &scaling.CreateConfigurationInput{
+		IamInstanceProfileArn: aws.StringValue(instanceProfile.Arn),
+		ImageId:               configuration.Image,
+		InstanceType:          configuration.InstanceType,
+		KeyName:               configuration.KeyPairName,
+		SecurityGroups:        sgs,
+		Volumes:               configuration.Volumes,
+		UserData:              userData,
+		SpotPrice:             spotPrice,
+	}
+
+	var configName string
+	configName = scalingConfig.Name()
 	// create new launchconfig if it has drifted
-	if ctx.LaunchConfigurationDrifted() {
+	if scalingConfig.Drifted(config) {
 		rotationNeeded = true
-		lcName := fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
-		err := ctx.CreateLaunchConfiguration(lcName)
-		if err != nil {
+		configName = fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
+		config.Name = configName
+		if err := scalingConfig.Create(config); err != nil {
 			return errors.Wrap(err, "failed to create launch configuration")
 		}
 	}
@@ -57,7 +80,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	}
 
 	// update scaling group
-	err = ctx.UpdateScalingGroup()
+	err = ctx.UpdateScalingGroup(configName)
 	if err != nil {
 		return errors.Wrap(err, "failed to update scaling group")
 	}
@@ -80,7 +103,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	return nil
 }
 
-func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
+func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string) error {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
 		spec          = instanceGroup.GetEKSSpec()
@@ -92,10 +115,10 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 		rmTags        = ctx.GetRemovedTags(asgName)
 	)
 
-	if ctx.ScalingGroupUpdateNeeded() {
+	if ctx.ScalingGroupUpdateNeeded(configName) {
 		err := ctx.AwsWorker.UpdateScalingGroup(&autoscaling.UpdateAutoScalingGroupInput{
 			AutoScalingGroupName:    aws.String(asgName),
-			LaunchConfigurationName: aws.String(state.GetActiveLaunchConfigurationName()),
+			LaunchConfigurationName: aws.String(configName),
 			MinSize:                 aws.Int64(spec.GetMinSize()),
 			MaxSize:                 aws.Int64(spec.GetMaxSize()),
 			VPCZoneIdentifier:       aws.String(common.ConcatenateList(ctx.ResolveSubnets(), ",")),
@@ -107,6 +130,7 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup() error {
 		ctx.Log.Info("updated scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 	}
 
+	status.SetActiveLaunchConfigurationName(configName)
 	status.SetCurrentMin(int(spec.GetMinSize()))
 	status.SetCurrentMax(int(spec.GetMaxSize()))
 
@@ -133,6 +157,7 @@ func (ctx *EksInstanceGroupContext) RotationNeeded() bool {
 	var (
 		state         = ctx.GetDiscoveredState()
 		scalingGroup  = state.GetScalingGroup()
+		scalingConfig = state.GetScalingConfiguration()
 		instanceGroup = ctx.GetInstanceGroup()
 	)
 
@@ -140,9 +165,10 @@ func (ctx *EksInstanceGroupContext) RotationNeeded() bool {
 		return false
 	}
 
+	configName := scalingConfig.Name()
 	for _, instance := range scalingGroup.Instances {
-		if aws.StringValue(instance.LaunchConfigurationName) != state.GetActiveLaunchConfigurationName() {
-			ctx.Log.Info("rotation needed due to launch-config diff", "instancegroup", instanceGroup.GetName(), "launchconfig", state.GetActiveLaunchConfigurationName())
+		if aws.StringValue(instance.LaunchConfigurationName) != configName {
+			ctx.Log.Info("rotation needed due to launch-config diff", "instancegroup", instanceGroup.GetName(), "launchconfig", configName)
 			return true
 		}
 	}
@@ -181,7 +207,7 @@ func (ctx *EksInstanceGroupContext) TagsUpdateNeeded() bool {
 	return false
 }
 
-func (ctx *EksInstanceGroupContext) ScalingGroupUpdateNeeded() bool {
+func (ctx *EksInstanceGroupContext) ScalingGroupUpdateNeeded(configName string) bool {
 	var (
 		instanceGroup  = ctx.GetInstanceGroup()
 		spec           = instanceGroup.GetEKSSpec()
@@ -192,7 +218,7 @@ func (ctx *EksInstanceGroupContext) ScalingGroupUpdateNeeded() bool {
 		specSubnets    = ctx.ResolveSubnets()
 	)
 
-	if state.GetActiveLaunchConfigurationName() != aws.StringValue(scalingGroup.LaunchConfigurationName) {
+	if configName != aws.StringValue(scalingGroup.LaunchConfigurationName) {
 		return true
 	}
 
@@ -209,120 +235,6 @@ func (ctx *EksInstanceGroupContext) ScalingGroupUpdateNeeded() bool {
 	}
 
 	return false
-}
-
-func (ctx *EksInstanceGroupContext) LaunchConfigurationDrifted() bool {
-	var (
-		state         = ctx.GetDiscoveredState()
-		instanceGroup = ctx.GetInstanceGroup()
-		// only used for comparison, no need to generate a name
-		newConfig      = ctx.GetLaunchConfigurationInput("")
-		existingConfig = state.GetLaunchConfiguration()
-		drift          bool
-	)
-
-	if state.LaunchConfiguration == nil {
-		ctx.Log.Info(
-			"detected drift",
-			"reason", "launchconfig does not exist",
-			"instancegroup", instanceGroup.GetName(),
-		)
-		return true
-	}
-
-	if aws.StringValue(existingConfig.ImageId) != aws.StringValue(newConfig.ImageId) {
-		ctx.Log.Info(
-			"detected drift",
-			"reason", "image-id has changed",
-			"instancegroup", instanceGroup.GetName(),
-			"previousValue", aws.StringValue(existingConfig.ImageId),
-			"newValue", aws.StringValue(newConfig.ImageId),
-		)
-		drift = true
-	}
-
-	if aws.StringValue(existingConfig.InstanceType) != aws.StringValue(newConfig.InstanceType) {
-		ctx.Log.Info(
-			"detected drift",
-			"reason", "instance-type has changed",
-			"instancegroup", instanceGroup.GetName(),
-			"previousValue", aws.StringValue(existingConfig.InstanceType),
-			"newValue", aws.StringValue(newConfig.InstanceType),
-		)
-		drift = true
-	}
-
-	if aws.StringValue(existingConfig.IamInstanceProfile) != aws.StringValue(newConfig.IamInstanceProfile) {
-		ctx.Log.Info(
-			"detected drift",
-			"reason", "instance-profile has changed",
-			"instancegroup", instanceGroup.GetName(),
-			"previousValue", aws.StringValue(existingConfig.IamInstanceProfile),
-			"newValue", aws.StringValue(newConfig.IamInstanceProfile),
-		)
-		drift = true
-	}
-
-	if !common.StringSliceEquals(aws.StringValueSlice(existingConfig.SecurityGroups), aws.StringValueSlice(newConfig.SecurityGroups)) {
-		ctx.Log.Info(
-			"detected drift",
-			"reason", "security-groups has changed",
-			"instancegroup", instanceGroup.GetName(),
-			"previousValue", aws.StringValueSlice(existingConfig.SecurityGroups),
-			"newValue", aws.StringValueSlice(newConfig.SecurityGroups),
-		)
-		drift = true
-	}
-
-	if aws.StringValue(existingConfig.SpotPrice) != aws.StringValue(newConfig.SpotPrice) {
-		ctx.Log.Info(
-			"detected drift",
-			"reason", "spot-price has changed",
-			"instancegroup", instanceGroup.GetName(),
-			"previousValue", aws.StringValue(existingConfig.SpotPrice),
-			"newValue", aws.StringValue(newConfig.SpotPrice),
-		)
-		drift = true
-	}
-
-	if aws.StringValue(existingConfig.KeyName) != aws.StringValue(newConfig.KeyName) {
-		ctx.Log.Info(
-			"detected drift",
-			"reason", "key-pair-name has changed",
-			"instancegroup", instanceGroup.GetName(),
-			"previousValue", aws.StringValue(existingConfig.KeyName),
-			"newValue", aws.StringValue(newConfig.KeyName),
-		)
-		drift = true
-	}
-
-	if aws.StringValue(existingConfig.UserData) != aws.StringValue(newConfig.UserData) {
-		ctx.Log.Info(
-			"detected drift",
-			"reason", "user-data has changed",
-			"instancegroup", instanceGroup.GetName(),
-			"previousValue", aws.StringValue(existingConfig.UserData),
-			"newValue", aws.StringValue(newConfig.UserData),
-		)
-		drift = true
-	}
-
-	if !reflect.DeepEqual(existingConfig.BlockDeviceMappings, newConfig.BlockDeviceMappings) {
-		ctx.Log.Info(
-			"detected drift",
-			"reason", "volumes have changed",
-			"instancegroup", instanceGroup.GetName(),
-			"previousValue", existingConfig.BlockDeviceMappings,
-			"newValue", newConfig.BlockDeviceMappings,
-		)
-		drift = true
-	}
-
-	if !drift {
-		ctx.Log.Info("no drift detected", "instancegroup", instanceGroup.GetName())
-	}
-
-	return drift
 }
 
 func (ctx *EksInstanceGroupContext) UpdateManagedPolicies(roleName string) error {

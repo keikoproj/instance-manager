@@ -29,3 +29,16 @@ type ProvisionerInput struct {
 	Configuration *corev1.ConfigMap
 	Log           logr.Logger
 }
+
+var (
+	NonRetryableStates = []v1alpha1.ReconcileState{v1alpha1.ReconcileErr, v1alpha1.ReconcileReady, v1alpha1.ReconcileDeleted}
+)
+
+func IsRetryable(instanceGroup *v1alpha1.InstanceGroup) bool {
+	for _, state := range NonRetryableStates {
+		if state == instanceGroup.GetState() {
+			return false
+		}
+	}
+	return true
+}

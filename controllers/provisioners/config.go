@@ -105,8 +105,6 @@ func (c *ProvisionerConfiguration) Unmarshal(cm *corev1.ConfigMap) error {
 }
 
 func (c *ProvisionerConfiguration) SetDefaults() error {
-
-	log.Info("applying managed defaults from configmap")
 	unstructuredInstanceGroup, err := runtime.DefaultUnstructuredConverter.ToUnstructured(c.InstanceGroup)
 	if err != nil {
 		return errors.Wrap(err, "failed to convert instance group to unstructured")

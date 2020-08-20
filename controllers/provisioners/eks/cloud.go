@@ -17,10 +17,10 @@ package eks
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
+	"github.com/keikoproj/instance-manager/controllers/provisioners/eks/scaling"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -32,20 +32,18 @@ import (
 )
 
 type DiscoveredState struct {
-	Provisioned                   bool
-	NodesReady                    bool
-	ClusterNodes                  *corev1.NodeList
-	OwnedScalingGroups            []*autoscaling.Group
-	ScalingGroup                  *autoscaling.Group
-	LaunchConfigurations          []*autoscaling.LaunchConfiguration
-	LaunchConfiguration           *autoscaling.LaunchConfiguration
-	ActiveLaunchConfigurationName string
-	IAMRole                       *iam.Role
-	AttachedPolicies              []*iam.AttachedPolicy
-	InstanceProfile               *iam.InstanceProfile
-	Publisher                     kubeprovider.EventPublisher
-	Cluster                       *eks.Cluster
-	VPCId                         string
+	Provisioned          bool
+	NodesReady           bool
+	ClusterNodes         *corev1.NodeList
+	OwnedScalingGroups   []*autoscaling.Group
+	ScalingGroup         *autoscaling.Group
+	ScalingConfiguration scaling.Configuration
+	IAMRole              *iam.Role
+	AttachedPolicies     []*iam.AttachedPolicy
+	InstanceProfile      *iam.InstanceProfile
+	Publisher            kubeprovider.EventPublisher
+	Cluster              *eks.Cluster
+	VPCId                string
 }
 
 func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
@@ -63,6 +61,10 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		Name:            instanceGroup.GetName(),
 		UID:             instanceGroup.GetUID(),
 		ResourceVersion: instanceGroup.GetResourceVersion(),
+	}
+
+	state.ScalingConfiguration = &scaling.LaunchConfiguration{
+		AwsWorker: ctx.AwsWorker,
 	}
 
 	nodes, err := ctx.KubernetesClient.Kubernetes.CoreV1().Nodes().List(metav1.ListOptions{})
@@ -124,13 +126,6 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		return nil
 	}
 
-	launchConfigurations, err := ctx.AwsWorker.DescribeAutoscalingLaunchConfigs()
-	if err != nil {
-		return errors.Wrap(err, "failed to describe autoscaling groups")
-	}
-
-	ctx.DiscoveredState.SetLaunchConfigurations(launchConfigurations)
-
 	state.SetProvisioned(true)
 	state.SetScalingGroup(targetScalingGroup)
 
@@ -139,35 +134,21 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	status.SetCurrentMin(int(aws.Int64Value(targetScalingGroup.MinSize)))
 	status.SetCurrentMax(int(aws.Int64Value(targetScalingGroup.MaxSize)))
 
-	// cache the launch configuration we are reconciling for if it exists
-	for _, lc := range launchConfigurations {
-		lcName := aws.StringValue(lc.LaunchConfigurationName)
-		if aws.StringValue(lc.LaunchConfigurationName) == aws.StringValue(targetScalingGroup.LaunchConfigurationName) {
-			state.SetLaunchConfiguration(lc)
-			state.SetActiveLaunchConfigurationName(lcName)
-			status.SetActiveLaunchConfigurationName(lcName)
-		}
+	state.ScalingConfiguration, err = scaling.NewLaunchConfiguration(instanceGroup.NamespacedName(), ctx.AwsWorker, &scaling.DiscoverConfigurationInput{
+		ScalingGroup: targetScalingGroup,
+	})
+	if err != nil {
+		return errors.Wrap(err, "failed to discover launch configurations")
 	}
+	configName := state.ScalingConfiguration.Name()
+	status.SetActiveLaunchConfigurationName(configName)
 
 	// delete old launch configurations
-	sortedConfigs := ctx.GetTimeSortedLaunchConfigurations()
-	var deletable []*autoscaling.LaunchConfiguration
-	if len(sortedConfigs) > defaultLaunchConfigurationRetention {
-		d := len(sortedConfigs) - defaultLaunchConfigurationRetention
-		deletable = sortedConfigs[:d]
-	}
-
-	for _, d := range deletable {
-		name := aws.StringValue(d.LaunchConfigurationName)
-		if strings.EqualFold(name, state.GetActiveLaunchConfigurationName()) {
-			// never try to delete the active launch config
-			continue
-		}
-		ctx.Log.Info("deleting old launch configuration", "instancegroup", instanceGroup.GetName(), "name", name)
-		if err := ctx.AwsWorker.DeleteLaunchConfig(name); err != nil {
-			ctx.Log.Error(err, "failed to delete launch configuration", "instancegroup", instanceGroup.GetName(), "name", name)
-		}
-	}
+	state.ScalingConfiguration.Delete(&scaling.DeleteConfigurationInput{
+		Name:      configName,
+		Prefix:    ctx.ResourcePrefix,
+		DeleteAll: false,
+	})
 
 	if status.GetNodesReadyCondition() == corev1.ConditionTrue {
 		state.SetNodesReady(true)
@@ -226,6 +207,9 @@ func (d *DiscoveredState) SetOwnedScalingGroups(groups []*autoscaling.Group) {
 func (d *DiscoveredState) GetOwnedScalingGroups() []*autoscaling.Group {
 	return d.OwnedScalingGroups
 }
+func (d *DiscoveredState) GetScalingConfiguration() scaling.Configuration {
+	return d.ScalingConfiguration
+}
 func (d *DiscoveredState) SetAttachedPolicies(policies []*iam.AttachedPolicy) {
 	d.AttachedPolicies = policies
 }
@@ -235,34 +219,8 @@ func (d *DiscoveredState) GetAttachedPolicies() []*iam.AttachedPolicy {
 	}
 	return d.AttachedPolicies
 }
-func (d *DiscoveredState) SetLaunchConfiguration(lc *autoscaling.LaunchConfiguration) {
-	if lc != nil {
-		d.LaunchConfiguration = lc
-	}
-}
-func (d *DiscoveredState) GetLaunchConfiguration() *autoscaling.LaunchConfiguration {
-	return d.LaunchConfiguration
-}
-func (d *DiscoveredState) GetLaunchConfigurations() []*autoscaling.LaunchConfiguration {
-	return d.LaunchConfigurations
-}
-func (d *DiscoveredState) SetLaunchConfigurations(configs []*autoscaling.LaunchConfiguration) {
-	d.LaunchConfigurations = configs
-}
-func (d *DiscoveredState) SetActiveLaunchConfigurationName(name string) {
-	d.ActiveLaunchConfigurationName = name
-}
-func (d *DiscoveredState) GetActiveLaunchConfigurationName() string {
-	return d.ActiveLaunchConfigurationName
-}
-func (d *DiscoveredState) HasLaunchConfiguration() bool {
-	return d.LaunchConfiguration != nil
-}
 func (d *DiscoveredState) HasRole() bool {
 	return d.IAMRole != nil
-}
-func (d *DiscoveredState) HasInstanceProfile() bool {
-	return d.InstanceProfile != nil
 }
 func (d *DiscoveredState) HasScalingGroup() bool {
 	return d.ScalingGroup != nil

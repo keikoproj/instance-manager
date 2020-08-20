@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
+	"github.com/keikoproj/instance-manager/controllers/provisioners/eks/scaling"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -27,7 +28,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
-	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/onsi/gomega"
 	"github.com/pkg/errors"
 )
@@ -48,6 +48,9 @@ func TestCreateManagedRolePositive(t *testing.T) {
 	state := ctx.GetDiscoveredState()
 	state.SetCluster(&eks.Cluster{Version: aws.String("1.15")})
 	state.Publisher.Client = k.Kubernetes
+	state.ScalingConfiguration = &scaling.LaunchConfiguration{
+		AwsWorker: w,
+	}
 
 	// Mock role/profile do not exist so they are always created
 	iamMock.GetRoleErr = errors.New("not found")
@@ -83,32 +86,19 @@ func TestCreateLaunchConfigurationPositive(t *testing.T) {
 	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 
-	// Skip role creation
-	ig.GetEKSConfiguration().SetInstanceProfileName("some-profile")
-	ig.GetEKSConfiguration().SetRoleName("some-role")
-
-	ctx.SetDiscoveredState(&DiscoveredState{
-		Publisher: kubeprovider.EventPublisher{
-			Client: k.Kubernetes,
-		},
-		InstanceProfile: &iam.InstanceProfile{
-			Arn: aws.String("some-profile-arn"),
-		},
-		Cluster: &eks.Cluster{
-			Version: aws.String("1.15"),
-		},
-	})
-
-	lcName := fmt.Sprintf("my-cluster-%v-%v-%v", ig.GetNamespace(), ig.GetName(), common.GetTimeString())
-	mockLaunchConfiguration := &autoscaling.LaunchConfiguration{
-		LaunchConfigurationName: aws.String(lcName),
+	iamMock.Role = &iam.Role{
+		Arn:      aws.String("some-arn"),
+		RoleName: aws.String("some-role"),
 	}
-	asgMock.LaunchConfigurations = []*autoscaling.LaunchConfiguration{mockLaunchConfiguration}
 
-	err := ctx.Create()
+	lcPrefix := fmt.Sprintf("my-cluster-%v-%v", ig.GetNamespace(), ig.GetName())
+	err := ctx.CloudDiscovery()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
-	g.Expect(ctx.GetDiscoveredState().GetActiveLaunchConfigurationName()).To(gomega.Equal(lcName))
-	g.Expect(ig.GetStatus().GetActiveLaunchConfigurationName()).To(gomega.Equal(lcName))
+
+	err = ctx.Create()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	g.Expect(ig.GetStatus().GetActiveLaunchConfigurationName()).To(gomega.HavePrefix(lcPrefix))
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModified))
 }
 
@@ -130,18 +120,6 @@ func TestCreateScalingGroupPositive(t *testing.T) {
 	ig.GetEKSConfiguration().SetInstanceProfileName("some-profile")
 	ig.GetEKSConfiguration().SetRoleName("some-role")
 
-	// skip launch-config creation
-	mockLaunchConfiguration := &autoscaling.LaunchConfiguration{
-		LaunchConfigurationName: aws.String("some-launch-config"),
-	}
-
-	ctx.SetDiscoveredState(&DiscoveredState{
-		Publisher: kubeprovider.EventPublisher{
-			Client: k.Kubernetes,
-		},
-		LaunchConfiguration: mockLaunchConfiguration,
-	})
-
 	asgName := fmt.Sprintf("my-cluster-%v-%v", ig.GetNamespace(), ig.GetName())
 	mockScalingGroup := &autoscaling.Group{
 		AutoScalingGroupName: aws.String(asgName),
@@ -149,7 +127,19 @@ func TestCreateScalingGroupPositive(t *testing.T) {
 	asgMock.AutoScalingGroups = []*autoscaling.Group{mockScalingGroup}
 	asgMock.AutoScalingGroup = mockScalingGroup
 
-	err := ctx.Create()
+	lc, err := scaling.NewLaunchConfiguration(ig.NamespacedName(), w, &scaling.DiscoverConfigurationInput{
+		ScalingGroup: mockScalingGroup,
+	})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
+		ScalingConfiguration: lc,
+	})
+
+	err = ctx.Create()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModified))
 }
@@ -172,9 +162,11 @@ func TestCreateNoOp(t *testing.T) {
 	ig.GetEKSConfiguration().SetInstanceProfileName("some-profile")
 	ig.GetEKSConfiguration().SetRoleName("some-role")
 
-	// skip launch-config creation
 	mockLaunchConfiguration := &autoscaling.LaunchConfiguration{
 		LaunchConfigurationName: aws.String("some-launch-config"),
+	}
+	lc := &scaling.LaunchConfiguration{
+		TargetResource: mockLaunchConfiguration,
 	}
 
 	// skip scaling-group creation
@@ -186,8 +178,8 @@ func TestCreateNoOp(t *testing.T) {
 		Publisher: kubeprovider.EventPublisher{
 			Client: k.Kubernetes,
 		},
-		LaunchConfiguration: mockLaunchConfiguration,
-		ScalingGroup:        mockScalingGroup,
+		ScalingGroup:         mockScalingGroup,
+		ScalingConfiguration: lc,
 	})
 
 	err := ctx.Create()
@@ -258,23 +250,16 @@ func TestCreateLaunchConfigNegative(t *testing.T) {
 	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 
-	ig.GetEKSConfiguration().SetRoleName("some-role")
-	ig.GetEKSConfiguration().SetInstanceProfileName("some-profile")
+	iamMock.Role = &iam.Role{
+		Arn:      aws.String("some-arn"),
+		RoleName: aws.String("some-role"),
+	}
 
-	ctx.SetDiscoveredState(&DiscoveredState{
-		Publisher: kubeprovider.EventPublisher{
-			Client: k.Kubernetes,
-		},
-		InstanceProfile: &iam.InstanceProfile{
-			Arn: aws.String("arn"),
-		},
-		Cluster: &eks.Cluster{
-			Version: aws.String("1.15"),
-		},
-	})
+	err := ctx.CloudDiscovery()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	asgMock.CreateLaunchConfigurationErr = errors.New("some-error")
-	err := ctx.Create()
+	err = ctx.Create()
 	g.Expect(err).To(gomega.HaveOccurred())
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
 	asgMock.CreateLaunchConfigurationErr = nil
@@ -299,18 +284,16 @@ func TestCreateAutoScalingGroupNegative(t *testing.T) {
 	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 
-	ig.GetEKSConfiguration().SetRoleName("some-role")
-	ig.GetEKSConfiguration().SetInstanceProfileName("some-profile")
+	iamMock.Role = &iam.Role{
+		Arn:      aws.String("some-arn"),
+		RoleName: aws.String("some-role"),
+	}
 
-	ctx.SetDiscoveredState(&DiscoveredState{
-		Publisher: kubeprovider.EventPublisher{
-			Client: k.Kubernetes,
-		},
-		LaunchConfiguration: &autoscaling.LaunchConfiguration{LaunchConfigurationName: aws.String("launch-config")},
-	})
+	err := ctx.CloudDiscovery()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	asgMock.CreateAutoScalingGroupErr = errors.New("some-error")
-	err := ctx.Create()
+	err = ctx.Create()
 	g.Expect(err).To(gomega.HaveOccurred())
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
 }

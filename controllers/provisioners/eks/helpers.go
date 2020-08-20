@@ -35,38 +35,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func (ctx *EksInstanceGroupContext) GetLaunchConfigurationInput(name string) *autoscaling.CreateLaunchConfigurationInput {
-	var (
-		instanceGroup         = ctx.GetInstanceGroup()
-		configuration         = instanceGroup.GetEKSConfiguration()
-		clusterName           = configuration.GetClusterName()
-		state                 = ctx.GetDiscoveredState()
-		instanceProfile       = state.GetInstanceProfile()
-		devices               = ctx.GetBlockDeviceList()
-		args                  = ctx.GetBootstrapArgs()
-		preScript, postScript = ctx.GetUserDataStages()
-		userData              = ctx.AwsWorker.GetBasicUserData(clusterName, args, preScript, postScript)
-		sgs                   = ctx.ResolveSecurityGroups()
-	)
-
-	input := &autoscaling.CreateLaunchConfigurationInput{
-		LaunchConfigurationName: aws.String(name),
-		IamInstanceProfile:      instanceProfile.Arn,
-		ImageId:                 aws.String(configuration.Image),
-		InstanceType:            aws.String(configuration.InstanceType),
-		KeyName:                 aws.String(configuration.KeyPairName),
-		SecurityGroups:          aws.StringSlice(sgs),
-		BlockDeviceMappings:     devices,
-		UserData:                aws.String(userData),
-	}
-
-	if configuration.SpotPrice != "" {
-		input.SpotPrice = aws.String(configuration.SpotPrice)
-	}
-
-	return input
-}
-
 func (ctx *EksInstanceGroupContext) ResolveSubnets() []string {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
@@ -226,21 +194,6 @@ func (ctx *EksInstanceGroupContext) UpdateScalingProcesses(asgName string) error
 	}
 
 	return nil
-}
-
-func (ctx *EksInstanceGroupContext) GetBlockDeviceList() []*autoscaling.BlockDeviceMapping {
-	var (
-		devices       []*autoscaling.BlockDeviceMapping
-		instanceGroup = ctx.GetInstanceGroup()
-		configuration = instanceGroup.GetEKSConfiguration()
-	)
-
-	customVolumes := configuration.GetVolumes()
-	for _, v := range customVolumes {
-		devices = append(devices, ctx.AwsWorker.GetBasicBlockDevice(v.Name, v.Type, v.SnapshotID, v.Size, v.Iops, v.DeleteOnTermination, v.Encrypted))
-	}
-
-	return devices
 }
 
 func (ctx *EksInstanceGroupContext) GetTaintList() []string {
@@ -574,9 +527,12 @@ func (ctx *EksInstanceGroupContext) UpdateMetricsCollection(asgName string) erro
 func (ctx *EksInstanceGroupContext) GetManagedPoliciesList(additionalPolicies []string) []string {
 	managedPolicies := make([]string, 0)
 	for _, name := range additionalPolicies {
-		if strings.HasPrefix(name, awsprovider.IAMPolicyPrefix) {
+		switch {
+		case strings.HasPrefix(name, awsprovider.IAMPolicyPrefix):
 			managedPolicies = append(managedPolicies, name)
-		} else {
+		case strings.HasPrefix(name, awsprovider.IAMARNPrefix):
+			managedPolicies = append(managedPolicies, name)
+		default:
 			managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, name))
 		}
 	}
@@ -584,6 +540,7 @@ func (ctx *EksInstanceGroupContext) GetManagedPoliciesList(additionalPolicies []
 	for _, name := range DefaultManagedPolicies {
 		managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, name))
 	}
+
 	return managedPolicies
 }
 
@@ -621,43 +578,4 @@ func (ctx *EksInstanceGroupContext) RemoveAuthRole(arn string) error {
 	}
 
 	return common.RemoveAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{arn})
-}
-
-func (ctx *EksInstanceGroupContext) GetTimeSortedLaunchConfigurations() []*autoscaling.LaunchConfiguration {
-	var (
-		state = ctx.GetDiscoveredState()
-	)
-
-	configurations := []*autoscaling.LaunchConfiguration{}
-	for _, lc := range state.GetLaunchConfigurations() {
-		name := aws.StringValue(lc.LaunchConfigurationName)
-		matcher := fmt.Sprintf("%v-", ctx.ResourcePrefix)
-		if strings.HasPrefix(name, matcher) {
-			configurations = append(configurations, lc)
-		}
-	}
-
-	// sort matching launch configs by created time
-	sort.Slice(configurations, func(i, j int) bool {
-		ti := configurations[i].CreatedTime
-		tj := configurations[j].CreatedTime
-		if tj == nil {
-			return true
-		}
-		if ti == nil {
-			return false
-		}
-		return ti.UnixNano() < tj.UnixNano()
-	})
-
-	return configurations
-}
-
-func IsRetryable(instanceGroup *v1alpha1.InstanceGroup) bool {
-	for _, state := range NonRetryableStates {
-		if state == instanceGroup.GetState() {
-			return false
-		}
-	}
-	return true
 }

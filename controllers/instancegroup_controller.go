@@ -17,6 +17,7 @@ package controllers
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"time"
 
@@ -111,7 +112,6 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 
 	// set/unset finalizer
 	r.SetFinalizer(instanceGroup)
-	defer r.Finalize(instanceGroup)
 
 	input := provisioners.ProvisionerInput{
 		AwsWorker:     r.Auth.Aws,
@@ -121,7 +121,7 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		Log:           r.Log,
 	}
 
-	if r.ConfigMap != nil {
+	if !reflect.DeepEqual(r.ConfigMap, &corev1.ConfigMap{}) {
 		var defaultConfig *provisioners.ProvisionerConfiguration
 		if defaultConfig, err = provisioners.NewProvisionerConfiguration(r.ConfigMap, instanceGroup); err != nil {
 			return ctrl.Result{}, err
@@ -142,64 +142,36 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	}
 
 	r.Log.Info("reconcile event started", "instancegroup", req.NamespacedName, "provisioner", provisionerKind)
-
-	// defer updates for the instanceGroup CR
-	defer r.UpdateStatus(input.InstanceGroup)
-
-	var isRetryable bool
-	if strings.EqualFold(provisionerKind, eks.ProvisionerName) {
-		ctx := eks.New(input)
-
-		if err = input.InstanceGroup.Validate(); err != nil {
-			ctx.SetState(v1alpha1.ReconcileErr)
-			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
-		}
-
-		if err = HandleReconcileRequest(ctx); err != nil {
-			ctx.SetState(v1alpha1.ReconcileErr)
-			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
-		}
-
-		isRetryable = eks.IsRetryable(input.InstanceGroup)
+	var ctx CloudDeployer
+	switch {
+	case strings.EqualFold(provisionerKind, eks.ProvisionerName):
+		ctx = eks.New(input)
+	case strings.EqualFold(provisionerKind, eksmanaged.ProvisionerName):
+		ctx = eksmanaged.New(input)
+	case strings.EqualFold(provisionerKind, eksfargate.ProvisionerName):
+		ctx = eksfargate.New(input)
 	}
 
-	if strings.EqualFold(provisionerKind, eksmanaged.ProvisionerName) {
-		ctx := eksmanaged.New(input)
-
-		if err = input.InstanceGroup.Validate(); err != nil {
-			ctx.SetState(v1alpha1.ReconcileErr)
-			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
-		}
-
-		if err = HandleReconcileRequest(ctx); err != nil {
-			ctx.SetState(v1alpha1.ReconcileErr)
-			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
-		}
-
-		isRetryable = eksmanaged.IsRetryable(input.InstanceGroup)
+	if err = input.InstanceGroup.Validate(); err != nil {
+		ctx.SetState(v1alpha1.ReconcileErr)
+		r.UpdateStatus(input.InstanceGroup)
+		return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 	}
 
-	if strings.EqualFold(provisionerKind, eksfargate.ProvisionerName) {
-		ctx := eksfargate.New(input)
-
-		if err = input.InstanceGroup.Validate(); err != nil {
-			ctx.SetState(v1alpha1.ReconcileErr)
-			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
-		}
-
-		if err = HandleReconcileRequest(ctx); err != nil {
-			ctx.SetState(v1alpha1.ReconcileErr)
-			return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
-		}
-
-		isRetryable = eksfargate.IsRetryable(input.InstanceGroup)
+	if err = HandleReconcileRequest(ctx); err != nil {
+		ctx.SetState(v1alpha1.ReconcileErr)
+		r.UpdateStatus(input.InstanceGroup)
+		return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 	}
 
-	if isRetryable {
+	if provisioners.IsRetryable(input.InstanceGroup) {
 		r.Log.Info("reconcile event ended with requeue", "instancegroup", req.NamespacedName, "provisioner", provisionerKind)
+		r.UpdateStatus(input.InstanceGroup)
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
+	r.UpdateStatus(input.InstanceGroup)
+	r.Finalize(instanceGroup)
 	return ctrl.Result{}, nil
 }
 

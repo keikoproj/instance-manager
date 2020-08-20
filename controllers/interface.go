@@ -54,7 +54,6 @@ func HandleReconcileRequest(d CloudDeployer) error {
 
 	// CRUD Nodes Upgrade Strategy
 	if d.GetState() == v1alpha.ReconcileInitUpgrade {
-		// CF Update finished & upgrade is not 'rollingUpdate'.
 		err = d.UpgradeNodes()
 		if err != nil {
 			return err

@@ -16,7 +16,6 @@ limitations under the License.
 package eks
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -26,6 +25,7 @@ import (
 	awsauth "github.com/keikoproj/aws-auth/pkg/mapper"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
+	"github.com/keikoproj/instance-manager/controllers/provisioners/eks/scaling"
 	"github.com/onsi/gomega"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -49,9 +49,11 @@ func TestDeletePositive(t *testing.T) {
 		Publisher: kubeprovider.EventPublisher{
 			Client: k.Kubernetes,
 		},
-		ScalingGroup:        &autoscaling.Group{},
-		LaunchConfiguration: &autoscaling.LaunchConfiguration{},
-		IAMRole:             &iam.Role{},
+		ScalingGroup: &autoscaling.Group{},
+		ScalingConfiguration: &scaling.LaunchConfiguration{
+			AwsWorker: w,
+		},
+		IAMRole: &iam.Role{},
 	})
 
 	err := ctx.Delete()
@@ -79,6 +81,9 @@ func TestDeleteManagedRoleNegative(t *testing.T) {
 			Client: k.Kubernetes,
 		},
 		IAMRole: &iam.Role{},
+		ScalingConfiguration: &scaling.LaunchConfiguration{
+			AwsWorker: w,
+		},
 	})
 
 	iamMock.DeleteRoleErr = awserr.New(iam.ErrCodeUnmodifiableEntityException, "", errors.New("some-error"))
@@ -111,9 +116,12 @@ func TestDeleteLaunchConfigurationNegative(t *testing.T) {
 		Publisher: kubeprovider.EventPublisher{
 			Client: k.Kubernetes,
 		},
-		LaunchConfigurations: []*autoscaling.LaunchConfiguration{
-			{
-				LaunchConfigurationName: aws.String(fmt.Sprintf("%v-123456", ctx.ResourcePrefix)),
+		ScalingConfiguration: &scaling.LaunchConfiguration{
+			AwsWorker: w,
+			ResourceList: []*autoscaling.LaunchConfiguration{
+				{
+					LaunchConfigurationName: aws.String("my-cluster-instance-manager-instance-group-1-1234566"),
+				},
 			},
 		},
 	})
@@ -143,6 +151,9 @@ func TestDeleteAutoScalingGroupNegative(t *testing.T) {
 			Client: k.Kubernetes,
 		},
 		ScalingGroup: &autoscaling.Group{},
+		ScalingConfiguration: &scaling.LaunchConfiguration{
+			AwsWorker: w,
+		},
 	})
 
 	asgMock.DeleteAutoScalingGroupErr = errors.New("some-error")
@@ -192,6 +203,9 @@ func TestRemoveAuthRoleNegative(t *testing.T) {
 			Arn: aws.String("same-role"),
 		},
 		ScalingGroup: &autoscaling.Group{},
+		ScalingConfiguration: &scaling.LaunchConfiguration{
+			AwsWorker: w,
+		},
 	})
 
 	ctx.BootstrapNodes()
