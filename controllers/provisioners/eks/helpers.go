@@ -105,9 +105,17 @@ func (ctx *EksInstanceGroupContext) GetUserDataStages() ([]string, []string) {
 	for _, stage := range userData {
 		switch {
 		case strings.EqualFold(stage.Stage, v1alpha1.PreBootstrapStage):
-			preScript = append(preScript, stage.Data)
+			data, err := common.GetDecodedString(stage.Data)
+			if err != nil {
+				ctx.Log.Error(err, "failed to decode base64 stage data", "stage", stage.Stage, "data", stage.Data)
+			}
+			preScript = append(preScript, data)
 		case strings.EqualFold(stage.Stage, v1alpha1.PostBootstrapStage):
-			postScript = append(postScript, stage.Data)
+			data, err := common.GetDecodedString(stage.Data)
+			if err != nil {
+				ctx.Log.Error(err, "failed to decode base64 stage data", "stage", stage.Stage, "data", stage.Data)
+			}
+			postScript = append(postScript, data)
 		default:
 			ctx.Log.Info("invalid userdata stage will not be rendered", "stage", stage.Stage, "data", stage.Data)
 		}

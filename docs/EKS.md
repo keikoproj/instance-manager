@@ -99,7 +99,7 @@ spec:
       userData:
       - name: <string> : name of the stage
         stage: <string> : represents the stage of the script, allowed values are PreBootstrap, PostBootstrap (required)
-        data: <string> : represents the script payload to inject (required)
+        data: <string> : represents the script payload to inject in plain text or base64 (required)
 ```
 
 ### NodeVolume
