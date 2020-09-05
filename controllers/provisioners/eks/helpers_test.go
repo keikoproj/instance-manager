@@ -298,13 +298,16 @@ func TestGetUserDataStages(t *testing.T) {
 	ctx := MockContext(ig, k, w)
 
 	tests := []struct {
-		preBootstrapScript  []string
-		postBootstrapScript []string
+		preBootstrapScript    []string
+		postBootstrapScript   []string
+		expectedPreBootstrap  []string
+		expectedPostBootstrap []string
 	}{
 		{},
-		{preBootstrapScript: []string{""}, postBootstrapScript: []string{""}},
-		{preBootstrapScript: []string{"prebootstrap"}, postBootstrapScript: []string{"postbootstrap"}},
-		{preBootstrapScript: []string{"prebootstrap1", "prebootstrap2"}, postBootstrapScript: []string{"postbootstrap1", "postbootstrap2"}},
+		{preBootstrapScript: []string{""}, postBootstrapScript: []string{""}, expectedPreBootstrap: []string{""}, expectedPostBootstrap: []string{""}},
+		{preBootstrapScript: []string{"dGVzdA=="}, postBootstrapScript: []string{"dGVzdDE="}, expectedPreBootstrap: []string{"test"}, expectedPostBootstrap: []string{"test1"}},
+		{preBootstrapScript: []string{"prebootstrap1"}, postBootstrapScript: []string{"postbootstrap"}, expectedPreBootstrap: []string{"prebootstrap1"}, expectedPostBootstrap: []string{"postbootstrap"}},
+		{preBootstrapScript: []string{"prebootstrap1", "prebootstrap2"}, postBootstrapScript: []string{"postbootstrap1", "postbootstrap2"}, expectedPreBootstrap: []string{"prebootstrap1", "prebootstrap2"}, expectedPostBootstrap: []string{"postbootstrap1", "postbootstrap2"}},
 	}
 
 	for i, tc := range tests {
@@ -332,7 +335,7 @@ func TestGetUserDataStages(t *testing.T) {
 			Data:  "test",
 		})
 		preScript, postScript := ctx.GetUserDataStages()
-		g.Expect(preScript).To(gomega.ConsistOf(tc.preBootstrapScript))
-		g.Expect(postScript).To(gomega.ConsistOf(tc.postBootstrapScript))
+		g.Expect(preScript).To(gomega.ConsistOf(tc.expectedPreBootstrap))
+		g.Expect(postScript).To(gomega.ConsistOf(tc.expectedPostBootstrap))
 	}
 }
