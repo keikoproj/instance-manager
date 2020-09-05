@@ -17,16 +17,41 @@ package common
 
 import (
 	"crypto/md5"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
+
+const (
+	Base64 string = "^(?:[A-Za-z0-9+\\/]{4})*(?:[A-Za-z0-9+\\/]{2}==|[A-Za-z0-9+\\/]{3}=|[A-Za-z0-9+\\/]{4})$"
+)
+
+var (
+	rxBase64 = regexp.MustCompile(Base64)
+)
+
+func IsBase64(str string) bool {
+	return rxBase64.MatchString(str)
+}
+
+func GetDecodedString(str string) (string, error) {
+	if IsBase64(str) {
+		d, err := base64.StdEncoding.DecodeString(str)
+		if err != nil {
+			return "", err
+		}
+		return string(d), nil
+	}
+	return str, nil
+}
 
 // ContainsString returns true if a given slice 'slice' contains string 's', otherwise return false
 func ContainsString(slice []string, s string) bool {
