@@ -166,7 +166,7 @@ func (ctx *EksInstanceGroupContext) GetUserDataStages() UserDataPayload {
 
 func (ctx *EksInstanceGroupContext) GetMountOpts() []MountOpts {
 	var (
-		mountOpts     []MountOpts
+		mountOpts     = make([]MountOpts, 0)
 		instanceGroup = ctx.GetInstanceGroup()
 		configuration = instanceGroup.GetEKSConfiguration()
 		volumes       = configuration.GetVolumes()
@@ -180,8 +180,8 @@ func (ctx *EksInstanceGroupContext) GetMountOpts() []MountOpts {
 			ctx.Log.Error(errors.New("file system type unsupported"), "file-system", vol.MountOptions.FileSystem, "allowed-values", v1alpha1.AllowedFileSystemTypes)
 			continue
 		}
-		if common.StringEmpty(vol.MountOptions.Mount) {
-			ctx.Log.Error(errors.New("mount option mount path not provided"), "volume", vol.Name)
+		if common.StringEmpty(vol.MountOptions.Mount) || !strings.HasPrefix(vol.MountOptions.Mount, "/") {
+			ctx.Log.Error(errors.New("provided mount path is invalid"), "volume", vol.Name, "mount", vol.MountOptions.Mount)
 			continue
 		}
 

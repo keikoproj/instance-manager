@@ -282,6 +282,107 @@ func TestGetLabelList(t *testing.T) {
 	}
 }
 
+func TestGetMountOpts(t *testing.T) {
+	var (
+		g             = gomega.NewGomegaWithT(t)
+		k             = MockKubernetesClientSet()
+		ig            = MockInstanceGroup()
+		configuration = ig.GetEKSConfiguration()
+		asgMock       = NewAutoScalingMocker()
+		iamMock       = NewIamMocker()
+		eksMock       = NewEksMocker()
+		ec2Mock       = NewEc2Mocker()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	ctx := MockContext(ig, k, w)
+
+	volumeNoOpts := v1alpha1.NodeVolume{
+		Name:                "/dev/xvda1",
+		Type:                "gp2",
+		Size:                100,
+		DeleteOnTermination: aws.Bool(true),
+		Encrypted:           aws.Bool(true),
+	}
+
+	volumeWithOpts := v1alpha1.NodeVolume{
+		Name:                "/dev/xvda2",
+		Type:                "gp2",
+		Size:                100,
+		DeleteOnTermination: aws.Bool(true),
+		Encrypted:           aws.Bool(true),
+		MountOptions: &v1alpha1.NodeVolumeMountOptions{
+			FileSystem:  "xfs",
+			Mount:       "/data",
+			Persistance: aws.Bool(false),
+		},
+	}
+
+	volumeWithOpts2 := v1alpha1.NodeVolume{
+		Name:                "/dev/xvda3",
+		Type:                "gp2",
+		Size:                200,
+		DeleteOnTermination: aws.Bool(true),
+		Encrypted:           aws.Bool(true),
+		MountOptions: &v1alpha1.NodeVolumeMountOptions{
+			FileSystem:  "xfs",
+			Mount:       "/data2",
+			Persistance: aws.Bool(false),
+		},
+	}
+
+	volumeInvalidOpts := v1alpha1.NodeVolume{
+		Name:                "/dev/xvda2",
+		Type:                "gp2",
+		Size:                100,
+		DeleteOnTermination: aws.Bool(true),
+		Encrypted:           aws.Bool(true),
+		MountOptions: &v1alpha1.NodeVolumeMountOptions{
+			FileSystem:  "ext3",
+			Mount:       "data",
+			Persistance: aws.Bool(true),
+		},
+	}
+
+	tests := []struct {
+		volumes        []v1alpha1.NodeVolume
+		expectedMounts []MountOpts
+	}{
+		{volumes: []v1alpha1.NodeVolume{volumeNoOpts}, expectedMounts: []MountOpts{}},
+		{volumes: []v1alpha1.NodeVolume{volumeNoOpts, volumeWithOpts}, expectedMounts: []MountOpts{
+			{
+				FileSystem:  "xfs",
+				Device:      "/dev/xvda2",
+				Mount:       "/data",
+				Persistance: false,
+			},
+		}},
+		{volumes: []v1alpha1.NodeVolume{volumeWithOpts2, volumeWithOpts}, expectedMounts: []MountOpts{
+			{
+				FileSystem:  "xfs",
+				Device:      "/dev/xvda2",
+				Mount:       "/data",
+				Persistance: false,
+			},
+			{
+				FileSystem:  "xfs",
+				Device:      "/dev/xvda3",
+				Mount:       "/data2",
+				Persistance: false,
+			},
+		}},
+		{volumes: []v1alpha1.NodeVolume{volumeNoOpts}, expectedMounts: []MountOpts{}},
+		{volumes: []v1alpha1.NodeVolume{volumeInvalidOpts}, expectedMounts: []MountOpts{}},
+	}
+
+	for i, tc := range tests {
+		t.Logf("Test #%v - %+v", i, tc)
+		configuration.Volumes = tc.volumes
+		mounts := ctx.GetMountOpts()
+		g.Expect(mounts).To(gomega.ConsistOf(tc.expectedMounts))
+	}
+}
+
 func TestGetUserDataStages(t *testing.T) {
 	var (
 		g             = gomega.NewGomegaWithT(t)
