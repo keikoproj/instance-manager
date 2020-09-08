@@ -298,16 +298,16 @@ func TestGetUserDataStages(t *testing.T) {
 	ctx := MockContext(ig, k, w)
 
 	tests := []struct {
-		preBootstrapScript    []string
-		postBootstrapScript   []string
-		expectedPreBootstrap  []string
-		expectedPostBootstrap []string
+		preBootstrapScript  []string
+		postBootstrapScript []string
+		bootstrapScript     string
+		expectedPayload     UserDataPayload
 	}{
 		{},
-		{preBootstrapScript: []string{""}, postBootstrapScript: []string{""}, expectedPreBootstrap: []string{""}, expectedPostBootstrap: []string{""}},
-		{preBootstrapScript: []string{"dGVzdA=="}, postBootstrapScript: []string{"dGVzdDE="}, expectedPreBootstrap: []string{"test"}, expectedPostBootstrap: []string{"test1"}},
-		{preBootstrapScript: []string{"prebootstrap1"}, postBootstrapScript: []string{"postbootstrap"}, expectedPreBootstrap: []string{"prebootstrap1"}, expectedPostBootstrap: []string{"postbootstrap"}},
-		{preBootstrapScript: []string{"prebootstrap1", "prebootstrap2"}, postBootstrapScript: []string{"postbootstrap1", "postbootstrap2"}, expectedPreBootstrap: []string{"prebootstrap1", "prebootstrap2"}, expectedPostBootstrap: []string{"postbootstrap1", "postbootstrap2"}},
+		{preBootstrapScript: []string{""}, postBootstrapScript: []string{""}, expectedPayload: UserDataPayload{PreBootstrap: []string{""}, PostBootstrap: []string{""}}},
+		{preBootstrapScript: []string{"dGVzdA=="}, postBootstrapScript: []string{"dGVzdDE="}, expectedPayload: UserDataPayload{PreBootstrap: []string{"test"}, PostBootstrap: []string{"test1"}}},
+		{preBootstrapScript: []string{"prebootstrap1"}, postBootstrapScript: []string{"postbootstrap"}, expectedPayload: UserDataPayload{PreBootstrap: []string{"prebootstrap1"}, PostBootstrap: []string{"postbootstrap"}}},
+		{preBootstrapScript: []string{"prebootstrap1", "prebootstrap2"}, postBootstrapScript: []string{"postbootstrap1", "postbootstrap2"}, expectedPayload: UserDataPayload{PreBootstrap: []string{"prebootstrap1", "prebootstrap2"}, PostBootstrap: []string{"postbootstrap1", "postbootstrap2"}}},
 	}
 
 	for i, tc := range tests {
@@ -334,8 +334,7 @@ func TestGetUserDataStages(t *testing.T) {
 			Stage: "invalid-stage",
 			Data:  "test",
 		})
-		preScript, postScript := ctx.GetUserDataStages()
-		g.Expect(preScript).To(gomega.ConsistOf(tc.expectedPreBootstrap))
-		g.Expect(postScript).To(gomega.ConsistOf(tc.expectedPostBootstrap))
+		payload := ctx.GetUserDataStages()
+		g.Expect(payload).To(gomega.Equal(tc.expectedPayload))
 	}
 }

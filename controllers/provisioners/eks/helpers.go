@@ -16,10 +16,13 @@ limitations under the License.
 package eks
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
 	"reflect"
 	"sort"
 	"strings"
+	"text/template"
 
 	"github.com/Masterminds/semver"
 	"github.com/aws/aws-sdk-go/aws"
@@ -93,7 +96,32 @@ func (ctx *EksInstanceGroupContext) ResolveSecurityGroups() []string {
 	return resolved
 }
 
-func (ctx *EksInstanceGroupContext) GetUserDataStages() ([]string, []string) {
+func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, payload UserDataPayload) string {
+
+	var UserDataTemplate = `#!/bin/bash
+{{range $pre := .PreBootstrap}}{{$pre}}{{end}}
+set -o xtrace
+/etc/eks/bootstrap.sh {{ .ClusterName }} {{ .Arguments }}
+set +o xtrace
+{{range $post := .PostBootstrap}}{{$post}}{{end}}`
+
+	data := EKSUserData{
+		ClusterName:   clusterName,
+		Arguments:     args,
+		PreBootstrap:  payload.PreBootstrap,
+		PostBootstrap: payload.PostBootstrap,
+	}
+	out := &bytes.Buffer{}
+	tmpl := template.New("userData")
+	var err error
+	if tmpl, err = tmpl.Parse(UserDataTemplate); err != nil {
+		ctx.Log.Error(err, "failed to parse userData template")
+	}
+	tmpl.Execute(out, data)
+	return base64.StdEncoding.EncodeToString(out.Bytes())
+}
+
+func (ctx *EksInstanceGroupContext) GetUserDataStages() UserDataPayload {
 
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
@@ -101,7 +129,8 @@ func (ctx *EksInstanceGroupContext) GetUserDataStages() ([]string, []string) {
 		userData      = configuration.GetUserData()
 	)
 
-	var preScript, postScript []string
+	payload := UserDataPayload{}
+
 	for _, stage := range userData {
 		switch {
 		case strings.EqualFold(stage.Stage, v1alpha1.PreBootstrapStage):
@@ -109,18 +138,18 @@ func (ctx *EksInstanceGroupContext) GetUserDataStages() ([]string, []string) {
 			if err != nil {
 				ctx.Log.Error(err, "failed to decode base64 stage data", "stage", stage.Stage, "data", stage.Data)
 			}
-			preScript = append(preScript, data)
+			payload.PreBootstrap = append(payload.PreBootstrap, data)
 		case strings.EqualFold(stage.Stage, v1alpha1.PostBootstrapStage):
 			data, err := common.GetDecodedString(stage.Data)
 			if err != nil {
 				ctx.Log.Error(err, "failed to decode base64 stage data", "stage", stage.Stage, "data", stage.Data)
 			}
-			postScript = append(postScript, data)
+			payload.PostBootstrap = append(payload.PostBootstrap, data)
 		default:
 			ctx.Log.Info("invalid userdata stage will not be rendered", "stage", stage.Stage, "data", stage.Data)
 		}
 	}
-	return preScript, postScript
+	return payload
 }
 
 func (ctx *EksInstanceGroupContext) GetAddedTags(asgName string) []*autoscaling.Tag {
@@ -281,6 +310,7 @@ func (ctx *EksInstanceGroupContext) GetBootstrapArgs() string {
 		configuration = instanceGroup.GetEKSConfiguration()
 		bootstrapArgs = configuration.GetBootstrapArguments()
 	)
+
 	labelsFlag := fmt.Sprintf("--node-labels=%v", strings.Join(ctx.GetLabelList(), ","))
 	taintsFlag := fmt.Sprintf("--register-with-taints=%v", strings.Join(ctx.GetTaintList(), ","))
 	return fmt.Sprintf("--kubelet-extra-args '%v %v %v'", labelsFlag, taintsFlag, bootstrapArgs)

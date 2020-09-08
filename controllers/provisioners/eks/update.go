@@ -30,17 +30,17 @@ import (
 
 func (ctx *EksInstanceGroupContext) Update() error {
 	var (
-		rotationNeeded        bool
-		instanceGroup         = ctx.GetInstanceGroup()
-		state                 = ctx.GetDiscoveredState()
-		scalingConfig         = state.GetScalingConfiguration()
-		configuration         = instanceGroup.GetEKSConfiguration()
-		args                  = ctx.GetBootstrapArgs()
-		preScript, postScript = ctx.GetUserDataStages()
-		clusterName           = configuration.GetClusterName()
-		userData              = ctx.AwsWorker.GetBasicUserData(clusterName, args, preScript, postScript)
-		sgs                   = ctx.ResolveSecurityGroups()
-		spotPrice             = configuration.GetSpotPrice()
+		rotationNeeded  bool
+		instanceGroup   = ctx.GetInstanceGroup()
+		state           = ctx.GetDiscoveredState()
+		scalingConfig   = state.GetScalingConfiguration()
+		configuration   = instanceGroup.GetEKSConfiguration()
+		args            = ctx.GetBootstrapArgs()
+		userDataPayload = ctx.GetUserDataStages()
+		clusterName     = configuration.GetClusterName()
+		userData        = ctx.GetBasicUserData(clusterName, args, userDataPayload)
+		sgs             = ctx.ResolveSecurityGroups()
+		spotPrice       = configuration.GetSpotPrice()
 	)
 
 	instanceGroup.SetState(v1alpha1.ReconcileModifying)
