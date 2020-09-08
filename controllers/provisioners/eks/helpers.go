@@ -101,12 +101,12 @@ func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, p
 	var UserDataTemplate = `#!/bin/bash
 {{range $pre := .PreBootstrap}}{{$pre}}{{end}}
 {{- range .MountOptions}}
-mkfs.{{ .FileSystem }} {{ .Device }}
+mkfs.{{ .FileSystem | ToLower }} {{ .Device }}
 mkdir {{ .Mount }}
 mount {{ .Device }} {{ .Mount }}
 mount
 {{- if .Persistance}}
-echo "{{ .Device}}    {{ .Mount }}    {{ .FileSystem }}    defaults    0    2" >> /etc/fstab
+echo "{{ .Device}}    {{ .Mount }}    {{ .FileSystem | ToLower }}    defaults    0    2" >> /etc/fstab
 {{- end}}
 {{- end}}
 set -o xtrace
@@ -122,7 +122,9 @@ set +o xtrace
 		MountOptions:  mounts,
 	}
 	out := &bytes.Buffer{}
-	tmpl := template.New("userData")
+	tmpl := template.New("userData").Funcs(template.FuncMap{
+		"ToLower": strings.ToLower,
+	})
 	var err error
 	if tmpl, err = tmpl.Parse(UserDataTemplate); err != nil {
 		ctx.Log.Error(err, "failed to parse userData template")
