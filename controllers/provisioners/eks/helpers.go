@@ -175,11 +175,11 @@ func (ctx *EksInstanceGroupContext) GetMountOpts() []MountOpts {
 			continue
 		}
 		if !common.ContainsEqualFold(v1alpha1.AllowedFileSystemTypes, vol.MountOptions.FileSystem) {
-			ctx.Log.Error("file system type unsupported", "file-system", vol.MountOptions.FileSystem, "allowed-values", v1alpha1.AllowedFileSystemTypes)
+			ctx.Log.Error(errors.New("file system type unsupported"), "file-system", vol.MountOptions.FileSystem, "allowed-values", v1alpha1.AllowedFileSystemTypes)
 			continue
 		}
 		if common.StringEmpty(vol.MountOptions.Mount) {
-			ctx.Log.Error("mount option mount path not provided", "volume", vol.Name)
+			ctx.Log.Error(errors.New("mount option mount path not provided"), "volume", vol.Name)
 			continue
 		}
 
