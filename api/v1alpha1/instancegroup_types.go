@@ -192,14 +192,14 @@ type UserDataStage struct {
 }
 
 type NodeVolume struct {
-	Name                string                 `json:"name"`
-	Type                string                 `json:"type"`
-	Size                int64                  `json:"size"`
-	Iops                int64                  `json:"iops,omitempty"`
-	DeleteOnTermination *bool                  `json:"deleteOnTermination,omitempty"`
-	Encrypted           *bool                  `json:"encrypted,omitempty"`
-	SnapshotID          string                 `json:"snapshotId,omitempty"`
-	MountOptions        NodeVolumeMountOptions `json:"mountOptions,omitempty"`
+	Name                string                  `json:"name"`
+	Type                string                  `json:"type"`
+	Size                int64                   `json:"size"`
+	Iops                int64                   `json:"iops,omitempty"`
+	DeleteOnTermination *bool                   `json:"deleteOnTermination,omitempty"`
+	Encrypted           *bool                   `json:"encrypted,omitempty"`
+	SnapshotID          string                  `json:"snapshotId,omitempty"`
+	MountOptions        *NodeVolumeMountOptions `json:"mountOptions,omitempty"`
 }
 
 type NodeVolumeMountOptions struct {

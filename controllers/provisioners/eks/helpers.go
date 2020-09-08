@@ -96,10 +96,20 @@ func (ctx *EksInstanceGroupContext) ResolveSecurityGroups() []string {
 	return resolved
 }
 
-func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, payload UserDataPayload) string {
+func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, payload UserDataPayload, mounts []MountOpts) string {
 
 	var UserDataTemplate = `#!/bin/bash
 {{range $pre := .PreBootstrap}}{{$pre}}{{end}}
+{{range .MountOptions}}
+mkfs.{{ .FileSystem }} {{ .Device }}
+mkdir {{ .Mount }}
+mount {{ .Device }} {{ .Mount }}
+mount
+{{if .Persistance }}
+echo "{{ .Device}}    {{ .Mount }}    {{ .FileSystem }}    defaults    0    2" >> /etc/fstab
+{{end}}
+{{end}}
+
 set -o xtrace
 /etc/eks/bootstrap.sh {{ .ClusterName }} {{ .Arguments }}
 set +o xtrace
@@ -110,6 +120,7 @@ set +o xtrace
 		Arguments:     args,
 		PreBootstrap:  payload.PreBootstrap,
 		PostBootstrap: payload.PostBootstrap,
+		MountOptions:  mounts,
 	}
 	out := &bytes.Buffer{}
 	tmpl := template.New("userData")

@@ -80,11 +80,19 @@ type UserDataPayload struct {
 	PostBootstrap []string
 }
 
+type MountOpts struct {
+	FileSystem  string
+	Device      string
+	Mount       string
+	Persistance bool
+}
+
 type EKSUserData struct {
 	ClusterName   string
 	Arguments     string
 	PreBootstrap  []string
 	PostBootstrap []string
+	MountOptions  []MountOpts
 }
 
 func (ctx *EksInstanceGroupContext) GetInstanceGroup() *v1alpha1.InstanceGroup {
