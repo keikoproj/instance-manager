@@ -192,14 +192,22 @@ type UserDataStage struct {
 }
 
 type NodeVolume struct {
-	Name                string `json:"name"`
-	Type                string `json:"type"`
-	Size                int64  `json:"size"`
-	Iops                int64  `json:"iops,omitempty"`
-	DeleteOnTermination *bool  `json:"deleteOnTermination,omitempty"`
-	Encrypted           *bool  `json:"encrypted,omitempty"`
-	SnapshotID          string `json:"snapshotId,omitempty"`
+	Name                string                 `json:"name"`
+	Type                string                 `json:"type"`
+	Size                int64                  `json:"size"`
+	Iops                int64                  `json:"iops,omitempty"`
+	DeleteOnTermination *bool                  `json:"deleteOnTermination,omitempty"`
+	Encrypted           *bool                  `json:"encrypted,omitempty"`
+	SnapshotID          string                 `json:"snapshotId,omitempty"`
+	MountOptions        NodeVolumeMountOptions `json:"mountOptions,omitempty"`
 }
+
+type NodeVolumeMountOptions struct {
+	FileSystem  string `json:"fileSystem,omitempty"`
+	Mount       string `json:"mount,omitempty"`
+	Persistance *bool  `json:"persistance,omitempty"`
+}
+
 type EKSFargateSpec struct {
 	ClusterName         string                `json:"clusterName"`
 	PodExecutionRoleArn string                `json:"podExecutionRoleArn,omitempty"`
