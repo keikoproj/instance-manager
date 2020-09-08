@@ -148,7 +148,7 @@ func (w *AwsWorker) GetBasicBlockDevice(name, volType, snapshot string, volSize,
 	if encrypt != nil {
 		device.Ebs.Encrypted = encrypt
 	}
-	if iops != 0 {
+	if iops != 0 && strings.EqualFold(volType, "io1") {
 		device.Ebs.Iops = aws.Int64(iops)
 	}
 	if volSize != 0 {

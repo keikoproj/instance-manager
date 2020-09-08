@@ -335,6 +335,11 @@ func (c *EKSConfiguration) Validate() error {
 		if !common.ContainsEqualFold(awsprovider.AllowedVolumeTypes, v.Type) {
 			return errors.Errorf("validation failed, volume type '%v' is unsuppoeted", v.Type)
 		}
+
+		if v.Iops != 0 && !strings.EqualFold(v.Type, "io1") {
+			log.Info("cannot apply IOPS configuration for volumeType, only type 'io1' supported", "volumeType", v.Type)
+		}
+
 		if v.SnapshotID != "" {
 			if v.Size > 0 {
 				return errors.Errorf("validation failed, 'volume.snapshotId' and 'volume.size' are mutually exclusive")
