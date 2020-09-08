@@ -32,7 +32,6 @@ import (
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
-	"github.com/keikoproj/lifecycle-manager/pkg/log"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -176,11 +175,11 @@ func (ctx *EksInstanceGroupContext) GetMountOpts() []MountOpts {
 			continue
 		}
 		if !common.ContainsEqualFold(v1alpha1.AllowedFileSystemTypes, vol.MountOptions.FileSystem) {
-			log.Error("file system type unsupported", "file-system", vol.MountOptions.FileSystem, "allowed-values", v1alpha1.AllowedFileSystemTypes)
+			ctx.Log.Error("file system type unsupported", "file-system", vol.MountOptions.FileSystem, "allowed-values", v1alpha1.AllowedFileSystemTypes)
 			continue
 		}
 		if common.StringEmpty(vol.MountOptions.Mount) {
-			log.Error("mount option mount path not provided", "volume", vol.Name)
+			ctx.Log.Error("mount option mount path not provided", "volume", vol.Name)
 			continue
 		}
 
