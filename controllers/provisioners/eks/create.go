@@ -40,7 +40,8 @@ func (ctx *EksInstanceGroupContext) Create() error {
 
 		userDataPayload = ctx.GetUserDataStages()
 		clusterName     = configuration.GetClusterName()
-		userData        = ctx.GetBasicUserData(clusterName, args, userDataPayload)
+		mounts          = ctx.GetMountOpts()
+		userData        = ctx.GetBasicUserData(clusterName, args, userDataPayload, mounts)
 		sgs             = ctx.ResolveSecurityGroups()
 		spotPrice       = configuration.GetSpotPrice()
 	)

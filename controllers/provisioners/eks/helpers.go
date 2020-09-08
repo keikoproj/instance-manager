@@ -32,6 +32,7 @@ import (
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
+	"github.com/keikoproj/lifecycle-manager/pkg/log"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -100,16 +101,15 @@ func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, p
 
 	var UserDataTemplate = `#!/bin/bash
 {{range $pre := .PreBootstrap}}{{$pre}}{{end}}
-{{range .MountOptions}}
+{{- range .MountOptions}}
 mkfs.{{ .FileSystem }} {{ .Device }}
 mkdir {{ .Mount }}
 mount {{ .Device }} {{ .Mount }}
 mount
-{{if .Persistance }}
+{{- if .Persistance}}
 echo "{{ .Device}}    {{ .Mount }}    {{ .FileSystem }}    defaults    0    2" >> /etc/fstab
-{{end}}
-{{end}}
-
+{{- end}}
+{{- end}}
 set -o xtrace
 /etc/eks/bootstrap.sh {{ .ClusterName }} {{ .Arguments }}
 set +o xtrace
@@ -161,6 +161,42 @@ func (ctx *EksInstanceGroupContext) GetUserDataStages() UserDataPayload {
 		}
 	}
 	return payload
+}
+
+func (ctx *EksInstanceGroupContext) GetMountOpts() []MountOpts {
+	var (
+		mountOpts     []MountOpts
+		instanceGroup = ctx.GetInstanceGroup()
+		configuration = instanceGroup.GetEKSConfiguration()
+		volumes       = configuration.GetVolumes()
+	)
+
+	for _, vol := range volumes {
+		if vol.MountOptions == nil {
+			continue
+		}
+		if !common.ContainsEqualFold(v1alpha1.AllowedFileSystemTypes, vol.MountOptions.FileSystem) {
+			log.Error("file system type unsupported", "file-system", vol.MountOptions.FileSystem, "allowed-values", v1alpha1.AllowedFileSystemTypes)
+			continue
+		}
+		if common.StringEmpty(vol.MountOptions.Mount) {
+			log.Error("mount option mount path not provided", "volume", vol.Name)
+			continue
+		}
+
+		var persistance bool
+		if vol.MountOptions.Persistance == nil {
+			persistance = true
+		}
+
+		mountOpts = append(mountOpts, MountOpts{
+			FileSystem:  vol.MountOptions.FileSystem,
+			Device:      vol.Name,
+			Mount:       vol.MountOptions.Mount,
+			Persistance: persistance,
+		})
+	}
+	return mountOpts
 }
 
 func (ctx *EksInstanceGroupContext) GetAddedTags(asgName string) []*autoscaling.Tag {

@@ -67,6 +67,9 @@ const (
 	ForbidConcurrencyPolicy  = "forbid"
 	AllowConcurrencyPolicy   = "allow"
 	ReplaceConcurrencyPolicy = "replace"
+
+	FileSystemTypeXFS  = "xfs"
+	FileSystemTypeEXT4 = "ext4"
 )
 
 var (
@@ -83,6 +86,8 @@ var (
 			IntVal: 1,
 		},
 	}
+
+	AllowedFileSystemTypes = []string{FileSystemTypeXFS, FileSystemTypeEXT4}
 
 	log = ctrl.Log.WithName("v1alpha1")
 )
