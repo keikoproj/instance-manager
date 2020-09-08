@@ -325,9 +325,8 @@ func TestGetMountOpts(t *testing.T) {
 		DeleteOnTermination: aws.Bool(true),
 		Encrypted:           aws.Bool(true),
 		MountOptions: &v1alpha1.NodeVolumeMountOptions{
-			FileSystem:  "xfs",
-			Mount:       "/data2",
-			Persistance: aws.Bool(false),
+			FileSystem: "xfs",
+			Mount:      "/data2",
 		},
 	}
 
@@ -339,8 +338,21 @@ func TestGetMountOpts(t *testing.T) {
 		Encrypted:           aws.Bool(true),
 		MountOptions: &v1alpha1.NodeVolumeMountOptions{
 			FileSystem:  "ext3",
-			Mount:       "data",
+			Mount:       "/data",
 			Persistance: aws.Bool(true),
+		},
+	}
+
+	volumeInvalidOpts2 := v1alpha1.NodeVolume{
+		Name:                "/dev/xvda2",
+		Type:                "gp2",
+		Size:                100,
+		DeleteOnTermination: aws.Bool(true),
+		Encrypted:           aws.Bool(true),
+		MountOptions: &v1alpha1.NodeVolumeMountOptions{
+			FileSystem:  "ext4",
+			Mount:       "data",
+			Persistance: aws.Bool(false),
 		},
 	}
 
@@ -368,11 +380,11 @@ func TestGetMountOpts(t *testing.T) {
 				FileSystem:  "xfs",
 				Device:      "/dev/xvda3",
 				Mount:       "/data2",
-				Persistance: false,
+				Persistance: true,
 			},
 		}},
 		{volumes: []v1alpha1.NodeVolume{volumeNoOpts}, expectedMounts: []MountOpts{}},
-		{volumes: []v1alpha1.NodeVolume{volumeInvalidOpts}, expectedMounts: []MountOpts{}},
+		{volumes: []v1alpha1.NodeVolume{volumeInvalidOpts, volumeInvalidOpts2}, expectedMounts: []MountOpts{}},
 	}
 
 	for i, tc := range tests {
