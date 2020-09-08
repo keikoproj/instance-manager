@@ -29,9 +29,12 @@ spec:
       image: {{ .AmiID }}
       instanceType: t2.small
       volumes:
-      - name: /dev/xvda
+      - name: /dev/xvdb
         type: gp2
         size: 30
+        mountOptions:
+          fileSystem: xfs
+          mount: /data
       securityGroups: {{range $element := .NodeSecurityGroups}}
         - {{$element}}
       {{ end }}
