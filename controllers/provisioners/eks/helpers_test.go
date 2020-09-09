@@ -282,6 +282,119 @@ func TestGetLabelList(t *testing.T) {
 	}
 }
 
+func TestGetMountOpts(t *testing.T) {
+	var (
+		g             = gomega.NewGomegaWithT(t)
+		k             = MockKubernetesClientSet()
+		ig            = MockInstanceGroup()
+		configuration = ig.GetEKSConfiguration()
+		asgMock       = NewAutoScalingMocker()
+		iamMock       = NewIamMocker()
+		eksMock       = NewEksMocker()
+		ec2Mock       = NewEc2Mocker()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	ctx := MockContext(ig, k, w)
+
+	volumeNoOpts := v1alpha1.NodeVolume{
+		Name:                "/dev/xvda1",
+		Type:                "gp2",
+		Size:                100,
+		DeleteOnTermination: aws.Bool(true),
+		Encrypted:           aws.Bool(true),
+	}
+
+	volumeWithOpts := v1alpha1.NodeVolume{
+		Name:                "/dev/xvda2",
+		Type:                "gp2",
+		Size:                100,
+		DeleteOnTermination: aws.Bool(true),
+		Encrypted:           aws.Bool(true),
+		MountOptions: &v1alpha1.NodeVolumeMountOptions{
+			FileSystem:  "xfs",
+			Mount:       "/data",
+			Persistance: aws.Bool(false),
+		},
+	}
+
+	volumeWithOpts2 := v1alpha1.NodeVolume{
+		Name:                "/dev/xvda3",
+		Type:                "gp2",
+		Size:                200,
+		DeleteOnTermination: aws.Bool(true),
+		Encrypted:           aws.Bool(true),
+		MountOptions: &v1alpha1.NodeVolumeMountOptions{
+			FileSystem: "xfs",
+			Mount:      "/data2",
+		},
+	}
+
+	volumeInvalidOpts := v1alpha1.NodeVolume{
+		Name:                "/dev/xvda2",
+		Type:                "gp2",
+		Size:                100,
+		DeleteOnTermination: aws.Bool(true),
+		Encrypted:           aws.Bool(true),
+		MountOptions: &v1alpha1.NodeVolumeMountOptions{
+			FileSystem:  "ext3",
+			Mount:       "/data",
+			Persistance: aws.Bool(true),
+		},
+	}
+
+	volumeInvalidOpts2 := v1alpha1.NodeVolume{
+		Name:                "/dev/xvda2",
+		Type:                "gp2",
+		Size:                100,
+		DeleteOnTermination: aws.Bool(true),
+		Encrypted:           aws.Bool(true),
+		MountOptions: &v1alpha1.NodeVolumeMountOptions{
+			FileSystem:  "ext4",
+			Mount:       "data",
+			Persistance: aws.Bool(false),
+		},
+	}
+
+	tests := []struct {
+		volumes        []v1alpha1.NodeVolume
+		expectedMounts []MountOpts
+	}{
+		{volumes: []v1alpha1.NodeVolume{volumeNoOpts}, expectedMounts: []MountOpts{}},
+		{volumes: []v1alpha1.NodeVolume{volumeNoOpts, volumeWithOpts}, expectedMounts: []MountOpts{
+			{
+				FileSystem:  "xfs",
+				Device:      "/dev/xvda2",
+				Mount:       "/data",
+				Persistance: false,
+			},
+		}},
+		{volumes: []v1alpha1.NodeVolume{volumeWithOpts2, volumeWithOpts}, expectedMounts: []MountOpts{
+			{
+				FileSystem:  "xfs",
+				Device:      "/dev/xvda2",
+				Mount:       "/data",
+				Persistance: false,
+			},
+			{
+				FileSystem:  "xfs",
+				Device:      "/dev/xvda3",
+				Mount:       "/data2",
+				Persistance: true,
+			},
+		}},
+		{volumes: []v1alpha1.NodeVolume{volumeNoOpts}, expectedMounts: []MountOpts{}},
+		{volumes: []v1alpha1.NodeVolume{volumeInvalidOpts, volumeInvalidOpts2}, expectedMounts: []MountOpts{}},
+	}
+
+	for i, tc := range tests {
+		t.Logf("Test #%v - %+v", i, tc)
+		configuration.Volumes = tc.volumes
+		mounts := ctx.GetMountOpts()
+		g.Expect(mounts).To(gomega.ConsistOf(tc.expectedMounts))
+	}
+}
+
 func TestGetUserDataStages(t *testing.T) {
 	var (
 		g             = gomega.NewGomegaWithT(t)
@@ -298,16 +411,16 @@ func TestGetUserDataStages(t *testing.T) {
 	ctx := MockContext(ig, k, w)
 
 	tests := []struct {
-		preBootstrapScript    []string
-		postBootstrapScript   []string
-		expectedPreBootstrap  []string
-		expectedPostBootstrap []string
+		preBootstrapScript  []string
+		postBootstrapScript []string
+		bootstrapScript     string
+		expectedPayload     UserDataPayload
 	}{
 		{},
-		{preBootstrapScript: []string{""}, postBootstrapScript: []string{""}, expectedPreBootstrap: []string{""}, expectedPostBootstrap: []string{""}},
-		{preBootstrapScript: []string{"dGVzdA=="}, postBootstrapScript: []string{"dGVzdDE="}, expectedPreBootstrap: []string{"test"}, expectedPostBootstrap: []string{"test1"}},
-		{preBootstrapScript: []string{"prebootstrap1"}, postBootstrapScript: []string{"postbootstrap"}, expectedPreBootstrap: []string{"prebootstrap1"}, expectedPostBootstrap: []string{"postbootstrap"}},
-		{preBootstrapScript: []string{"prebootstrap1", "prebootstrap2"}, postBootstrapScript: []string{"postbootstrap1", "postbootstrap2"}, expectedPreBootstrap: []string{"prebootstrap1", "prebootstrap2"}, expectedPostBootstrap: []string{"postbootstrap1", "postbootstrap2"}},
+		{preBootstrapScript: []string{""}, postBootstrapScript: []string{""}, expectedPayload: UserDataPayload{PreBootstrap: []string{""}, PostBootstrap: []string{""}}},
+		{preBootstrapScript: []string{"dGVzdA=="}, postBootstrapScript: []string{"dGVzdDE="}, expectedPayload: UserDataPayload{PreBootstrap: []string{"test"}, PostBootstrap: []string{"test1"}}},
+		{preBootstrapScript: []string{"prebootstrap1"}, postBootstrapScript: []string{"postbootstrap"}, expectedPayload: UserDataPayload{PreBootstrap: []string{"prebootstrap1"}, PostBootstrap: []string{"postbootstrap"}}},
+		{preBootstrapScript: []string{"prebootstrap1", "prebootstrap2"}, postBootstrapScript: []string{"postbootstrap1", "postbootstrap2"}, expectedPayload: UserDataPayload{PreBootstrap: []string{"prebootstrap1", "prebootstrap2"}, PostBootstrap: []string{"postbootstrap1", "postbootstrap2"}}},
 	}
 
 	for i, tc := range tests {
@@ -334,8 +447,7 @@ func TestGetUserDataStages(t *testing.T) {
 			Stage: "invalid-stage",
 			Data:  "test",
 		})
-		preScript, postScript := ctx.GetUserDataStages()
-		g.Expect(preScript).To(gomega.ConsistOf(tc.expectedPreBootstrap))
-		g.Expect(postScript).To(gomega.ConsistOf(tc.expectedPostBootstrap))
+		payload := ctx.GetUserDataStages()
+		g.Expect(payload).To(gomega.Equal(tc.expectedPayload))
 	}
 }

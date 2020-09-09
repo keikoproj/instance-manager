@@ -119,6 +119,24 @@ spec:
         iops: <int64> : represents number of IOPS to provision volume with (min 100)
         deleteOnTermination : <bool> : delete the EBS volume when the instance is terminated (defaults to true)
         encrypted: <bool> : encrypt the EBS volume with a KMS key
+        mountOptions: <MountOptions> : auto-mount options for additional volumes
+```
+
+### MountOptions
+
+MountOptions helps with formatting & mounting an EBS volume by injecting commands to userdata.
+This should not be used for the root volume that is defined by the AMI.
+
+```yaml
+spec:
+  provisioner: eks
+  eks:
+    configuration:
+      volumes:
+      - mountOptions:
+          fileSystem: <string> : the type of file system to format volume to, must be one of the supported types "xfs" or "ext4"
+          mount: <string> : the mount path to mount the volume to
+          persistance: <bool> : make mount persist after reboot by adding it to /etc/fstab (default true)
 ```
 
 ### Taint

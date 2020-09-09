@@ -75,6 +75,26 @@ type EksInstanceGroupContext struct {
 	ResourcePrefix   string
 }
 
+type UserDataPayload struct {
+	PreBootstrap  []string
+	PostBootstrap []string
+}
+
+type MountOpts struct {
+	FileSystem  string
+	Device      string
+	Mount       string
+	Persistance bool
+}
+
+type EKSUserData struct {
+	ClusterName   string
+	Arguments     string
+	PreBootstrap  []string
+	PostBootstrap []string
+	MountOptions  []MountOpts
+}
+
 func (ctx *EksInstanceGroupContext) GetInstanceGroup() *v1alpha1.InstanceGroup {
 	if ctx != nil {
 		return ctx.InstanceGroup

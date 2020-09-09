@@ -16,10 +16,13 @@ limitations under the License.
 package eks
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
 	"reflect"
 	"sort"
 	"strings"
+	"text/template"
 
 	"github.com/Masterminds/semver"
 	"github.com/aws/aws-sdk-go/aws"
@@ -93,7 +96,44 @@ func (ctx *EksInstanceGroupContext) ResolveSecurityGroups() []string {
 	return resolved
 }
 
-func (ctx *EksInstanceGroupContext) GetUserDataStages() ([]string, []string) {
+func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, payload UserDataPayload, mounts []MountOpts) string {
+
+	var UserDataTemplate = `#!/bin/bash
+{{range $pre := .PreBootstrap}}{{$pre}}{{end}}
+{{- range .MountOptions}}
+mkfs.{{ .FileSystem | ToLower }} {{ .Device }}
+mkdir {{ .Mount }}
+mount {{ .Device }} {{ .Mount }}
+mount
+{{- if .Persistance}}
+echo "{{ .Device}}    {{ .Mount }}    {{ .FileSystem | ToLower }}    defaults    0    2" >> /etc/fstab
+{{- end}}
+{{- end}}
+set -o xtrace
+/etc/eks/bootstrap.sh {{ .ClusterName }} {{ .Arguments }}
+set +o xtrace
+{{range $post := .PostBootstrap}}{{$post}}{{end}}`
+
+	data := EKSUserData{
+		ClusterName:   clusterName,
+		Arguments:     args,
+		PreBootstrap:  payload.PreBootstrap,
+		PostBootstrap: payload.PostBootstrap,
+		MountOptions:  mounts,
+	}
+	out := &bytes.Buffer{}
+	tmpl := template.New("userData").Funcs(template.FuncMap{
+		"ToLower": strings.ToLower,
+	})
+	var err error
+	if tmpl, err = tmpl.Parse(UserDataTemplate); err != nil {
+		ctx.Log.Error(err, "failed to parse userData template")
+	}
+	tmpl.Execute(out, data)
+	return base64.StdEncoding.EncodeToString(out.Bytes())
+}
+
+func (ctx *EksInstanceGroupContext) GetUserDataStages() UserDataPayload {
 
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
@@ -101,7 +141,8 @@ func (ctx *EksInstanceGroupContext) GetUserDataStages() ([]string, []string) {
 		userData      = configuration.GetUserData()
 	)
 
-	var preScript, postScript []string
+	payload := UserDataPayload{}
+
 	for _, stage := range userData {
 		switch {
 		case strings.EqualFold(stage.Stage, v1alpha1.PreBootstrapStage):
@@ -109,18 +150,54 @@ func (ctx *EksInstanceGroupContext) GetUserDataStages() ([]string, []string) {
 			if err != nil {
 				ctx.Log.Error(err, "failed to decode base64 stage data", "stage", stage.Stage, "data", stage.Data)
 			}
-			preScript = append(preScript, data)
+			payload.PreBootstrap = append(payload.PreBootstrap, data)
 		case strings.EqualFold(stage.Stage, v1alpha1.PostBootstrapStage):
 			data, err := common.GetDecodedString(stage.Data)
 			if err != nil {
 				ctx.Log.Error(err, "failed to decode base64 stage data", "stage", stage.Stage, "data", stage.Data)
 			}
-			postScript = append(postScript, data)
+			payload.PostBootstrap = append(payload.PostBootstrap, data)
 		default:
 			ctx.Log.Info("invalid userdata stage will not be rendered", "stage", stage.Stage, "data", stage.Data)
 		}
 	}
-	return preScript, postScript
+	return payload
+}
+
+func (ctx *EksInstanceGroupContext) GetMountOpts() []MountOpts {
+	var (
+		mountOpts     = make([]MountOpts, 0)
+		instanceGroup = ctx.GetInstanceGroup()
+		configuration = instanceGroup.GetEKSConfiguration()
+		volumes       = configuration.GetVolumes()
+	)
+
+	for _, vol := range volumes {
+		if vol.MountOptions == nil {
+			continue
+		}
+		if !common.ContainsEqualFold(v1alpha1.AllowedFileSystemTypes, vol.MountOptions.FileSystem) {
+			ctx.Log.Error(errors.New("file system type unsupported"), "file-system", vol.MountOptions.FileSystem, "allowed-values", v1alpha1.AllowedFileSystemTypes)
+			continue
+		}
+		if common.StringEmpty(vol.MountOptions.Mount) || !strings.HasPrefix(vol.MountOptions.Mount, "/") {
+			ctx.Log.Error(errors.New("provided mount path is invalid"), "volume", vol.Name, "mount", vol.MountOptions.Mount)
+			continue
+		}
+
+		var persistance bool
+		if vol.MountOptions.Persistance == nil {
+			persistance = true
+		}
+
+		mountOpts = append(mountOpts, MountOpts{
+			FileSystem:  vol.MountOptions.FileSystem,
+			Device:      vol.Name,
+			Mount:       vol.MountOptions.Mount,
+			Persistance: persistance,
+		})
+	}
+	return mountOpts
 }
 
 func (ctx *EksInstanceGroupContext) GetAddedTags(asgName string) []*autoscaling.Tag {
@@ -281,6 +358,7 @@ func (ctx *EksInstanceGroupContext) GetBootstrapArgs() string {
 		configuration = instanceGroup.GetEKSConfiguration()
 		bootstrapArgs = configuration.GetBootstrapArguments()
 	)
+
 	labelsFlag := fmt.Sprintf("--node-labels=%v", strings.Join(ctx.GetLabelList(), ","))
 	taintsFlag := fmt.Sprintf("--register-with-taints=%v", strings.Join(ctx.GetTaintList(), ","))
 	return fmt.Sprintf("--kubelet-extra-args '%v %v %v'", labelsFlag, taintsFlag, bootstrapArgs)

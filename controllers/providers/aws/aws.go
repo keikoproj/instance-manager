@@ -16,11 +16,8 @@ limitations under the License.
 package aws
 
 import (
-	"bytes"
-	"encoding/base64"
 	"os"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -112,31 +109,6 @@ const (
 	LaunchConfigurationNotFoundErrorMessage = "Launch configuration name not found"
 )
 
-type EKSUserData struct {
-	ClusterName   string
-	Arguments     string
-	PreBootstrap  []string
-	PostBootstrap []string
-}
-
-var UserDataPayload = `#!/bin/bash
-{{range $pre := .PreBootstrap}}{{$pre}}{{end}}
-set -o xtrace
-/etc/eks/bootstrap.sh {{ .ClusterName }} {{ .Arguments }}
-set +o xtrace
-{{range $post := .PostBootstrap}}{{$post}}{{end}}`
-
-func RenderUserData(data EKSUserData) []byte {
-	out := &bytes.Buffer{}
-	tmpl := template.New("userData")
-	var err error
-	if tmpl, err = tmpl.Parse(UserDataPayload); err != nil {
-		log.Error(err, "failed to parse userData template")
-	}
-	tmpl.Execute(out, data)
-	return out.Bytes()
-}
-
 func (w *AwsWorker) RoleExist(name string) (*iam.Role, bool) {
 	out, err := w.GetRole(name)
 	if err != nil {
@@ -176,7 +148,7 @@ func (w *AwsWorker) GetBasicBlockDevice(name, volType, snapshot string, volSize,
 	if encrypt != nil {
 		device.Ebs.Encrypted = encrypt
 	}
-	if iops != 0 {
+	if iops != 0 && strings.EqualFold(volType, "io1") {
 		device.Ebs.Iops = aws.Int64(iops)
 	}
 	if volSize != 0 {
@@ -279,16 +251,6 @@ func (w *AwsWorker) SetResumeProcesses(name string, processesToResume []string) 
 		return err
 	}
 	return nil
-}
-
-func (w *AwsWorker) GetBasicUserData(clusterName, args string, preScript, postScript []string) string {
-	userData := RenderUserData(EKSUserData{
-		ClusterName:   clusterName,
-		Arguments:     args,
-		PreBootstrap:  preScript,
-		PostBootstrap: postScript,
-	})
-	return base64.StdEncoding.EncodeToString(userData)
 }
 
 func (w *AwsWorker) NewTag(key, val, resource string) *autoscaling.Tag {
