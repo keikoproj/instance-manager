@@ -68,11 +68,13 @@ func main() {
 		nodeRelabel            bool
 		maxParallel            int
 		maxAPIRetries          int
+		configRetention        int
 		err                    error
 	)
 
 	flag.IntVar(&maxParallel, "max-workers", 5, "The number of maximum parallel reconciles")
 	flag.IntVar(&maxAPIRetries, "max-api-retries", 12, "The number of maximum retries for failed AWS API calls")
+	flag.IntVar(&configRetention, "config-retention", 2, "The number of launch configuration/template versions to retain")
 	flag.Float64Var(&spotRecommendationTime, "spot-recommendation-time", 10.0, "The maximum age of spot recommendation events to consider in minutes")
 	flag.StringVar(&configNamespace, "config-namespace", "instance-manager", "the namespace to watch for instance-manager configmap")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
@@ -137,6 +139,7 @@ func main() {
 
 	err = (&controllers.InstanceGroupReconciler{
 		ConfigMap:              cm,
+		ConfigRetention:        configRetention,
 		SpotRecommendationTime: spotRecommendationTime,
 		ConfigNamespace:        configNamespace,
 		NodeRelabel:            nodeRelabel,

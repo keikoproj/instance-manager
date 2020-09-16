@@ -145,9 +145,10 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 
 	// delete old launch configurations
 	state.ScalingConfiguration.Delete(&scaling.DeleteConfigurationInput{
-		Name:      configName,
-		Prefix:    ctx.ResourcePrefix,
-		DeleteAll: false,
+		Name:           configName,
+		Prefix:         ctx.ResourcePrefix,
+		DeleteAll:      false,
+		RetainVersions: ctx.ConfigRetention,
 	})
 
 	if status.GetNodesReadyCondition() == corev1.ConditionTrue {
