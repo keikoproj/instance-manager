@@ -100,8 +100,8 @@ var (
 // +kubebuilder:printcolumn:name="Min",type="integer",JSONPath=".status.currentMin",description="currently set min instancegroup size"
 // +kubebuilder:printcolumn:name="Max",type="integer",JSONPath=".status.currentMax",description="currently set max instancegroup size"
 // +kubebuilder:printcolumn:name="Group Name",type="string",JSONPath=".status.activeScalingGroupName",description="instancegroup created scalinggroup name"
-// +kubebuilder:printcolumn:name="Provisioner",type="string",JSONPath=".spec.provisioner",description="instance group provisioner"
-// +kubebuilder:printcolumn:name="Strategy",type="string",JSONPath=".spec.strategy.type",description="instance group upgrade strategy"
+// +kubebuilder:printcolumn:name="Provisioner",type="string",JSONPath=".status.provisioner",description="instance group provisioner"
+// +kubebuilder:printcolumn:name="Strategy",type="string",JSONPath=".status.strategy",description="instance group upgrade strategy"
 // +kubebuilder:printcolumn:name="Lifecycle",type="string",JSONPath=".status.lifecycle",description="instance group lifecycle spot/normal"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="time passed since instancegroup creation"
 type InstanceGroup struct {
@@ -254,6 +254,8 @@ type InstanceGroupStatus struct {
 	Lifecycle                     string                   `json:"lifecycle,omitempty"`
 	ConfigHash                    string                   `json:"configMD5,omitempty"`
 	Conditions                    []InstanceGroupCondition `json:"conditions,omitempty"`
+	Provisioner                   string                   `json:"provisioner,omitempty"`
+	Strategy                      string                   `json:"strategy,omitempty"`
 }
 
 type InstanceGroupConditionType string
@@ -660,6 +662,14 @@ func (status *InstanceGroupStatus) GetActiveScalingGroupName() string {
 
 func (status *InstanceGroupStatus) SetActiveScalingGroupName(name string) {
 	status.ActiveScalingGroupName = name
+}
+
+func (status *InstanceGroupStatus) SetStrategy(strategy string) {
+	status.Strategy = strategy
+}
+
+func (status *InstanceGroupStatus) SetProvisioner(provisioner string) {
+	status.Provisioner = provisioner
 }
 
 func (status *InstanceGroupStatus) GetNodesArn() string {

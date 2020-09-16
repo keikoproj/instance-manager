@@ -25,11 +25,11 @@ spec:
     description: instancegroup created scalinggroup name
     name: Group Name
     type: string
-  - JSONPath: .spec.provisioner
+  - JSONPath: .status.provisioner
     description: instance group provisioner
     name: Provisioner
     type: string
-  - JSONPath: .spec.strategy.type
+  - JSONPath: .status.strategy
     description: instance group upgrade strategy
     name: Strategy
     type: string
@@ -353,6 +353,10 @@ spec:
             lifecycle:
               type: string
             nodesInstanceRoleArn:
+              type: string
+            provisioner:
+              type: string
+            strategy:
               type: string
             strategyResourceName:
               type: string
