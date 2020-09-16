@@ -56,6 +56,7 @@ func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 		AwsWorker:        p.AwsWorker,
 		Log:              p.Log.WithName("eks"),
 		ResourcePrefix:   fmt.Sprintf("%v-%v-%v", configuration.GetClusterName(), instanceGroup.GetNamespace(), instanceGroup.GetName()),
+		ConfigRetention:  p.ConfigRetention,
 	}
 
 	instanceGroup.SetState(v1alpha1.ReconcileInit)
@@ -72,6 +73,7 @@ type EksInstanceGroupContext struct {
 	DiscoveredState  *DiscoveredState
 	Log              logr.Logger
 	Configuration    *provisioners.ProvisionerConfiguration
+	ConfigRetention  int
 	ResourcePrefix   string
 }
 
