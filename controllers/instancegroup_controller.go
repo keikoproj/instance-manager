@@ -47,6 +47,7 @@ type InstanceGroupReconciler struct {
 	MaxParallel            int
 	Auth                   *InstanceGroupAuthenticator
 	ConfigMap              *corev1.ConfigMap
+	ConfigRetention        int
 }
 
 type InstanceGroupAuthenticator struct {
@@ -114,11 +115,12 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	r.SetFinalizer(instanceGroup)
 
 	input := provisioners.ProvisionerInput{
-		AwsWorker:     r.Auth.Aws,
-		Kubernetes:    r.Auth.Kubernetes,
-		Configuration: r.ConfigMap,
-		InstanceGroup: instanceGroup,
-		Log:           r.Log,
+		AwsWorker:       r.Auth.Aws,
+		Kubernetes:      r.Auth.Kubernetes,
+		Configuration:   r.ConfigMap,
+		InstanceGroup:   instanceGroup,
+		Log:             r.Log,
+		ConfigRetention: r.ConfigRetention,
 	}
 
 	if !reflect.DeepEqual(r.ConfigMap, &corev1.ConfigMap{}) {

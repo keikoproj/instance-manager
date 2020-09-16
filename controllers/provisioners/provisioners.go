@@ -23,11 +23,12 @@ const (
 )
 
 type ProvisionerInput struct {
-	AwsWorker     awsprovider.AwsWorker
-	Kubernetes    kubeprovider.KubernetesClientSet
-	InstanceGroup *v1alpha1.InstanceGroup
-	Configuration *corev1.ConfigMap
-	Log           logr.Logger
+	AwsWorker       awsprovider.AwsWorker
+	Kubernetes      kubeprovider.KubernetesClientSet
+	InstanceGroup   *v1alpha1.InstanceGroup
+	Configuration   *corev1.ConfigMap
+	Log             logr.Logger
+	ConfigRetention int
 }
 
 var (
