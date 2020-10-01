@@ -44,18 +44,22 @@ var (
 )
 
 const (
-	CacheDefaultTTL                 time.Duration = 0 * time.Second
-	DescribeAutoScalingGroupsTTL    time.Duration = 60 * time.Second
-	DescribeLaunchConfigurationsTTL time.Duration = 60 * time.Second
-	ListAttachedRolePoliciesTTL     time.Duration = 60 * time.Second
-	GetRoleTTL                      time.Duration = 60 * time.Second
-	GetInstanceProfileTTL           time.Duration = 60 * time.Second
-	DescribeNodegroupTTL            time.Duration = 60 * time.Second
-	DescribeClusterTTL              time.Duration = 180 * time.Second
-	DescribeSecurityGroupsTTL       time.Duration = 180 * time.Second
-	DescribeSubnetsTTL              time.Duration = 180 * time.Second
-	CacheMaxItems                   int64         = 5000
-	CacheItemsToPrune               uint32        = 500
+	CacheDefaultTTL                   time.Duration = 0 * time.Second
+	DescribeAutoScalingGroupsTTL      time.Duration = 60 * time.Second
+	DescribeLaunchConfigurationsTTL   time.Duration = 60 * time.Second
+	ListAttachedRolePoliciesTTL       time.Duration = 60 * time.Second
+	GetRoleTTL                        time.Duration = 60 * time.Second
+	GetInstanceProfileTTL             time.Duration = 60 * time.Second
+	DescribeNodegroupTTL              time.Duration = 60 * time.Second
+	DescribeClusterTTL                time.Duration = 180 * time.Second
+	DescribeSecurityGroupsTTL         time.Duration = 180 * time.Second
+	DescribeSubnetsTTL                time.Duration = 180 * time.Second
+	DescribeLaunchTemplatesTTL        time.Duration = 60 * time.Second
+	DescribeLaunchTemplateVersionsTTL time.Duration = 60 * time.Second
+	DescribeInstanceTypesTTL          time.Duration = 24 * time.Hour
+	DescribeInstanceTypeOfferingTTL   time.Duration = 1 * time.Hour
+	CacheMaxItems                     int64         = 5000
+	CacheItemsToPrune                 uint32        = 500
 )
 
 type AwsWorker struct {
@@ -108,6 +112,67 @@ const (
 
 	LaunchConfigurationNotFoundErrorMessage = "Launch configuration name not found"
 )
+
+func (w *AwsWorker) DescribeLaunchTemplates() ([]*ec2.LaunchTemplate, error) {
+	launchTemplates := []*ec2.LaunchTemplate{}
+	err := w.Ec2Client.DescribeLaunchTemplatesPages(&ec2.DescribeLaunchTemplatesInput{}, func(page *ec2.DescribeLaunchTemplatesOutput, lastPage bool) bool {
+		launchTemplates = append(launchTemplates, page.LaunchTemplates...)
+		return page.NextToken != nil
+	})
+	if err != nil {
+		return launchTemplates, err
+	}
+	return launchTemplates, nil
+}
+
+func (w *AwsWorker) DescribeLaunchTemplateVersions(templateName string) ([]*ec2.LaunchTemplateVersion, error) {
+	versions := []*ec2.LaunchTemplateVersion{}
+	err := w.Ec2Client.DescribeLaunchTemplateVersionsPages(&ec2.DescribeLaunchTemplateVersionsInput{LaunchTemplateName: aws.String(templateName)}, func(page *ec2.DescribeLaunchTemplateVersionsOutput, lastPage bool) bool {
+		versions = append(versions, page.LaunchTemplateVersions...)
+		return page.NextToken != nil
+	})
+	if err != nil {
+		return versions, err
+	}
+	return versions, nil
+}
+
+func (w *AwsWorker) CreateLaunchTemplate(input *ec2.CreateLaunchTemplateInput) error {
+	_, err := w.Ec2Client.CreateLaunchTemplate(input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) CreateLaunchTemplateVersion(input *ec2.CreateLaunchTemplateVersionInput) error {
+	_, err := w.Ec2Client.CreateLaunchTemplateVersion(input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) DeleteLaunchTemplate(name string) error {
+	_, err := w.Ec2Client.DeleteLaunchTemplate(&ec2.DeleteLaunchTemplateInput{
+		LaunchTemplateName: aws.String(name),
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) DeleteLaunchTemplateVersion(name string, versions []string) error {
+	_, err := w.Ec2Client.DeleteLaunchTemplateVersions(&ec2.DeleteLaunchTemplateVersionsInput{
+		LaunchTemplateName: aws.String(name),
+		Versions:           aws.StringSlice(versions),
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 func (w *AwsWorker) RoleExist(name string) (*iam.Role, bool) {
 	out, err := w.GetRole(name)
@@ -817,6 +882,10 @@ func GetAwsEc2Client(region string, cacheCfg *cache.Config, maxRetries int) ec2i
 	cache.AddCaching(sess, cacheCfg)
 	cacheCfg.SetCacheTTL("ec2", "DescribeSecurityGroups", DescribeSecurityGroupsTTL)
 	cacheCfg.SetCacheTTL("ec2", "DescribeSubnets", DescribeSubnetsTTL)
+	cacheCfg.SetCacheTTL("ec2", "DescribeInstanceTypes", DescribeSubnetsTTL)
+	cacheCfg.SetCacheTTL("ec2", "DescribeInstanceTypeOffering", DescribeInstanceTypeOfferingTTL)
+	cacheCfg.SetCacheTTL("ec2", "DescribeLaunchTemplates", DescribeLaunchTemplatesTTL)
+	cacheCfg.SetCacheTTL("ec2", "DescribeLaunchTemplateVersions", DescribeLaunchTemplateVersionsTTL)
 	sess.Handlers.Complete.PushFront(func(r *request.Request) {
 		ctx := r.HTTPRequest.Context()
 		log.V(1).Info("AWS API call",
