@@ -635,6 +635,14 @@ func (ctx *EksInstanceGroupContext) GetRemovedHooks() ([]string, bool) {
 		return []string{}, false
 	}
 
+	for _, h := range desiredHooks {
+		if strings.EqualFold(h.Lifecycle, v1alpha1.LifecycleHookTransitionLaunch) {
+			h.Lifecycle = awsprovider.LifecycleHookTransitionLaunch
+		} else if strings.EqualFold(h.Lifecycle, v1alpha1.LifecycleHookTransitionTerminate) {
+			h.Lifecycle = awsprovider.LifecycleHookTransitionTerminate
+		}
+	}
+
 	removeHooks := make([]string, 0)
 	for _, e := range existingHooks {
 		var found bool
@@ -649,7 +657,6 @@ func (ctx *EksInstanceGroupContext) GetRemovedHooks() ([]string, bool) {
 		}
 	}
 
-	fmt.Println(removeHooks)
 	if len(removeHooks) == 0 {
 		return []string{}, false
 	}
@@ -683,12 +690,18 @@ func (ctx *EksInstanceGroupContext) GetAddedHooks() ([]*v1alpha1.LifecycleHookSp
 		return addHooks, false
 	}
 
+	for _, h := range desiredHooks {
+		if strings.EqualFold(h.Lifecycle, v1alpha1.LifecycleHookTransitionLaunch) {
+			h.Lifecycle = awsprovider.LifecycleHookTransitionLaunch
+		} else if strings.EqualFold(h.Lifecycle, v1alpha1.LifecycleHookTransitionTerminate) {
+			h.Lifecycle = awsprovider.LifecycleHookTransitionTerminate
+		}
+	}
+
 	for _, d := range desiredHooks {
 		var found bool
 		for _, e := range existingHooks {
-			fmt.Printf("comparing d %+v to e %+v\n", d, e)
 			if reflect.DeepEqual(d, e) {
-				fmt.Println("match")
 				found = true
 				break
 			}
@@ -698,7 +711,6 @@ func (ctx *EksInstanceGroupContext) GetAddedHooks() ([]*v1alpha1.LifecycleHookSp
 		}
 	}
 
-	fmt.Println(addHooks)
 	if len(addHooks) == 0 {
 		return addHooks, false
 	}
@@ -722,19 +734,12 @@ func (ctx *EksInstanceGroupContext) UpdateLifecycleHooks(asgName string) error {
 
 	if hooks, ok := ctx.GetAddedHooks(); ok {
 		for _, hook := range hooks {
-			var lifecycle string
-			switch hook.Lifecycle {
-			case v1alpha1.LifecycleHookTransitionLaunch:
-				lifecycle = awsprovider.LifecycleHookTransitionLaunch
-			case v1alpha1.LifecycleHookTransitionTerminate:
-				lifecycle = awsprovider.LifecycleHookTransitionTerminate
-			}
 			if err := ctx.AwsWorker.CreateLifecycleHook(&autoscaling.PutLifecycleHookInput{
 				AutoScalingGroupName:  aws.String(asgName),
 				LifecycleHookName:     aws.String(hook.Name),
 				DefaultResult:         aws.String(hook.DefaultResult),
 				HeartbeatTimeout:      aws.Int64(hook.HeartbeatTimeout),
-				LifecycleTransition:   aws.String(lifecycle),
+				LifecycleTransition:   aws.String(hook.Lifecycle),
 				RoleARN:               aws.String(hook.RoleArn),
 				NotificationTargetARN: aws.String(hook.NotificationArn),
 			}); err != nil {

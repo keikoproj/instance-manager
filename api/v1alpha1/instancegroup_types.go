@@ -93,9 +93,10 @@ var (
 		},
 	}
 
-	AllowedFileSystemTypes          = []string{FileSystemTypeXFS, FileSystemTypeEXT4}
-	LifecycleHookAllowedTransitions = []string{LifecycleHookTransitionLaunch, LifecycleHookTransitionTerminate}
-	log                             = ctrl.Log.WithName("v1alpha1")
+	AllowedFileSystemTypes            = []string{FileSystemTypeXFS, FileSystemTypeEXT4}
+	LifecycleHookAllowedTransitions   = []string{LifecycleHookTransitionLaunch, LifecycleHookTransitionTerminate}
+	LifecycleHookAllowedDefaultResult = []string{LifecycleHookResultAbandon, LifecycleHookResultContinue}
+	log                               = ctrl.Log.WithName("v1alpha1")
 )
 
 // InstanceGroup is the Schema for the instancegroups API
@@ -345,6 +346,11 @@ func (c *EKSConfiguration) Validate() error {
 		}
 		if common.StringEmpty(h.DefaultResult) {
 			h.DefaultResult = LifecycleHookResultAbandon
+		}
+		if !common.ContainsEqualFold(LifecycleHookAllowedDefaultResult, h.DefaultResult) {
+			h.DefaultResult = LifecycleHookResultAbandon
+		} else {
+			h.DefaultResult = strings.ToUpper(h.DefaultResult)
 		}
 		if !common.ContainsEqualFold(LifecycleHookAllowedTransitions, h.Lifecycle) {
 			return errors.Errorf("validation failed, 'lifecycle' is a required parameter and must be in %+v", LifecycleHookAllowedTransitions)
