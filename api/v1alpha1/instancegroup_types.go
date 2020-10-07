@@ -70,6 +70,12 @@ const (
 
 	FileSystemTypeXFS  = "xfs"
 	FileSystemTypeEXT4 = "ext4"
+
+	LifecycleHookResultAbandon           = "ABANDON"
+	LifecycleHookResultContinue          = "CONTINUE"
+	LifecycleHookTransitionLaunch        = "autoscaling:EC2_INSTANCE_LAUNCHING"
+	LifecycleHookTransitionTerminate     = "autoscaling:EC2_INSTANCE_TERMINATING"
+	LifecycleHookDefaultHeartbeatTimeout = 300
 )
 
 var (
@@ -87,9 +93,9 @@ var (
 		},
 	}
 
-	AllowedFileSystemTypes = []string{FileSystemTypeXFS, FileSystemTypeEXT4}
-
-	log = ctrl.Log.WithName("v1alpha1")
+	AllowedFileSystemTypes          = []string{FileSystemTypeXFS, FileSystemTypeEXT4}
+	LifecycleHookAllowedTransitions = []string{LifecycleHookTransitionLaunch, LifecycleHookTransitionTerminate}
+	log                             = ctrl.Log.WithName("v1alpha1")
 )
 
 // InstanceGroup is the Schema for the instancegroups API
@@ -188,6 +194,16 @@ type EKSConfiguration struct {
 	ExistingInstanceProfileName string              `json:"instanceProfileName,omitempty"`
 	ManagedPolicies             []string            `json:"managedPolicies,omitempty"`
 	MetricsCollection           []string            `json:"metricsCollection,omitempty"`
+	LifecycleHooks              []LifecycleHookSpec `json:"lifecycleHooks,omitempty"`
+}
+
+type LifecycleHookSpec struct {
+	Name             string `json:"name"`
+	Lifecycle        string `json:"lifecycle"`
+	DefaultResult    string `json:"defaultResult,omitempty"`
+	HeartbeatTimeout int64  `json:"heartbeatTimeout,omitempty"`
+	NotificationArn  string `json:"notificationArn"`
+	RoleArn          string `json:"roleArn"`
 }
 
 type UserDataStage struct {
@@ -323,6 +339,27 @@ func (c *EKSConfiguration) Validate() error {
 		c.SuspendedProcesses = processes
 	}
 
+	for _, h := range c.LifecycleHooks {
+		if h.HeartbeatTimeout == 0 {
+			h.HeartbeatTimeout = LifecycleHookDefaultHeartbeatTimeout
+		}
+		if common.StringEmpty(h.DefaultResult) {
+			h.DefaultResult = LifecycleHookResultAbandon
+		}
+		if !common.ContainsEqualFold(LifecycleHookAllowedTransitions, h.Lifecycle) {
+			return errors.Errorf("validation failed, 'lifecycle' is a required parameter and must be in %+v", LifecycleHookAllowedTransitions)
+		}
+		if common.StringEmpty(h.Name) {
+			return errors.Errorf("validation failed, 'name' is a required parameter")
+		}
+		if common.StringEmpty(h.NotificationArn) || !strings.HasPrefix(h.NotificationArn, awsprovider.ARNPrefix) {
+			return errors.Errorf("validation failed, 'notificationArn' is a required parameter and must be a valid IAM role ARN")
+		}
+		if common.StringEmpty(h.RoleArn) || !strings.HasPrefix(h.NotificationArn, awsprovider.ARNPrefix) {
+			return errors.Errorf("validation failed, 'roleArn' is a required parameter and must be a valid IAM role ARN")
+		}
+	}
+
 	if common.StringEmpty(c.Image) {
 		return errors.Errorf("validation failed, 'image' is a required parameter")
 	}
@@ -412,6 +449,12 @@ func (ig *InstanceGroup) Validate() error {
 }
 func (c *EKSConfiguration) GetRoleName() string {
 	return c.ExistingRoleName
+}
+func (c *EKSConfiguration) GetLifecycleHooks() []LifecycleHookSpec {
+	return c.LifecycleHooks
+}
+func (c *EKSConfiguration) SetLifecycleHooks(hooks []LifecycleHookSpec) {
+	c.LifecycleHooks = hooks
 }
 func (c *EKSConfiguration) GetInstanceProfileName() string {
 	return c.ExistingInstanceProfileName

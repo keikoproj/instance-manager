@@ -46,6 +46,7 @@ var (
 const (
 	CacheDefaultTTL                 time.Duration = 0 * time.Second
 	DescribeAutoScalingGroupsTTL    time.Duration = 60 * time.Second
+	DescribeLifecycleHooksTTL       time.Duration = 60 * time.Second
 	DescribeLaunchConfigurationsTTL time.Duration = 60 * time.Second
 	ListAttachedRolePoliciesTTL     time.Duration = 60 * time.Second
 	GetRoleTTL                      time.Duration = 60 * time.Second
@@ -103,11 +104,40 @@ var (
 )
 
 const (
-	IAMPolicyPrefix = "arn:aws:iam::aws:policy"
-	IAMARNPrefix    = "arn:aws:iam::"
-
+	IAMPolicyPrefix                         = "arn:aws:iam::aws:policy"
+	IAMARNPrefix                            = "arn:aws:iam::"
+	ARNPrefix                               = "arn:aws:"
 	LaunchConfigurationNotFoundErrorMessage = "Launch configuration name not found"
 )
+
+func (w *AwsWorker) CreateLifecycleHook(input *autoscaling.PutLifecycleHookInput) error {
+	_, err := w.AsgClient.PutLifecycleHook(input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) DeleteLifecycleHook(asgName, hookName string) error {
+	_, err := w.AsgClient.DeleteLifecycleHook(&autoscaling.DeleteLifecycleHookInput{
+		AutoScalingGroupName: aws.String(asgName),
+		LifecycleHookName:    aws.String(hookName),
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) DescribeLifecycleHooks(asgName string) ([]*autoscaling.LifecycleHook, error) {
+	out, err := w.AsgClient.DescribeLifecycleHooks(&autoscaling.DescribeLifecycleHooksInput{
+		AutoScalingGroupName: aws.String(asgName),
+	})
+	if err != nil {
+		return []*autoscaling.LifecycleHook{}, err
+	}
+	return out.LifecycleHooks, nil
+}
 
 func (w *AwsWorker) RoleExist(name string) (*iam.Role, bool) {
 	out, err := w.GetRole(name)
@@ -794,6 +824,7 @@ func GetAwsAsgClient(region string, cacheCfg *cache.Config, maxRetries int) auto
 	cache.AddCaching(sess, cacheCfg)
 	cacheCfg.SetCacheTTL("autoscaling", "DescribeAutoScalingGroups", DescribeAutoScalingGroupsTTL)
 	cacheCfg.SetCacheTTL("autoscaling", "DescribeLaunchConfigurations", DescribeLaunchConfigurationsTTL)
+	cacheCfg.SetCacheTTL("autoscaling", "DescribeLifecycleHooks", DescribeLifecycleHooksTTL)
 	sess.Handlers.Complete.PushFront(func(r *request.Request) {
 		ctx := r.HTTPRequest.Context()
 		log.V(1).Info("AWS API call",
