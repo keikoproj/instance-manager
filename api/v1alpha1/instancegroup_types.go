@@ -73,8 +73,8 @@ const (
 
 	LifecycleHookResultAbandon           = "ABANDON"
 	LifecycleHookResultContinue          = "CONTINUE"
-	LifecycleHookTransitionLaunch        = "autoscaling:EC2_INSTANCE_LAUNCHING"
-	LifecycleHookTransitionTerminate     = "autoscaling:EC2_INSTANCE_TERMINATING"
+	LifecycleHookTransitionLaunch        = "Launch"
+	LifecycleHookTransitionTerminate     = "Terminate"
 	LifecycleHookDefaultHeartbeatTimeout = 300
 )
 
@@ -176,25 +176,25 @@ type EKSSpec struct {
 }
 
 type EKSConfiguration struct {
-	EksClusterName              string              `json:"clusterName,omitempty"`
-	KeyPairName                 string              `json:"keyPairName,omitempty"`
-	Image                       string              `json:"image,omitempty"`
-	InstanceType                string              `json:"instanceType,omitempty"`
-	NodeSecurityGroups          []string            `json:"securityGroups,omitempty"`
-	Volumes                     []NodeVolume        `json:"volumes,omitempty"`
-	Subnets                     []string            `json:"subnets,omitempty"`
-	SuspendedProcesses          []string            `json:"suspendProcesses,omitempty"`
-	BootstrapArguments          string              `json:"bootstrapArguments,omitempty"`
-	SpotPrice                   string              `json:"spotPrice,omitempty"`
-	Tags                        []map[string]string `json:"tags,omitempty"`
-	Labels                      map[string]string   `json:"labels,omitempty"`
-	Taints                      []corev1.Taint      `json:"taints,omitempty"`
-	UserData                    []UserDataStage     `json:"userData,omitempty"`
-	ExistingRoleName            string              `json:"roleName,omitempty"`
-	ExistingInstanceProfileName string              `json:"instanceProfileName,omitempty"`
-	ManagedPolicies             []string            `json:"managedPolicies,omitempty"`
-	MetricsCollection           []string            `json:"metricsCollection,omitempty"`
-	LifecycleHooks              []LifecycleHookSpec `json:"lifecycleHooks,omitempty"`
+	EksClusterName              string               `json:"clusterName,omitempty"`
+	KeyPairName                 string               `json:"keyPairName,omitempty"`
+	Image                       string               `json:"image,omitempty"`
+	InstanceType                string               `json:"instanceType,omitempty"`
+	NodeSecurityGroups          []string             `json:"securityGroups,omitempty"`
+	Volumes                     []NodeVolume         `json:"volumes,omitempty"`
+	Subnets                     []string             `json:"subnets,omitempty"`
+	SuspendedProcesses          []string             `json:"suspendProcesses,omitempty"`
+	BootstrapArguments          string               `json:"bootstrapArguments,omitempty"`
+	SpotPrice                   string               `json:"spotPrice,omitempty"`
+	Tags                        []map[string]string  `json:"tags,omitempty"`
+	Labels                      map[string]string    `json:"labels,omitempty"`
+	Taints                      []corev1.Taint       `json:"taints,omitempty"`
+	UserData                    []UserDataStage      `json:"userData,omitempty"`
+	ExistingRoleName            string               `json:"roleName,omitempty"`
+	ExistingInstanceProfileName string               `json:"instanceProfileName,omitempty"`
+	ManagedPolicies             []string             `json:"managedPolicies,omitempty"`
+	MetricsCollection           []string             `json:"metricsCollection,omitempty"`
+	LifecycleHooks              []*LifecycleHookSpec `json:"lifecycleHooks,omitempty"`
 }
 
 type LifecycleHookSpec struct {
@@ -450,10 +450,10 @@ func (ig *InstanceGroup) Validate() error {
 func (c *EKSConfiguration) GetRoleName() string {
 	return c.ExistingRoleName
 }
-func (c *EKSConfiguration) GetLifecycleHooks() []LifecycleHookSpec {
+func (c *EKSConfiguration) GetLifecycleHooks() []*LifecycleHookSpec {
 	return c.LifecycleHooks
 }
-func (c *EKSConfiguration) SetLifecycleHooks(hooks []LifecycleHookSpec) {
+func (c *EKSConfiguration) SetLifecycleHooks(hooks []*LifecycleHookSpec) {
 	c.LifecycleHooks = hooks
 }
 func (c *EKSConfiguration) GetInstanceProfileName() string {

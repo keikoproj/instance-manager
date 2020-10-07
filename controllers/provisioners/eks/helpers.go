@@ -656,7 +656,7 @@ func (ctx *EksInstanceGroupContext) GetRemovedHooks() ([]string, bool) {
 	return removeHooks, true
 }
 
-func (ctx *EksInstanceGroupContext) GetAddedHooks() ([]v1alpha1.LifecycleHookSpec, bool) {
+func (ctx *EksInstanceGroupContext) GetAddedHooks() ([]*v1alpha1.LifecycleHookSpec, bool) {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
 		state         = ctx.GetDiscoveredState()
@@ -677,7 +677,7 @@ func (ctx *EksInstanceGroupContext) GetAddedHooks() ([]v1alpha1.LifecycleHookSpe
 		existingHooks = append(existingHooks, hook)
 	}
 
-	addHooks := make([]v1alpha1.LifecycleHookSpec, 0)
+	addHooks := make([]*v1alpha1.LifecycleHookSpec, 0)
 	if len(desiredHooks) == 0 {
 		return addHooks, false
 	}
@@ -718,12 +718,19 @@ func (ctx *EksInstanceGroupContext) UpdateLifecycleHooks(asgName string) error {
 
 	if hooks, ok := ctx.GetAddedHooks(); ok {
 		for _, hook := range hooks {
+			var lifecycle string
+			switch hook.Lifecycle {
+			case v1alpha1.LifecycleHookTransitionLaunch:
+				lifecycle = awsprovider.LifecycleHookTransitionLaunch
+			case v1alpha1.LifecycleHookTransitionTerminate:
+				lifecycle = awsprovider.LifecycleHookTransitionTerminate
+			}
 			if err := ctx.AwsWorker.CreateLifecycleHook(&autoscaling.PutLifecycleHookInput{
 				AutoScalingGroupName:  aws.String(asgName),
 				LifecycleHookName:     aws.String(hook.Name),
 				DefaultResult:         aws.String(hook.DefaultResult),
 				HeartbeatTimeout:      aws.Int64(hook.HeartbeatTimeout),
-				LifecycleTransition:   aws.String(hook.Lifecycle),
+				LifecycleTransition:   aws.String(lifecycle),
 				RoleARN:               aws.String(hook.RoleArn),
 				NotificationTargetARN: aws.String(hook.NotificationArn),
 			}); err != nil {

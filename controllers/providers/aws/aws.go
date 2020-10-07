@@ -100,7 +100,9 @@ var (
 		"GroupTotalCapacity",
 	}
 
-	AllowedVolumeTypes = []string{"gp2", "io1", "sc1", "st1"}
+	AllowedVolumeTypes               = []string{"gp2", "io1", "sc1", "st1"}
+	LifecycleHookTransitionLaunch    = "autoscaling:EC2_INSTANCE_LAUNCHING"
+	LifecycleHookTransitionTerminate = "autoscaling:EC2_INSTANCE_TERMINATING"
 )
 
 const (
