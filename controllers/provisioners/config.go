@@ -30,14 +30,16 @@ import (
 )
 
 var (
-	EKSConfigurationPath = "spec.eks.configuration"
-	EKSTagsPath          = fmt.Sprintf("%v.tags", EKSConfigurationPath)
-	EKSVolumesPath       = fmt.Sprintf("%v.volumes", EKSConfigurationPath)
+	EKSConfigurationPath  = "spec.eks.configuration"
+	EKSTagsPath           = fmt.Sprintf("%v.tags", EKSConfigurationPath)
+	EKSVolumesPath        = fmt.Sprintf("%v.volumes", EKSConfigurationPath)
+	EKSLifecycleHooksPath = fmt.Sprintf("%v.lifecycleHooks", EKSConfigurationPath)
 
 	// MergeSchema defines the key to merge by
 	MergeSchema = map[string]string{
-		EKSTagsPath:    "key",
-		EKSVolumesPath: "name",
+		EKSTagsPath:           "key",
+		EKSVolumesPath:        "name",
+		EKSLifecycleHooksPath: "name",
 	}
 )
 

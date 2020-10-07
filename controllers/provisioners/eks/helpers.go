@@ -618,9 +618,9 @@ func (ctx *EksInstanceGroupContext) GetRemovedHooks() ([]string, bool) {
 		desiredHooks  = configuration.GetLifecycleHooks()
 	)
 
-	existingHooks := []v1alpha1.LifecycleHookSpec{}
+	existingHooks := []*v1alpha1.LifecycleHookSpec{}
 	for _, h := range state.LifecycleHooks {
-		hook := v1alpha1.LifecycleHookSpec{
+		hook := &v1alpha1.LifecycleHookSpec{
 			Name:             aws.StringValue(h.LifecycleHookName),
 			Lifecycle:        aws.StringValue(h.LifecycleTransition),
 			DefaultResult:    aws.StringValue(h.DefaultResult),
@@ -635,9 +635,9 @@ func (ctx *EksInstanceGroupContext) GetRemovedHooks() ([]string, bool) {
 		return []string{}, false
 	}
 
-	var found bool
 	removeHooks := make([]string, 0)
 	for _, e := range existingHooks {
+		var found bool
 		for _, d := range desiredHooks {
 			if reflect.DeepEqual(e, d) {
 				found = true
@@ -649,6 +649,7 @@ func (ctx *EksInstanceGroupContext) GetRemovedHooks() ([]string, bool) {
 		}
 	}
 
+	fmt.Println(removeHooks)
 	if len(removeHooks) == 0 {
 		return []string{}, false
 	}
@@ -664,9 +665,9 @@ func (ctx *EksInstanceGroupContext) GetAddedHooks() ([]*v1alpha1.LifecycleHookSp
 		desiredHooks  = configuration.GetLifecycleHooks()
 	)
 
-	existingHooks := []v1alpha1.LifecycleHookSpec{}
+	existingHooks := []*v1alpha1.LifecycleHookSpec{}
 	for _, h := range state.LifecycleHooks {
-		hook := v1alpha1.LifecycleHookSpec{
+		hook := &v1alpha1.LifecycleHookSpec{
 			Name:             aws.StringValue(h.LifecycleHookName),
 			Lifecycle:        aws.StringValue(h.LifecycleTransition),
 			DefaultResult:    aws.StringValue(h.DefaultResult),
@@ -682,10 +683,12 @@ func (ctx *EksInstanceGroupContext) GetAddedHooks() ([]*v1alpha1.LifecycleHookSp
 		return addHooks, false
 	}
 
-	var found bool
 	for _, d := range desiredHooks {
+		var found bool
 		for _, e := range existingHooks {
+			fmt.Printf("comparing d %+v to e %+v\n", d, e)
 			if reflect.DeepEqual(d, e) {
+				fmt.Println("match")
 				found = true
 				break
 			}
@@ -695,6 +698,7 @@ func (ctx *EksInstanceGroupContext) GetAddedHooks() ([]*v1alpha1.LifecycleHookSp
 		}
 	}
 
+	fmt.Println(addHooks)
 	if len(addHooks) == 0 {
 		return addHooks, false
 	}

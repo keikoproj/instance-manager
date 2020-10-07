@@ -340,11 +340,17 @@ type MockAutoScalingClient struct {
 	EnableMetricsCollectionErr             error
 	DisableMetricsCollectionErr            error
 	UpdateSuspendProcessesErr              error
+	DescribeLifecycleHooksErr              error
+	PutLifecycleHookErr                    error
+	DeleteLifecycleHookErr                 error
 	DeleteLaunchConfigurationCallCount     int
+	PutLifecycleHookCallCount              int
+	DeleteLifecycleHookCallCount           int
 	LaunchConfiguration                    *autoscaling.LaunchConfiguration
 	LaunchConfigurations                   []*autoscaling.LaunchConfiguration
 	AutoScalingGroup                       *autoscaling.Group
 	AutoScalingGroups                      []*autoscaling.Group
+	LifecycleHooks                         []*autoscaling.LifecycleHook
 }
 
 func (a *MockAutoScalingClient) EnableMetricsCollection(input *autoscaling.EnableMetricsCollectionInput) (*autoscaling.EnableMetricsCollectionOutput, error) {
@@ -420,6 +426,20 @@ func (a *MockAutoScalingClient) SuspendProcesses(input *autoscaling.ScalingProce
 
 func (a *MockAutoScalingClient) ResumeProcesses(input *autoscaling.ScalingProcessQuery) (*autoscaling.ResumeProcessesOutput, error) {
 	return &autoscaling.ResumeProcessesOutput{}, a.UpdateSuspendProcessesErr
+}
+
+func (a *MockAutoScalingClient) DescribeLifecycleHooks(input *autoscaling.DescribeLifecycleHooksInput) (*autoscaling.DescribeLifecycleHooksOutput, error) {
+	return &autoscaling.DescribeLifecycleHooksOutput{LifecycleHooks: a.LifecycleHooks}, a.DescribeLifecycleHooksErr
+}
+
+func (a *MockAutoScalingClient) DeleteLifecycleHook(input *autoscaling.DeleteLifecycleHookInput) (*autoscaling.DeleteLifecycleHookOutput, error) {
+	a.DeleteLifecycleHookCallCount++
+	return &autoscaling.DeleteLifecycleHookOutput{}, a.DeleteLifecycleHookErr
+}
+
+func (a *MockAutoScalingClient) PutLifecycleHook(input *autoscaling.PutLifecycleHookInput) (*autoscaling.PutLifecycleHookOutput, error) {
+	a.PutLifecycleHookCallCount++
+	return &autoscaling.PutLifecycleHookOutput{}, a.PutLifecycleHookErr
 }
 
 type MockEc2Client struct {
