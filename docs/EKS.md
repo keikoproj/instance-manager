@@ -106,6 +106,7 @@ spec:
         heartbeatTimeout: <int64> : represents the required interval for sending a heartbeat in seconds (defaults to 300)
         notificationArn: <string> : must be a valid IAM Role ARN belonging to an SNS or SQS queue (required)
         roleArn: <string> : must be a valid IAM Role ARN providing access to publish messages (required)
+        metadata: <string> : additional metadata to add to notification payload
 ```
 
 ### UserDataStage

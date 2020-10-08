@@ -626,6 +626,7 @@ func (ctx *EksInstanceGroupContext) GetRemovedHooks() ([]string, bool) {
 			DefaultResult:    aws.StringValue(h.DefaultResult),
 			HeartbeatTimeout: aws.Int64Value(h.HeartbeatTimeout),
 			NotificationArn:  aws.StringValue(h.NotificationTargetARN),
+			Metadata:         aws.StringValue(h.NotificationMetadata),
 			RoleArn:          aws.StringValue(h.RoleARN),
 		}
 		existingHooks = append(existingHooks, hook)
@@ -661,6 +662,7 @@ func (ctx *EksInstanceGroupContext) GetAddedHooks() ([]v1alpha1.LifecycleHookSpe
 			DefaultResult:    aws.StringValue(h.DefaultResult),
 			HeartbeatTimeout: aws.Int64Value(h.HeartbeatTimeout),
 			NotificationArn:  aws.StringValue(h.NotificationTargetARN),
+			Metadata:         aws.StringValue(h.NotificationMetadata),
 			RoleArn:          aws.StringValue(h.RoleARN),
 		}
 		existingHooks = append(existingHooks, hook)
@@ -696,7 +698,7 @@ func (ctx *EksInstanceGroupContext) UpdateLifecycleHooks(asgName string) error {
 
 	if hooks, ok := ctx.GetAddedHooks(); ok {
 		for _, hook := range hooks {
-			if err := ctx.AwsWorker.CreateLifecycleHook(&autoscaling.PutLifecycleHookInput{
+			input := &autoscaling.PutLifecycleHookInput{
 				AutoScalingGroupName:  aws.String(asgName),
 				LifecycleHookName:     aws.String(hook.Name),
 				DefaultResult:         aws.String(hook.DefaultResult),
@@ -704,7 +706,11 @@ func (ctx *EksInstanceGroupContext) UpdateLifecycleHooks(asgName string) error {
 				LifecycleTransition:   aws.String(hook.Lifecycle),
 				RoleARN:               aws.String(hook.RoleArn),
 				NotificationTargetARN: aws.String(hook.NotificationArn),
-			}); err != nil {
+			}
+			if !common.StringEmpty(hook.Metadata) {
+				input.NotificationMetadata = aws.String(hook.Metadata)
+			}
+			if err := ctx.AwsWorker.CreateLifecycleHook(input); err != nil {
 				return errors.Wrapf(err, "failed to add lifecycle hook %v", hook)
 			}
 			ctx.Log.Info("creating lifecycle hook", "instancegroup", instanceGroup.GetName(), "hook", hook)

@@ -101,6 +101,8 @@ spec:
                             type: integer
                           lifecycle:
                             type: string
+                          metadata:
+                            type: string
                           name:
                             type: string
                           notificationArn:

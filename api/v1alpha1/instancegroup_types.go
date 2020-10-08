@@ -205,6 +205,7 @@ type LifecycleHookSpec struct {
 	DefaultResult    string `json:"defaultResult,omitempty"`
 	HeartbeatTimeout int64  `json:"heartbeatTimeout,omitempty"`
 	NotificationArn  string `json:"notificationArn"`
+	Metadata         string `json:"metadata,omitempty"`
 	RoleArn          string `json:"roleArn"`
 }
 
