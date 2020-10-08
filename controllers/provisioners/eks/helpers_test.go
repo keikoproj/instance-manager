@@ -476,32 +476,32 @@ func TestUpdateLifecycleHooks(t *testing.T) {
 		},
 	}
 
-	hook1 := &v1alpha1.LifecycleHookSpec{
+	hook1 := v1alpha1.LifecycleHookSpec{
 		Name: "my-hook-1",
 	}
 
-	hook2 := &v1alpha1.LifecycleHookSpec{
+	hook2 := v1alpha1.LifecycleHookSpec{
 		Name: "my-hook-2",
 	}
 
-	hook3 := &v1alpha1.LifecycleHookSpec{
+	hook3 := v1alpha1.LifecycleHookSpec{
 		Name: "my-hook-3",
 	}
 
 	tests := []struct {
 		asgHooks        []*autoscaling.LifecycleHook
-		desiredHooks    []*v1alpha1.LifecycleHookSpec
+		desiredHooks    []v1alpha1.LifecycleHookSpec
 		expectedRemoved []string
-		expectedAdded   []*v1alpha1.LifecycleHookSpec
+		expectedAdded   []v1alpha1.LifecycleHookSpec
 		shouldRemove    bool
 		shouldAdd       bool
 	}{
-		{expectedRemoved: []string{}, expectedAdded: []*v1alpha1.LifecycleHookSpec{}},
-		{asgHooks: testScalingHooks, desiredHooks: []*v1alpha1.LifecycleHookSpec{hook1, hook2, hook3}, expectedRemoved: []string{}, expectedAdded: []*v1alpha1.LifecycleHookSpec{hook3}, shouldAdd: true},
-		{asgHooks: testScalingHooks, desiredHooks: []*v1alpha1.LifecycleHookSpec{hook1, hook3}, expectedRemoved: []string{"my-hook-2"}, expectedAdded: []*v1alpha1.LifecycleHookSpec{hook3}, shouldAdd: true, shouldRemove: true},
-		{asgHooks: testScalingHooks, desiredHooks: []*v1alpha1.LifecycleHookSpec{hook1, hook2}, expectedRemoved: []string{}, expectedAdded: []*v1alpha1.LifecycleHookSpec{}},
-		{asgHooks: testScalingHooks, desiredHooks: []*v1alpha1.LifecycleHookSpec{hook1}, expectedRemoved: []string{"my-hook-2"}, expectedAdded: []*v1alpha1.LifecycleHookSpec{}, shouldRemove: true},
-		{asgHooks: testScalingHooks, desiredHooks: []*v1alpha1.LifecycleHookSpec{}, expectedRemoved: []string{"my-hook-1", "my-hook-2"}, expectedAdded: []*v1alpha1.LifecycleHookSpec{}, shouldRemove: true},
+		{expectedRemoved: []string{}, expectedAdded: []v1alpha1.LifecycleHookSpec{}},
+		{asgHooks: testScalingHooks, desiredHooks: []v1alpha1.LifecycleHookSpec{hook1, hook2, hook3}, expectedRemoved: []string{}, expectedAdded: []v1alpha1.LifecycleHookSpec{hook3}, shouldAdd: true},
+		{asgHooks: testScalingHooks, desiredHooks: []v1alpha1.LifecycleHookSpec{hook1, hook3}, expectedRemoved: []string{"my-hook-2"}, expectedAdded: []v1alpha1.LifecycleHookSpec{hook3}, shouldAdd: true, shouldRemove: true},
+		{asgHooks: testScalingHooks, desiredHooks: []v1alpha1.LifecycleHookSpec{hook1, hook2}, expectedRemoved: []string{}, expectedAdded: []v1alpha1.LifecycleHookSpec{}},
+		{asgHooks: testScalingHooks, desiredHooks: []v1alpha1.LifecycleHookSpec{hook1}, expectedRemoved: []string{"my-hook-2"}, expectedAdded: []v1alpha1.LifecycleHookSpec{}, shouldRemove: true},
+		{asgHooks: testScalingHooks, desiredHooks: []v1alpha1.LifecycleHookSpec{}, expectedRemoved: []string{"my-hook-1", "my-hook-2"}, expectedAdded: []v1alpha1.LifecycleHookSpec{}, shouldRemove: true},
 	}
 
 	for i, tc := range tests {

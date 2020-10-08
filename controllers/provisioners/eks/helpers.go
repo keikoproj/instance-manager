@@ -618,9 +618,9 @@ func (ctx *EksInstanceGroupContext) GetRemovedHooks() ([]string, bool) {
 		desiredHooks  = configuration.GetLifecycleHooks()
 	)
 
-	existingHooks := []*v1alpha1.LifecycleHookSpec{}
+	existingHooks := []v1alpha1.LifecycleHookSpec{}
 	for _, h := range state.LifecycleHooks {
-		hook := &v1alpha1.LifecycleHookSpec{
+		hook := v1alpha1.LifecycleHookSpec{
 			Name:             aws.StringValue(h.LifecycleHookName),
 			Lifecycle:        aws.StringValue(h.LifecycleTransition),
 			DefaultResult:    aws.StringValue(h.DefaultResult),
@@ -633,14 +633,6 @@ func (ctx *EksInstanceGroupContext) GetRemovedHooks() ([]string, bool) {
 
 	if len(existingHooks) == 0 {
 		return []string{}, false
-	}
-
-	for _, h := range desiredHooks {
-		if strings.EqualFold(h.Lifecycle, v1alpha1.LifecycleHookTransitionLaunch) {
-			h.Lifecycle = awsprovider.LifecycleHookTransitionLaunch
-		} else if strings.EqualFold(h.Lifecycle, v1alpha1.LifecycleHookTransitionTerminate) {
-			h.Lifecycle = awsprovider.LifecycleHookTransitionTerminate
-		}
 	}
 
 	removeHooks := make([]string, 0)
@@ -664,7 +656,7 @@ func (ctx *EksInstanceGroupContext) GetRemovedHooks() ([]string, bool) {
 	return removeHooks, true
 }
 
-func (ctx *EksInstanceGroupContext) GetAddedHooks() ([]*v1alpha1.LifecycleHookSpec, bool) {
+func (ctx *EksInstanceGroupContext) GetAddedHooks() ([]v1alpha1.LifecycleHookSpec, bool) {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
 		state         = ctx.GetDiscoveredState()
@@ -672,9 +664,9 @@ func (ctx *EksInstanceGroupContext) GetAddedHooks() ([]*v1alpha1.LifecycleHookSp
 		desiredHooks  = configuration.GetLifecycleHooks()
 	)
 
-	existingHooks := []*v1alpha1.LifecycleHookSpec{}
+	existingHooks := []v1alpha1.LifecycleHookSpec{}
 	for _, h := range state.LifecycleHooks {
-		hook := &v1alpha1.LifecycleHookSpec{
+		hook := v1alpha1.LifecycleHookSpec{
 			Name:             aws.StringValue(h.LifecycleHookName),
 			Lifecycle:        aws.StringValue(h.LifecycleTransition),
 			DefaultResult:    aws.StringValue(h.DefaultResult),
@@ -685,17 +677,9 @@ func (ctx *EksInstanceGroupContext) GetAddedHooks() ([]*v1alpha1.LifecycleHookSp
 		existingHooks = append(existingHooks, hook)
 	}
 
-	addHooks := make([]*v1alpha1.LifecycleHookSpec, 0)
+	addHooks := make([]v1alpha1.LifecycleHookSpec, 0)
 	if len(desiredHooks) == 0 {
 		return addHooks, false
-	}
-
-	for _, h := range desiredHooks {
-		if strings.EqualFold(h.Lifecycle, v1alpha1.LifecycleHookTransitionLaunch) {
-			h.Lifecycle = awsprovider.LifecycleHookTransitionLaunch
-		} else if strings.EqualFold(h.Lifecycle, v1alpha1.LifecycleHookTransitionTerminate) {
-			h.Lifecycle = awsprovider.LifecycleHookTransitionTerminate
-		}
 	}
 
 	for _, d := range desiredHooks {

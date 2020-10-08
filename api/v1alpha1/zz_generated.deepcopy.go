@@ -134,14 +134,8 @@ func (in *EKSConfiguration) DeepCopyInto(out *EKSConfiguration) {
 	}
 	if in.LifecycleHooks != nil {
 		in, out := &in.LifecycleHooks, &out.LifecycleHooks
-		*out = make([]*LifecycleHookSpec, len(*in))
-		for i := range *in {
-			if (*in)[i] != nil {
-				in, out := &(*in)[i], &(*out)[i]
-				*out = new(LifecycleHookSpec)
-				**out = **in
-			}
-		}
+		*out = make([]LifecycleHookSpec, len(*in))
+		copy(*out, *in)
 	}
 }
 
