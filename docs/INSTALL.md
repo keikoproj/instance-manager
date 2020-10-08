@@ -60,6 +60,9 @@ autoscaling:CreateLaunchConfiguration
 autoscaling:DeleteLaunchConfiguration
 autoscaling:DeleteAutoScalingGroup
 autoscaling:CreateAutoScalingGroup
+autoscaling:DescribeLifecycleHooks
+autoscaling:DeleteLifecycleHook
+autoscaling:PutLifecycleHook
 eks:CreateNodegroup
 eks:DescribeNodegroup
 eks:DeleteNodegroup
