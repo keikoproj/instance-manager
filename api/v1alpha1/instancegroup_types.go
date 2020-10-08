@@ -17,6 +17,7 @@ package v1alpha1
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/keikoproj/instance-manager/controllers/common"
@@ -469,6 +470,14 @@ func (c *EKSConfiguration) GetLifecycleHooks() []LifecycleHookSpec {
 }
 func (c *EKSConfiguration) SetLifecycleHooks(hooks []LifecycleHookSpec) {
 	c.LifecycleHooks = hooks
+}
+func (h LifecycleHookSpec) ExistInSlice(hooks []LifecycleHookSpec) bool {
+	for _, hook := range hooks {
+		if reflect.DeepEqual(hook, h) {
+			return true
+		}
+	}
+	return false
 }
 func (c *EKSConfiguration) GetInstanceProfileName() string {
 	return c.ExistingInstanceProfileName

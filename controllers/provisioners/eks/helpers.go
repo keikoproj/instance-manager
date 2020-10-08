@@ -631,20 +631,9 @@ func (ctx *EksInstanceGroupContext) GetRemovedHooks() ([]string, bool) {
 		existingHooks = append(existingHooks, hook)
 	}
 
-	if len(existingHooks) == 0 {
-		return []string{}, false
-	}
-
 	removeHooks := make([]string, 0)
 	for _, e := range existingHooks {
-		var found bool
-		for _, d := range desiredHooks {
-			if reflect.DeepEqual(e, d) {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if !e.ExistInSlice(desiredHooks) {
 			removeHooks = append(removeHooks, e.Name)
 		}
 	}
@@ -678,19 +667,8 @@ func (ctx *EksInstanceGroupContext) GetAddedHooks() ([]v1alpha1.LifecycleHookSpe
 	}
 
 	addHooks := make([]v1alpha1.LifecycleHookSpec, 0)
-	if len(desiredHooks) == 0 {
-		return addHooks, false
-	}
-
 	for _, d := range desiredHooks {
-		var found bool
-		for _, e := range existingHooks {
-			if reflect.DeepEqual(d, e) {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if !d.ExistInSlice(existingHooks) {
 			addHooks = append(addHooks, d)
 		}
 	}
