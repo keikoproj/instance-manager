@@ -53,9 +53,14 @@ iam:GetInstanceProfile
 iam:PassRole
 ec2:DescribeSecurityGroups
 ec2:DescribeSubnets
+autoscaling:CreateOrUpdateTags
+autoscaling:DeleteTags
+autoscaling:SuspendProcesses
+autoscaling:ResumeProcesses
 autoscaling:DescribeAutoScalingGroups
 autoscaling:UpdateAutoScalingGroup
 autoscaling:TerminateInstanceInAutoScalingGroup
+autoscaling:DescribeLaunchConfigurations
 autoscaling:CreateLaunchConfiguration
 autoscaling:DeleteLaunchConfiguration
 autoscaling:DeleteAutoScalingGroup
@@ -63,6 +68,8 @@ autoscaling:CreateAutoScalingGroup
 autoscaling:DescribeLifecycleHooks
 autoscaling:DeleteLifecycleHook
 autoscaling:PutLifecycleHook
+autoscaling:EnableMetricsCollection
+autoscaling:DisableMetricsCollection
 eks:CreateNodegroup
 eks:DescribeNodegroup
 eks:DeleteNodegroup
@@ -82,7 +89,6 @@ iam:DetachRolePolicy
 iam:ListAttachedRolePolicies
 iam:DeleteInstanceProfile
 iam:DeleteRole
-autoscaling:DescribeLaunchConfigurations
 ```
 
 You can choose to create the initial instance-manager IAM role with these additional policies attached directly, or create a new role and use other solutions such as KIAM to assume it. You can refer to the documentation provided by KIAM [here](https://github.com/uswitch/kiam#overview).
