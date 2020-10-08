@@ -610,6 +610,115 @@ func (ctx *EksInstanceGroupContext) UpdateMetricsCollection(asgName string) erro
 	return nil
 }
 
+func (ctx *EksInstanceGroupContext) GetRemovedHooks() ([]string, bool) {
+	var (
+		instanceGroup = ctx.GetInstanceGroup()
+		state         = ctx.GetDiscoveredState()
+		configuration = instanceGroup.GetEKSConfiguration()
+		desiredHooks  = configuration.GetLifecycleHooks()
+	)
+
+	existingHooks := []v1alpha1.LifecycleHookSpec{}
+	for _, h := range state.LifecycleHooks {
+		hook := v1alpha1.LifecycleHookSpec{
+			Name:             aws.StringValue(h.LifecycleHookName),
+			Lifecycle:        aws.StringValue(h.LifecycleTransition),
+			DefaultResult:    aws.StringValue(h.DefaultResult),
+			HeartbeatTimeout: aws.Int64Value(h.HeartbeatTimeout),
+			NotificationArn:  aws.StringValue(h.NotificationTargetARN),
+			Metadata:         aws.StringValue(h.NotificationMetadata),
+			RoleArn:          aws.StringValue(h.RoleARN),
+		}
+		existingHooks = append(existingHooks, hook)
+	}
+
+	removeHooks := make([]string, 0)
+	for _, e := range existingHooks {
+		if !e.ExistInSlice(desiredHooks) {
+			removeHooks = append(removeHooks, e.Name)
+		}
+	}
+
+	if len(removeHooks) == 0 {
+		return []string{}, false
+	}
+
+	return removeHooks, true
+}
+
+func (ctx *EksInstanceGroupContext) GetAddedHooks() ([]v1alpha1.LifecycleHookSpec, bool) {
+	var (
+		instanceGroup = ctx.GetInstanceGroup()
+		state         = ctx.GetDiscoveredState()
+		configuration = instanceGroup.GetEKSConfiguration()
+		desiredHooks  = configuration.GetLifecycleHooks()
+	)
+
+	existingHooks := []v1alpha1.LifecycleHookSpec{}
+	for _, h := range state.LifecycleHooks {
+		hook := v1alpha1.LifecycleHookSpec{
+			Name:             aws.StringValue(h.LifecycleHookName),
+			Lifecycle:        aws.StringValue(h.LifecycleTransition),
+			DefaultResult:    aws.StringValue(h.DefaultResult),
+			HeartbeatTimeout: aws.Int64Value(h.HeartbeatTimeout),
+			NotificationArn:  aws.StringValue(h.NotificationTargetARN),
+			Metadata:         aws.StringValue(h.NotificationMetadata),
+			RoleArn:          aws.StringValue(h.RoleARN),
+		}
+		existingHooks = append(existingHooks, hook)
+	}
+
+	addHooks := make([]v1alpha1.LifecycleHookSpec, 0)
+	for _, d := range desiredHooks {
+		if !d.ExistInSlice(existingHooks) {
+			addHooks = append(addHooks, d)
+		}
+	}
+
+	if len(addHooks) == 0 {
+		return addHooks, false
+	}
+
+	return addHooks, true
+}
+
+func (ctx *EksInstanceGroupContext) UpdateLifecycleHooks(asgName string) error {
+	var (
+		instanceGroup = ctx.GetInstanceGroup()
+	)
+
+	if hooks, ok := ctx.GetRemovedHooks(); ok {
+		for _, hook := range hooks {
+			if err := ctx.AwsWorker.DeleteLifecycleHook(asgName, hook); err != nil {
+				return errors.Wrapf(err, "failed to remove lifecycle hook %v", hook)
+			}
+			ctx.Log.Info("deleting lifecycle hook", "instancegroup", instanceGroup.GetName(), "hook", hook)
+		}
+	}
+
+	if hooks, ok := ctx.GetAddedHooks(); ok {
+		for _, hook := range hooks {
+			input := &autoscaling.PutLifecycleHookInput{
+				AutoScalingGroupName:  aws.String(asgName),
+				LifecycleHookName:     aws.String(hook.Name),
+				DefaultResult:         aws.String(hook.DefaultResult),
+				HeartbeatTimeout:      aws.Int64(hook.HeartbeatTimeout),
+				LifecycleTransition:   aws.String(hook.Lifecycle),
+				RoleARN:               aws.String(hook.RoleArn),
+				NotificationTargetARN: aws.String(hook.NotificationArn),
+			}
+			if !common.StringEmpty(hook.Metadata) {
+				input.NotificationMetadata = aws.String(hook.Metadata)
+			}
+			if err := ctx.AwsWorker.CreateLifecycleHook(input); err != nil {
+				return errors.Wrapf(err, "failed to add lifecycle hook %v", hook)
+			}
+			ctx.Log.Info("creating lifecycle hook", "instancegroup", instanceGroup.GetName(), "hook", hook)
+		}
+	}
+	return nil
+}
+
 func (ctx *EksInstanceGroupContext) GetManagedPoliciesList(additionalPolicies []string) []string {
 	managedPolicies := make([]string, 0)
 	for _, name := range additionalPolicies {

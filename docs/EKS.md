@@ -85,6 +85,28 @@ spec:
 
       # customize UserData passed into launch configuration
       userData: <[]UserDataStage> : must be a list of UserDataStage
+
+      # add LifecycleHooks to be created as part of the scaling group
+      lifecycleHooks: <[]LifecycleHookSpec> : must be a list of LifecycleHookSpec
+```
+
+### LifecycleHookSpec
+
+LifecycleHookSpec represents an autoscaling group lifecycle hook
+
+```yaml
+spec:
+  provisioner: eks
+  eks:
+    configuration:
+      lifecycleHooks:
+      - name: <string> : name of the hook (required)
+        lifecycle: <string> : represents the transition to create a hook for, can either be "launch" or "terminate" (required)
+        defaultResult: <string> : represents the default result when timeout expires, can either be "abandon" or "continue" (defaults to "abandon")
+        heartbeatTimeout: <int64> : represents the required interval for sending a heartbeat in seconds (defaults to 300)
+        notificationArn: <string> : must be a valid IAM Role ARN belonging to an SNS or SQS queue (required)
+        roleArn: <string> : must be a valid IAM Role ARN providing access to publish messages (required)
+        metadata: <string> : additional metadata to add to notification payload
 ```
 
 ### UserDataStage
