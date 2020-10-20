@@ -112,8 +112,6 @@ spec:
                         required:
                         - lifecycle
                         - name
-                        - notificationArn
-                        - roleArn
                         type: object
                       type: array
                     managedPolicies:

@@ -704,12 +704,20 @@ func (ctx *EksInstanceGroupContext) UpdateLifecycleHooks(asgName string) error {
 				DefaultResult:         aws.String(hook.DefaultResult),
 				HeartbeatTimeout:      aws.Int64(hook.HeartbeatTimeout),
 				LifecycleTransition:   aws.String(hook.Lifecycle),
-				RoleARN:               aws.String(hook.RoleArn),
-				NotificationTargetARN: aws.String(hook.NotificationArn),
 			}
+			
 			if !common.StringEmpty(hook.Metadata) {
 				input.NotificationMetadata = aws.String(hook.Metadata)
 			}
+			
+			if !common.StringEmpty(hook.RoleArn) {
+			    input.RoleARN = aws.String(hook.RoleArn)
+			}
+			
+			if !common.StringEmpty(hook.NotificationArn) {
+                input.NotificationTargetARN = aws.String(hook.NotificationArn)
+            }
+            
 			if err := ctx.AwsWorker.CreateLifecycleHook(input); err != nil {
 				return errors.Wrapf(err, "failed to add lifecycle hook %v", hook)
 			}
