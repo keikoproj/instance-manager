@@ -99,6 +99,36 @@ spec:
                       items:
                         type: string
                       type: array
+                    mixedInstancesPolicy:
+                      properties:
+                        baseCapacity:
+                          format: int64
+                          type: integer
+                        instancePool:
+                          type: string
+                        instanceTypes:
+                          items:
+                            properties:
+                              type:
+                                type: string
+                              weight:
+                                format: int64
+                                type: integer
+                            required:
+                            - type
+                            type: object
+                          type: array
+                        spotPools:
+                          format: int64
+                          type: integer
+                        spotRatio:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          x-kubernetes-int-or-string: true
+                        strategy:
+                          type: string
+                      type: object
                     roleName:
                       type: string
                     securityGroups:
@@ -204,6 +234,8 @@ spec:
                 minSize:
                   format: int64
                   type: integer
+                type:
+                  type: string
               required:
               - configuration
               type: object
@@ -329,6 +361,8 @@ spec:
           properties:
             activeLaunchConfigurationName:
               type: string
+            activeLaunchTemplateName:
+              type: string
             activeScalingGroupName:
               type: string
             conditions:
@@ -349,6 +383,8 @@ spec:
             currentMin:
               type: integer
             currentState:
+              type: string
+            latestTemplateVersion:
               type: string
             lifecycle:
               type: string

@@ -31,13 +31,12 @@ import (
 
 func (ctx *EksInstanceGroupContext) Create() error {
 	var (
-		configName    string
-		instanceGroup = ctx.GetInstanceGroup()
-		state         = ctx.GetDiscoveredState()
-		scalingConfig = state.GetScalingConfiguration()
-		configuration = instanceGroup.GetEKSConfiguration()
-		args          = ctx.GetBootstrapArgs()
-
+		configName      string
+		instanceGroup   = ctx.GetInstanceGroup()
+		state           = ctx.GetDiscoveredState()
+		scalingConfig   = state.GetScalingConfiguration()
+		configuration   = instanceGroup.GetEKSConfiguration()
+		args            = ctx.GetBootstrapArgs()
 		userDataPayload = ctx.GetUserDataStages()
 		clusterName     = configuration.GetClusterName()
 		mounts          = ctx.GetMountOpts()
@@ -84,11 +83,12 @@ func (ctx *EksInstanceGroupContext) Create() error {
 	return nil
 }
 
-func (ctx *EksInstanceGroupContext) CreateScalingGroup(lcName string) error {
+func (ctx *EksInstanceGroupContext) CreateScalingGroup(name string) error {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
 		status        = instanceGroup.GetStatus()
 		spec          = instanceGroup.GetEKSSpec()
+		configuration = instanceGroup.GetEKSConfiguration()
 		state         = ctx.GetDiscoveredState()
 		asgName       = ctx.ResourcePrefix
 		tags          = ctx.GetAddedTags(asgName)
@@ -98,19 +98,36 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup(lcName string) error {
 		return nil
 	}
 
-	err := ctx.AwsWorker.CreateScalingGroup(&autoscaling.CreateAutoScalingGroupInput{
-		AutoScalingGroupName:    aws.String(asgName),
-		DesiredCapacity:         aws.Int64(spec.GetMinSize()),
-		LaunchConfigurationName: aws.String(lcName),
-		MinSize:                 aws.Int64(spec.GetMinSize()),
-		MaxSize:                 aws.Int64(spec.GetMaxSize()),
-		VPCZoneIdentifier:       aws.String(common.ConcatenateList(ctx.ResolveSubnets(), ",")),
-		Tags:                    tags,
-	})
+	input := &autoscaling.CreateAutoScalingGroupInput{
+		AutoScalingGroupName: aws.String(asgName),
+		DesiredCapacity:      aws.Int64(spec.GetMinSize()),
+		MinSize:              aws.Int64(spec.GetMinSize()),
+		MaxSize:              aws.Int64(spec.GetMaxSize()),
+		VPCZoneIdentifier:    aws.String(common.ConcatenateList(ctx.ResolveSubnets(), ",")),
+		Tags:                 tags,
+	}
+
+	switch spec.GetType() {
+	case v1alpha1.LaunchConfiguration:
+		input.LaunchConfigurationName = aws.String(name)
+		status.SetActiveLaunchConfigurationName(name)
+	case v1alpha1.LaunchTemplate:
+		mixedInstancesPolicy := configuration.GetMixedInstancesPolicy()
+		if mixedInstancesPolicy == nil {
+			input.LaunchTemplate = &autoscaling.LaunchTemplateSpecification{
+				LaunchTemplateName: aws.String(name),
+				Version:            aws.String("$Latest"),
+			}
+		} else {
+			input.MixedInstancesPolicy = ctx.GetDesiredMixedInstancesPolicy(name)
+		}
+		status.SetActiveLaunchTemplateName(name)
+	}
+
+	err := ctx.AwsWorker.CreateScalingGroup(input)
 	if err != nil {
 		return err
 	}
-	status.SetActiveLaunchConfigurationName(lcName)
 
 	ctx.Log.Info("created scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 

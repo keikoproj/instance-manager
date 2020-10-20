@@ -55,6 +55,7 @@ const (
 
 	LifecycleStateNormal      = "normal"
 	LifecycleStateSpot        = "spot"
+	LifecycleStateMixed       = "mixed"
 	CRDStrategyName           = "crd"
 	RollingUpdateStrategyName = "rollingupdate"
 	ManagedStrategyName       = "managed"
@@ -70,6 +71,16 @@ const (
 
 	FileSystemTypeXFS  = "xfs"
 	FileSystemTypeEXT4 = "ext4"
+
+	LaunchTemplateStrategyCapacityOptimized = "CapacityOptimized"
+	LaunchTemplateStrategyLowestPrice       = "LowestPrice"
+)
+
+type ScalingConfigurationType string
+
+const (
+	LaunchConfiguration ScalingConfigurationType = "LaunchConfiguration"
+	LaunchTemplate      ScalingConfigurationType = "LaunchTemplate"
 )
 
 var (
@@ -79,6 +90,10 @@ var (
 		EKSManagedProvisionerName,
 		EKSFargateProvisionerName,
 	}
+	EKSConfigurationTypes = []ScalingConfigurationType{
+		LaunchConfiguration,
+		LaunchTemplate,
+	}
 
 	DefaultRollingUpdateStrategy = &RollingUpdateStrategy{
 		MaxUnavailable: &intstr.IntOrString{
@@ -87,9 +102,9 @@ var (
 		},
 	}
 
-	AllowedFileSystemTypes = []string{FileSystemTypeXFS, FileSystemTypeEXT4}
-
-	log = ctrl.Log.WithName("v1alpha1")
+	AllowedFileSystemTypes       = []string{FileSystemTypeXFS, FileSystemTypeEXT4}
+	AllowedMixedPolicyStrategies = []string{LaunchTemplateStrategyCapacityOptimized, LaunchTemplateStrategyLowestPrice}
+	log                          = ctrl.Log.WithName("v1alpha1")
 )
 
 // InstanceGroup is the Schema for the instancegroups API
@@ -164,30 +179,46 @@ type EKSManagedSpec struct {
 }
 
 type EKSSpec struct {
-	MaxSize          int64             `json:"maxSize,omitempty"`
-	MinSize          int64             `json:"minSize,omitempty"`
-	EKSConfiguration *EKSConfiguration `json:"configuration"`
+	MaxSize          int64                    `json:"maxSize,omitempty"`
+	MinSize          int64                    `json:"minSize,omitempty"`
+	Type             ScalingConfigurationType `json:"type,omitempty"`
+	EKSConfiguration *EKSConfiguration        `json:"configuration"`
 }
 
 type EKSConfiguration struct {
-	EksClusterName              string              `json:"clusterName,omitempty"`
-	KeyPairName                 string              `json:"keyPairName,omitempty"`
-	Image                       string              `json:"image,omitempty"`
-	InstanceType                string              `json:"instanceType,omitempty"`
-	NodeSecurityGroups          []string            `json:"securityGroups,omitempty"`
-	Volumes                     []NodeVolume        `json:"volumes,omitempty"`
-	Subnets                     []string            `json:"subnets,omitempty"`
-	SuspendedProcesses          []string            `json:"suspendProcesses,omitempty"`
-	BootstrapArguments          string              `json:"bootstrapArguments,omitempty"`
-	SpotPrice                   string              `json:"spotPrice,omitempty"`
-	Tags                        []map[string]string `json:"tags,omitempty"`
-	Labels                      map[string]string   `json:"labels,omitempty"`
-	Taints                      []corev1.Taint      `json:"taints,omitempty"`
-	UserData                    []UserDataStage     `json:"userData,omitempty"`
-	ExistingRoleName            string              `json:"roleName,omitempty"`
-	ExistingInstanceProfileName string              `json:"instanceProfileName,omitempty"`
-	ManagedPolicies             []string            `json:"managedPolicies,omitempty"`
-	MetricsCollection           []string            `json:"metricsCollection,omitempty"`
+	MixedInstancesPolicy        *MixedInstancesPolicySpec `json:"mixedInstancesPolicy,omitempty"`
+	EksClusterName              string                    `json:"clusterName,omitempty"`
+	KeyPairName                 string                    `json:"keyPairName,omitempty"`
+	Image                       string                    `json:"image,omitempty"`
+	InstanceType                string                    `json:"instanceType,omitempty"`
+	NodeSecurityGroups          []string                  `json:"securityGroups,omitempty"`
+	Volumes                     []NodeVolume              `json:"volumes,omitempty"`
+	Subnets                     []string                  `json:"subnets,omitempty"`
+	SuspendedProcesses          []string                  `json:"suspendProcesses,omitempty"`
+	BootstrapArguments          string                    `json:"bootstrapArguments,omitempty"`
+	SpotPrice                   string                    `json:"spotPrice,omitempty"`
+	Tags                        []map[string]string       `json:"tags,omitempty"`
+	Labels                      map[string]string         `json:"labels,omitempty"`
+	Taints                      []corev1.Taint            `json:"taints,omitempty"`
+	UserData                    []UserDataStage           `json:"userData,omitempty"`
+	ExistingRoleName            string                    `json:"roleName,omitempty"`
+	ExistingInstanceProfileName string                    `json:"instanceProfileName,omitempty"`
+	ManagedPolicies             []string                  `json:"managedPolicies,omitempty"`
+	MetricsCollection           []string                  `json:"metricsCollection,omitempty"`
+}
+
+type MixedInstancesPolicySpec struct {
+	Strategy      *string             `json:"strategy,omitempty"`
+	SpotPools     *int64              `json:"spotPools,omitempty"`
+	BaseCapacity  *int64              `json:"baseCapacity,omitempty"`
+	SpotRatio     *intstr.IntOrString `json:"spotRatio,omitempty"`
+	InstancePool  *string             `json:"instancePool,omitempty"`
+	InstanceTypes []*InstanceTypeSpec `json:"instanceTypes,omitempty"`
+}
+
+type InstanceTypeSpec struct {
+	Type   string `json:"type"`
+	Weight int64  `json:"weight,omitempty"`
 }
 
 type UserDataStage struct {
@@ -247,6 +278,8 @@ type InstanceGroupStatus struct {
 	CurrentMin                    int                      `json:"currentMin,omitempty"`
 	CurrentMax                    int                      `json:"currentMax,omitempty"`
 	ActiveLaunchConfigurationName string                   `json:"activeLaunchConfigurationName,omitempty"`
+	ActiveLaunchTemplateName      string                   `json:"activeLaunchTemplateName,omitempty"`
+	LatestTemplateVersion         string                   `json:"latestTemplateVersion,omitempty"`
 	ActiveScalingGroupName        string                   `json:"activeScalingGroupName,omitempty"`
 	NodesArn                      string                   `json:"nodesInstanceRoleArn,omitempty"`
 	StrategyResourceName          string                   `json:"strategyResourceName,omitempty"`
@@ -291,6 +324,19 @@ func (ig *InstanceGroup) GetUpgradeStrategy() *AwsUpgradeStrategy {
 func (ig *InstanceGroup) SetUpgradeStrategy(strategy AwsUpgradeStrategy) {
 	ig.Spec.AwsUpgradeStrategy = strategy
 }
+
+func (s *EKSSpec) Validate() error {
+	if s.EKSConfiguration == nil {
+		return errors.Errorf("validation failed, 'configuration' is a required field")
+	}
+
+	if s.Type != LaunchConfiguration && s.Type != LaunchTemplate {
+		s.Type = LaunchConfiguration
+	}
+
+	return nil
+}
+
 func (c *EKSConfiguration) Validate() error {
 	if common.StringEmpty(c.EksClusterName) {
 		return errors.Errorf("validation failed, 'clusterName' is a required parameter")
@@ -361,8 +407,45 @@ func (c *EKSConfiguration) Validate() error {
 			},
 		}
 	}
+
+	if c.MixedInstancesPolicy != nil {
+		if err := c.MixedInstancesPolicy.Validate(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
+func (m *MixedInstancesPolicySpec) Validate() error {
+	if m.Strategy == nil {
+		defaultStrategy := LaunchTemplateStrategyCapacityOptimized
+		m.Strategy = &defaultStrategy
+	}
+	if !common.ContainsEqualFold(AllowedMixedPolicyStrategies, *m.Strategy) {
+		return errors.Errorf("validation failed, mixedInstancesPolicy.Strategy must either be LowestPrice or CapacityOptimized, got '%v'", *m.Strategy)
+	}
+	if m.SpotPools != nil {
+		if !strings.EqualFold(*m.Strategy, LaunchTemplateStrategyLowestPrice) {
+			return errors.Errorf("validation failed, can only use spotPools with LowestPrice strategy")
+		}
+	}
+	if m.InstanceTypes != nil {
+		for _, t := range m.InstanceTypes {
+			if t.Weight == 0 {
+				t.Weight = 1
+			}
+		}
+	} else if m.InstancePool == nil {
+		return errors.Errorf("validation failed, must provide either instancePool or instanceTypes when using mixedInstancesPolicy")
+	}
+
+	if m.SpotRatio == nil {
+		// default is 100% on-demand
+		defaultRatio := intstr.FromInt(100)
+		m.SpotRatio = &defaultRatio
+	}
+	return nil
+}
+
 func (ig *InstanceGroup) Validate() error {
 	s := ig.Spec
 
@@ -381,6 +464,12 @@ func (ig *InstanceGroup) Validate() error {
 
 	if strings.EqualFold(s.Provisioner, EKSProvisionerName) {
 		config := ig.GetEKSConfiguration()
+		spec := ig.GetEKSSpec()
+
+		if err := spec.Validate(); err != nil {
+			return err
+		}
+
 		if err := config.Validate(); err != nil {
 			return err
 		}
@@ -412,6 +501,9 @@ func (ig *InstanceGroup) Validate() error {
 }
 func (c *EKSConfiguration) GetRoleName() string {
 	return c.ExistingRoleName
+}
+func (c *EKSConfiguration) GetMixedInstancesPolicy() *MixedInstancesPolicySpec {
+	return c.MixedInstancesPolicy
 }
 func (c *EKSConfiguration) GetInstanceProfileName() string {
 	return c.ExistingInstanceProfileName
@@ -508,6 +600,9 @@ func (spec *EKSSpec) GetMaxSize() int64 {
 }
 func (spec *EKSSpec) GetMinSize() int64 {
 	return spec.MinSize
+}
+func (spec *EKSSpec) GetType() ScalingConfigurationType {
+	return spec.Type
 }
 
 func (conf *EKSManagedConfiguration) SetSubnets(subnets []string) {
@@ -637,6 +732,14 @@ func (status *InstanceGroupStatus) GetActiveLaunchConfigurationName() string {
 
 func (status *InstanceGroupStatus) SetActiveLaunchConfigurationName(name string) {
 	status.ActiveLaunchConfigurationName = name
+}
+
+func (status *InstanceGroupStatus) SetActiveLaunchTemplateName(name string) {
+	status.ActiveLaunchTemplateName = name
+}
+
+func (status *InstanceGroupStatus) SetLatestTemplateVersion(version string) {
+	status.LatestTemplateVersion = version
 }
 
 func (status *InstanceGroupStatus) GetConfigHash() string {

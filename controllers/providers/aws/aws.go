@@ -70,6 +70,16 @@ type AwsWorker struct {
 	Parameters map[string]interface{}
 }
 
+const (
+	LaunchTemplateStrategyCapacityOptimized = "capacity-optimized"
+	LaunchTemplateStrategyLowestPrice       = "lowest-price"
+	LaunchTemplateLatestVersionKey          = "$Latest"
+	IAMPolicyPrefix                         = "arn:aws:iam::aws:policy"
+	IAMARNPrefix                            = "arn:aws:iam::"
+
+	LaunchConfigurationNotFoundErrorMessage = "Launch configuration name not found"
+)
+
 var (
 	DefaultInstanceProfilePropagationDelay = time.Second * 25
 	DefaultWaiterDuration                  = time.Second * 5
@@ -103,15 +113,33 @@ var (
 		"GroupTotalCapacity",
 	}
 
-	AllowedVolumeTypes = []string{"gp2", "io1", "sc1", "st1"}
+	AllowedVolumeTypes           = []string{"gp2", "io1", "sc1", "st1"}
+	AllowedMixedPolicyStrategies = []string{LaunchTemplateStrategyCapacityOptimized, LaunchTemplateStrategyLowestPrice}
 )
 
-const (
-	IAMPolicyPrefix = "arn:aws:iam::aws:policy"
-	IAMARNPrefix    = "arn:aws:iam::"
+func (w *AwsWorker) DescribeInstanceOfferings() ([]*ec2.InstanceTypeOffering, error) {
+	offerings := []*ec2.InstanceTypeOffering{}
+	err := w.Ec2Client.DescribeInstanceTypeOfferingsPages(&ec2.DescribeInstanceTypeOfferingsInput{}, func(page *ec2.DescribeInstanceTypeOfferingsOutput, lastPage bool) bool {
+		offerings = append(offerings, page.InstanceTypeOfferings...)
+		return page.NextToken != nil
+	})
+	if err != nil {
+		return offerings, err
+	}
+	return offerings, nil
+}
 
-	LaunchConfigurationNotFoundErrorMessage = "Launch configuration name not found"
-)
+func (w *AwsWorker) DescribeInstanceTypes() ([]*ec2.InstanceTypeInfo, error) {
+	types := []*ec2.InstanceTypeInfo{}
+	err := w.Ec2Client.DescribeInstanceTypesPages(&ec2.DescribeInstanceTypesInput{}, func(page *ec2.DescribeInstanceTypesOutput, lastPage bool) bool {
+		types = append(types, page.InstanceTypes...)
+		return page.NextToken != nil
+	})
+	if err != nil {
+		return types, err
+	}
+	return types, nil
+}
 
 func (w *AwsWorker) DescribeLaunchTemplates() ([]*ec2.LaunchTemplate, error) {
 	launchTemplates := []*ec2.LaunchTemplate{}
@@ -145,12 +173,24 @@ func (w *AwsWorker) CreateLaunchTemplate(input *ec2.CreateLaunchTemplateInput) e
 	return nil
 }
 
-func (w *AwsWorker) CreateLaunchTemplateVersion(input *ec2.CreateLaunchTemplateVersionInput) error {
-	_, err := w.Ec2Client.CreateLaunchTemplateVersion(input)
+func (w *AwsWorker) UpdateLaunchTemplateDefaultVersion(name, defaultVersion string) error {
+	_, err := w.Ec2Client.ModifyLaunchTemplate(&ec2.ModifyLaunchTemplateInput{
+		LaunchTemplateName: aws.String(name),
+		DefaultVersion:     aws.String(defaultVersion),
+	})
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func (w *AwsWorker) CreateLaunchTemplateVersion(input *ec2.CreateLaunchTemplateVersionInput) (int64, error) {
+	var version int64
+	v, err := w.Ec2Client.CreateLaunchTemplateVersion(input)
+	if err != nil {
+		return version, err
+	}
+	return aws.Int64Value(v.LaunchTemplateVersion.VersionNumber), nil
 }
 
 func (w *AwsWorker) DeleteLaunchTemplate(name string) error {
@@ -163,7 +203,7 @@ func (w *AwsWorker) DeleteLaunchTemplate(name string) error {
 	return nil
 }
 
-func (w *AwsWorker) DeleteLaunchTemplateVersion(name string, versions []string) error {
+func (w *AwsWorker) DeleteLaunchTemplateVersions(name string, versions []string) error {
 	_, err := w.Ec2Client.DeleteLaunchTemplateVersions(&ec2.DeleteLaunchTemplateVersionsInput{
 		LaunchTemplateName: aws.String(name),
 		Versions:           aws.StringSlice(versions),
@@ -198,10 +238,66 @@ func (w *AwsWorker) InstanceProfileExist(name string) (*iam.InstanceProfile, boo
 	return out.InstanceProfile, true
 }
 
-func (w *AwsWorker) GetBasicBlockDevice(name, volType, snapshot string, volSize, iops int64, delete, encrypt *bool) *autoscaling.BlockDeviceMapping {
+func (w *AwsWorker) GetAutoScalingBasicBlockDevice(name, volType, snapshot string, volSize, iops int64, delete, encrypt *bool) *autoscaling.BlockDeviceMapping {
 	device := &autoscaling.BlockDeviceMapping{
 		DeviceName: aws.String(name),
 		Ebs: &autoscaling.Ebs{
+			VolumeType: aws.String(volType),
+		},
+	}
+	if delete != nil {
+		device.Ebs.DeleteOnTermination = delete
+	} else {
+		device.Ebs.DeleteOnTermination = aws.Bool(true)
+	}
+	if encrypt != nil {
+		device.Ebs.Encrypted = encrypt
+	}
+	if iops != 0 && strings.EqualFold(volType, "io1") {
+		device.Ebs.Iops = aws.Int64(iops)
+	}
+	if volSize != 0 {
+		device.Ebs.VolumeSize = aws.Int64(volSize)
+	}
+	if !common.StringEmpty(snapshot) {
+		device.Ebs.SnapshotId = aws.String(snapshot)
+	}
+
+	return device
+}
+
+func (w *AwsWorker) GetLaunchTemplateBlockDeviceRequest(name, volType, snapshot string, volSize, iops int64, delete, encrypt *bool) *ec2.LaunchTemplateBlockDeviceMappingRequest {
+	device := &ec2.LaunchTemplateBlockDeviceMappingRequest{
+		DeviceName: aws.String(name),
+		Ebs: &ec2.LaunchTemplateEbsBlockDeviceRequest{
+			VolumeType: aws.String(volType),
+		},
+	}
+	if delete != nil {
+		device.Ebs.DeleteOnTermination = delete
+	} else {
+		device.Ebs.DeleteOnTermination = aws.Bool(true)
+	}
+	if encrypt != nil {
+		device.Ebs.Encrypted = encrypt
+	}
+	if iops != 0 && strings.EqualFold(volType, "io1") {
+		device.Ebs.Iops = aws.Int64(iops)
+	}
+	if volSize != 0 {
+		device.Ebs.VolumeSize = aws.Int64(volSize)
+	}
+	if !common.StringEmpty(snapshot) {
+		device.Ebs.SnapshotId = aws.String(snapshot)
+	}
+
+	return device
+}
+
+func (w *AwsWorker) GetLaunchTemplateBlockDevice(name, volType, snapshot string, volSize, iops int64, delete, encrypt *bool) *ec2.LaunchTemplateBlockDeviceMapping {
+	device := &ec2.LaunchTemplateBlockDeviceMapping{
+		DeviceName: aws.String(name),
+		Ebs: &ec2.LaunchTemplateEbsBlockDevice{
 			VolumeType: aws.String(volType),
 		},
 	}
@@ -882,8 +978,8 @@ func GetAwsEc2Client(region string, cacheCfg *cache.Config, maxRetries int) ec2i
 	cache.AddCaching(sess, cacheCfg)
 	cacheCfg.SetCacheTTL("ec2", "DescribeSecurityGroups", DescribeSecurityGroupsTTL)
 	cacheCfg.SetCacheTTL("ec2", "DescribeSubnets", DescribeSubnetsTTL)
-	cacheCfg.SetCacheTTL("ec2", "DescribeInstanceTypes", DescribeSubnetsTTL)
-	cacheCfg.SetCacheTTL("ec2", "DescribeInstanceTypeOffering", DescribeInstanceTypeOfferingTTL)
+	cacheCfg.SetCacheTTL("ec2", "DescribeInstanceTypes", DescribeInstanceTypesTTL)
+	cacheCfg.SetCacheTTL("ec2", "DescribeInstanceTypeOfferings", DescribeInstanceTypeOfferingTTL)
 	cacheCfg.SetCacheTTL("ec2", "DescribeLaunchTemplates", DescribeLaunchTemplatesTTL)
 	cacheCfg.SetCacheTTL("ec2", "DescribeLaunchTemplateVersions", DescribeLaunchTemplateVersionsTTL)
 	sess.Handlers.Complete.PushFront(func(r *request.Request) {

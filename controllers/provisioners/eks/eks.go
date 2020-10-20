@@ -128,3 +128,26 @@ func (ctx *EksInstanceGroupContext) GetDiscoveredState() *DiscoveredState {
 func (ctx *EksInstanceGroupContext) SetDiscoveredState(state *DiscoveredState) {
 	ctx.DiscoveredState = state
 }
+
+type InstancePoolType string
+
+const (
+	SubFamilyFlexible InstancePoolType = "SubFamilyFlexible"
+)
+
+type InstanceSpec struct {
+	Type   string
+	Weight string
+}
+
+type InstancePool struct {
+	Type InstancePoolType
+	Pool map[string][]InstanceSpec
+}
+
+func (p *InstancePool) GetInstancePool(key string) ([]InstanceSpec, bool) {
+	if val, ok := p.Pool[key]; ok {
+		return val, true
+	}
+	return nil, false
+}

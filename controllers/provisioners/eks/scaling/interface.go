@@ -32,6 +32,7 @@ type Configuration interface {
 	Delete(input *DeleteConfigurationInput) error
 	Discover(input *DiscoverConfigurationInput) error
 	Drifted(input *CreateConfigurationInput) bool
+	RotationNeeded(input *DiscoverConfigurationInput) bool
 	Provisioned() bool
 }
 

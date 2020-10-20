@@ -17,6 +17,7 @@ package eks
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -35,6 +36,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		state           = ctx.GetDiscoveredState()
 		scalingConfig   = state.GetScalingConfiguration()
 		configuration   = instanceGroup.GetEKSConfiguration()
+		spec            = instanceGroup.GetEKSSpec()
 		args            = ctx.GetBootstrapArgs()
 		userDataPayload = ctx.GetUserDataStages()
 		clusterName     = configuration.GetClusterName()
@@ -65,18 +67,28 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	}
 
 	var configName string
-	configName = scalingConfig.Name()
+	switch spec.GetType() {
+	case v1alpha1.LaunchTemplate:
+		configName = scalingConfig.Name()
+	case v1alpha1.LaunchConfiguration:
+		configName = fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
+	default:
+		configName = fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
+	}
+	config.Name = configName
+
 	// create new launchconfig if it has drifted
 	if scalingConfig.Drifted(config) {
 		rotationNeeded = true
-		configName = fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
-		config.Name = configName
 		if err := scalingConfig.Create(config); err != nil {
-			return errors.Wrap(err, "failed to create launch configuration")
+			return errors.Wrap(err, "failed to create scaling configuration")
 		}
 	}
 
-	if ctx.RotationNeeded() {
+	if scalingConfig.RotationNeeded(&scaling.DiscoverConfigurationInput{
+		ScalingGroup: state.ScalingGroup,
+	}) {
+		ctx.Log.Info("rotation needed due to scaling-config diff", "instancegroup", instanceGroup.GetName(), "scalingconfig", configName)
 		rotationNeeded = true
 	}
 
@@ -108,6 +120,7 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string) error 
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
 		spec          = instanceGroup.GetEKSSpec()
+		configuration = instanceGroup.GetEKSConfiguration()
 		status        = instanceGroup.GetStatus()
 		state         = ctx.GetDiscoveredState()
 		scalingGroup  = state.GetScalingGroup()
@@ -116,14 +129,33 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string) error 
 		rmTags        = ctx.GetRemovedTags(asgName)
 	)
 
+	input := &autoscaling.UpdateAutoScalingGroupInput{
+		AutoScalingGroupName: aws.String(asgName),
+		MinSize:              aws.Int64(spec.GetMinSize()),
+		MaxSize:              aws.Int64(spec.GetMaxSize()),
+		VPCZoneIdentifier:    aws.String(common.ConcatenateList(ctx.ResolveSubnets(), ",")),
+	}
+
+	switch spec.GetType() {
+	case v1alpha1.LaunchConfiguration:
+		input.LaunchConfigurationName = aws.String(configName)
+		status.SetActiveLaunchConfigurationName(configName)
+	case v1alpha1.LaunchTemplate:
+		mixedInstancesPolicy := configuration.GetMixedInstancesPolicy()
+		if mixedInstancesPolicy == nil {
+			input.LaunchTemplate = &autoscaling.LaunchTemplateSpecification{
+				LaunchTemplateName: aws.String(configName),
+				Version:            aws.String("$Latest"),
+			}
+		} else {
+			input.MixedInstancesPolicy = ctx.GetDesiredMixedInstancesPolicy(configName)
+		}
+		status.SetActiveLaunchTemplateName(configName)
+
+	}
+
 	if ctx.ScalingGroupUpdateNeeded(configName) {
-		err := ctx.AwsWorker.UpdateScalingGroup(&autoscaling.UpdateAutoScalingGroupInput{
-			AutoScalingGroupName:    aws.String(asgName),
-			LaunchConfigurationName: aws.String(configName),
-			MinSize:                 aws.Int64(spec.GetMinSize()),
-			MaxSize:                 aws.Int64(spec.GetMaxSize()),
-			VPCZoneIdentifier:       aws.String(common.ConcatenateList(ctx.ResolveSubnets(), ",")),
-		})
+		err := ctx.AwsWorker.UpdateScalingGroup(input)
 		if err != nil {
 			return err
 		}
@@ -131,7 +163,6 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string) error 
 		ctx.Log.Info("updated scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 	}
 
-	status.SetActiveLaunchConfigurationName(configName)
 	status.SetCurrentMin(int(spec.GetMinSize()))
 	status.SetCurrentMax(int(spec.GetMaxSize()))
 
@@ -152,28 +183,6 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string) error 
 	}
 
 	return nil
-}
-
-func (ctx *EksInstanceGroupContext) RotationNeeded() bool {
-	var (
-		state         = ctx.GetDiscoveredState()
-		scalingGroup  = state.GetScalingGroup()
-		scalingConfig = state.GetScalingConfiguration()
-		instanceGroup = ctx.GetInstanceGroup()
-	)
-
-	if len(scalingGroup.Instances) == 0 {
-		return false
-	}
-
-	configName := scalingConfig.Name()
-	for _, instance := range scalingGroup.Instances {
-		if aws.StringValue(instance.LaunchConfigurationName) != configName {
-			ctx.Log.Info("rotation needed due to launch-config diff", "instancegroup", instanceGroup.GetName(), "launchconfig", configName)
-			return true
-		}
-	}
-	return false
 }
 
 func (ctx *EksInstanceGroupContext) TagsUpdateNeeded() bool {
@@ -219,10 +228,6 @@ func (ctx *EksInstanceGroupContext) ScalingGroupUpdateNeeded(configName string) 
 		specSubnets    = ctx.ResolveSubnets()
 	)
 
-	if configName != aws.StringValue(scalingGroup.LaunchConfigurationName) {
-		return true
-	}
-
 	if spec.GetMinSize() != aws.Int64Value(scalingGroup.MinSize) {
 		return true
 	}
@@ -233,6 +238,52 @@ func (ctx *EksInstanceGroupContext) ScalingGroupUpdateNeeded(configName string) 
 
 	if !common.StringSliceEqualFold(specSubnets, groupSubnets) {
 		return true
+	}
+
+	var (
+		isLaunchTemplate, isLaunchConfig, isMixedInstancesEnabled bool
+		launchConfigName, launchTemplateName                      string
+	)
+
+	if scalingGroup.LaunchConfigurationName != nil {
+		isLaunchConfig = true
+		launchConfigName = aws.StringValue(scalingGroup.LaunchConfigurationName)
+	} else if scalingGroup.LaunchTemplate != nil {
+		isLaunchTemplate = true
+		launchTemplateName = aws.StringValue(scalingGroup.LaunchTemplate.LaunchTemplateName)
+	} else if scalingGroup.MixedInstancesPolicy != nil {
+		isMixedInstancesEnabled = true
+	}
+
+	desiredPolicy := ctx.GetDesiredMixedInstancesPolicy(configName)
+
+	switch {
+	case isLaunchConfig:
+		if !strings.EqualFold(configName, launchConfigName) {
+			return true
+		}
+		if spec.GetType() != v1alpha1.LaunchConfiguration {
+			return true
+		}
+		if desiredPolicy != nil {
+			return true
+		}
+	case isLaunchTemplate:
+		if !strings.EqualFold(configName, launchTemplateName) {
+			return true
+		}
+		if spec.GetType() != v1alpha1.LaunchTemplate {
+			return true
+		}
+		if desiredPolicy != nil {
+			return true
+		}
+	case isMixedInstancesEnabled:
+		if desiredPolicy == nil {
+			return true
+		} else if !reflect.DeepEqual(scalingGroup.MixedInstancesPolicy, desiredPolicy) {
+			return true
+		}
 	}
 
 	return false

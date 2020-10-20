@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"text/template"
 
@@ -303,6 +304,8 @@ func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 		labelList     []string
 		isOverride    bool
 		instanceGroup = ctx.GetInstanceGroup()
+		state         = ctx.GetDiscoveredState()
+		scalingGroup  = state.GetScalingGroup()
 		annotations   = instanceGroup.GetAnnotations()
 		configuration = instanceGroup.GetEKSConfiguration()
 		customLabels  = configuration.GetLabels()
@@ -342,10 +345,17 @@ func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 		}
 	}
 
-	if configuration.GetSpotPrice() == "" {
-		labelList = append(labelList, fmt.Sprintf(InstanceMgrLabelFmt, "lifecycle", v1alpha1.LifecycleStateNormal))
-	} else {
+	if scalingGroup.MixedInstancesPolicy != nil {
+		ratio := aws.Int64Value(scalingGroup.MixedInstancesPolicy.InstancesDistribution.OnDemandPercentageAboveBaseCapacity)
+		if ratio < 100 {
+			labelList = append(labelList, fmt.Sprintf(InstanceMgrLabelFmt, "lifecycle", v1alpha1.LifecycleStateMixed))
+		} else {
+			labelList = append(labelList, fmt.Sprintf(InstanceMgrLabelFmt, "lifecycle", v1alpha1.LifecycleStateNormal))
+		}
+	} else if configuration.GetSpotPrice() != "" {
 		labelList = append(labelList, fmt.Sprintf(InstanceMgrLabelFmt, "lifecycle", v1alpha1.LifecycleStateSpot))
+	} else {
+		labelList = append(labelList, fmt.Sprintf(InstanceMgrLabelFmt, "lifecycle", v1alpha1.LifecycleStateNormal))
 	}
 
 	sort.Strings(labelList)
@@ -664,4 +674,86 @@ func (ctx *EksInstanceGroupContext) RemoveAuthRole(arn string) error {
 	}
 
 	return common.RemoveAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{arn})
+}
+
+func (ctx *EksInstanceGroupContext) GetOverrides() []*autoscaling.LaunchTemplateOverrides {
+	var (
+		instanceGroup = ctx.GetInstanceGroup()
+		configuration = instanceGroup.GetEKSConfiguration()
+		primaryType   = configuration.InstanceType
+		mixedPolicy   = configuration.GetMixedInstancesPolicy()
+		state         = ctx.GetDiscoveredState()
+	)
+	overrides := []*autoscaling.LaunchTemplateOverrides{}
+
+	if mixedPolicy.InstanceTypes != nil {
+		overrides = append(overrides, &autoscaling.LaunchTemplateOverrides{
+			InstanceType:     aws.String(primaryType),
+			WeightedCapacity: aws.String("1"),
+		})
+		for _, instance := range mixedPolicy.InstanceTypes {
+			weightStr := strconv.FormatInt(instance.Weight, 10)
+			overrides = append(overrides, &autoscaling.LaunchTemplateOverrides{
+				InstanceType:     aws.String(instance.Type),
+				WeightedCapacity: aws.String(weightStr),
+			})
+		}
+		return overrides
+	}
+
+	switch {
+	case strings.EqualFold(*mixedPolicy.InstancePool, string(SubFamilyFlexible)):
+		if pool, ok := state.SubFamilyFlexible.GetInstancePool(primaryType); ok {
+			for _, p := range pool {
+				overrides = append(overrides, &autoscaling.LaunchTemplateOverrides{
+					InstanceType:     aws.String(p.Type),
+					WeightedCapacity: aws.String(p.Weight),
+				})
+			}
+		}
+	}
+
+	return overrides
+}
+
+func (ctx *EksInstanceGroupContext) GetDesiredMixedInstancesPolicy(name string) *autoscaling.MixedInstancesPolicy {
+	var (
+		instanceGroup = ctx.GetInstanceGroup()
+		configuration = instanceGroup.GetEKSConfiguration()
+		mixedPolicy   = configuration.GetMixedInstancesPolicy()
+		overrides     = ctx.GetOverrides()
+	)
+
+	if mixedPolicy == nil {
+		return nil
+	}
+
+	var allocationStrategy string
+	strategy := common.StringValue(mixedPolicy.Strategy)
+	if strings.EqualFold(strategy, v1alpha1.LaunchTemplateStrategyCapacityOptimized) {
+		allocationStrategy = awsprovider.LaunchTemplateStrategyCapacityOptimized
+	}
+	if strings.EqualFold(strategy, v1alpha1.LaunchTemplateStrategyLowestPrice) {
+		allocationStrategy = awsprovider.LaunchTemplateStrategyLowestPrice
+	}
+
+	spotRatio := mixedPolicy.SpotRatio.IntValue()
+
+	policy := &autoscaling.MixedInstancesPolicy{
+		InstancesDistribution: &autoscaling.InstancesDistribution{
+			OnDemandBaseCapacity:                mixedPolicy.BaseCapacity,
+			SpotAllocationStrategy:              aws.String(allocationStrategy),
+			SpotInstancePools:                   mixedPolicy.SpotPools,
+			OnDemandPercentageAboveBaseCapacity: aws.Int64(int64(spotRatio)),
+		},
+		LaunchTemplate: &autoscaling.LaunchTemplate{
+			LaunchTemplateSpecification: &autoscaling.LaunchTemplateSpecification{
+				LaunchTemplateName: aws.String(name),
+				Version:            aws.String(awsprovider.LaunchTemplateLatestVersionKey),
+			},
+			Overrides: overrides,
+		},
+	}
+
+	return policy
 }

@@ -206,6 +206,13 @@ func StringEmpty(str string) bool {
 	return str == ""
 }
 
+func StringValue(str *string) string {
+	if str != nil {
+		return *str
+	}
+	return ""
+}
+
 func StringSliceEquals(x, y []string) bool {
 	sort.Strings(x)
 	sort.Strings(y)
