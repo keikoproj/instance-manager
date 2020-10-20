@@ -204,9 +204,9 @@ type LifecycleHookSpec struct {
 	Lifecycle        string `json:"lifecycle"`
 	DefaultResult    string `json:"defaultResult,omitempty"`
 	HeartbeatTimeout int64  `json:"heartbeatTimeout,omitempty"`
-	NotificationArn  string `json:"notificationArn"`
+	NotificationArn  string `json:"notificationArn,omitempty"`
 	Metadata         string `json:"metadata,omitempty"`
-	RoleArn          string `json:"roleArn"`
+	RoleArn          string `json:"roleArn,omitempty"`
 }
 
 type UserDataStage struct {
@@ -366,11 +366,11 @@ func (c *EKSConfiguration) Validate() error {
 		if common.StringEmpty(h.Name) {
 			return errors.Errorf("validation failed, 'name' is a required parameter")
 		}
-		if common.StringEmpty(h.NotificationArn) || !strings.HasPrefix(h.NotificationArn, awsprovider.ARNPrefix) {
-			return errors.Errorf("validation failed, 'notificationArn' is a required parameter and must be a valid IAM role ARN")
+		if !common.StringEmpty(h.NotificationArn) && !strings.HasPrefix(h.NotificationArn, awsprovider.ARNPrefix) {
+			return errors.Errorf("validation failed, 'notificationArn' must be a valid IAM role ARN")
 		}
-		if common.StringEmpty(h.RoleArn) || !strings.HasPrefix(h.NotificationArn, awsprovider.ARNPrefix) {
-			return errors.Errorf("validation failed, 'roleArn' is a required parameter and must be a valid IAM role ARN")
+		if !common.StringEmpty(h.RoleArn) && !strings.HasPrefix(h.NotificationArn, awsprovider.ARNPrefix) {
+			return errors.Errorf("validation failed, 'roleArn' must be a valid IAM role ARN")
 		}
 		hooks = append(hooks, h)
 	}
