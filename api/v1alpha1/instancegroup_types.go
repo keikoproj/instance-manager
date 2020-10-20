@@ -204,9 +204,9 @@ type LifecycleHookSpec struct {
 	Lifecycle        string `json:"lifecycle"`
 	DefaultResult    string `json:"defaultResult,omitempty"`
 	HeartbeatTimeout int64  `json:"heartbeatTimeout,omitempty"`
-	NotificationArn  string `json:"notificationArn"`
+	NotificationArn  string `json:"notificationArn,omitempty"`
 	Metadata         string `json:"metadata,omitempty"`
-	RoleArn          string `json:"roleArn"`
+	RoleArn          string `json:"roleArn,omitempty"`
 }
 
 type UserDataStage struct {
