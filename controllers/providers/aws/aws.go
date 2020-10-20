@@ -51,6 +51,7 @@ const (
 	GetRoleTTL                        time.Duration = 60 * time.Second
 	GetInstanceProfileTTL             time.Duration = 60 * time.Second
 	DescribeNodegroupTTL              time.Duration = 60 * time.Second
+  DescribeLifecycleHooksTTL         time.Duration = 180 * time.Second
 	DescribeClusterTTL                time.Duration = 180 * time.Second
 	DescribeSecurityGroupsTTL         time.Duration = 180 * time.Second
 	DescribeSubnetsTTL                time.Duration = 180 * time.Second
@@ -113,8 +114,16 @@ var (
 		"GroupTotalCapacity",
 	}
 
-	AllowedVolumeTypes           = []string{"gp2", "io1", "sc1", "st1"}
-	AllowedMixedPolicyStrategies = []string{LaunchTemplateStrategyCapacityOptimized, LaunchTemplateStrategyLowestPrice}
+	AllowedVolumeTypes               = []string{"gp2", "io1", "sc1", "st1"}
+	LifecycleHookTransitionLaunch    = "autoscaling:EC2_INSTANCE_LAUNCHING"
+	LifecycleHookTransitionTerminate = "autoscaling:EC2_INSTANCE_TERMINATING"
+)
+
+const (
+	IAMPolicyPrefix                         = "arn:aws:iam::aws:policy"
+	IAMARNPrefix                            = "arn:aws:iam::"
+	ARNPrefix                               = "arn:aws:"
+	LaunchConfigurationNotFoundErrorMessage = "Launch configuration name not found"
 )
 
 func (w *AwsWorker) DescribeInstanceOfferings() ([]*ec2.InstanceTypeOffering, error) {
@@ -212,6 +221,35 @@ func (w *AwsWorker) DeleteLaunchTemplateVersions(name string, versions []string)
 		return err
 	}
 	return nil
+}
+
+func (w *AwsWorker) CreateLifecycleHook(input *autoscaling.PutLifecycleHookInput) error {
+	_, err := w.AsgClient.PutLifecycleHook(input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) DeleteLifecycleHook(asgName, hookName string) error {
+	_, err := w.AsgClient.DeleteLifecycleHook(&autoscaling.DeleteLifecycleHookInput{
+		AutoScalingGroupName: aws.String(asgName),
+		LifecycleHookName:    aws.String(hookName),
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) DescribeLifecycleHooks(asgName string) ([]*autoscaling.LifecycleHook, error) {
+	out, err := w.AsgClient.DescribeLifecycleHooks(&autoscaling.DescribeLifecycleHooksInput{
+		AutoScalingGroupName: aws.String(asgName),
+	})
+	if err != nil {
+		return []*autoscaling.LifecycleHook{}, err
+	}
+	return out.LifecycleHooks, nil
 }
 
 func (w *AwsWorker) RoleExist(name string) (*iam.Role, bool) {
@@ -955,6 +993,7 @@ func GetAwsAsgClient(region string, cacheCfg *cache.Config, maxRetries int) auto
 	cache.AddCaching(sess, cacheCfg)
 	cacheCfg.SetCacheTTL("autoscaling", "DescribeAutoScalingGroups", DescribeAutoScalingGroupsTTL)
 	cacheCfg.SetCacheTTL("autoscaling", "DescribeLaunchConfigurations", DescribeLaunchConfigurationsTTL)
+	cacheCfg.SetCacheTTL("autoscaling", "DescribeLifecycleHooks", DescribeLifecycleHooksTTL)
 	sess.Handlers.Complete.PushFront(func(r *request.Request) {
 		ctx := r.HTTPRequest.Context()
 		log.V(1).Info("AWS API call",

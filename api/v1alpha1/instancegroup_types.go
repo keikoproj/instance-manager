@@ -17,6 +17,7 @@ package v1alpha1
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/keikoproj/instance-manager/controllers/common"
@@ -81,6 +82,11 @@ type ScalingConfigurationType string
 const (
 	LaunchConfiguration ScalingConfigurationType = "LaunchConfiguration"
 	LaunchTemplate      ScalingConfigurationType = "LaunchTemplate"
+	LifecycleHookResultAbandon           = "ABANDON"
+	LifecycleHookResultContinue          = "CONTINUE"
+	LifecycleHookTransitionLaunch        = "Launch"
+	LifecycleHookTransitionTerminate     = "Terminate"
+	LifecycleHookDefaultHeartbeatTimeout = 300
 )
 
 var (
@@ -102,9 +108,11 @@ var (
 		},
 	}
 
-	AllowedFileSystemTypes       = []string{FileSystemTypeXFS, FileSystemTypeEXT4}
-	AllowedMixedPolicyStrategies = []string{LaunchTemplateStrategyCapacityOptimized, LaunchTemplateStrategyLowestPrice}
-	log                          = ctrl.Log.WithName("v1alpha1")
+	AllowedFileSystemTypes            = []string{FileSystemTypeXFS, FileSystemTypeEXT4}
+  AllowedMixedPolicyStrategies      = []string{LaunchTemplateStrategyCapacityOptimized, LaunchTemplateStrategyLowestPrice}
+	LifecycleHookAllowedTransitions   = []string{LifecycleHookTransitionLaunch, LifecycleHookTransitionTerminate}
+	LifecycleHookAllowedDefaultResult = []string{LifecycleHookResultAbandon, LifecycleHookResultContinue}
+	log                               = ctrl.Log.WithName("v1alpha1")
 )
 
 // InstanceGroup is the Schema for the instancegroups API
@@ -205,6 +213,7 @@ type EKSConfiguration struct {
 	ExistingInstanceProfileName string                    `json:"instanceProfileName,omitempty"`
 	ManagedPolicies             []string                  `json:"managedPolicies,omitempty"`
 	MetricsCollection           []string                  `json:"metricsCollection,omitempty"`
+  LifecycleHooks              []LifecycleHookSpec       `json:"lifecycleHooks,omitempty"`
 }
 
 type MixedInstancesPolicySpec struct {
@@ -219,6 +228,16 @@ type MixedInstancesPolicySpec struct {
 type InstanceTypeSpec struct {
 	Type   string `json:"type"`
 	Weight int64  `json:"weight,omitempty"`
+}
+
+type LifecycleHookSpec struct {
+	Name             string `json:"name"`
+	Lifecycle        string `json:"lifecycle"`
+	DefaultResult    string `json:"defaultResult,omitempty"`
+	HeartbeatTimeout int64  `json:"heartbeatTimeout,omitempty"`
+	NotificationArn  string `json:"notificationArn,omitempty"`
+	Metadata         string `json:"metadata,omitempty"`
+	RoleArn          string `json:"roleArn,omitempty"`
 }
 
 type UserDataStage struct {
@@ -369,6 +388,40 @@ func (c *EKSConfiguration) Validate() error {
 		c.SuspendedProcesses = processes
 	}
 
+	hooks := []LifecycleHookSpec{}
+	for _, h := range c.LifecycleHooks {
+		if h.HeartbeatTimeout == 0 {
+			h.HeartbeatTimeout = LifecycleHookDefaultHeartbeatTimeout
+		}
+		if common.StringEmpty(h.DefaultResult) {
+			h.DefaultResult = LifecycleHookResultAbandon
+		}
+		if common.ContainsEqualFold(LifecycleHookAllowedDefaultResult, h.DefaultResult) {
+			h.DefaultResult = strings.ToUpper(h.DefaultResult)
+		} else {
+			h.DefaultResult = LifecycleHookResultAbandon
+		}
+		if !common.ContainsEqualFold(LifecycleHookAllowedTransitions, h.Lifecycle) {
+			return errors.Errorf("validation failed, 'lifecycle' is a required parameter and must be in %+v", LifecycleHookAllowedTransitions)
+		}
+		if strings.EqualFold(h.Lifecycle, LifecycleHookTransitionLaunch) {
+			h.Lifecycle = awsprovider.LifecycleHookTransitionLaunch
+		} else if strings.EqualFold(h.Lifecycle, LifecycleHookTransitionTerminate) {
+			h.Lifecycle = awsprovider.LifecycleHookTransitionTerminate
+		}
+		if common.StringEmpty(h.Name) {
+			return errors.Errorf("validation failed, 'name' is a required parameter")
+		}
+		if !common.StringEmpty(h.NotificationArn) && !strings.HasPrefix(h.NotificationArn, awsprovider.ARNPrefix) {
+			return errors.Errorf("validation failed, 'notificationArn' must be a valid IAM role ARN")
+		}
+		if !common.StringEmpty(h.RoleArn) && !strings.HasPrefix(h.NotificationArn, awsprovider.ARNPrefix) {
+			return errors.Errorf("validation failed, 'roleArn' must be a valid IAM role ARN")
+		}
+		hooks = append(hooks, h)
+	}
+	c.SetLifecycleHooks(hooks)
+
 	if common.StringEmpty(c.Image) {
 		return errors.Errorf("validation failed, 'image' is a required parameter")
 	}
@@ -504,6 +557,19 @@ func (c *EKSConfiguration) GetRoleName() string {
 }
 func (c *EKSConfiguration) GetMixedInstancesPolicy() *MixedInstancesPolicySpec {
 	return c.MixedInstancesPolicy
+func (c *EKSConfiguration) GetLifecycleHooks() []LifecycleHookSpec {
+	return c.LifecycleHooks
+}
+func (c *EKSConfiguration) SetLifecycleHooks(hooks []LifecycleHookSpec) {
+	c.LifecycleHooks = hooks
+}
+func (h LifecycleHookSpec) ExistInSlice(hooks []LifecycleHookSpec) bool {
+	for _, hook := range hooks {
+		if reflect.DeepEqual(hook, h) {
+			return true
+		}
+	}
+	return false
 }
 func (c *EKSConfiguration) GetInstanceProfileName() string {
 	return c.ExistingInstanceProfileName

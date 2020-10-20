@@ -91,6 +91,29 @@ spec:
                       additionalProperties:
                         type: string
                       type: object
+                    lifecycleHooks:
+                      items:
+                        properties:
+                          defaultResult:
+                            type: string
+                          heartbeatTimeout:
+                            format: int64
+                            type: integer
+                          lifecycle:
+                            type: string
+                          metadata:
+                            type: string
+                          name:
+                            type: string
+                          notificationArn:
+                            type: string
+                          roleArn:
+                            type: string
+                        required:
+                        - lifecycle
+                        - name
+                        type: object
+                      type: array
                     managedPolicies:
                       items:
                         type: string

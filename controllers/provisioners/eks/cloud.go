@@ -41,6 +41,7 @@ type DiscoveredState struct {
 	ClusterNodes         *corev1.NodeList
 	OwnedScalingGroups   []*autoscaling.Group
 	ScalingGroup         *autoscaling.Group
+	LifecycleHooks       []*autoscaling.LifecycleHook
 	ScalingConfiguration scaling.Configuration
 	IAMRole              *iam.Role
 	AttachedPolicies     []*iam.AttachedPolicy
@@ -141,9 +142,14 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 
 	state.SetProvisioned(true)
 	state.SetScalingGroup(targetScalingGroup)
+	asgName := aws.StringValue(targetScalingGroup.AutoScalingGroupName)
 
+	state.LifecycleHooks, err = ctx.AwsWorker.DescribeLifecycleHooks(asgName)
+	if err != nil {
+		return errors.Wrap(err, "failed to describe lifecycle hooks")
+	}
 	// update status with scaling group info
-	status.SetActiveScalingGroupName(aws.StringValue(targetScalingGroup.AutoScalingGroupName))
+	status.SetActiveScalingGroupName(asgName)
 	status.SetCurrentMin(int(aws.Int64Value(targetScalingGroup.MinSize)))
 	status.SetCurrentMax(int(aws.Int64Value(targetScalingGroup.MaxSize)))
 

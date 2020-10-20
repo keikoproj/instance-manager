@@ -139,6 +139,10 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup(name string) error {
 		return err
 	}
 
+	if err := ctx.UpdateLifecycleHooks(asgName); err != nil {
+		return err
+	}
+
 	state.Publisher.Publish(kubeprovider.InstanceGroupCreatedEvent, "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 	return nil
 }

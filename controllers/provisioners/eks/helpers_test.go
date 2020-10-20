@@ -451,3 +451,81 @@ func TestGetUserDataStages(t *testing.T) {
 		g.Expect(payload).To(gomega.Equal(tc.expectedPayload))
 	}
 }
+
+func TestUpdateLifecycleHooks(t *testing.T) {
+	var (
+		g             = gomega.NewGomegaWithT(t)
+		k             = MockKubernetesClientSet()
+		ig            = MockInstanceGroup()
+		configuration = ig.GetEKSConfiguration()
+		asgMock       = NewAutoScalingMocker()
+		iamMock       = NewIamMocker()
+		eksMock       = NewEksMocker()
+		ec2Mock       = NewEc2Mocker()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	ctx := MockContext(ig, k, w)
+
+	testScalingHooks := []*autoscaling.LifecycleHook{
+		{
+			LifecycleHookName: aws.String("my-hook-1"),
+		},
+		{
+			LifecycleHookName: aws.String("my-hook-2"),
+		},
+	}
+
+	hook1 := v1alpha1.LifecycleHookSpec{
+		Name: "my-hook-1",
+	}
+
+	hook2 := v1alpha1.LifecycleHookSpec{
+		Name: "my-hook-2",
+	}
+
+	hook3 := v1alpha1.LifecycleHookSpec{
+		Name: "my-hook-3",
+	}
+
+	tests := []struct {
+		asgHooks        []*autoscaling.LifecycleHook
+		desiredHooks    []v1alpha1.LifecycleHookSpec
+		expectedRemoved []string
+		expectedAdded   []v1alpha1.LifecycleHookSpec
+		shouldRemove    bool
+		shouldAdd       bool
+	}{
+		{expectedRemoved: []string{}, expectedAdded: []v1alpha1.LifecycleHookSpec{}},
+		{asgHooks: testScalingHooks, desiredHooks: []v1alpha1.LifecycleHookSpec{hook1, hook2, hook3}, expectedRemoved: []string{}, expectedAdded: []v1alpha1.LifecycleHookSpec{hook3}, shouldAdd: true},
+		{asgHooks: testScalingHooks, desiredHooks: []v1alpha1.LifecycleHookSpec{hook1, hook3}, expectedRemoved: []string{"my-hook-2"}, expectedAdded: []v1alpha1.LifecycleHookSpec{hook3}, shouldAdd: true, shouldRemove: true},
+		{asgHooks: testScalingHooks, desiredHooks: []v1alpha1.LifecycleHookSpec{hook1, hook2}, expectedRemoved: []string{}, expectedAdded: []v1alpha1.LifecycleHookSpec{}},
+		{asgHooks: testScalingHooks, desiredHooks: []v1alpha1.LifecycleHookSpec{hook1}, expectedRemoved: []string{"my-hook-2"}, expectedAdded: []v1alpha1.LifecycleHookSpec{}, shouldRemove: true},
+		{asgHooks: testScalingHooks, desiredHooks: []v1alpha1.LifecycleHookSpec{}, expectedRemoved: []string{"my-hook-1", "my-hook-2"}, expectedAdded: []v1alpha1.LifecycleHookSpec{}, shouldRemove: true},
+	}
+
+	for i, tc := range tests {
+		t.Logf("Test #%v - %+v", i, tc)
+		asgMock.DeleteLifecycleHookCallCount = 0
+		asgMock.PutLifecycleHookCallCount = 0
+
+		ctx.SetDiscoveredState(&DiscoveredState{
+			Publisher: kubeprovider.EventPublisher{
+				Client: k.Kubernetes,
+			},
+			LifecycleHooks: tc.asgHooks,
+		})
+		configuration.SetLifecycleHooks(tc.desiredHooks)
+		removed, ok := ctx.GetRemovedHooks()
+		g.Expect(ok).To(gomega.Equal(tc.shouldRemove))
+		g.Expect(removed).To(gomega.Equal(tc.expectedRemoved))
+
+		added, ok := ctx.GetAddedHooks()
+		g.Expect(ok).To(gomega.Equal(tc.shouldAdd))
+		g.Expect(added).To(gomega.Equal(tc.expectedAdded))
+
+		ctx.UpdateLifecycleHooks("my-asg")
+		g.Expect(len(tc.expectedRemoved)).To(gomega.Equal(asgMock.DeleteLifecycleHookCallCount))
+		g.Expect(len(tc.expectedAdded)).To(gomega.Equal(asgMock.PutLifecycleHookCallCount))
+	}
+}
