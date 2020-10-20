@@ -710,11 +710,11 @@ func (ctx *EksInstanceGroupContext) UpdateLifecycleHooks(asgName string) error {
 				input.NotificationMetadata = aws.String(hook.Metadata)
 			}
 			
-			if !common.StringEmpty(hook.RoleArn) {
-			    input.RoleARN = aws.String(hook.RoleArn)
-			}
+            if !common.StringEmpty(hook.RoleArn) {
+                input.RoleARN = aws.String(hook.RoleArn)
+            }
 			
-			if !common.StringEmpty(hook.NotificationArn) {
+            if !common.StringEmpty(hook.NotificationArn) {
                 input.NotificationTargetARN = aws.String(hook.NotificationArn)
             }
             
