@@ -213,6 +213,10 @@ func StringValue(str *string) string {
 	return ""
 }
 
+func StringPtr(str string) *string {
+	return &str
+}
+
 func StringSliceEquals(x, y []string) bool {
 	sort.Strings(x)
 	sort.Strings(y)

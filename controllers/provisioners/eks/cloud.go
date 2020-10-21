@@ -71,12 +71,12 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		ResourceVersion: instanceGroup.GetResourceVersion(),
 	}
 
-	switch spec.GetType() {
-	case v1alpha1.LaunchConfiguration:
+	if ok := spec.IsLaunchConfiguration(); ok {
 		state.ScalingConfiguration = &scaling.LaunchConfiguration{
 			AwsWorker: ctx.AwsWorker,
 		}
-	case v1alpha1.LaunchTemplate:
+	}
+	if ok := spec.IsLaunchTemplate(); ok {
 		state.ScalingConfiguration = &scaling.LaunchTemplate{
 			AwsWorker: ctx.AwsWorker,
 		}
@@ -154,18 +154,21 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	status.SetCurrentMin(int(aws.Int64Value(targetScalingGroup.MinSize)))
 	status.SetCurrentMax(int(aws.Int64Value(targetScalingGroup.MaxSize)))
 
-	var configName string
-	switch spec.GetType() {
-	case v1alpha1.LaunchConfiguration:
-		state.ScalingConfiguration, err = scaling.NewLaunchConfiguration(instanceGroup.NamespacedName(), ctx.AwsWorker, &scaling.DiscoverConfigurationInput{
+	if ok := spec.IsLaunchConfiguration(); ok {
+		input := &scaling.DiscoverConfigurationInput{
 			ScalingGroup: targetScalingGroup,
-		})
+		}
+		state.ScalingConfiguration, err = scaling.NewLaunchConfiguration(instanceGroup.NamespacedName(), ctx.AwsWorker, input)
 		if err != nil {
 			return errors.Wrap(err, "failed to discover launch configurations")
 		}
-		configName = state.ScalingConfiguration.Name()
-		status.SetActiveLaunchConfigurationName(configName)
-	case v1alpha1.LaunchTemplate:
+		status.SetActiveLaunchConfigurationName(state.ScalingConfiguration.Name())
+	}
+
+	if ok := spec.IsLaunchTemplate(); ok {
+		input := &scaling.DiscoverConfigurationInput{
+			ScalingGroup: targetScalingGroup,
+		}
 		offerings, err := ctx.AwsWorker.DescribeInstanceOfferings()
 		if err != nil {
 			return errors.Wrap(err, "failed to discover launch templates")
@@ -176,14 +179,11 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		}
 		pool := subFamilyFlexiblePool(offerings, instanceTypes)
 		state.SetSubFamilyFlexiblePool(pool)
-		state.ScalingConfiguration, err = scaling.NewLaunchTemplate(instanceGroup.NamespacedName(), ctx.AwsWorker, &scaling.DiscoverConfigurationInput{
-			ScalingGroup: targetScalingGroup,
-		})
+		state.ScalingConfiguration, err = scaling.NewLaunchTemplate(instanceGroup.NamespacedName(), ctx.AwsWorker, input)
 		if err != nil {
 			return errors.Wrap(err, "failed to discover launch templates")
 		}
-		configName = state.ScalingConfiguration.Name()
-		status.SetActiveLaunchTemplateName(configName)
+		status.SetActiveLaunchTemplateName(state.ScalingConfiguration.Name())
 		resource := state.ScalingConfiguration.Resource()
 		var latestVersion int64
 		if lt, ok := resource.(*ec2.LaunchTemplate); ok && lt != nil {
@@ -195,7 +195,7 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 
 	// delete old launch configurations
 	state.ScalingConfiguration.Delete(&scaling.DeleteConfigurationInput{
-		Name:           configName,
+		Name:           state.ScalingConfiguration.Name(),
 		Prefix:         ctx.ResourcePrefix,
 		DeleteAll:      false,
 		RetainVersions: ctx.ConfigRetention,

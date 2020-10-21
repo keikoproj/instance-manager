@@ -66,16 +66,12 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		SpotPrice:             spotPrice,
 	}
 
-	var configName string
-	switch spec.GetType() {
-	case v1alpha1.LaunchTemplate:
-		configName = scalingConfig.Name()
-	case v1alpha1.LaunchConfiguration:
-		configName = fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
-	default:
-		configName = fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
+	if ok := spec.IsLaunchConfiguration(); ok {
+		config.Name = fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
 	}
-	config.Name = configName
+	if ok := spec.IsLaunchTemplate(); ok {
+		config.Name = scalingConfig.Name()
+	}
 
 	// create new launchconfig if it has drifted
 	if scalingConfig.Drifted(config) {
@@ -88,12 +84,12 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	if scalingConfig.RotationNeeded(&scaling.DiscoverConfigurationInput{
 		ScalingGroup: state.ScalingGroup,
 	}) {
-		ctx.Log.Info("rotation needed due to scaling-config diff", "instancegroup", instanceGroup.GetName(), "scalingconfig", configName)
+		ctx.Log.Info("rotation needed due to scaling-config diff", "instancegroup", instanceGroup.GetName(), "scalingconfig", config.Name)
 		rotationNeeded = true
 	}
 
 	// update scaling group
-	err = ctx.UpdateScalingGroup(configName)
+	err = ctx.UpdateScalingGroup(config.Name)
 	if err != nil {
 		return errors.Wrap(err, "failed to update scaling group")
 	}
@@ -136,22 +132,20 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string) error 
 		VPCZoneIdentifier:    aws.String(common.ConcatenateList(ctx.ResolveSubnets(), ",")),
 	}
 
-	switch spec.GetType() {
-	case v1alpha1.LaunchConfiguration:
+	if ok := spec.IsLaunchConfiguration(); ok {
 		input.LaunchConfigurationName = aws.String(configName)
 		status.SetActiveLaunchConfigurationName(configName)
-	case v1alpha1.LaunchTemplate:
-		mixedInstancesPolicy := configuration.GetMixedInstancesPolicy()
-		if mixedInstancesPolicy == nil {
+	}
+	if ok := spec.IsLaunchTemplate(); ok {
+		if policy := configuration.GetMixedInstancesPolicy(); policy != nil {
+			input.MixedInstancesPolicy = ctx.GetDesiredMixedInstancesPolicy(configName)
+		} else {
 			input.LaunchTemplate = &autoscaling.LaunchTemplateSpecification{
 				LaunchTemplateName: aws.String(configName),
 				Version:            aws.String("$Latest"),
 			}
-		} else {
-			input.MixedInstancesPolicy = ctx.GetDesiredMixedInstancesPolicy(configName)
 		}
 		status.SetActiveLaunchTemplateName(configName)
-
 	}
 
 	if ctx.ScalingGroupUpdateNeeded(configName) {
@@ -230,7 +224,40 @@ func (ctx *EksInstanceGroupContext) ScalingGroupUpdateNeeded(configName string) 
 		zoneIdentifier = aws.StringValue(scalingGroup.VPCZoneIdentifier)
 		groupSubnets   = strings.Split(zoneIdentifier, ",")
 		specSubnets    = ctx.ResolveSubnets()
+		desiredPolicy  = ctx.GetDesiredMixedInstancesPolicy(configName)
 	)
+
+	var name string
+	switch {
+	case scalingGroup.LaunchConfigurationName != nil:
+		name = aws.StringValue(scalingGroup.LaunchConfigurationName)
+		if !spec.IsLaunchConfiguration() {
+			return true
+		}
+		if desiredPolicy != nil {
+			return true
+		}
+	case scalingGroup.LaunchTemplate != nil:
+		name = aws.StringValue(scalingGroup.LaunchTemplate.LaunchTemplateName)
+		if !spec.IsLaunchTemplate() {
+			return true
+		}
+		if desiredPolicy != nil {
+			return true
+		}
+	case scalingGroup.MixedInstancesPolicy != nil:
+		name = aws.StringValue(scalingGroup.MixedInstancesPolicy.LaunchTemplate.LaunchTemplateSpecification.LaunchTemplateName)
+		if desiredPolicy == nil {
+			return true
+		}
+		if !reflect.DeepEqual(scalingGroup.MixedInstancesPolicy, desiredPolicy) {
+			return true
+		}
+	}
+
+	if !strings.EqualFold(configName, name) {
+		return true
+	}
 
 	if spec.GetMinSize() != aws.Int64Value(scalingGroup.MinSize) {
 		return true
@@ -242,52 +269,6 @@ func (ctx *EksInstanceGroupContext) ScalingGroupUpdateNeeded(configName string) 
 
 	if !common.StringSliceEqualFold(specSubnets, groupSubnets) {
 		return true
-	}
-
-	var (
-		isLaunchTemplate, isLaunchConfig, isMixedInstancesEnabled bool
-		launchConfigName, launchTemplateName                      string
-	)
-
-	if scalingGroup.LaunchConfigurationName != nil {
-		isLaunchConfig = true
-		launchConfigName = aws.StringValue(scalingGroup.LaunchConfigurationName)
-	} else if scalingGroup.LaunchTemplate != nil {
-		isLaunchTemplate = true
-		launchTemplateName = aws.StringValue(scalingGroup.LaunchTemplate.LaunchTemplateName)
-	} else if scalingGroup.MixedInstancesPolicy != nil {
-		isMixedInstancesEnabled = true
-	}
-
-	desiredPolicy := ctx.GetDesiredMixedInstancesPolicy(configName)
-
-	switch {
-	case isLaunchConfig:
-		if !strings.EqualFold(configName, launchConfigName) {
-			return true
-		}
-		if spec.GetType() != v1alpha1.LaunchConfiguration {
-			return true
-		}
-		if desiredPolicy != nil {
-			return true
-		}
-	case isLaunchTemplate:
-		if !strings.EqualFold(configName, launchTemplateName) {
-			return true
-		}
-		if spec.GetType() != v1alpha1.LaunchTemplate {
-			return true
-		}
-		if desiredPolicy != nil {
-			return true
-		}
-	case isMixedInstancesEnabled:
-		if desiredPolicy == nil {
-			return true
-		} else if !reflect.DeepEqual(scalingGroup.MixedInstancesPolicy, desiredPolicy) {
-			return true
-		}
 	}
 
 	return false

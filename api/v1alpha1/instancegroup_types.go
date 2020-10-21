@@ -357,6 +357,20 @@ func (s *EKSSpec) Validate() error {
 	return nil
 }
 
+func (s *EKSSpec) IsLaunchTemplate() bool {
+	if s.Type == LaunchTemplate {
+		return true
+	}
+	return false
+}
+
+func (s *EKSSpec) IsLaunchConfiguration() bool {
+	if s.Type == LaunchConfiguration {
+		return true
+	}
+	return false
+}
+
 func (c *EKSConfiguration) Validate() error {
 	if common.StringEmpty(c.EksClusterName) {
 		return errors.Errorf("validation failed, 'clusterName' is a required parameter")
@@ -471,8 +485,10 @@ func (c *EKSConfiguration) Validate() error {
 }
 func (m *MixedInstancesPolicySpec) Validate() error {
 	if m.Strategy == nil {
-		defaultStrategy := LaunchTemplateStrategyCapacityOptimized
-		m.Strategy = &defaultStrategy
+		m.Strategy = common.StringPtr(LaunchTemplateStrategyCapacityOptimized)
+		if m.SpotPools != nil {
+			m.Strategy = common.StringPtr(LaunchTemplateStrategyLowestPrice)
+		}
 	}
 	if !common.ContainsEqualFold(AllowedMixedPolicyStrategies, *m.Strategy) {
 		return errors.Errorf("validation failed, mixedInstancesPolicy.Strategy must either be LowestPrice or CapacityOptimized, got '%v'", *m.Strategy)
