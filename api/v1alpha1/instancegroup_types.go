@@ -80,13 +80,13 @@ const (
 type ScalingConfigurationType string
 
 const (
-	LaunchConfiguration ScalingConfigurationType = "LaunchConfiguration"
-	LaunchTemplate      ScalingConfigurationType = "LaunchTemplate"
-	LifecycleHookResultAbandon           = "ABANDON"
-	LifecycleHookResultContinue          = "CONTINUE"
-	LifecycleHookTransitionLaunch        = "Launch"
-	LifecycleHookTransitionTerminate     = "Terminate"
-	LifecycleHookDefaultHeartbeatTimeout = 300
+	LaunchConfiguration                  ScalingConfigurationType = "LaunchConfiguration"
+	LaunchTemplate                       ScalingConfigurationType = "LaunchTemplate"
+	LifecycleHookResultAbandon                                    = "ABANDON"
+	LifecycleHookResultContinue                                   = "CONTINUE"
+	LifecycleHookTransitionLaunch                                 = "Launch"
+	LifecycleHookTransitionTerminate                              = "Terminate"
+	LifecycleHookDefaultHeartbeatTimeout                          = 300
 )
 
 var (
@@ -109,7 +109,7 @@ var (
 	}
 
 	AllowedFileSystemTypes            = []string{FileSystemTypeXFS, FileSystemTypeEXT4}
-  AllowedMixedPolicyStrategies      = []string{LaunchTemplateStrategyCapacityOptimized, LaunchTemplateStrategyLowestPrice}
+	AllowedMixedPolicyStrategies      = []string{LaunchTemplateStrategyCapacityOptimized, LaunchTemplateStrategyLowestPrice}
 	LifecycleHookAllowedTransitions   = []string{LifecycleHookTransitionLaunch, LifecycleHookTransitionTerminate}
 	LifecycleHookAllowedDefaultResult = []string{LifecycleHookResultAbandon, LifecycleHookResultContinue}
 	log                               = ctrl.Log.WithName("v1alpha1")
@@ -213,7 +213,7 @@ type EKSConfiguration struct {
 	ExistingInstanceProfileName string                    `json:"instanceProfileName,omitempty"`
 	ManagedPolicies             []string                  `json:"managedPolicies,omitempty"`
 	MetricsCollection           []string                  `json:"metricsCollection,omitempty"`
-  LifecycleHooks              []LifecycleHookSpec       `json:"lifecycleHooks,omitempty"`
+	LifecycleHooks              []LifecycleHookSpec       `json:"lifecycleHooks,omitempty"`
 }
 
 type MixedInstancesPolicySpec struct {
@@ -557,6 +557,7 @@ func (c *EKSConfiguration) GetRoleName() string {
 }
 func (c *EKSConfiguration) GetMixedInstancesPolicy() *MixedInstancesPolicySpec {
 	return c.MixedInstancesPolicy
+}
 func (c *EKSConfiguration) GetLifecycleHooks() []LifecycleHookSpec {
 	return c.LifecycleHooks
 }
