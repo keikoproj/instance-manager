@@ -51,7 +51,7 @@ const (
 	GetRoleTTL                        time.Duration = 60 * time.Second
 	GetInstanceProfileTTL             time.Duration = 60 * time.Second
 	DescribeNodegroupTTL              time.Duration = 60 * time.Second
-  DescribeLifecycleHooksTTL         time.Duration = 180 * time.Second
+	DescribeLifecycleHooksTTL         time.Duration = 180 * time.Second
 	DescribeClusterTTL                time.Duration = 180 * time.Second
 	DescribeSecurityGroupsTTL         time.Duration = 180 * time.Second
 	DescribeSubnetsTTL                time.Duration = 180 * time.Second
@@ -77,7 +77,7 @@ const (
 	LaunchTemplateLatestVersionKey          = "$Latest"
 	IAMPolicyPrefix                         = "arn:aws:iam::aws:policy"
 	IAMARNPrefix                            = "arn:aws:iam::"
-
+	ARNPrefix                               = "arn:aws:"
 	LaunchConfigurationNotFoundErrorMessage = "Launch configuration name not found"
 )
 
@@ -117,13 +117,6 @@ var (
 	AllowedVolumeTypes               = []string{"gp2", "io1", "sc1", "st1"}
 	LifecycleHookTransitionLaunch    = "autoscaling:EC2_INSTANCE_LAUNCHING"
 	LifecycleHookTransitionTerminate = "autoscaling:EC2_INSTANCE_TERMINATING"
-)
-
-const (
-	IAMPolicyPrefix                         = "arn:aws:iam::aws:policy"
-	IAMARNPrefix                            = "arn:aws:iam::"
-	ARNPrefix                               = "arn:aws:"
-	LaunchConfigurationNotFoundErrorMessage = "Launch configuration name not found"
 )
 
 func (w *AwsWorker) DescribeInstanceOfferings() ([]*ec2.InstanceTypeOffering, error) {

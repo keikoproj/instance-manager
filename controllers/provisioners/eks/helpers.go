@@ -709,25 +709,25 @@ func (ctx *EksInstanceGroupContext) UpdateLifecycleHooks(asgName string) error {
 	if hooks, ok := ctx.GetAddedHooks(); ok {
 		for _, hook := range hooks {
 			input := &autoscaling.PutLifecycleHookInput{
-				AutoScalingGroupName:  aws.String(asgName),
-				LifecycleHookName:     aws.String(hook.Name),
-				DefaultResult:         aws.String(hook.DefaultResult),
-				HeartbeatTimeout:      aws.Int64(hook.HeartbeatTimeout),
-				LifecycleTransition:   aws.String(hook.Lifecycle),
+				AutoScalingGroupName: aws.String(asgName),
+				LifecycleHookName:    aws.String(hook.Name),
+				DefaultResult:        aws.String(hook.DefaultResult),
+				HeartbeatTimeout:     aws.Int64(hook.HeartbeatTimeout),
+				LifecycleTransition:  aws.String(hook.Lifecycle),
 			}
-			
+
 			if !common.StringEmpty(hook.Metadata) {
 				input.NotificationMetadata = aws.String(hook.Metadata)
 			}
-			
+
 			if !common.StringEmpty(hook.RoleArn) {
 				input.RoleARN = aws.String(hook.RoleArn)
 			}
-			
+
 			if !common.StringEmpty(hook.NotificationArn) {
 				input.NotificationTargetARN = aws.String(hook.NotificationArn)
 			}
-            
+
 			if err := ctx.AwsWorker.CreateLifecycleHook(input); err != nil {
 				return errors.Wrapf(err, "failed to add lifecycle hook %v", hook)
 			}
