@@ -71,16 +71,6 @@ type AwsWorker struct {
 	Parameters map[string]interface{}
 }
 
-const (
-	LaunchTemplateStrategyCapacityOptimized = "capacity-optimized"
-	LaunchTemplateStrategyLowestPrice       = "lowest-price"
-	LaunchTemplateLatestVersionKey          = "$Latest"
-	IAMPolicyPrefix                         = "arn:aws:iam::aws:policy"
-	IAMARNPrefix                            = "arn:aws:iam::"
-	ARNPrefix                               = "arn:aws:"
-	LaunchConfigurationNotFoundErrorMessage = "Launch configuration name not found"
-)
-
 var (
 	DefaultInstanceProfilePropagationDelay = time.Second * 25
 	DefaultWaiterDuration                  = time.Second * 5
@@ -117,6 +107,16 @@ var (
 	AllowedVolumeTypes               = []string{"gp2", "io1", "sc1", "st1"}
 	LifecycleHookTransitionLaunch    = "autoscaling:EC2_INSTANCE_LAUNCHING"
 	LifecycleHookTransitionTerminate = "autoscaling:EC2_INSTANCE_TERMINATING"
+)
+
+const (
+	LaunchTemplateStrategyCapacityOptimized = "capacity-optimized"
+	LaunchTemplateStrategyLowestPrice       = "lowest-price"
+	LaunchTemplateLatestVersionKey          = "$Latest"
+	IAMPolicyPrefix                         = "arn:aws:iam::aws:policy"
+	IAMARNPrefix                            = "arn:aws:iam::"
+	ARNPrefix                               = "arn:aws:"
+	LaunchConfigurationNotFoundErrorMessage = "Launch configuration name not found"
 )
 
 func (w *AwsWorker) DescribeInstanceOfferings() ([]*ec2.InstanceTypeOffering, error) {

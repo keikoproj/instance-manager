@@ -73,6 +73,12 @@ const (
 	FileSystemTypeXFS  = "xfs"
 	FileSystemTypeEXT4 = "ext4"
 
+	LifecycleHookResultAbandon           = "ABANDON"
+	LifecycleHookResultContinue          = "CONTINUE"
+	LifecycleHookTransitionLaunch        = "Launch"
+	LifecycleHookTransitionTerminate     = "Terminate"
+	LifecycleHookDefaultHeartbeatTimeout = 300
+
 	LaunchTemplateStrategyCapacityOptimized = "CapacityOptimized"
 	LaunchTemplateStrategyLowestPrice       = "LowestPrice"
 )
@@ -80,13 +86,8 @@ const (
 type ScalingConfigurationType string
 
 const (
-	LaunchConfiguration                  ScalingConfigurationType = "LaunchConfiguration"
-	LaunchTemplate                       ScalingConfigurationType = "LaunchTemplate"
-	LifecycleHookResultAbandon                                    = "ABANDON"
-	LifecycleHookResultContinue                                   = "CONTINUE"
-	LifecycleHookTransitionLaunch                                 = "Launch"
-	LifecycleHookTransitionTerminate                              = "Terminate"
-	LifecycleHookDefaultHeartbeatTimeout                          = 300
+	LaunchConfiguration ScalingConfigurationType = "LaunchConfiguration"
+	LaunchTemplate      ScalingConfigurationType = "LaunchTemplate"
 )
 
 var (
