@@ -40,8 +40,8 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 	var (
 		status   = instanceGroup.GetStatus()
 		strategy = instanceGroup.GetUpgradeStrategy().GetCRDType()
+		spec     = instanceGroup.GetEKSSpec()
 		asgName  = status.GetActiveScalingGroupName()
-		lcName   = status.GetActiveLaunchConfigurationName()
 	)
 
 	renderParams := struct {
@@ -64,7 +64,15 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 	AddAnnotation(customResource, ScopeAnnotationKey, asgName)
 	GVR := GetGVR(customResource, strategy.GetCRDName())
 
-	launchID := common.GetLastElementBy(lcName, "-")
+	var configName string
+	switch spec.GetType() {
+	case v1alpha1.LaunchConfiguration:
+		configName = status.GetActiveLaunchConfigurationName()
+	case v1alpha1.LaunchTemplate:
+		configName = status.GetActiveLaunchTemplateName()
+	}
+
+	launchID := common.GetLastElementBy(configName, "-")
 	NormalizeName(customResource, launchID)
 	crdFullName := strings.Join([]string{GVR.Resource, GVR.Group}, ".")
 	if !CRDExists(kube, crdFullName) {

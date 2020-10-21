@@ -54,12 +54,13 @@ type DiscoveredState struct {
 
 func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	var (
-		state         = ctx.GetDiscoveredState()
-		instanceGroup = ctx.GetInstanceGroup()
-		spec          = instanceGroup.GetEKSSpec()
-		configuration = instanceGroup.GetEKSConfiguration()
-		status        = instanceGroup.GetStatus()
-		clusterName   = configuration.GetClusterName()
+		state          = ctx.GetDiscoveredState()
+		instanceGroup  = ctx.GetInstanceGroup()
+		spec           = instanceGroup.GetEKSSpec()
+		configuration  = instanceGroup.GetEKSConfiguration()
+		mixedInstances = configuration.GetMixedInstancesPolicy()
+		status         = instanceGroup.GetStatus()
+		clusterName    = configuration.GetClusterName()
 	)
 
 	state.Publisher = kubeprovider.EventPublisher{
@@ -211,8 +212,8 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		ctx.Log.Error(err, "failed to discover spot price")
 	}
 
-	if targetScalingGroup.MixedInstancesPolicy != nil {
-		ratio := aws.Int64Value(targetScalingGroup.MixedInstancesPolicy.InstancesDistribution.OnDemandPercentageAboveBaseCapacity)
+	if mixedInstances != nil {
+		ratio := mixedInstances.SpotRatio.IntValue()
 		if ratio < 100 {
 			status.SetLifecycle(v1alpha1.LifecycleStateMixed)
 		} else {

@@ -195,7 +195,6 @@ type EKSSpec struct {
 }
 
 type EKSConfiguration struct {
-	MixedInstancesPolicy        *MixedInstancesPolicySpec `json:"mixedInstancesPolicy,omitempty"`
 	EksClusterName              string                    `json:"clusterName,omitempty"`
 	KeyPairName                 string                    `json:"keyPairName,omitempty"`
 	Image                       string                    `json:"image,omitempty"`
@@ -215,6 +214,7 @@ type EKSConfiguration struct {
 	ManagedPolicies             []string                  `json:"managedPolicies,omitempty"`
 	MetricsCollection           []string                  `json:"metricsCollection,omitempty"`
 	LifecycleHooks              []LifecycleHookSpec       `json:"lifecycleHooks,omitempty"`
+	MixedInstancesPolicy        *MixedInstancesPolicySpec `json:"mixedInstancesPolicy,omitempty"`
 }
 
 type MixedInstancesPolicySpec struct {
@@ -796,6 +796,10 @@ func (c *CRDUpdateStrategy) SetStatusFailureString(str string) {
 
 func (status *InstanceGroupStatus) GetActiveLaunchConfigurationName() string {
 	return status.ActiveLaunchConfigurationName
+}
+
+func (status *InstanceGroupStatus) GetActiveLaunchTemplateName() string {
+	return status.ActiveLaunchTemplateName
 }
 
 func (status *InstanceGroupStatus) SetActiveLaunchConfigurationName(name string) {

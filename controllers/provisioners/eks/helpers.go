@@ -301,14 +301,13 @@ func (ctx *EksInstanceGroupContext) GetTaintList() []string {
 
 func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 	var (
-		labelList     []string
-		isOverride    bool
-		instanceGroup = ctx.GetInstanceGroup()
-		state         = ctx.GetDiscoveredState()
-		scalingGroup  = state.GetScalingGroup()
-		annotations   = instanceGroup.GetAnnotations()
-		configuration = instanceGroup.GetEKSConfiguration()
-		customLabels  = configuration.GetLabels()
+		labelList      []string
+		isOverride     bool
+		instanceGroup  = ctx.GetInstanceGroup()
+		annotations    = instanceGroup.GetAnnotations()
+		configuration  = instanceGroup.GetEKSConfiguration()
+		mixedInstances = configuration.GetMixedInstancesPolicy()
+		customLabels   = configuration.GetLabels()
 	)
 
 	// get custom labels
@@ -345,8 +344,8 @@ func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 		}
 	}
 
-	if scalingGroup.MixedInstancesPolicy != nil {
-		ratio := aws.Int64Value(scalingGroup.MixedInstancesPolicy.InstancesDistribution.OnDemandPercentageAboveBaseCapacity)
+	if mixedInstances != nil {
+		ratio := mixedInstances.SpotRatio.IntValue()
 		if ratio < 100 {
 			labelList = append(labelList, fmt.Sprintf(InstanceMgrLabelFmt, "lifecycle", v1alpha1.LifecycleStateMixed))
 		} else {
