@@ -35,12 +35,11 @@ const (
 	OwnershipAnnotationValue = "instance-manager"
 )
 
-func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGroup) (bool, error) {
+func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGroup, configName string) (bool, error) {
 
 	var (
 		status   = instanceGroup.GetStatus()
 		strategy = instanceGroup.GetUpgradeStrategy().GetCRDType()
-		spec     = instanceGroup.GetEKSSpec()
 		asgName  = status.GetActiveScalingGroupName()
 	)
 
@@ -63,15 +62,6 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 	AddAnnotation(customResource, OwnershipAnnotationKey, OwnershipAnnotationValue)
 	AddAnnotation(customResource, ScopeAnnotationKey, asgName)
 	GVR := GetGVR(customResource, strategy.GetCRDName())
-
-	var configName string
-	if ok := spec.IsLaunchConfiguration(); ok {
-		configName = status.GetActiveLaunchConfigurationName()
-	}
-	if ok := spec.IsLaunchTemplate(); ok {
-		configName = status.GetActiveLaunchTemplateName()
-	}
-
 	launchID := common.GetLastElementBy(configName, "-")
 	NormalizeName(customResource, launchID)
 	crdFullName := strings.Join([]string{GVR.Resource, GVR.Group}, ".")
