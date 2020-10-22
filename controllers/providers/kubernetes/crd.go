@@ -65,10 +65,10 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 	GVR := GetGVR(customResource, strategy.GetCRDName())
 
 	var configName string
-	switch spec.GetType() {
-	case v1alpha1.LaunchConfiguration:
+	if ok := spec.IsLaunchConfiguration(); ok {
 		configName = status.GetActiveLaunchConfigurationName()
-	case v1alpha1.LaunchTemplate:
+	}
+	if ok := spec.IsLaunchTemplate(); ok {
 		configName = status.GetActiveLaunchTemplateName()
 	}
 
