@@ -111,6 +111,7 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup(name string) error {
 		input.LaunchConfigurationName = aws.String(name)
 		status.SetActiveLaunchConfigurationName(name)
 	}
+
 	if ok := spec.IsLaunchTemplate(); ok {
 		if policy := configuration.GetMixedInstancesPolicy(); policy != nil {
 			input.MixedInstancesPolicy = ctx.GetDesiredMixedInstancesPolicy(name)
