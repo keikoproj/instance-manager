@@ -830,6 +830,10 @@ func (status *InstanceGroupStatus) SetLatestTemplateVersion(version string) {
 	status.LatestTemplateVersion = version
 }
 
+func (status *InstanceGroupStatus) GetLatestTemplateVersion() string {
+	return status.LatestTemplateVersion
+}
+
 func (status *InstanceGroupStatus) GetConfigHash() string {
 	return status.ConfigHash
 }
