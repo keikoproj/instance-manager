@@ -82,32 +82,51 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 	}
 	status.SetStrategyResourceName(customResource.GetName())
 
-	activeResources, err := GetActiveResources(kube, instanceGroup, customResource)
+	policy := strategy.GetConcurrencyPolicy()
+
+	inactiveResources, activeResources, err := GetResources(kube, instanceGroup, customResource)
 	if err != nil {
 		return false, errors.Wrap(err, "failed to discover active custom resources")
 	}
 
-	if len(activeResources) > 0 && strings.EqualFold(strategy.GetConcurrencyPolicy(), v1alpha1.ForbidConcurrencyPolicy) {
-		log.Info("custom resource/s still active, will requeue", "instancegroup", instanceGroup.GetName())
-		instanceGroup.SetState(v1alpha1.ReconcileModifying)
-		return false, nil
+	if len(activeResources) > 0 {
+
+		switch {
+		case strings.EqualFold(policy, v1alpha1.ForbidConcurrencyPolicy):
+			log.Info("custom resource/s still active, will requeue", "instancegroup", instanceGroup.GetName())
+			instanceGroup.SetState(v1alpha1.ReconcileModifying)
+			return false, nil
+		case strings.EqualFold(policy, v1alpha1.ReplaceConcurrencyPolicy):
+			var isRunning bool
+			for _, resource := range activeResources {
+				if strings.HasSuffix(resource.GetName(), launchID) {
+					isRunning = true
+					continue
+				}
+				log.Info("active custom resource/s exists, will replace", "instancegroup", instanceGroup.GetName())
+				err = kube.Resource(GVR).Namespace(resource.GetNamespace()).Delete(resource.GetName(), &metav1.DeleteOptions{})
+				if err != nil {
+					return false, errors.Wrap(err, "failed to delete custom resource")
+				}
+			}
+			if isRunning {
+				fmt.Println("isRunning")
+				return false, nil
+			}
+		case strings.EqualFold(policy, v1alpha1.AllowConcurrencyPolicy):
+			log.Info("concurrency set to allow, will submit new resource", "instancegroup", instanceGroup.GetName())
+		}
+
 	}
 
-	var isRunning bool
-	if len(activeResources) > 0 && strings.EqualFold(strategy.GetConcurrencyPolicy(), v1alpha1.ReplaceConcurrencyPolicy) {
-		for _, resource := range activeResources {
-			if strings.HasSuffix(resource.GetName(), launchID) {
-				isRunning = true
-				continue
-			}
-			log.Info("active custom resource/s exists, will replace", "instancegroup", instanceGroup.GetName())
+	// delete inactive resources if there is a name conflict
+	for _, resource := range inactiveResources {
+		if strings.EqualFold(resource.GetName(), customResource.GetName()) && strings.EqualFold(resource.GetNamespace(), customResource.GetNamespace()) {
+			log.Info("name conflict with inactive resource, will delete", "instancegroup", instanceGroup.GetName(), "resource", resource.GetName())
 			err = kube.Resource(GVR).Namespace(resource.GetNamespace()).Delete(resource.GetName(), &metav1.DeleteOptions{})
 			if err != nil {
 				return false, errors.Wrap(err, "failed to delete custom resource")
 			}
-		}
-		if isRunning {
-			return false, nil
 		}
 	}
 
@@ -177,23 +196,24 @@ func NormalizeName(customResource *unstructured.Unstructured, id string) {
 	}
 }
 
-func GetActiveResources(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGroup, resource *unstructured.Unstructured) ([]*unstructured.Unstructured, error) {
+func GetResources(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGroup, resource *unstructured.Unstructured) ([]*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 	var (
-		status          = instanceGroup.GetStatus()
-		strategy        = instanceGroup.GetUpgradeStrategy().GetCRDType()
-		statusJSONPath  = strategy.GetStatusJSONPath()
-		completedStatus = strategy.GetStatusSuccessString()
-		errorStatus     = strategy.GetStatusFailureString()
-		activeResources = make([]*unstructured.Unstructured, 0)
-		GVR             = GetGVR(resource, strategy.GetCRDName())
+		status            = instanceGroup.GetStatus()
+		strategy          = instanceGroup.GetUpgradeStrategy().GetCRDType()
+		statusJSONPath    = strategy.GetStatusJSONPath()
+		completedStatus   = strategy.GetStatusSuccessString()
+		errorStatus       = strategy.GetStatusFailureString()
+		activeResources   = make([]*unstructured.Unstructured, 0)
+		inactiveResources = make([]*unstructured.Unstructured, 0)
+		GVR               = GetGVR(resource, strategy.GetCRDName())
 	)
 
-	resources, err := kube.Resource(GVR).Namespace(resource.GetNamespace()).List(metav1.ListOptions{})
+	r, err := kube.Resource(GVR).Namespace(resource.GetNamespace()).List(metav1.ListOptions{})
 	if err != nil {
-		return activeResources, err
+		return inactiveResources, activeResources, err
 	}
 
-	for _, r := range resources.Items {
+	for _, r := range r.Items {
 
 		if !HasAnnotation(&r, OwnershipAnnotationKey, OwnershipAnnotationValue) || !HasAnnotation(&r, ScopeAnnotationKey, status.GetActiveScalingGroupName()) {
 			// skip resources not owned by controller
@@ -202,16 +222,18 @@ func GetActiveResources(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 
 		val, err := GetUnstructuredPath(&r, statusJSONPath)
 		if err != nil {
-			return activeResources, err
+			return inactiveResources, activeResources, err
 		}
 
-		if val != completedStatus && val != errorStatus {
+		if strings.EqualFold(val, completedStatus) || strings.EqualFold(val, errorStatus) {
 			// if resource is not completed and not failed, it must be still active
+			inactiveResources = append(inactiveResources, &r)
+		} else {
 			activeResources = append(activeResources, &r)
 		}
 	}
 
-	return activeResources, nil
+	return inactiveResources, activeResources, nil
 }
 
 func SubmitCustomResource(kube dynamic.Interface, customResource *unstructured.Unstructured, CRDName string) error {
