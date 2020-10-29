@@ -197,15 +197,23 @@ func MockTagDescription(key, value string) *autoscaling.TagDescription {
 	}
 }
 
-func MockScalingGroup(name string, t ...*autoscaling.TagDescription) *autoscaling.Group {
-	return &autoscaling.Group{
-		LaunchConfigurationName: aws.String("some-launch-configuration"),
-		AutoScalingGroupName:    aws.String(name),
-		Tags:                    t,
-		MinSize:                 aws.Int64(3),
-		MaxSize:                 aws.Int64(6),
-		VPCZoneIdentifier:       aws.String("subnet-1,subnet-2,subnet-3"),
+func MockScalingGroup(name string, withTemplate bool, t ...*autoscaling.TagDescription) *autoscaling.Group {
+	asg := &autoscaling.Group{
+		AutoScalingGroupName: aws.String(name),
+		Tags:                 t,
+		MinSize:              aws.Int64(3),
+		MaxSize:              aws.Int64(6),
+		VPCZoneIdentifier:    aws.String("subnet-1,subnet-2,subnet-3"),
 	}
+
+	if withTemplate {
+		asg.LaunchTemplate = &autoscaling.LaunchTemplateSpecification{
+			LaunchTemplateName: aws.String("some-launch-template"),
+		}
+	} else {
+		asg.LaunchConfigurationName = aws.String("some-launch-configuration")
+	}
+	return asg
 }
 
 func MockSecurityGroup(id string, withTag bool, name string) *ec2.SecurityGroup {
@@ -236,6 +244,40 @@ func MockSubnet(id string, withTag bool, name string) *ec2.Subnet {
 		}
 	}
 	return sn
+}
+
+func MockTypeOffering(region string, types ...string) []*ec2.InstanceTypeOffering {
+	out := make([]*ec2.InstanceTypeOffering, 0)
+	for _, t := range types {
+		out = append(out, &ec2.InstanceTypeOffering{
+			InstanceType: aws.String(t),
+			Location:     aws.String(region),
+			LocationType: aws.String("region"),
+		})
+	}
+	return out
+}
+
+type MockInstanceTypeInfo struct {
+	InstanceType string
+	VCpus        int64
+	MemoryMib    int64
+}
+
+func MockTypeInfo(types ...MockInstanceTypeInfo) []*ec2.InstanceTypeInfo {
+	out := make([]*ec2.InstanceTypeInfo, 0)
+	for _, t := range types {
+		out = append(out, &ec2.InstanceTypeInfo{
+			InstanceType: aws.String(t.InstanceType),
+			VCpuInfo: &ec2.VCpuInfo{
+				DefaultVCpus: aws.Int64(t.VCpus),
+			},
+			MemoryInfo: &ec2.MemoryInfo{
+				SizeInMiB: aws.Int64(t.MemoryMib),
+			},
+		})
+	}
+	return out
 }
 
 func MockAwsCRDStrategy(spec string) v1alpha1.AwsUpgradeStrategy {
@@ -449,6 +491,62 @@ type MockEc2Client struct {
 	DescribeSecurityGroupsErr error
 	Subnets                   []*ec2.Subnet
 	SecurityGroups            []*ec2.SecurityGroup
+	LaunchTemplates           []*ec2.LaunchTemplate
+	LaunchTemplateVersions    []*ec2.LaunchTemplateVersion
+	InstanceTypeOfferings     []*ec2.InstanceTypeOffering
+	InstanceTypes             []*ec2.InstanceTypeInfo
+}
+
+func (c *MockEc2Client) DescribeLaunchTemplateVersionsPages(input *ec2.DescribeLaunchTemplateVersionsInput, callback func(*ec2.DescribeLaunchTemplateVersionsOutput, bool) bool) error {
+	page, err := c.DescribeLaunchTemplateVersions(input)
+	if err != nil {
+		return err
+	}
+	callback(page, false)
+	return nil
+}
+
+func (c *MockEc2Client) DescribeLaunchTemplateVersions(input *ec2.DescribeLaunchTemplateVersionsInput) (*ec2.DescribeLaunchTemplateVersionsOutput, error) {
+	return &ec2.DescribeLaunchTemplateVersionsOutput{LaunchTemplateVersions: c.LaunchTemplateVersions}, nil
+}
+
+func (c *MockEc2Client) DescribeLaunchTemplatesPages(input *ec2.DescribeLaunchTemplatesInput, callback func(*ec2.DescribeLaunchTemplatesOutput, bool) bool) error {
+	page, err := c.DescribeLaunchTemplates(input)
+	if err != nil {
+		return err
+	}
+	callback(page, false)
+	return nil
+}
+
+func (c *MockEc2Client) DescribeLaunchTemplates(input *ec2.DescribeLaunchTemplatesInput) (*ec2.DescribeLaunchTemplatesOutput, error) {
+	return &ec2.DescribeLaunchTemplatesOutput{LaunchTemplates: c.LaunchTemplates}, nil
+}
+
+func (c *MockEc2Client) DescribeInstanceTypesPages(input *ec2.DescribeInstanceTypesInput, callback func(*ec2.DescribeInstanceTypesOutput, bool) bool) error {
+	page, err := c.DescribeInstanceTypes(input)
+	if err != nil {
+		return err
+	}
+	callback(page, false)
+	return nil
+}
+
+func (c *MockEc2Client) DescribeInstanceTypes(input *ec2.DescribeInstanceTypesInput) (*ec2.DescribeInstanceTypesOutput, error) {
+	return &ec2.DescribeInstanceTypesOutput{InstanceTypes: c.InstanceTypes}, nil
+}
+
+func (c *MockEc2Client) DescribeInstanceTypeOfferingsPages(input *ec2.DescribeInstanceTypeOfferingsInput, callback func(*ec2.DescribeInstanceTypeOfferingsOutput, bool) bool) error {
+	page, err := c.DescribeInstanceTypeOfferings(input)
+	if err != nil {
+		return err
+	}
+	callback(page, false)
+	return nil
+}
+
+func (c *MockEc2Client) DescribeInstanceTypeOfferings(input *ec2.DescribeInstanceTypeOfferingsInput) (*ec2.DescribeInstanceTypeOfferingsOutput, error) {
+	return &ec2.DescribeInstanceTypeOfferingsOutput{InstanceTypeOfferings: c.InstanceTypeOfferings}, nil
 }
 
 func (c *MockEc2Client) DescribeSecurityGroupsPages(input *ec2.DescribeSecurityGroupsInput, callback func(*ec2.DescribeSecurityGroupsOutput, bool) bool) error {

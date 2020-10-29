@@ -81,6 +81,8 @@ const (
 
 	LaunchTemplateStrategyCapacityOptimized = "CapacityOptimized"
 	LaunchTemplateStrategyLowestPrice       = "LowestPrice"
+
+	SubFamilyFlexibleInstancePool = "SubFamilyFlexible"
 )
 
 type ScalingConfigurationType string
@@ -111,6 +113,7 @@ var (
 
 	AllowedFileSystemTypes            = []string{FileSystemTypeXFS, FileSystemTypeEXT4}
 	AllowedMixedPolicyStrategies      = []string{LaunchTemplateStrategyCapacityOptimized, LaunchTemplateStrategyLowestPrice}
+	AllowedInstancePools              = []string{SubFamilyFlexibleInstancePool}
 	LifecycleHookAllowedTransitions   = []string{LifecycleHookTransitionLaunch, LifecycleHookTransitionTerminate}
 	LifecycleHookAllowedDefaultResult = []string{LifecycleHookResultAbandon, LifecycleHookResultContinue}
 	log                               = ctrl.Log.WithName("v1alpha1")
@@ -506,6 +509,11 @@ func (m *MixedInstancesPolicySpec) Validate() error {
 		}
 	} else if m.InstancePool == nil {
 		return errors.Errorf("validation failed, must provide either instancePool or instanceTypes when using mixedInstancesPolicy")
+	} else if m.InstancePool != nil {
+		pool := common.StringValue(m.InstancePool)
+		if !common.ContainsEqualFold(AllowedInstancePools, pool) {
+			return errors.Errorf("validation failed, instance pool %v is not known, must used one of allowed pools %+v", pool, AllowedInstancePools)
+		}
 	}
 
 	if m.SpotRatio == nil {

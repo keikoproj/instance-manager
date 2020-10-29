@@ -403,20 +403,20 @@ func TestScalingGroupUpdatePredicate(t *testing.T) {
 	spec.MaxSize = int64(6)
 	configuration.SetSubnets([]string{"subnet-1", "subnet-2", "subnet-3"})
 
-	mockScalingGroupMin := MockScalingGroup("asg-1")
+	mockScalingGroupMin := MockScalingGroup("asg-1", false)
 	mockScalingGroupMin.MinSize = aws.Int64(0)
-	mockScalingGroupMax := MockScalingGroup("asg-2")
+	mockScalingGroupMax := MockScalingGroup("asg-2", false)
 	mockScalingGroupMax.MaxSize = aws.Int64(0)
-	mockScalingGroupSubnets := MockScalingGroup("asg-3")
+	mockScalingGroupSubnets := MockScalingGroup("asg-3", false)
 	mockScalingGroupSubnets.VPCZoneIdentifier = aws.String("subnet-0")
-	mockScalingGroupLaunchConfig := MockScalingGroup("asg-4")
+	mockScalingGroupLaunchConfig := MockScalingGroup("asg-4", false)
 	mockScalingGroupLaunchConfig.LaunchConfigurationName = aws.String("different-name")
 
 	tests := []struct {
 		input    *autoscaling.Group
 		expected bool
 	}{
-		{input: MockScalingGroup("asg-0"), expected: false},
+		{input: MockScalingGroup("asg-0", false), expected: false},
 		{input: mockScalingGroupLaunchConfig, expected: true},
 		{input: mockScalingGroupMin, expected: true},
 		{input: mockScalingGroupMax, expected: true},
