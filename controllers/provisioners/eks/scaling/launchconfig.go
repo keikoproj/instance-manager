@@ -214,7 +214,7 @@ func (lc *LaunchConfiguration) Drifted(input *CreateConfigurationInput) bool {
 	}
 
 	if !drift {
-		log.Info("no drift detected", "instancegroup", lc.OwnerName)
+		log.Info("drift not detected", "instancegroup", lc.OwnerName)
 	}
 
 	return drift

@@ -84,7 +84,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	if scalingConfig.RotationNeeded(&scaling.DiscoverConfigurationInput{
 		ScalingGroup: state.ScalingGroup,
 	}) {
-		ctx.Log.Info("rotation needed due to scaling-config diff", "instancegroup", instanceGroup.GetName(), "scalingconfig", config.Name)
+		ctx.Log.Info("node rotation required", "instancegroup", instanceGroup.GetName(), "scalingconfig", config.Name)
 		rotationNeeded = true
 	}
 
