@@ -125,7 +125,9 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 			log.Info("name conflict with inactive resource, will delete", "instancegroup", instanceGroup.GetName(), "resource", resource.GetName())
 			err = kube.Resource(GVR).Namespace(resource.GetNamespace()).Delete(resource.GetName(), &metav1.DeleteOptions{})
 			if err != nil {
-				return false, errors.Wrap(err, "failed to delete custom resource")
+				if !kerr.IsNotFound(err) {
+					return false, errors.Wrap(err, "failed to delete custom resource")
+				}
 			}
 		}
 	}
