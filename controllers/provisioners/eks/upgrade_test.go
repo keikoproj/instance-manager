@@ -23,6 +23,7 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
+	"github.com/keikoproj/instance-manager/controllers/provisioners/eks/scaling"
 	"github.com/onsi/gomega"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -166,7 +167,14 @@ func TestUpgradeCRDStrategy(t *testing.T) {
 		Publisher: kubeprovider.EventPublisher{
 			Client: k.Kubernetes,
 		},
+		ScalingConfiguration: &scaling.LaunchConfiguration{
+			TargetResource: &autoscaling.LaunchConfiguration{
+				LaunchConfigurationName: aws.String("my-lc-0123"),
+			},
+		},
 	})
+	cr.SetName("captain-0123")
+	ig.Status.SetActiveScalingGroupName("my-asg")
 	// get custom resource yaml
 	crYAML, err := yaml.Marshal(cr.Object)
 	g.Expect(err).NotTo(gomega.HaveOccurred())
@@ -198,14 +206,13 @@ func TestUpgradeCRDStrategy(t *testing.T) {
 
 	for i, tc := range tests {
 		t.Logf("#%v - \"%v\"", i, tc.input)
-
 		unstructured.SetNestedField(cr.Object, tc.input, "status", "dogStatus")
-		_, err = k.KubeDynamic.Resource(crGvr).Namespace("default").Update(cr, metav1.UpdateOptions{})
+		_, err := k.KubeDynamic.Resource(crGvr).Namespace("default").Update(cr, metav1.UpdateOptions{})
 		g.Expect(err).NotTo(gomega.HaveOccurred())
 
 		var errOccured bool
 		ig.SetState(v1alpha1.ReconcileModifying)
-		err := ctx.UpgradeNodes()
+		err = ctx.UpgradeNodes()
 		if err != nil {
 			errOccured = true
 		}

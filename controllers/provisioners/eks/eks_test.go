@@ -110,6 +110,7 @@ func MockInstanceGroup() *v1alpha1.InstanceGroup {
 		Spec: v1alpha1.InstanceGroupSpec{
 			Provisioner: ProvisionerName,
 			EKSSpec: &v1alpha1.EKSSpec{
+				Type:    "LaunchConfiguration",
 				MaxSize: 3,
 				MinSize: 1,
 				EKSConfiguration: &v1alpha1.EKSConfiguration{

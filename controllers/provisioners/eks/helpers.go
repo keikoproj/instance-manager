@@ -837,12 +837,13 @@ func (ctx *EksInstanceGroupContext) GetDesiredMixedInstancesPolicy(name string) 
 		instanceGroup = ctx.GetInstanceGroup()
 		configuration = instanceGroup.GetEKSConfiguration()
 		mixedPolicy   = configuration.GetMixedInstancesPolicy()
-		overrides     = ctx.GetOverrides()
 	)
 
 	if mixedPolicy == nil {
 		return nil
 	}
+
+	overrides := ctx.GetOverrides()
 
 	var allocationStrategy string
 	strategy := common.StringValue(mixedPolicy.Strategy)
