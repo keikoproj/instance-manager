@@ -66,10 +66,10 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		SpotPrice:             spotPrice,
 	}
 
-	if ok := spec.IsLaunchConfiguration(); ok {
+	if spec.IsLaunchConfiguration() {
 		config.Name = fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
 	}
-	if ok := spec.IsLaunchTemplate(); ok {
+	if spec.IsLaunchTemplate() {
 		config.Name = scalingConfig.Name()
 	}
 
@@ -132,11 +132,11 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string) error 
 		VPCZoneIdentifier:    aws.String(common.ConcatenateList(ctx.ResolveSubnets(), ",")),
 	}
 
-	if ok := spec.IsLaunchConfiguration(); ok {
+	if spec.IsLaunchConfiguration() {
 		input.LaunchConfigurationName = aws.String(configName)
 		status.SetActiveLaunchConfigurationName(configName)
 	}
-	if ok := spec.IsLaunchTemplate(); ok {
+	if spec.IsLaunchTemplate() {
 		if policy := configuration.GetMixedInstancesPolicy(); policy != nil {
 			input.MixedInstancesPolicy = ctx.GetDesiredMixedInstancesPolicy(configName)
 		} else {

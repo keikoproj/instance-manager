@@ -71,12 +71,12 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		ResourceVersion: instanceGroup.GetResourceVersion(),
 	}
 
-	if ok := spec.IsLaunchConfiguration(); ok {
+	if spec.IsLaunchConfiguration() {
 		state.ScalingConfiguration = &scaling.LaunchConfiguration{
 			AwsWorker: ctx.AwsWorker,
 		}
 	}
-	if ok := spec.IsLaunchTemplate(); ok {
+	if spec.IsLaunchTemplate() {
 		state.ScalingConfiguration = &scaling.LaunchTemplate{
 			AwsWorker: ctx.AwsWorker,
 		}
@@ -154,7 +154,7 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	status.SetCurrentMin(int(aws.Int64Value(targetScalingGroup.MinSize)))
 	status.SetCurrentMax(int(aws.Int64Value(targetScalingGroup.MaxSize)))
 
-	if ok := spec.IsLaunchConfiguration(); ok {
+	if spec.IsLaunchConfiguration() {
 		input := &scaling.DiscoverConfigurationInput{
 			ScalingGroup: targetScalingGroup,
 		}
@@ -165,7 +165,7 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		status.SetActiveLaunchConfigurationName(state.ScalingConfiguration.Name())
 	}
 
-	if ok := spec.IsLaunchTemplate(); ok {
+	if spec.IsLaunchTemplate() {
 		input := &scaling.DiscoverConfigurationInput{
 			ScalingGroup: targetScalingGroup,
 		}
