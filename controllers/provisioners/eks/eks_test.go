@@ -487,14 +487,39 @@ func (a *MockAutoScalingClient) PutLifecycleHook(input *autoscaling.PutLifecycle
 
 type MockEc2Client struct {
 	ec2iface.EC2API
-	DescribeSubnetsErr        error
-	DescribeSecurityGroupsErr error
-	Subnets                   []*ec2.Subnet
-	SecurityGroups            []*ec2.SecurityGroup
-	LaunchTemplates           []*ec2.LaunchTemplate
-	LaunchTemplateVersions    []*ec2.LaunchTemplateVersion
-	InstanceTypeOfferings     []*ec2.InstanceTypeOffering
-	InstanceTypes             []*ec2.InstanceTypeInfo
+	DescribeSubnetsErr                   error
+	DescribeSecurityGroupsErr            error
+	CreateLaunchTemplateCallCount        int
+	CreateLaunchTemplateVersionCallCount int
+	ModifyLaunchTemplateCallCount        int
+	DeleteLaunchTemplateCallCount        int
+	Subnets                              []*ec2.Subnet
+	SecurityGroups                       []*ec2.SecurityGroup
+	LaunchTemplates                      []*ec2.LaunchTemplate
+	LaunchTemplateVersions               []*ec2.LaunchTemplateVersion
+	InstanceTypeOfferings                []*ec2.InstanceTypeOffering
+	InstanceTypes                        []*ec2.InstanceTypeInfo
+}
+
+func (c *MockEc2Client) CreateLaunchTemplate(input *ec2.CreateLaunchTemplateInput) (*ec2.CreateLaunchTemplateOutput, error) {
+	c.CreateLaunchTemplateCallCount++
+	return &ec2.CreateLaunchTemplateOutput{}, nil
+}
+
+func (c *MockEc2Client) ModifyLaunchTemplate(input *ec2.ModifyLaunchTemplateInput) (*ec2.ModifyLaunchTemplateOutput, error) {
+	c.ModifyLaunchTemplateCallCount++
+	return &ec2.ModifyLaunchTemplateOutput{}, nil
+}
+
+func (c *MockEc2Client) CreateLaunchTemplateVersion(input *ec2.CreateLaunchTemplateVersionInput) (*ec2.CreateLaunchTemplateVersionOutput, error) {
+	c.CreateLaunchTemplateVersionCallCount++
+	out := &ec2.CreateLaunchTemplateVersionOutput{
+		LaunchTemplateVersion: &ec2.LaunchTemplateVersion{
+			VersionNumber: aws.Int64(1),
+		},
+	}
+
+	return out, nil
 }
 
 func (c *MockEc2Client) DescribeLaunchTemplateVersionsPages(input *ec2.DescribeLaunchTemplateVersionsInput, callback func(*ec2.DescribeLaunchTemplateVersionsOutput, bool) bool) error {

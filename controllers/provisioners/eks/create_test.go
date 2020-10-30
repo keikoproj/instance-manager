@@ -102,6 +102,40 @@ func TestCreateLaunchConfigurationPositive(t *testing.T) {
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModified))
 }
 
+func TestCreateLaunchTemplatePositive(t *testing.T) {
+	var (
+		g       = gomega.NewGomegaWithT(t)
+		k       = MockKubernetesClientSet()
+		ig      = MockInstanceGroup()
+		spec    = ig.GetEKSSpec()
+		asgMock = NewAutoScalingMocker()
+		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	ctx := MockContext(ig, k, w)
+
+	iamMock.Role = &iam.Role{
+		Arn:      aws.String("some-arn"),
+		RoleName: aws.String("some-role"),
+	}
+
+	spec.Type = v1alpha1.LaunchTemplate
+
+	prefix := fmt.Sprintf("my-cluster-%v-%v", ig.GetNamespace(), ig.GetName())
+	err := ctx.CloudDiscovery()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	err = ctx.Create()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	g.Expect(ig.GetStatus().GetActiveLaunchTemplateName()).To(gomega.HavePrefix(prefix))
+	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModified))
+	g.Expect(ec2Mock.CreateLaunchTemplateCallCount).To(gomega.Equal(1))
+}
+
 func TestCreateScalingGroupPositive(t *testing.T) {
 	var (
 		g       = gomega.NewGomegaWithT(t)
