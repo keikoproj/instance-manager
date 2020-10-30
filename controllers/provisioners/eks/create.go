@@ -68,6 +68,17 @@ func (ctx *EksInstanceGroupContext) Create() error {
 			Volumes:               configuration.Volumes,
 			UserData:              userData,
 			SpotPrice:             spotPrice,
+			LicenseSpecifications: configuration.LicenseSpecifications,
+			Placement: &scaling.LaunchTemplatePlacementInput{
+				Affinity:             configuration.Placement.Affinity,
+				AvailabilityZone:     configuration.Placement.AvailabilityZone,
+				GroupName:            configuration.Placement.GroupName,
+				HostID:               configuration.Placement.HostID,
+				HostResourceGroupArn: configuration.Placement.HostResourceGroupArn,
+				PartitionNumber:      configuration.Placement.PartitionNumber,
+				SpreadDomain:         configuration.Placement.SpreadDomain,
+				Tenancy:              configuration.Placement.Tenancy,
+			},
 		}); err != nil {
 			return errors.Wrap(err, "failed to create scaling configuration")
 		}

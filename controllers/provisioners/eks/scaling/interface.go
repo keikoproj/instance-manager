@@ -58,6 +58,19 @@ type CreateConfigurationInput struct {
 	Volumes               []v1alpha1.NodeVolume
 	UserData              string
 	SpotPrice             string
+	LicenseSpecifications []string
+	Placement             *LaunchTemplatePlacementInput
+}
+
+type LaunchTemplatePlacementInput struct {
+	Affinity             string
+	AvailabilityZone     string
+	GroupName            string
+	HostID               string
+	HostResourceGroupArn string
+	PartitionNumber      int64
+	SpreadDomain         string
+	Tenancy              string
 }
 
 func ConvertToLaunchTemplate(resource interface{}) *ec2.LaunchTemplate {

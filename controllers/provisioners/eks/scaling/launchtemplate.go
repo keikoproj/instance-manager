@@ -96,12 +96,14 @@ func (lt *LaunchTemplate) Create(input *CreateConfigurationInput) error {
 		IamInstanceProfile: &ec2.LaunchTemplateIamInstanceProfileSpecificationRequest{
 			Arn: aws.String(input.IamInstanceProfileArn),
 		},
-		ImageId:             aws.String(input.ImageId),
-		InstanceType:        aws.String(input.InstanceType),
-		KeyName:             aws.String(input.KeyName),
-		SecurityGroupIds:    aws.StringSlice(input.SecurityGroups),
-		UserData:            aws.String(input.UserData),
-		BlockDeviceMappings: lt.blockDeviceListRequest(input.Volumes),
+		ImageId:               aws.String(input.ImageId),
+		InstanceType:          aws.String(input.InstanceType),
+		KeyName:               aws.String(input.KeyName),
+		SecurityGroupIds:      aws.StringSlice(input.SecurityGroups),
+		UserData:              aws.String(input.UserData),
+		BlockDeviceMappings:   lt.blockDeviceListRequest(input.Volumes),
+		LicenseSpecifications: launchTemplateLicenseSpeficicationRequest(input.LicenseSpecifications),
+		Placement:             launchTemplatePlacementRequest(input.Placement),
 	}
 
 	if !lt.Provisioned() {
@@ -245,6 +247,22 @@ func (lt *LaunchTemplate) Drifted(input *CreateConfigurationInput) bool {
 		drift = true
 	}
 
+	placementConfig := lt.placementConfiguration(input.Placement)
+	currentPlacement := latestVersion.LaunchTemplateData.Placement
+	if currentPlacement == nil {
+		currentPlacement = &ec2.LaunchTemplatePlacement{}
+	}
+	log.Info("printf debugging", "LaunchTemplateDatea", latestVersion.LaunchTemplateData)
+	log.Info("printf debugging", "Current placement config", currentPlacement)
+	log.Info("printf debugging", "New placement config", placementConfig)
+	if !reflect.DeepEqual(currentPlacement, placementConfig) {
+		log.Info("detected drift", "reason", "placement configuration has changed", "instancegroup", lt.OwnerName,
+			"previousValue", currentPlacement,
+			"newValue", placementConfig,
+		)
+		drift = true
+	}
+
 	if !drift {
 		log.Info("drift not detected", "instancegroup", lt.OwnerName)
 	}
@@ -311,6 +329,48 @@ func (lt *LaunchTemplate) blockDeviceList(volumes []v1alpha1.NodeVolume) []*ec2.
 	}
 
 	return sortTemplateDevices(devices)
+}
+
+func launchTemplateLicenseSpeficicationRequest(s []string) []*ec2.LaunchTemplateLicenseConfigurationRequest {
+	var output []*ec2.LaunchTemplateLicenseConfigurationRequest
+	for _, v := range s {
+		output = append(output, &ec2.LaunchTemplateLicenseConfigurationRequest{
+			LicenseConfigurationArn: aws.String(v),
+		})
+	}
+	return output
+}
+
+func (lt *LaunchTemplate) placementConfiguration(input *LaunchTemplatePlacementInput) *ec2.LaunchTemplatePlacement {
+	if input == nil {
+		return &ec2.LaunchTemplatePlacement{}
+	}
+	return &ec2.LaunchTemplatePlacement{
+		Affinity:             aws.String(input.Affinity),
+		AvailabilityZone:     aws.String(input.AvailabilityZone),
+		GroupName:            aws.String(input.GroupName),
+		HostId:               aws.String(input.HostID),
+		HostResourceGroupArn: aws.String(input.HostResourceGroupArn),
+		PartitionNumber:      aws.Int64(input.PartitionNumber),
+		SpreadDomain:         aws.String(input.SpreadDomain),
+		Tenancy:              aws.String(input.Tenancy),
+	}
+}
+
+func launchTemplatePlacementRequest(input *LaunchTemplatePlacementInput) *ec2.LaunchTemplatePlacementRequest {
+	if input == nil {
+		return &ec2.LaunchTemplatePlacementRequest{}
+	}
+	return &ec2.LaunchTemplatePlacementRequest{
+		Affinity:             aws.String(input.Affinity),
+		AvailabilityZone:     aws.String(input.AvailabilityZone),
+		GroupName:            aws.String(input.GroupName),
+		HostId:               aws.String(input.HostID),
+		HostResourceGroupArn: aws.String(input.HostResourceGroupArn),
+		PartitionNumber:      aws.Int64(input.PartitionNumber),
+		SpreadDomain:         aws.String(input.SpreadDomain),
+		Tenancy:              aws.String(input.Tenancy),
+	}
 }
 
 func (lt *LaunchTemplate) getVersion(id int64) *ec2.LaunchTemplateVersion {

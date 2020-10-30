@@ -187,26 +187,28 @@ type EKSSpec struct {
 }
 
 type EKSConfiguration struct {
-	EksClusterName              string                    `json:"clusterName,omitempty"`
-	KeyPairName                 string                    `json:"keyPairName,omitempty"`
-	Image                       string                    `json:"image,omitempty"`
-	InstanceType                string                    `json:"instanceType,omitempty"`
-	NodeSecurityGroups          []string                  `json:"securityGroups,omitempty"`
-	Volumes                     []NodeVolume              `json:"volumes,omitempty"`
-	Subnets                     []string                  `json:"subnets,omitempty"`
-	SuspendedProcesses          []string                  `json:"suspendProcesses,omitempty"`
-	BootstrapArguments          string                    `json:"bootstrapArguments,omitempty"`
-	SpotPrice                   string                    `json:"spotPrice,omitempty"`
-	Tags                        []map[string]string       `json:"tags,omitempty"`
-	Labels                      map[string]string         `json:"labels,omitempty"`
-	Taints                      []corev1.Taint            `json:"taints,omitempty"`
-	UserData                    []UserDataStage           `json:"userData,omitempty"`
-	ExistingRoleName            string                    `json:"roleName,omitempty"`
-	ExistingInstanceProfileName string                    `json:"instanceProfileName,omitempty"`
-	ManagedPolicies             []string                  `json:"managedPolicies,omitempty"`
-	MetricsCollection           []string                  `json:"metricsCollection,omitempty"`
-	LifecycleHooks              []LifecycleHookSpec       `json:"lifecycleHooks,omitempty"`
-	MixedInstancesPolicy        *MixedInstancesPolicySpec `json:"mixedInstancesPolicy,omitempty"`
+	EksClusterName              string                       `json:"clusterName,omitempty"`
+	KeyPairName                 string                       `json:"keyPairName,omitempty"`
+	Image                       string                       `json:"image,omitempty"`
+	InstanceType                string                       `json:"instanceType,omitempty"`
+	NodeSecurityGroups          []string                     `json:"securityGroups,omitempty"`
+	Volumes                     []NodeVolume                 `json:"volumes,omitempty"`
+	Subnets                     []string                     `json:"subnets,omitempty"`
+	SuspendedProcesses          []string                     `json:"suspendProcesses,omitempty"`
+	BootstrapArguments          string                       `json:"bootstrapArguments,omitempty"`
+	SpotPrice                   string                       `json:"spotPrice,omitempty"`
+	Tags                        []map[string]string          `json:"tags,omitempty"`
+	Labels                      map[string]string            `json:"labels,omitempty"`
+	Taints                      []corev1.Taint               `json:"taints,omitempty"`
+	UserData                    []UserDataStage              `json:"userData,omitempty"`
+	ExistingRoleName            string                       `json:"roleName,omitempty"`
+	ExistingInstanceProfileName string                       `json:"instanceProfileName,omitempty"`
+	ManagedPolicies             []string                     `json:"managedPolicies,omitempty"`
+	MetricsCollection           []string                     `json:"metricsCollection,omitempty"`
+	LifecycleHooks              []LifecycleHookSpec          `json:"lifecycleHooks,omitempty"`
+	MixedInstancesPolicy        *MixedInstancesPolicySpec    `json:"mixedInstancesPolicy,omitempty"`
+	LicenseSpecifications       []string                     `json:"licenseSpecifications,omitempty"`
+	Placement                   *LaunchTemplatePlacementSpec `json:"placement,omitempty"`
 }
 
 const (
@@ -222,6 +224,17 @@ type MixedInstancesPolicySpec struct {
 	SpotRatio     *intstr.IntOrString `json:"spotRatio,omitempty"`
 	InstancePool  *string             `json:"instancePool,omitempty"`
 	InstanceTypes []*InstanceTypeSpec `json:"instanceTypes,omitempty"`
+}
+
+type LaunchTemplatePlacementSpec struct {
+	Affinity             string `json:"affinity,omitempty"`
+	AvailabilityZone     string `json:"availabilityZone,omitempty"`
+	GroupName            string `json:"groupName,omitempty"`
+	HostID               string `json:"hostID,omitempty"`
+	HostResourceGroupArn string `json:"hostResourceGroupArn,omitempty"`
+	PartitionNumber      int64  `json:"partitionNumber,omitempty"`
+	SpreadDomain         string `json:"spreadDomain,omitempty"`
+	Tenancy              string `json:"tenancy,omitempty"`
 }
 
 type InstanceTypeSpec struct {
