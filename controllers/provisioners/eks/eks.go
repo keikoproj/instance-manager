@@ -31,8 +31,7 @@ const (
 	ProvisionerName                     = "eks"
 	defaultLaunchConfigurationRetention = 2
 	OverrideDefaultLabelsAnnotationKey  = "instancemgr.keikoproj.io/default-labels"
-	ClusterAutoscalerEnabledAnnotation = "instancemgr.keikoproj.io/cluster-autoscaler-enabled"
-
+	ClusterAutoscalerEnabledAnnotation  = "instancemgr.keikoproj.io/cluster-autoscaler-enabled"
 )
 
 var (
