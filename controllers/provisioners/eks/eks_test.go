@@ -106,6 +106,9 @@ func MockInstanceGroup() *v1alpha1.InstanceGroup {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "instance-group-1",
 			Namespace: "instance-manager",
+			Annotations: map[string]string{
+				ClusterAutoscalerEnabledAnnotation: "true",
+			},
 		},
 		Spec: v1alpha1.InstanceGroupSpec{
 			Provisioner: ProvisionerName,
