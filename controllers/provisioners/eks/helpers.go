@@ -33,6 +33,7 @@ import (
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
+	"github.com/keikoproj/instance-manager/controllers/provisioners/eks/scaling"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -961,4 +962,23 @@ func (ctx *EksInstanceGroupContext) GetDesiredMixedInstancesPolicy(name string) 
 	}
 
 	return policy
+}
+
+func GetLaunchTemplatePlacementInput(placement *v1alpha1.LaunchTemplatePlacementSpec) *scaling.LaunchTemplatePlacementInput {
+	if placement == nil {
+		return nil
+	}
+
+	result := &scaling.LaunchTemplatePlacementInput{
+		// Affinity:         placement.Affinity,
+		AvailabilityZone: placement.AvailabilityZone,
+		GroupName:        placement.GroupName,
+		// HostID:               placement.HostID,
+		HostResourceGroupArn: placement.HostResourceGroupArn,
+		PartitionNumber:      placement.PartitionNumber,
+		SpreadDomain:         placement.SpreadDomain,
+		Tenancy:              placement.Tenancy,
+	}
+	return result
+
 }

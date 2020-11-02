@@ -227,10 +227,10 @@ type MixedInstancesPolicySpec struct {
 }
 
 type LaunchTemplatePlacementSpec struct {
-	Affinity             string `json:"affinity,omitempty"`
-	AvailabilityZone     string `json:"availabilityZone,omitempty"`
-	GroupName            string `json:"groupName,omitempty"`
-	HostID               string `json:"hostID,omitempty"`
+	// Affinity         string `json:"affinity,omitempty"`
+	AvailabilityZone string `json:"availabilityZone,omitempty"`
+	GroupName        string `json:"groupName,omitempty"`
+	// HostID               string `json:"hostID,omitempty"`
 	HostResourceGroupArn string `json:"hostResourceGroupArn,omitempty"`
 	PartitionNumber      int64  `json:"partitionNumber,omitempty"`
 	SpreadDomain         string `json:"spreadDomain,omitempty"`
@@ -500,6 +500,12 @@ func (c *EKSConfiguration) Validate() error {
 			return err
 		}
 	}
+
+	for i, v := range c.LicenseSpecifications {
+		if !common.StringEmpty(v) && !strings.HasPrefix(v, awsprovider.ARNPrefix) {
+			return errors.Errorf("validation failed, 'LicenseSpecifications[%d]' must be a valid IAM role ARN", i)
+		}
+	}
 	return nil
 }
 func (m *MixedInstancesPolicySpec) Validate() error {
@@ -605,6 +611,9 @@ func (c *EKSConfiguration) GetRoleName() string {
 }
 func (c *EKSConfiguration) GetMixedInstancesPolicy() *MixedInstancesPolicySpec {
 	return c.MixedInstancesPolicy
+}
+func (c *EKSConfiguration) GetPlacement() *LaunchTemplatePlacementSpec {
+	return c.Placement
 }
 func (c *EKSConfiguration) GetLifecycleHooks() []LifecycleHookSpec {
 	return c.LifecycleHooks

@@ -247,12 +247,27 @@ func (lt *LaunchTemplate) Drifted(input *CreateConfigurationInput) bool {
 		drift = true
 	}
 
+	if len(latestVersion.LaunchTemplateData.LicenseSpecifications) != len(input.LicenseSpecifications) {
+		log.Info("detected drift", "reason", "Number of LicenseSpecifications has changed", "instancegroup", lt.OwnerName)
+		drift = true
+	}
+	for i, v := range latestVersion.LaunchTemplateData.LicenseSpecifications {
+		log.Info("printf debugging", "Input LicenseSpecification", input.LicenseSpecifications)
+		if aws.StringValue(v.LicenseConfigurationArn) != input.LicenseSpecifications[i] {
+			log.Info("detected drift", "reason", "LicenseSpecifications has changed", "instancegroup", lt.OwnerName,
+				"previousValue", aws.StringValue(v.LicenseConfigurationArn),
+				"newValue", input.LicenseSpecifications,
+			)
+			drift = true
+		}
+	}
+
 	placementConfig := lt.placementConfiguration(input.Placement)
 	currentPlacement := latestVersion.LaunchTemplateData.Placement
 	if currentPlacement == nil {
 		currentPlacement = &ec2.LaunchTemplatePlacement{}
 	}
-	log.Info("printf debugging", "LaunchTemplateDatea", latestVersion.LaunchTemplateData)
+	log.Info("printf debugging", "LaunchTemplateDate", latestVersion.LaunchTemplateData)
 	log.Info("printf debugging", "Current placement config", currentPlacement)
 	log.Info("printf debugging", "New placement config", placementConfig)
 	if !reflect.DeepEqual(currentPlacement, placementConfig) {
@@ -346,14 +361,14 @@ func (lt *LaunchTemplate) placementConfiguration(input *LaunchTemplatePlacementI
 		return &ec2.LaunchTemplatePlacement{}
 	}
 	return &ec2.LaunchTemplatePlacement{
-		Affinity:             aws.String(input.Affinity),
-		AvailabilityZone:     aws.String(input.AvailabilityZone),
-		GroupName:            aws.String(input.GroupName),
-		HostId:               aws.String(input.HostID),
+		// Affinity:         aws.String(input.Affinity),
+		AvailabilityZone: aws.String(input.AvailabilityZone),
+		// GroupName:        aws.String(input.GroupName),
+		// HostId:               aws.String(input.HostID),
 		HostResourceGroupArn: aws.String(input.HostResourceGroupArn),
-		PartitionNumber:      aws.Int64(input.PartitionNumber),
-		SpreadDomain:         aws.String(input.SpreadDomain),
-		Tenancy:              aws.String(input.Tenancy),
+		// PartitionNumber:      aws.Int64(input.PartitionNumber),
+		// SpreadDomain:         aws.String(input.SpreadDomain),
+		Tenancy: aws.String(input.Tenancy),
 	}
 }
 
@@ -362,14 +377,14 @@ func launchTemplatePlacementRequest(input *LaunchTemplatePlacementInput) *ec2.La
 		return &ec2.LaunchTemplatePlacementRequest{}
 	}
 	return &ec2.LaunchTemplatePlacementRequest{
-		Affinity:             aws.String(input.Affinity),
-		AvailabilityZone:     aws.String(input.AvailabilityZone),
-		GroupName:            aws.String(input.GroupName),
-		HostId:               aws.String(input.HostID),
+		// Affinity:         aws.String(input.Affinity),
+		AvailabilityZone: aws.String(input.AvailabilityZone),
+		// GroupName:        aws.String(input.GroupName),
+		// HostId:               aws.String(input.HostID),
 		HostResourceGroupArn: aws.String(input.HostResourceGroupArn),
-		PartitionNumber:      aws.Int64(input.PartitionNumber),
-		SpreadDomain:         aws.String(input.SpreadDomain),
-		Tenancy:              aws.String(input.Tenancy),
+		// PartitionNumber:      aws.Int64(input.PartitionNumber),
+		// SpreadDomain:         aws.String(input.SpreadDomain),
+		Tenancy: aws.String(input.Tenancy),
 	}
 }
 
