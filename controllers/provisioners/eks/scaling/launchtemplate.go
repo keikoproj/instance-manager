@@ -180,8 +180,9 @@ func (lt *LaunchTemplate) Delete(input *DeleteConfigurationInput) error {
 
 func (lt *LaunchTemplate) Drifted(input *CreateConfigurationInput) bool {
 	var (
-		latestVersion = lt.LatestVersion
-		drift         bool
+		latestVersion   = lt.LatestVersion
+		placementConfig *ec2.LaunchTemplatePlacement
+		drift           bool
 	)
 
 	if latestVersion == nil {
@@ -262,14 +263,19 @@ func (lt *LaunchTemplate) Drifted(input *CreateConfigurationInput) bool {
 		}
 	}
 
-	placementConfig := lt.placementConfiguration(input.Placement)
+	if input.Placement == nil {
+		placementConfig = &ec2.LaunchTemplatePlacement{}
+	} else {
+		placementConfig = &ec2.LaunchTemplatePlacement{
+			AvailabilityZone:     aws.String(input.Placement.AvailabilityZone),
+			HostResourceGroupArn: aws.String(input.Placement.HostResourceGroupArn),
+			Tenancy:              aws.String(input.Placement.Tenancy),
+		}
+	}
 	currentPlacement := latestVersion.LaunchTemplateData.Placement
 	if currentPlacement == nil {
 		currentPlacement = &ec2.LaunchTemplatePlacement{}
 	}
-	log.Info("printf debugging", "LaunchTemplateDate", latestVersion.LaunchTemplateData)
-	log.Info("printf debugging", "Current placement config", currentPlacement)
-	log.Info("printf debugging", "New placement config", placementConfig)
 	if !reflect.DeepEqual(currentPlacement, placementConfig) {
 		log.Info("detected drift", "reason", "placement configuration has changed", "instancegroup", lt.OwnerName,
 			"previousValue", currentPlacement,
@@ -354,17 +360,6 @@ func launchTemplateLicenseSpeficicationRequest(s []string) []*ec2.LaunchTemplate
 		})
 	}
 	return output
-}
-
-func (lt *LaunchTemplate) placementConfiguration(input *LaunchTemplatePlacementInput) *ec2.LaunchTemplatePlacement {
-	if input == nil {
-		return &ec2.LaunchTemplatePlacement{}
-	}
-	return &ec2.LaunchTemplatePlacement{
-		AvailabilityZone:     aws.String(input.AvailabilityZone),
-		HostResourceGroupArn: aws.String(input.HostResourceGroupArn),
-		Tenancy:              aws.String(input.Tenancy),
-	}
 }
 
 func launchTemplatePlacementRequest(input *LaunchTemplatePlacementInput) *ec2.LaunchTemplatePlacementRequest {
