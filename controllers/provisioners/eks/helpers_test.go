@@ -17,6 +17,7 @@ package eks
 
 import (
 	"fmt"
+	corev1 "k8s.io/api/core/v1"
 	"sort"
 	"testing"
 
@@ -30,6 +31,54 @@ import (
 	"github.com/onsi/gomega"
 	"github.com/pkg/errors"
 )
+
+func TestAutoscalerTags(t *testing.T) {
+	var (
+		k       = MockKubernetesClientSet()
+		ig      = MockInstanceGroup()
+		asgMock = NewAutoScalingMocker()
+		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+
+	ig.Annotations = map[string]string{
+		ClusterAutoscalerEnabledAnnotation: "true",
+	}
+
+	ig.Spec.EKSSpec.EKSConfiguration.Labels = make(map[string]string)
+	ig.Spec.EKSSpec.EKSConfiguration.Labels["foo"] = "bar"
+
+	ig.Spec.EKSSpec.EKSConfiguration.Taints = []corev1.Taint{}
+	ig.Spec.EKSSpec.EKSConfiguration.Taints = append(ig.Spec.EKSSpec.EKSConfiguration.Taints, corev1.Taint{
+		Key:       "red",
+		Value:     "green",
+		Effect:    "NoSchedule",
+	})
+	ctx := MockContext(ig, k, w)
+
+	tags := make(map[string]string)
+	expectedTags := make(map[string]string)
+
+	expectedTags["k8s.io/cluster-autoscaler/enabled"] = "true"
+	expectedTags["k8s.io/cluster-autoscaler/" + ig.Spec.EKSSpec.EKSConfiguration.EksClusterName] = "owned"
+	expectedTags["k8s.io/cluster-autoscaler/node-template/label/foo"] = "bar"
+	expectedTags["k8s.io/cluster-autoscaler/node-template/taint/red"] = "green:NoSchedule"
+
+	tagSlice := ctx.GetAddedTags("foo")
+	for _, tag := range tagSlice {
+		tags[*tag.Key] = *tag.Value
+	}
+	for expectedKey, expectedValue  := range expectedTags {
+		if tags[expectedKey] != expectedValue {
+			t.Fatalf("Expected %v=%v, Got %v",expectedKey,expectedValue,tags[expectedKey])
+		}
+	}
+
+
+}
 
 func TestResolveSecurityGroups(t *testing.T) {
 	var (

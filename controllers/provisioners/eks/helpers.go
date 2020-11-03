@@ -206,6 +206,9 @@ func (ctx *EksInstanceGroupContext) GetAddedTags(asgName string) []*autoscaling.
 		instanceGroup = ctx.GetInstanceGroup()
 		configuration = instanceGroup.GetEKSConfiguration()
 		clusterName   = configuration.GetClusterName()
+		annotations   = instanceGroup.GetAnnotations()
+		labels 	      = configuration.GetLabels()
+		taints        = configuration.GetTaints()
 	)
 
 	tags = append(tags, ctx.AwsWorker.NewTag("Name", asgName, asgName))
@@ -213,6 +216,21 @@ func (ctx *EksInstanceGroupContext) GetAddedTags(asgName string) []*autoscaling.
 	tags = append(tags, ctx.AwsWorker.NewTag(provisioners.TagClusterName, clusterName, asgName))
 	tags = append(tags, ctx.AwsWorker.NewTag(provisioners.TagInstanceGroupNamespace, instanceGroup.GetNamespace(), asgName))
 	tags = append(tags, ctx.AwsWorker.NewTag(provisioners.TagInstanceGroupName, instanceGroup.GetName(), asgName))
+
+	if annotations[ClusterAutoscalerEnabledAnnotation] == "true" {
+		tags = append(tags, ctx.AwsWorker.NewTag(fmt.Sprintf("k8s.io/cluster-autoscaler/%v", clusterName), "owned", asgName))
+		tags = append(tags, ctx.AwsWorker.NewTag("k8s.io/cluster-autoscaler/enabled", "true", asgName))
+
+		for label, labelValue := range labels {
+			tags = append(tags, ctx.AwsWorker.NewTag(fmt.Sprintf("k8s.io/cluster-autoscaler/node-template/label/%v", label), labelValue, asgName))
+		}
+
+		for _, taint := range taints {
+			tagValue := fmt.Sprintf("%v:%v", taint.Value, taint.Effect)
+			tag := ctx.AwsWorker.NewTag(fmt.Sprintf("k8s.io/cluster-autoscaler/node-template/taint/%s", taint.Key), tagValue, asgName)
+			tags = append(tags, tag)
+		}
+	}
 
 	// custom tags
 	for _, tagSlice := range configuration.GetTags() {
