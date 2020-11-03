@@ -227,13 +227,8 @@ type MixedInstancesPolicySpec struct {
 }
 
 type LaunchTemplatePlacementSpec struct {
-	// Affinity         string `json:"affinity,omitempty"`
-	AvailabilityZone string `json:"availabilityZone,omitempty"`
-	GroupName        string `json:"groupName,omitempty"`
-	// HostID               string `json:"hostID,omitempty"`
+	AvailabilityZone     string `json:"availabilityZone,omitempty"`
 	HostResourceGroupArn string `json:"hostResourceGroupArn,omitempty"`
-	PartitionNumber      int64  `json:"partitionNumber,omitempty"`
-	SpreadDomain         string `json:"spreadDomain,omitempty"`
 	Tenancy              string `json:"tenancy,omitempty"`
 }
 

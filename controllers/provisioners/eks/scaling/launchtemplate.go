@@ -361,14 +361,9 @@ func (lt *LaunchTemplate) placementConfiguration(input *LaunchTemplatePlacementI
 		return &ec2.LaunchTemplatePlacement{}
 	}
 	return &ec2.LaunchTemplatePlacement{
-		// Affinity:         aws.String(input.Affinity),
-		AvailabilityZone: aws.String(input.AvailabilityZone),
-		// GroupName:        aws.String(input.GroupName),
-		// HostId:               aws.String(input.HostID),
+		AvailabilityZone:     aws.String(input.AvailabilityZone),
 		HostResourceGroupArn: aws.String(input.HostResourceGroupArn),
-		// PartitionNumber:      aws.Int64(input.PartitionNumber),
-		// SpreadDomain:         aws.String(input.SpreadDomain),
-		Tenancy: aws.String(input.Tenancy),
+		Tenancy:              aws.String(input.Tenancy),
 	}
 }
 
@@ -377,14 +372,9 @@ func launchTemplatePlacementRequest(input *LaunchTemplatePlacementInput) *ec2.La
 		return &ec2.LaunchTemplatePlacementRequest{}
 	}
 	return &ec2.LaunchTemplatePlacementRequest{
-		// Affinity:         aws.String(input.Affinity),
-		AvailabilityZone: aws.String(input.AvailabilityZone),
-		// GroupName:        aws.String(input.GroupName),
-		// HostId:               aws.String(input.HostID),
+		AvailabilityZone:     aws.String(input.AvailabilityZone),
 		HostResourceGroupArn: aws.String(input.HostResourceGroupArn),
-		// PartitionNumber:      aws.Int64(input.PartitionNumber),
-		// SpreadDomain:         aws.String(input.SpreadDomain),
-		Tenancy: aws.String(input.Tenancy),
+		Tenancy:              aws.String(input.Tenancy),
 	}
 }
 

@@ -970,13 +970,8 @@ func GetLaunchTemplatePlacementInput(placement *v1alpha1.LaunchTemplatePlacement
 	}
 
 	result := &scaling.LaunchTemplatePlacementInput{
-		// Affinity:         placement.Affinity,
-		AvailabilityZone: placement.AvailabilityZone,
-		GroupName:        placement.GroupName,
-		// HostID:               placement.HostID,
+		AvailabilityZone:     placement.AvailabilityZone,
 		HostResourceGroupArn: placement.HostResourceGroupArn,
-		PartitionNumber:      placement.PartitionNumber,
-		SpreadDomain:         placement.SpreadDomain,
 		Tenancy:              placement.Tenancy,
 	}
 	return result
