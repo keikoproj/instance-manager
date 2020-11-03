@@ -591,6 +591,24 @@ func TestLaunchTemplateDrifted(t *testing.T) {
 			},
 			shouldDrift: true,
 		},
+		{
+			launchTemplate: &ec2.LaunchTemplate{
+				LaunchTemplateName: aws.String("my-launch-config"),
+			},
+			latestVersion: &ec2.LaunchTemplateVersion{
+				LaunchTemplateData: &ec2.ResponseLaunchTemplateData{
+					LicenseSpecifications: []*ec2.LaunchTemplateLicenseConfiguration{
+						&ec2.LaunchTemplateLicenseConfiguration{
+							LicenseConfigurationArn: aws.String("arn:aws:license-manager:us-west-2:493203180918:license-configuration:lic-94ba36399bd98eaad808b0ffb1d1604b"),
+						},
+					},
+				},
+			},
+			input: &CreateConfigurationInput{
+				LicenseSpecifications: []string{"arn:aws:license-manager:us-west-2:493203180918:license-configuration:lic-94ba36399bd98eaad808b0ffb1d1604b"},
+			},
+			shouldDrift: true,
+		},
 	}
 
 	for i, tc := range tests {
