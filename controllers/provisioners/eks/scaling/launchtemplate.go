@@ -24,6 +24,7 @@ import (
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
@@ -136,7 +137,11 @@ func (lt *LaunchTemplate) Delete(input *DeleteConfigurationInput) error {
 	if input.DeleteAll {
 		templateName := lt.Name()
 		if err := lt.DeleteLaunchTemplate(templateName); err != nil {
-			return err
+			if awsErr, ok := err.(awserr.Error); ok {
+				if awsErr.Code() != ec2.LaunchTemplateErrorCodeLaunchTemplateNameDoesNotExist {
+					return err
+				}
+			}
 		}
 		return nil
 	}
@@ -163,7 +168,7 @@ func (lt *LaunchTemplate) Delete(input *DeleteConfigurationInput) error {
 	log.Info("deleting launch template versions", "instancegroup", lt.OwnerName, "versions", deletableVersions)
 
 	if err := lt.DeleteLaunchTemplateVersions(input.Name, deletableVersions); err != nil {
-		return errors.Wrap(err, "failed to delete launch configuration")
+		return errors.Wrap(err, "failed to delete launch template versions")
 	}
 
 	return nil

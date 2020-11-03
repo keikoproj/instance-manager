@@ -62,7 +62,7 @@ func (a *MockAutoScalingClient) DeleteLaunchConfiguration(input *autoscaling.Del
 	return &autoscaling.DeleteLaunchConfigurationOutput{}, a.DeleteLaunchConfigurationErr
 }
 
-func TestDiscover(t *testing.T) {
+func TestLaunchConfigurationDiscover(t *testing.T) {
 	var (
 		g       = gomega.NewGomegaWithT(t)
 		asgMock = &MockAutoScalingClient{}
@@ -138,7 +138,7 @@ func TestDiscover(t *testing.T) {
 	g.Expect(lc.Name()).To(gomega.BeEmpty())
 }
 
-func TestCreate(t *testing.T) {
+func TestLaunchConfigurationCreate(t *testing.T) {
 	var (
 		g       = gomega.NewGomegaWithT(t)
 		asgMock = &MockAutoScalingClient{}
@@ -219,7 +219,7 @@ func TestCreate(t *testing.T) {
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 }
 
-func TestDelete(t *testing.T) {
+func TestLaunchConfigurationDelete(t *testing.T) {
 	var (
 		g       = gomega.NewGomegaWithT(t)
 		asgMock = &MockAutoScalingClient{}
@@ -311,7 +311,7 @@ func TestDelete(t *testing.T) {
 	asgMock.DeleteLaunchConfigurationCallCount = 0
 }
 
-func TestDrifted(t *testing.T) {
+func TestLaunchConfigurationDrifted(t *testing.T) {
 	var (
 		g       = gomega.NewGomegaWithT(t)
 		asgMock = &MockAutoScalingClient{}
