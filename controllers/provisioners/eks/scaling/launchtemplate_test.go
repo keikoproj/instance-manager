@@ -17,6 +17,7 @@ package scaling
 
 import (
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -30,6 +31,16 @@ import (
 
 	"github.com/onsi/gomega"
 )
+
+func MockLaunchTemplateScalingInstance(id, name, version string) *autoscaling.Instance {
+	return &autoscaling.Instance{
+		InstanceId: aws.String(id),
+		LaunchTemplate: &autoscaling.LaunchTemplateSpecification{
+			LaunchTemplateName: aws.String(name),
+			Version:            aws.String(version),
+		},
+	}
+}
 
 type MockEc2Client struct {
 	ec2iface.EC2API
@@ -397,6 +408,62 @@ func TestLaunchTemplateDelete(t *testing.T) {
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	g.Expect(ec2Mock.DeleteLaunchTemplateCallCount).To(gomega.Equal(1))
 	ec2Mock.DeleteLaunchTemplateErr = nil
+}
+
+func TestLaunchTemplateRotationNeeded(t *testing.T) {
+	var (
+		g       = gomega.NewGomegaWithT(t)
+		asgMock = &MockAutoScalingClient{}
+		ec2Mock = &MockEc2Client{}
+	)
+
+	w := awsprovider.AwsWorker{
+		AsgClient: asgMock,
+		Ec2Client: ec2Mock,
+	}
+
+	tests := []struct {
+		scalingInstances []*autoscaling.Instance
+		latestVersion    string
+		rotationNeeded   bool
+	}{
+		{scalingInstances: []*autoscaling.Instance{}, latestVersion: "6", rotationNeeded: false},
+		{scalingInstances: []*autoscaling.Instance{MockLaunchTemplateScalingInstance("i-1234", "my-launch-template", "6"), MockLaunchTemplateScalingInstance("i-2222", "my-launch-template", "6")}, latestVersion: "6", rotationNeeded: false},
+		{scalingInstances: []*autoscaling.Instance{MockLaunchTemplateScalingInstance("i-1234", "my-launch-template", "6"), MockLaunchTemplateScalingInstance("i-2222", "my-launch-template", "5")}, latestVersion: "6", rotationNeeded: true},
+		{scalingInstances: []*autoscaling.Instance{MockLaunchTemplateScalingInstance("i-1234", "my-launch-template", "6"), MockLaunchTemplateScalingInstance("i-2222", "other-launch-template", "6")}, latestVersion: "6", rotationNeeded: true},
+	}
+
+	for i, tc := range tests {
+		t.Logf("Test #%v", i)
+		discoveryInput := &DiscoverConfigurationInput{
+			ScalingGroup: &autoscaling.Group{
+				Instances:            tc.scalingInstances,
+				AutoScalingGroupName: aws.String("my-asg"),
+				LaunchTemplate: &autoscaling.LaunchTemplateSpecification{
+					LaunchTemplateName: aws.String("my-launch-template"),
+					Version:            aws.String(tc.latestVersion),
+				},
+			},
+		}
+
+		ec2Mock.LaunchTemplates = []*ec2.LaunchTemplate{
+			{
+				LaunchTemplateName: aws.String("my-launch-template"),
+			},
+		}
+
+		lt, err := NewLaunchTemplate("", w, discoveryInput)
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+
+		n, err := strconv.ParseInt(tc.latestVersion, 10, 64)
+		lt.LatestVersion = &ec2.LaunchTemplateVersion{
+			VersionNumber: aws.Int64(n),
+		}
+
+		result := lt.RotationNeeded(discoveryInput)
+		g.Expect(result).To(gomega.Equal(tc.rotationNeeded))
+	}
+
 }
 
 func TestLaunchTemplateDrifted(t *testing.T) {

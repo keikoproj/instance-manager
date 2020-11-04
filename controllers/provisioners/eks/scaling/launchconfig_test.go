@@ -31,6 +31,13 @@ import (
 	"github.com/onsi/gomega"
 )
 
+func MockLaunchConfigurationScalingInstance(id, name string) *autoscaling.Instance {
+	return &autoscaling.Instance{
+		InstanceId:              aws.String(id),
+		LaunchConfigurationName: aws.String(name),
+	}
+}
+
 type MockAutoScalingClient struct {
 	autoscalingiface.AutoScalingAPI
 	DescribeLaunchConfigurationsErr    error
@@ -463,4 +470,50 @@ func TestLaunchConfigurationDrifted(t *testing.T) {
 		result := lc.Drifted(tc.input)
 		g.Expect(result).To(gomega.Equal(tc.shouldDrift))
 	}
+}
+
+func TestLaunchConfigurationRotationNeeded(t *testing.T) {
+	var (
+		g       = gomega.NewGomegaWithT(t)
+		asgMock = &MockAutoScalingClient{}
+		ec2Mock = &MockEc2Client{}
+	)
+
+	w := awsprovider.AwsWorker{
+		AsgClient: asgMock,
+		Ec2Client: ec2Mock,
+	}
+
+	tests := []struct {
+		scalingInstances []*autoscaling.Instance
+		rotationNeeded   bool
+	}{
+		{scalingInstances: []*autoscaling.Instance{}, rotationNeeded: false},
+		{scalingInstances: []*autoscaling.Instance{MockLaunchConfigurationScalingInstance("i-1234", "my-launch-config"), MockLaunchConfigurationScalingInstance("i-2222", "my-launch-config")}, rotationNeeded: false},
+		{scalingInstances: []*autoscaling.Instance{MockLaunchConfigurationScalingInstance("i-1234", "my-launch-config"), MockLaunchConfigurationScalingInstance("i-2222", "other-launch-config")}, rotationNeeded: true},
+	}
+
+	for i, tc := range tests {
+		t.Logf("Test #%v", i)
+		discoveryInput := &DiscoverConfigurationInput{
+			ScalingGroup: &autoscaling.Group{
+				Instances:               tc.scalingInstances,
+				AutoScalingGroupName:    aws.String("my-asg"),
+				LaunchConfigurationName: aws.String("my-launch-config"),
+			},
+		}
+
+		asgMock.LaunchConfigurations = []*autoscaling.LaunchConfiguration{
+			{
+				LaunchConfigurationName: aws.String("my-launch-config"),
+			},
+		}
+
+		lt, err := NewLaunchConfiguration("", w, discoveryInput)
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+
+		result := lt.RotationNeeded(discoveryInput)
+		g.Expect(result).To(gomega.Equal(tc.rotationNeeded))
+	}
+
 }
