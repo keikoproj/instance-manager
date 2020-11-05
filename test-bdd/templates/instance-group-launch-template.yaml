@@ -1,0 +1,46 @@
+apiVersion: instancemgr.keikoproj.io/v1alpha1
+kind: InstanceGroup
+metadata:
+  labels:
+    controller-tools.k8s.io: "1.0"
+  name: bdd-test-launchtemplate
+  namespace: instance-manager
+spec:
+  provisioner: eks
+  strategy:
+    type: rollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  eks:
+    maxSize: 4
+    minSize: 2
+    type: LaunchTemplate
+    configuration:
+      labels:
+        test: bdd-test-launchtemplate
+      taints:
+      - key: node-role.kubernetes.io/bdd-test
+        value: bdd-test
+        effect: NoSchedule
+      clusterName: {{ .ClusterName }}
+      subnets: {{range $element := .Subnets}}
+        - {{$element}}
+      {{ end }}
+      keyPairName: {{ .KeyPairName }}
+      image: {{ .AmiID }}
+      instanceType: t2.small
+      volumes:
+      - name: /dev/xvdb
+        type: gp2
+        size: 30
+        mountOptions:
+          fileSystem: xfs
+          mount: /data
+      securityGroups: {{range $element := .NodeSecurityGroups}}
+        - {{$element}}
+      {{ end }}
+      tags:
+      - key: k8s-minion-manager
+        value: use-spot
+      metricsCollection:
+      - all

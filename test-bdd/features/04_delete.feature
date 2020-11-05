@@ -22,6 +22,18 @@ Feature: CRUD Delete
     Then 0 nodes should be found
     And the resource should be deleted
 
+  Scenario: Delete an instance-group with launch template
+    Given an EKS cluster
+    When I delete a resource instance-group-launch-template.yaml
+    Then 0 nodes should be found
+    And the resource should be deleted
+
+  Scenario: Delete an instance-group with launch template and mixed instances
+    Given an EKS cluster
+    When I delete a resource instance-group-launch-template-mixed.yaml
+    Then 0 nodes should be found
+    And the resource should be deleted
+
   Scenario: Delete an instance-group with managed node-group
     Given an EKS cluster
     When I delete a resource instance-group-managed.yaml
