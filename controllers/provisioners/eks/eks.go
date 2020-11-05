@@ -31,8 +31,10 @@ const (
 	ProvisionerName                     = "eks"
 	defaultLaunchConfigurationRetention = 2
 	OverrideDefaultLabelsAnnotationKey  = "instancemgr.keikoproj.io/default-labels"
-	OsFamilyLabel				        = "instancemgr.keikoproj.io/os-family"
+	OsFamilyAnnotation                  = "instancemgr.keikoproj.io/os-family"
 	ClusterAutoscalerEnabledAnnotation  = "instancemgr.keikoproj.io/cluster-autoscaler-enabled"
+
+	OsFamilyWindows                     = "windows"
 )
 
 var (
@@ -111,15 +113,14 @@ func (ctx *EksInstanceGroupContext) GetInstanceGroup() *v1alpha1.InstanceGroup {
 }
 
 func (ctx *EksInstanceGroupContext) GetOsFamily() string {
-	if ctx != nil && ctx.InstanceGroup != nil {
-		label := ctx.InstanceGroup.Labels[OsFamilyLabel]
-		if label == "" {
-			return "default"
-		} else {
-			return label
-		}
+	var (
+		instanceGroup  = ctx.GetInstanceGroup()
+		annotations = instanceGroup.GetAnnotations()
+	)
+	if _, exists := annotations[OsFamilyAnnotation]; exists {
+		return annotations[OsFamilyAnnotation]
 	}
-	return "default"
+	return "default"  // return "" is will also be fine here
 
 }
 

@@ -96,10 +96,10 @@ func (ctx *EksInstanceGroupContext) ResolveSecurityGroups() []string {
 	return resolved
 }
 
-func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, payload UserDataPayload, mounts []MountOpts) string {
+func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, kubeletExtraArgs string, payload UserDataPayload, mounts []MountOpts) string {
       osFamily := ctx.GetOsFamily()
 	var UserDataTemplate string
-	if strings.EqualFold(osFamily, "windows") {
+	if strings.EqualFold(osFamily, OsFamilyWindows) {
 		UserDataTemplate = `
 <powershell>
   [string]$EKSBinDir = "$env:ProgramFiles\Amazon\EKS"
@@ -127,7 +127,7 @@ set +o xtrace
 	}
 	data := EKSUserData{
 		ClusterName:   clusterName,
-		KubeletExtraArgs: ctx.GetKubeletExtraArgs(),
+		KubeletExtraArgs: kubeletExtraArgs,
 		Arguments:     args,
 		PreBootstrap:  payload.PreBootstrap,
 		PostBootstrap: payload.PostBootstrap,

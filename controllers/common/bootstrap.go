@@ -16,6 +16,7 @@ limitations under the License.
 package common
 
 import (
+	"strings"
 	"time"
 
 	awsauth "github.com/keikoproj/aws-auth/pkg/mapper"
