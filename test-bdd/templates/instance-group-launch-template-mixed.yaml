@@ -30,7 +30,7 @@ spec:
       {{ end }}
       keyPairName: {{ .KeyPairName }}
       image: {{ .AmiID }}
-      instanceType: t2.small
+      instanceType: m5.large
       volumes:
       - name: /dev/xvdb
         type: gp2
