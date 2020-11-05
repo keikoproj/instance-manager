@@ -208,7 +208,7 @@ func (ctx *EksInstanceGroupContext) GetAddedTags(asgName string) []*autoscaling.
 		configuration = instanceGroup.GetEKSConfiguration()
 		clusterName   = configuration.GetClusterName()
 		annotations   = instanceGroup.GetAnnotations()
-		labels 	      = configuration.GetLabels()
+		labels        = configuration.GetLabels()
 		taints        = configuration.GetTaints()
 	)
 

@@ -66,15 +66,13 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		SpotPrice:             spotPrice,
 	}
 
-	if spec.IsLaunchConfiguration() {
-		config.Name = fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
-	}
-	if spec.IsLaunchTemplate() {
-		config.Name = scalingConfig.Name()
-	}
+	config.Name = scalingConfig.Name()
 
 	// create new launchconfig if it has drifted
 	if scalingConfig.Drifted(config) {
+		if spec.IsLaunchConfiguration() {
+			config.Name = fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
+		}
 		rotationNeeded = true
 		if err := scalingConfig.Create(config); err != nil {
 			return errors.Wrap(err, "failed to create scaling configuration")

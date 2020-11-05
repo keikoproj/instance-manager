@@ -53,9 +53,9 @@ func TestAutoscalerTags(t *testing.T) {
 
 	ig.Spec.EKSSpec.EKSConfiguration.Taints = []corev1.Taint{}
 	ig.Spec.EKSSpec.EKSConfiguration.Taints = append(ig.Spec.EKSSpec.EKSConfiguration.Taints, corev1.Taint{
-		Key:       "red",
-		Value:     "green",
-		Effect:    "NoSchedule",
+		Key:    "red",
+		Value:  "green",
+		Effect: "NoSchedule",
 	})
 	ctx := MockContext(ig, k, w)
 
@@ -63,7 +63,7 @@ func TestAutoscalerTags(t *testing.T) {
 	expectedTags := make(map[string]string)
 
 	expectedTags["k8s.io/cluster-autoscaler/enabled"] = "true"
-	expectedTags["k8s.io/cluster-autoscaler/" + ig.Spec.EKSSpec.EKSConfiguration.EksClusterName] = "owned"
+	expectedTags["k8s.io/cluster-autoscaler/"+ig.Spec.EKSSpec.EKSConfiguration.EksClusterName] = "owned"
 	expectedTags["k8s.io/cluster-autoscaler/node-template/label/foo"] = "bar"
 	expectedTags["k8s.io/cluster-autoscaler/node-template/taint/red"] = "green:NoSchedule"
 
@@ -71,12 +71,11 @@ func TestAutoscalerTags(t *testing.T) {
 	for _, tag := range tagSlice {
 		tags[*tag.Key] = *tag.Value
 	}
-	for expectedKey, expectedValue  := range expectedTags {
+	for expectedKey, expectedValue := range expectedTags {
 		if tags[expectedKey] != expectedValue {
-			t.Fatalf("Expected %v=%v, Got %v",expectedKey,expectedValue,tags[expectedKey])
+			t.Fatalf("Expected %v=%v, Got %v", expectedKey, expectedValue, tags[expectedKey])
 		}
 	}
-
 
 }
 
