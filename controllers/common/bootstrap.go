@@ -23,7 +23,7 @@ import (
 )
 
 func GetGroupsForOsFamily(osFamily string) []string {
-	if osFamily == "windows" {
+	if strings.EqualFold(osFamily, "windows") {
 		return []string{
 			"system:bootstrappers",
 			"system:nodes",

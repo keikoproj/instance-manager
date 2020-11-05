@@ -97,9 +97,9 @@ func (ctx *EksInstanceGroupContext) ResolveSecurityGroups() []string {
 }
 
 func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, payload UserDataPayload, mounts []MountOpts) string {
-	osFamily := ctx.GetInstanceGroup().Labels[OsFamilyLabel]
-	var UserDataTemplate = ""
-	if osFamily == "windows" {
+      osFamily := ctx.GetOsFamily()
+	var UserDataTemplate string
+	if strings.EqualFold(osFamily, "windows") {
 		UserDataTemplate = `
 <powershell>
   [string]$EKSBinDir = "$env:ProgramFiles\Amazon\EKS"
