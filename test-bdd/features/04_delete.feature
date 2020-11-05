@@ -7,6 +7,8 @@ Feature: CRUD Delete
     Given an EKS cluster
     Then I delete a resource instance-group.yaml
     And I delete a resource instance-group-crd.yaml
+    And I delete a resource instance-group-launch-template.yaml
+    And I delete a resource instance-group-launch-template-mixed.yaml
     And I delete a resource instance-group-managed.yaml
     And I delete a resource instance-group-fargate.yaml
 

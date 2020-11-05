@@ -7,6 +7,8 @@ Feature: CRUD Update
     Given an EKS cluster
     Then I update a resource instance-group.yaml with .spec.eks.minSize set to 3
     And I update a resource instance-group-crd.yaml with .spec.eks.minSize set to 3
+    And I update a resource instance-group-launch-template.yaml with .spec.eks.minSize set to 3
+    And I update a resource instance-group-launch-template-mixed.yaml with .spec.eks.minSize set to 3
     And I update a resource instance-group-managed.yaml with .spec.eks-managed.minSize set to 3
 
   Scenario: Update an instance-group with rollingUpdate strategy
