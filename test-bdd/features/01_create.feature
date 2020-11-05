@@ -9,6 +9,8 @@ Feature: CRUD Create
     And I create a resource instance-group-crd.yaml
     And I create a resource instance-group-managed.yaml
     And I create a resource instance-group-fargate.yaml
+    And I create a resource instance-group-launch-template.yaml
+    And I create a resource instance-group-launch-template-mixed.yaml
 
   Scenario: Create an instance-group with rollingUpdate strategy
     Given an EKS cluster
