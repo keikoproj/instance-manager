@@ -31,6 +31,7 @@ const (
 	ProvisionerName                     = "eks"
 	defaultLaunchConfigurationRetention = 2
 	OverrideDefaultLabelsAnnotationKey  = "instancemgr.keikoproj.io/default-labels"
+	OsFamilyLabel				        = "instancemgr.keikoproj.io/os-family"
 	ClusterAutoscalerEnabledAnnotation  = "instancemgr.keikoproj.io/cluster-autoscaler-enabled"
 )
 
@@ -95,6 +96,7 @@ type MountOpts struct {
 
 type EKSUserData struct {
 	ClusterName   string
+	KubeletExtraArgs string
 	Arguments     string
 	PreBootstrap  []string
 	PostBootstrap []string
@@ -106,6 +108,19 @@ func (ctx *EksInstanceGroupContext) GetInstanceGroup() *v1alpha1.InstanceGroup {
 		return ctx.InstanceGroup
 	}
 	return &v1alpha1.InstanceGroup{}
+}
+
+func (ctx *EksInstanceGroupContext) GetOsFamily() string {
+	if ctx != nil && ctx.InstanceGroup != nil {
+		label := ctx.InstanceGroup.Labels[OsFamilyLabel]
+		if label == "" {
+			return "default"
+		} else {
+			return label
+		}
+	}
+	return "default"
+
 }
 
 func (ctx *EksInstanceGroupContext) GetUpgradeStrategy() *v1alpha1.AwsUpgradeStrategy {

@@ -150,7 +150,6 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string) error 
 	if err := ctx.UpdateMetricsCollection(asgName); err != nil {
 		return err
 	}
-
 	if err := ctx.UpdateLifecycleHooks(asgName); err != nil {
 		return err
 	}
