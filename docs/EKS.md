@@ -10,7 +10,8 @@ spec:
   eks:
     maxSize: <int64> : defines the auto scaling group's max instances (default 0)
     minSize: <int64> : defines the auto scaling group's min instances (default 0)
-    configuration: <EKSConfiguration>
+    configuration: <EKSConfiguration> : the scaling group configuration
+    type: <ScalingConfigurationType> : defines the type of scaling group, either LaunchTemplate or LaunchConfiguration (default)
 ```
 
 ### EKSConfiguration
@@ -20,13 +21,16 @@ spec:
   provisioner: eks
   eks:
     configuration:
-      # Required minimal input
+      # required minimal input
       clusterName: <string> : must match the name of the EKS cluster (required)
       keyPairName: <string> : must match the name of an EC2 Key Pair (required)
       image: <string> : must match the ID of an EKS AMI (required)
       instanceType: <string> : must match the type of an EC2 instance (required)
       securityGroups: <[]string> : must match existing security group IDs or Name (by value of tag "Name") (required)
       subnets: <[]string> : must match existing subnet IDs or Name (by value of tag "Name") (required)
+
+      # Launch Template options
+      mixedInstancesPolicy: <MixedInstancesPolicySpec> : defines the mixed instances policy, this can only be used when spec.eks.type is LaunchTemplate
 
       # customize EBS volumes
       volumes: <[]NodeVolume> : list of NodeVolume objects
@@ -107,6 +111,41 @@ spec:
         notificationArn: <string> : if non-empty, must be a valid IAM ARN belonging to an SNS or SQS queue (optional)
         roleArn: <string> : if non-empty, must be a valid IAM Role ARN providing access to publish messages (optional)
         metadata: <string> : additional metadata to add to notification payload
+```
+
+### MixedInstancesPolicySpec
+
+MixedInstancesPolicySpec represents launch template options for mixed instances
+
+```yaml
+spec:
+  provisioner: eks
+  eks:
+    type: LaunchTemplate
+    configuration:
+      mixedInstancesPolicy:
+        strategy: <string> : represents the strategy for choosing an instance pool, must be either CapacityOptimized or LowestPrice (default LowestPrice)
+        spotPools: <int64> : represents number of spot pools to choose from - only required when strategy is LowestPrice (default 2)
+        baseCapacity: <int64> : the base on-demand capacity that must always be present (default 0)
+        spotRatio: <IntOrStr> : the ratio of on-demand vs. spot instances on top of baseCapacity (default 100)
+        instancePool: <string> : defines pools that can be used to automatically derive the instance types to use, SubFamilyFlexible supported only, required if instanceTypes not provided.
+        instanceTypes: <[]InstanceTypeSpec> : represents specific instance types to use, required if instancePool not provided.
+```
+
+### InstanceTypeSpec
+
+InstanceTypeSpec represents the additional instances for MixedInstancesPolicy and their weight
+
+```yaml
+spec:
+  provisioner: eks
+  eks:
+    type: LaunchTemplate
+    configuration:
+      mixedInstancesPolicy:
+        instanceTypes:
+        - type: <string> : an AWS instance type (required)
+          weight: <int64> : a weight representing the scaling index for the instance type (default 1)
 ```
 
 ### UserDataStage
