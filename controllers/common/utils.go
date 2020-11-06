@@ -24,11 +24,13 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 const (
@@ -279,4 +281,17 @@ func IsValidPercent(percent string) error {
 		return errors.Errorf("invalid percent value %v", percent)
 	}
 	return nil
+}
+
+func IntOrStrValue(x *intstr.IntOrString) int {
+	var value int
+	if x.Type == intstr.String {
+		if err := IsValidPercent(x.StrVal); err == nil {
+			value, _ = strconv.Atoi(x.StrVal[:len(x.StrVal)-1])
+		}
+	} else {
+		value = x.IntValue()
+	}
+
+	return value
 }

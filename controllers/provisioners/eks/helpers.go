@@ -37,7 +37,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func (ctx *EksInstanceGroupContext) ResolveSubnets() []string {
@@ -364,8 +363,8 @@ func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 	}
 
 	if mixedInstances != nil {
-		ratio := mixedInstances.SpotRatio.IntValue()
-		if ratio < 100 {
+		ratio := common.IntOrStrValue(mixedInstances.SpotRatio)
+		if ratio > 0 {
 			labelList = append(labelList, fmt.Sprintf(InstanceMgrLabelFmt, "lifecycle", v1alpha1.LifecycleStateMixed))
 		} else {
 			labelList = append(labelList, fmt.Sprintf(InstanceMgrLabelFmt, "lifecycle", v1alpha1.LifecycleStateNormal))
@@ -873,14 +872,7 @@ func (ctx *EksInstanceGroupContext) GetDesiredMixedInstancesPolicy(name string) 
 		allocationStrategy = awsprovider.LaunchTemplateStrategyLowestPrice
 	}
 
-	var spotRatio int
-	if mixedPolicy.SpotRatio.Type == intstr.String {
-		if err := common.IsValidPercent(mixedPolicy.SpotRatio.StrVal); err == nil {
-			spotRatio, _ = strconv.Atoi(mixedPolicy.SpotRatio.StrVal[:len(mixedPolicy.SpotRatio.StrVal)-1])
-		}
-	} else {
-		spotRatio = mixedPolicy.SpotRatio.IntValue()
-	}
+	spotRatio := common.IntOrStrValue(mixedPolicy.SpotRatio)
 
 	policy := &autoscaling.MixedInstancesPolicy{
 		InstancesDistribution: &autoscaling.InstancesDistribution{

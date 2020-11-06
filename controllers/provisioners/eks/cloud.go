@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/controllers/common"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/eks/scaling"
 	corev1 "k8s.io/api/core/v1"
@@ -213,8 +214,8 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	}
 
 	if mixedInstances != nil {
-		ratio := mixedInstances.SpotRatio.IntValue()
-		if ratio < 100 {
+		ratio := common.IntOrStrValue(mixedInstances.SpotRatio)
+		if ratio > 0 {
 			status.SetLifecycle(v1alpha1.LifecycleStateMixed)
 		} else {
 			status.SetLifecycle(v1alpha1.LifecycleStateNormal)
