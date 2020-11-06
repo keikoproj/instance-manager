@@ -141,25 +141,30 @@ func (t *FunctionalTest) anEKSCluster() error {
 	if err != nil {
 		return err
 	}
-
-	client, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return err
-	}
-
-	dynClient, err := dynamic.NewForConfig(config)
-	if err != nil {
-		log.Fatal("Unable to construct dynamic client", err)
-	}
-
-	_, err = client.Discovery().ServerVersion()
-	if err != nil {
-		return err
-	}
-
-	t.KubeClient = client
-	t.DynamicClient = dynClient
 	t.RESTConfig = config
+
+	if t.KubeClient == nil {
+		client, err := kubernetes.NewForConfig(t.RESTConfig)
+		if err != nil {
+			return err
+		}
+
+		t.KubeClient = client
+	}
+
+	if t.DynamicClient == nil {
+		dynClient, err := dynamic.NewForConfig(t.RESTConfig)
+		if err != nil {
+			log.Fatal("Unable to construct dynamic client", err)
+		}
+
+		t.DynamicClient = dynClient
+	}
+
+	_, err = t.KubeClient.Discovery().ServerVersion()
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
