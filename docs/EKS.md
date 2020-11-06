@@ -125,7 +125,7 @@ spec:
     configuration:
       mixedInstancesPolicy:
         strategy: <string> : represents the strategy for choosing an instance pool, must be either CapacityOptimized or LowestPrice (default LowestPrice)
-        spotPools: <int64> : represents number of spot pools to choose from - only required when strategy is LowestPrice (default 2)
+        spotPools: <int64> : represents number of spot pools to choose from - can only be used when strategy is LowestPrice (default 2)
         baseCapacity: <int64> : the base on-demand capacity that must always be present (default 0)
         spotRatio: <IntOrStr> : the ratio of on-demand vs. spot instances on top of baseCapacity (default 100)
         instancePool: <string> : defines pools that can be used to automatically derive the instance types to use, SubFamilyFlexible supported only, required if instanceTypes not provided.

@@ -27,11 +27,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 const (
-	Base64 string = "^(?:[A-Za-z0-9+\\/]{4})*(?:[A-Za-z0-9+\\/]{2}==|[A-Za-z0-9+\\/]{3}=|[A-Za-z0-9+\\/]{4})$"
+	Base64  string = "^(?:[A-Za-z0-9+\\/]{4})*(?:[A-Za-z0-9+\\/]{2}==|[A-Za-z0-9+\\/]{3}=|[A-Za-z0-9+\\/]{4})$"
+	Percent        = "^[0-9]+%$"
 )
 
 var (
@@ -270,4 +272,11 @@ func Difference(a, b []string) []string {
 		}
 	}
 	return diff
+}
+
+func IsValidPercent(percent string) error {
+	if !regexp.MustCompile(Percent).MatchString(percent) {
+		return errors.Errorf("invalid percent value %v", percent)
+	}
+	return nil
 }

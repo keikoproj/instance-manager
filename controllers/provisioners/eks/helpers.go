@@ -37,6 +37,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func (ctx *EksInstanceGroupContext) ResolveSubnets() []string {
@@ -872,14 +873,21 @@ func (ctx *EksInstanceGroupContext) GetDesiredMixedInstancesPolicy(name string) 
 		allocationStrategy = awsprovider.LaunchTemplateStrategyLowestPrice
 	}
 
-	spotRatio := mixedPolicy.SpotRatio.IntValue()
+	var spotRatio int
+	if mixedPolicy.SpotRatio.Type == intstr.String {
+		if err := common.IsValidPercent(mixedPolicy.SpotRatio.StrVal); err == nil {
+			spotRatio, _ = strconv.Atoi(mixedPolicy.SpotRatio.StrVal[:len(mixedPolicy.SpotRatio.StrVal)-1])
+		}
+	} else {
+		spotRatio = mixedPolicy.SpotRatio.IntValue()
+	}
 
 	policy := &autoscaling.MixedInstancesPolicy{
 		InstancesDistribution: &autoscaling.InstancesDistribution{
 			OnDemandBaseCapacity:                mixedPolicy.BaseCapacity,
 			SpotAllocationStrategy:              aws.String(allocationStrategy),
 			SpotInstancePools:                   mixedPolicy.SpotPools,
-			OnDemandPercentageAboveBaseCapacity: aws.Int64(int64(spotRatio)),
+			OnDemandPercentageAboveBaseCapacity: aws.Int64(int64(100 - spotRatio)),
 		},
 		LaunchTemplate: &autoscaling.LaunchTemplate{
 			LaunchTemplateSpecification: &autoscaling.LaunchTemplateSpecification{
