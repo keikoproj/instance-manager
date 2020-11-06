@@ -97,9 +97,20 @@ func (ctx *EksInstanceGroupContext) ResolveSecurityGroups() []string {
 	return resolved
 }
 
-func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, payload UserDataPayload, mounts []MountOpts) string {
-
-	var UserDataTemplate = `#!/bin/bash
+func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, kubeletExtraArgs string, payload UserDataPayload, mounts []MountOpts) string {
+      osFamily := ctx.GetOsFamily()
+	var UserDataTemplate string
+	if strings.EqualFold(osFamily, OsFamilyWindows) {
+		UserDataTemplate = `
+<powershell>
+  [string]$EKSBinDir = "$env:ProgramFiles\Amazon\EKS"
+  [string]$EKSBootstrapScriptName = 'Start-EKSBootstrap.ps1'
+  [string]$EKSBootstrapScriptFile = "$EKSBinDir\$EKSBootstrapScriptName"
+  & $EKSBootstrapScriptFile -EKSClusterName {{ .ClusterName }} -KubeletExtraArgs '{{ .KubeletExtraArgs }}' 3>&1 4>&1 5>&1 6>&1
+</powershell>
+		`
+	} else {
+		UserDataTemplate = `#!/bin/bash
 {{range $pre := .PreBootstrap}}{{$pre}}{{end}}
 {{- range .MountOptions}}
 mkfs.{{ .FileSystem | ToLower }} {{ .Device }}
@@ -114,9 +125,10 @@ set -o xtrace
 /etc/eks/bootstrap.sh {{ .ClusterName }} {{ .Arguments }}
 set +o xtrace
 {{range $post := .PostBootstrap}}{{$post}}{{end}}`
-
+	}
 	data := EKSUserData{
 		ClusterName:   clusterName,
+		KubeletExtraArgs: kubeletExtraArgs,
 		Arguments:     args,
 		PreBootstrap:  payload.PreBootstrap,
 		PostBootstrap: payload.PostBootstrap,
@@ -380,6 +392,10 @@ func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 }
 
 func (ctx *EksInstanceGroupContext) GetBootstrapArgs() string {
+	return fmt.Sprintf("--kubelet-extra-args '%v'", ctx.GetKubeletExtraArgs())
+}
+
+func (ctx *EksInstanceGroupContext) GetKubeletExtraArgs() string {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
 		configuration = instanceGroup.GetEKSConfiguration()
@@ -388,7 +404,7 @@ func (ctx *EksInstanceGroupContext) GetBootstrapArgs() string {
 
 	labelsFlag := fmt.Sprintf("--node-labels=%v", strings.Join(ctx.GetLabelList(), ","))
 	taintsFlag := fmt.Sprintf("--register-with-taints=%v", strings.Join(ctx.GetTaintList(), ","))
-	return fmt.Sprintf("--kubelet-extra-args '%v %v %v'", labelsFlag, taintsFlag, bootstrapArgs)
+	return fmt.Sprintf("%v %v %v", labelsFlag, taintsFlag, bootstrapArgs)
 }
 
 func (ctx *EksInstanceGroupContext) discoverSpotPrice() error {
@@ -779,6 +795,7 @@ func (ctx *EksInstanceGroupContext) RemoveAuthRole(arn string) error {
 	defer ctx.Unlock()
 
 	var instanceGroup = ctx.GetInstanceGroup()
+	var osFamily = ctx.GetOsFamily()
 	var list = &unstructured.UnstructuredList{}
 	var sharedGroups = make([]string, 0)
 
@@ -807,7 +824,7 @@ func (ctx *EksInstanceGroupContext) RemoveAuthRole(arn string) error {
 		return nil
 	}
 
-	return common.RemoveAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{arn})
+	return common.RemoveAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{arn}, []string{osFamily})
 }
 
 func (ctx *EksInstanceGroupContext) GetOverrides() []*autoscaling.LaunchTemplateOverrides {

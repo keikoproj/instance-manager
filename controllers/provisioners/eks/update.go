@@ -38,10 +38,11 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		configuration   = instanceGroup.GetEKSConfiguration()
 		spec            = instanceGroup.GetEKSSpec()
 		args            = ctx.GetBootstrapArgs()
+		kubeletArgs     = ctx.GetKubeletExtraArgs()
 		userDataPayload = ctx.GetUserDataStages()
 		clusterName     = configuration.GetClusterName()
 		mounts          = ctx.GetMountOpts()
-		userData        = ctx.GetBasicUserData(clusterName, args, userDataPayload, mounts)
+		userData        = ctx.GetBasicUserData(clusterName, args, kubeletArgs, userDataPayload, mounts)
 		sgs             = ctx.ResolveSecurityGroups()
 		spotPrice       = configuration.GetSpotPrice()
 	)
@@ -173,7 +174,6 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string) error 
 	if err := ctx.UpdateMetricsCollection(asgName); err != nil {
 		return err
 	}
-
 	if err := ctx.UpdateLifecycleHooks(asgName); err != nil {
 		return err
 	}

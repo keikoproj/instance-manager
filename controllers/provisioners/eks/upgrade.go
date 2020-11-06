@@ -76,6 +76,7 @@ func (ctx *EksInstanceGroupContext) BootstrapNodes() error {
 	var (
 		state         = ctx.GetDiscoveredState()
 		instanceGroup = ctx.GetInstanceGroup()
+		osFamily      = ctx.GetOsFamily()
 		role          = state.GetRole()
 		roleARN       = aws.StringValue(role.Arn)
 	)
@@ -85,7 +86,7 @@ func (ctx *EksInstanceGroupContext) BootstrapNodes() error {
 	ctx.Lock()
 	defer ctx.Unlock()
 
-	return common.UpsertAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{roleARN})
+	return common.UpsertAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{roleARN}, []string{osFamily})
 }
 
 func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *kubeprovider.RollingUpdateRequest {

@@ -132,6 +132,37 @@ func MockInstanceGroup() *v1alpha1.InstanceGroup {
 	}
 }
 
+func MockWindowsInstanceGroup() *v1alpha1.InstanceGroup {
+	return &v1alpha1.InstanceGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "instance-group-1",
+			Namespace: "instance-manager",
+			Annotations: map[string]string{
+				ClusterAutoscalerEnabledAnnotation: "true",
+				OsFamilyAnnotation: OsFamilyWindows,
+			},
+		},
+		Spec: v1alpha1.InstanceGroupSpec{
+			Provisioner: ProvisionerName,
+			EKSSpec: &v1alpha1.EKSSpec{
+				MaxSize: 3,
+				MinSize: 1,
+				EKSConfiguration: &v1alpha1.EKSConfiguration{
+					EksClusterName: "my-cluster",
+					SuspendedProcesses: []string{
+						"AZRebalance",
+					},
+				},
+			},
+			AwsUpgradeStrategy: v1alpha1.AwsUpgradeStrategy{
+				CRDType:           &v1alpha1.CRDUpdateStrategy{},
+				RollingUpdateType: &v1alpha1.RollingUpdateStrategy{},
+			},
+		},
+		Status: v1alpha1.InstanceGroupStatus{},
+	}
+}
+
 func MockLaunchConfigFromInput(input *autoscaling.CreateLaunchConfigurationInput) *autoscaling.LaunchConfiguration {
 	return &autoscaling.LaunchConfiguration{
 		LaunchConfigurationName: input.LaunchConfigurationName,

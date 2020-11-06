@@ -37,10 +37,12 @@ func (ctx *EksInstanceGroupContext) Create() error {
 		scalingConfig   = state.GetScalingConfiguration()
 		configuration   = instanceGroup.GetEKSConfiguration()
 		args            = ctx.GetBootstrapArgs()
+    kubeletArgs     = ctx.GetKubeletExtraArgs()
+
 		userDataPayload = ctx.GetUserDataStages()
 		clusterName     = configuration.GetClusterName()
 		mounts          = ctx.GetMountOpts()
-		userData        = ctx.GetBasicUserData(clusterName, args, userDataPayload, mounts)
+		userData        = ctx.GetBasicUserData(clusterName, args, kubeletArgs, userDataPayload, mounts)
 		sgs             = ctx.ResolveSecurityGroups()
 		spotPrice       = configuration.GetSpotPrice()
 	)
