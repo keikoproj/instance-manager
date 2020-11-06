@@ -254,11 +254,6 @@ func ParseCustomResourceYaml(raw string) (*unstructured.Unstructured, error) {
 
 func ConfigmapHash(cm *corev1.ConfigMap) string {
 	var buf strings.Builder
-	defer func() {
-		if panicMessage := recover(); panicMessage != nil {
-			fmt.Printf("Panic '%v' captured", panicMessage)
-		}
-	}()
 	cmStr := cm.String()
 	buf.WriteString(cmStr[strings.Index(cm.String(), ",Data:")+1:])
 	return common.StringMD5(buf.String())
