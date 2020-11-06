@@ -16,21 +16,34 @@ limitations under the License.
 package common
 
 import (
+	"strings"
 	"time"
 
 	awsauth "github.com/keikoproj/aws-auth/pkg/mapper"
 	"k8s.io/client-go/kubernetes"
 )
 
-func GetNodeBootstrapUpsert(arn string) *awsauth.MapperArguments {
+func GetGroupsForOsFamily(osFamily string) []string {
+	if strings.EqualFold(osFamily, "windows") {
+		return []string{
+			"system:bootstrappers",
+			"system:nodes",
+			"eks:kube-proxy-windows",
+		}
+	} else {
+		return []string{
+			"system:bootstrappers",
+			"system:nodes",
+		}
+	}
+}
+
+func GetNodeBootstrapUpsert(arn string, osFamily string) *awsauth.MapperArguments {
 	return &awsauth.MapperArguments{
 		MapRoles: true,
 		RoleARN:  arn,
 		Username: "system:node:{{EC2PrivateDNSName}}",
-		Groups: []string{
-			"system:bootstrappers",
-			"system:nodes",
-		},
+		Groups: GetGroupsForOsFamily(osFamily),
 		WithRetries:   true,
 		MinRetryTime:  time.Millisecond * 100,
 		MaxRetryTime:  time.Second * 30,
@@ -38,15 +51,12 @@ func GetNodeBootstrapUpsert(arn string) *awsauth.MapperArguments {
 	}
 }
 
-func GetNodeBootstrapRemove(arn string) *awsauth.MapperArguments {
+func GetNodeBootstrapRemove(arn string, osFamily string) *awsauth.MapperArguments {
 	return &awsauth.MapperArguments{
 		MapRoles: true,
 		RoleARN:  arn,
 		Username: "system:node:{{EC2PrivateDNSName}}",
-		Groups: []string{
-			"system:bootstrappers",
-			"system:nodes",
-		},
+		Groups: GetGroupsForOsFamily(osFamily),
 		WithRetries:   true,
 		MinRetryTime:  time.Millisecond * 100,
 		MaxRetryTime:  time.Second * 30,
@@ -54,13 +64,13 @@ func GetNodeBootstrapRemove(arn string) *awsauth.MapperArguments {
 	}
 }
 
-func RemoveAuthConfigMap(kube kubernetes.Interface, arns []string) error {
+func RemoveAuthConfigMap(kube kubernetes.Interface, arns []string, osFamilies []string) error {
 	authMap := awsauth.New(kube, false)
-	for _, arn := range arns {
+	for index, arn := range arns {
 		if arn == "" {
 			continue
 		}
-		err := authMap.Remove(GetNodeBootstrapRemove(arn))
+		err := authMap.Remove(GetNodeBootstrapRemove(arn, osFamilies[index]))
 		if err != nil {
 			return err
 		}
@@ -68,13 +78,13 @@ func RemoveAuthConfigMap(kube kubernetes.Interface, arns []string) error {
 	return nil
 }
 
-func UpsertAuthConfigMap(kube kubernetes.Interface, arns []string) error {
+func UpsertAuthConfigMap(kube kubernetes.Interface, arns []string, osFamilies []string) error {
 	authMap := awsauth.New(kube, false)
-	for _, arn := range arns {
+	for index, arn := range arns {
 		if arn == "" {
 			continue
 		}
-		err := authMap.Upsert(GetNodeBootstrapUpsert(arn))
+		err := authMap.Upsert(GetNodeBootstrapUpsert(arn, osFamilies[index]))
 		if err != nil {
 			return err
 		}
