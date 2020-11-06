@@ -518,7 +518,7 @@ func (m *MixedInstancesPolicySpec) Validate() error {
 
 	if m.SpotRatio == nil {
 		// default is 100% on-demand
-		defaultRatio := intstr.FromInt(100)
+		defaultRatio := intstr.FromInt(0)
 		m.SpotRatio = &defaultRatio
 	}
 	return nil
