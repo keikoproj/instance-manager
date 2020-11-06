@@ -504,27 +504,27 @@ func TestGetUserDataStages(t *testing.T) {
 
 func TestBootstrapDataForOSFamily(t *testing.T) {
 	var (
-		k             = MockKubernetesClientSet()
-		linuxIg       = MockInstanceGroup()
-		windowsIg            = MockWindowsInstanceGroup()
-		asgMock       = NewAutoScalingMocker()
-		iamMock       = NewIamMocker()
-		eksMock       = NewEksMocker()
-		ec2Mock       = NewEc2Mocker()
+		k         = MockKubernetesClientSet()
+		linuxIg   = MockInstanceGroup()
+		windowsIg = MockWindowsInstanceGroup()
+		asgMock   = NewAutoScalingMocker()
+		iamMock   = NewIamMocker()
+		eksMock   = NewEksMocker()
+		ec2Mock   = NewEc2Mocker()
 	)
 
 	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 
 	tests := []struct {
-		ig        *v1alpha1.InstanceGroup
+		ig                       *v1alpha1.InstanceGroup
 		expectedScriptSubstrings string
 	}{
 		{
-			ig: linuxIg,
+			ig:                       linuxIg,
 			expectedScriptSubstrings: "/etc/eks/bootstrap.sh",
 		},
 		{
-			ig: windowsIg,
+			ig:                       windowsIg,
 			expectedScriptSubstrings: "<powershell>",
 		},
 	}
@@ -532,14 +532,13 @@ func TestBootstrapDataForOSFamily(t *testing.T) {
 	for i, tc := range tests {
 		t.Logf("Test #%v - %+v", i, tc)
 		ctx := MockContext(tc.ig, k, w)
-		basicUserData := ctx.GetBasicUserData("", "","", UserDataPayload{}, []MountOpts{} )
+		basicUserData := ctx.GetBasicUserData("", "", "", UserDataPayload{}, []MountOpts{})
 		basicUserDataDecoded, _ := base64.StdEncoding.DecodeString(basicUserData)
 		basicUserDataString := string(basicUserDataDecoded)
 		if !strings.Contains(basicUserDataString, tc.expectedScriptSubstrings) {
-			t.Fatalf("Cound not find expected string %v script in %v",tc.expectedScriptSubstrings, basicUserDataString)
+			t.Fatalf("Cound not find expected string %v script in %v", tc.expectedScriptSubstrings, basicUserDataString)
 		}
 	}
-
 
 }
 

@@ -139,7 +139,7 @@ func MockWindowsInstanceGroup() *v1alpha1.InstanceGroup {
 			Namespace: "instance-manager",
 			Annotations: map[string]string{
 				ClusterAutoscalerEnabledAnnotation: "true",
-				OsFamilyAnnotation: OsFamilyWindows,
+				OsFamilyAnnotation:                 OsFamilyWindows,
 			},
 		},
 		Spec: v1alpha1.InstanceGroupSpec{

@@ -98,7 +98,7 @@ func (ctx *EksInstanceGroupContext) ResolveSecurityGroups() []string {
 }
 
 func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, kubeletExtraArgs string, payload UserDataPayload, mounts []MountOpts) string {
-      osFamily := ctx.GetOsFamily()
+	osFamily := ctx.GetOsFamily()
 	var UserDataTemplate string
 	if strings.EqualFold(osFamily, OsFamilyWindows) {
 		UserDataTemplate = `
@@ -127,12 +127,12 @@ set +o xtrace
 {{range $post := .PostBootstrap}}{{$post}}{{end}}`
 	}
 	data := EKSUserData{
-		ClusterName:   clusterName,
+		ClusterName:      clusterName,
 		KubeletExtraArgs: kubeletExtraArgs,
-		Arguments:     args,
-		PreBootstrap:  payload.PreBootstrap,
-		PostBootstrap: payload.PostBootstrap,
-		MountOptions:  mounts,
+		Arguments:        args,
+		PreBootstrap:     payload.PreBootstrap,
+		PostBootstrap:    payload.PostBootstrap,
+		MountOptions:     mounts,
 	}
 	out := &bytes.Buffer{}
 	tmpl := template.New("userData").Funcs(template.FuncMap{

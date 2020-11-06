@@ -31,13 +31,13 @@ import (
 
 func (ctx *EksInstanceGroupContext) Create() error {
 	var (
-		configName      string
-		instanceGroup   = ctx.GetInstanceGroup()
-		state           = ctx.GetDiscoveredState()
-		scalingConfig   = state.GetScalingConfiguration()
-		configuration   = instanceGroup.GetEKSConfiguration()
-		args            = ctx.GetBootstrapArgs()
-    kubeletArgs     = ctx.GetKubeletExtraArgs()
+		configName    string
+		instanceGroup = ctx.GetInstanceGroup()
+		state         = ctx.GetDiscoveredState()
+		scalingConfig = state.GetScalingConfiguration()
+		configuration = instanceGroup.GetEKSConfiguration()
+		args          = ctx.GetBootstrapArgs()
+		kubeletArgs   = ctx.GetKubeletExtraArgs()
 
 		userDataPayload = ctx.GetUserDataStages()
 		clusterName     = configuration.GetClusterName()
