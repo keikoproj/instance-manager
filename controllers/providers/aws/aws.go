@@ -119,29 +119,6 @@ const (
 	LaunchConfigurationNotFoundErrorMessage = "Launch configuration name not found"
 )
 
-func IsUsingLaunchConfiguration(group *autoscaling.Group) bool {
-	if group.LaunchConfigurationName != nil {
-		return true
-	}
-	return false
-}
-
-func IsUsingLaunchTemplate(group *autoscaling.Group) bool {
-	if group.LaunchTemplate != nil {
-		if group.LaunchTemplate.LaunchTemplateName != nil {
-			return true
-		}
-	}
-	return false
-}
-
-func IsUsingMixedInstances(group *autoscaling.Group) bool {
-	if group.MixedInstancesPolicy != nil {
-		return true
-	}
-	return false
-}
-
 func (w *AwsWorker) DescribeInstanceOfferings() ([]*ec2.InstanceTypeOffering, error) {
 	offerings := []*ec2.InstanceTypeOffering{}
 	err := w.Ec2Client.DescribeInstanceTypeOfferingsPages(&ec2.DescribeInstanceTypeOfferingsInput{}, func(page *ec2.DescribeInstanceTypeOfferingsOutput, lastPage bool) bool {
