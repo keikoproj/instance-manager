@@ -221,6 +221,20 @@ func StringPtr(str string) *string {
 	return &str
 }
 
+func Int64Value(i *int64) int64 {
+	if i != nil {
+		return *i
+	}
+	return 0
+}
+
+func Int64InRange(i, min, max int64) bool {
+	if (i >= min) && (i <= max) {
+		return true
+	}
+	return false
+}
+
 func StringSliceEquals(x, y []string) bool {
 	sort.Strings(x)
 	sort.Strings(y)

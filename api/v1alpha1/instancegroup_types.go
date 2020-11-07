@@ -72,17 +72,6 @@ const (
 
 	FileSystemTypeXFS  = "xfs"
 	FileSystemTypeEXT4 = "ext4"
-
-	LifecycleHookResultAbandon           = "ABANDON"
-	LifecycleHookResultContinue          = "CONTINUE"
-	LifecycleHookTransitionLaunch        = "Launch"
-	LifecycleHookTransitionTerminate     = "Terminate"
-	LifecycleHookDefaultHeartbeatTimeout = 300
-
-	LaunchTemplateStrategyCapacityOptimized = "CapacityOptimized"
-	LaunchTemplateStrategyLowestPrice       = "LowestPrice"
-
-	SubFamilyFlexibleInstancePool = "SubFamilyFlexible"
 )
 
 type ScalingConfigurationType string
@@ -220,6 +209,12 @@ type EKSConfiguration struct {
 	MixedInstancesPolicy        *MixedInstancesPolicySpec `json:"mixedInstancesPolicy,omitempty"`
 }
 
+const (
+	LaunchTemplateStrategyCapacityOptimized = "CapacityOptimized"
+	LaunchTemplateStrategyLowestPrice       = "LowestPrice"
+	SubFamilyFlexibleInstancePool           = "SubFamilyFlexible"
+)
+
 type MixedInstancesPolicySpec struct {
 	Strategy      *string             `json:"strategy,omitempty"`
 	SpotPools     *int64              `json:"spotPools,omitempty"`
@@ -233,6 +228,14 @@ type InstanceTypeSpec struct {
 	Type   string `json:"type"`
 	Weight int64  `json:"weight,omitempty"`
 }
+
+const (
+	LifecycleHookResultAbandon           = "ABANDON"
+	LifecycleHookResultContinue          = "CONTINUE"
+	LifecycleHookTransitionLaunch        = "Launch"
+	LifecycleHookTransitionTerminate     = "Terminate"
+	LifecycleHookDefaultHeartbeatTimeout = 300
+)
 
 type LifecycleHookSpec struct {
 	Name             string `json:"name"`
@@ -497,7 +500,14 @@ func (m *MixedInstancesPolicySpec) Validate() error {
 		return errors.Errorf("validation failed, mixedInstancesPolicy.Strategy must either be LowestPrice or CapacityOptimized, got '%v'", *m.Strategy)
 	}
 	if m.SpotPools != nil {
-		if !strings.EqualFold(*m.Strategy, LaunchTemplateStrategyLowestPrice) {
+		val := common.Int64Value(m.SpotPools)
+		if !common.Int64InRange(val, 1, 20) {
+			// if value exceeds allowed range leave unset to use default (2)
+			m.SpotPools = nil
+		}
+
+		strategy := common.StringValue(m.Strategy)
+		if !strings.EqualFold(strategy, LaunchTemplateStrategyLowestPrice) {
 			return errors.Errorf("validation failed, can only use spotPools with LowestPrice strategy")
 		}
 	}
@@ -517,7 +527,7 @@ func (m *MixedInstancesPolicySpec) Validate() error {
 	}
 
 	if m.SpotRatio == nil {
-		// default is 100% on-demand
+		// default is 0% spot
 		defaultRatio := intstr.FromInt(0)
 		m.SpotRatio = &defaultRatio
 	}
