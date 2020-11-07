@@ -17,6 +17,7 @@ package aws
 
 import (
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -1106,61 +1107,6 @@ var ManagedNodeGroupFiniteState = ManagedNodeGroupReconcileState{FiniteState: tr
 var ManagedNodeGroupUnrecoverableError = ManagedNodeGroupReconcileState{UnrecoverableError: true}
 var ManagedNodeGroupUnrecoverableDeleteError = ManagedNodeGroupReconcileState{UnrecoverableDeleteError: true}
 
-func IsNodeGroupInConditionState(key string, condition string) bool {
-	conditionStates := map[string]ManagedNodeGroupReconcileState{
-		"CREATING":      ManagedNodeGroupOngoingState,
-		"UPDATING":      ManagedNodeGroupOngoingState,
-		"DELETING":      ManagedNodeGroupOngoingState,
-		"ACTIVE":        ManagedNodeGroupFiniteState,
-		"DEGRADED":      ManagedNodeGroupFiniteState,
-		"CREATE_FAILED": ManagedNodeGroupUnrecoverableError,
-		"DELETE_FAILED": ManagedNodeGroupUnrecoverableDeleteError,
-	}
-	state := conditionStates[key]
-
-	switch condition {
-	case "OngoingState":
-		return state.OngoingState
-	case "FiniteState":
-		return state.FiniteState
-	case "UnrecoverableError":
-		return state.UnrecoverableError
-	case "UnrecoverableDeleteError":
-		return state.UnrecoverableDeleteError
-	default:
-		return false
-	}
-}
-
-func IsProfileInConditionState(key string, condition string) bool {
-
-	conditionStates := map[string]CloudResourceReconcileState{
-		aws.StringValue(nil):                 FiniteDeleted,
-		eks.FargateProfileStatusCreating:     OngoingState,
-		eks.FargateProfileStatusActive:       FiniteState,
-		eks.FargateProfileStatusDeleting:     OngoingState,
-		eks.FargateProfileStatusCreateFailed: UpdateRecoverableError,
-		eks.FargateProfileStatusDeleteFailed: UnrecoverableDeleteError,
-	}
-	state := conditionStates[key]
-	switch condition {
-	case "OngoingState":
-		return state.OngoingState
-	case "FiniteState":
-		return state.FiniteState
-	case "FiniteDeleted":
-		return state.FiniteDeleted
-	case "UpdateRecoverableError":
-		return state.UpdateRecoverableError
-	case "UnrecoverableError":
-		return state.UnrecoverableError
-	case "UnrecoverableDeleteError":
-		return state.UnrecoverableDeleteError
-	default:
-		return false
-	}
-}
-
 const defaultPolicyArn = "arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy"
 
 func (w *AwsWorker) DetachDefaultPolicyFromDefaultRole() error {
@@ -1264,4 +1210,45 @@ func (w *AwsWorker) DescribeFargateProfile() (*eks.FargateProfile, error) {
 		return nil, err
 	}
 	return output.FargateProfile, nil
+}
+
+func GetOfferingVCPU(typeInfo []*ec2.InstanceTypeInfo, instanceType string) int64 {
+	for _, i := range typeInfo {
+		t := aws.StringValue(i.InstanceType)
+		if strings.EqualFold(instanceType, t) {
+			return aws.Int64Value(i.VCpuInfo.DefaultVCpus)
+		}
+	}
+	return 0
+}
+
+func GetOfferingMemory(typeInfo []*ec2.InstanceTypeInfo, instanceType string) int64 {
+	for _, i := range typeInfo {
+		t := aws.StringValue(i.InstanceType)
+		if strings.EqualFold(instanceType, t) {
+			return aws.Int64Value(i.MemoryInfo.SizeInMiB)
+		}
+	}
+	return 0
+}
+
+func GetInstanceGeneration(instanceType string) string {
+	typeSplit := strings.Split(instanceType, ".")
+	if len(typeSplit) < 2 {
+		return ""
+	}
+	instanceClass := typeSplit[0]
+	re := regexp.MustCompile("[0-9]+")
+	gen := re.FindAllString(instanceClass, -1)
+	if len(gen) < 1 {
+		return ""
+	}
+	return gen[0]
+}
+
+func GetInstanceFamily(instanceType string) string {
+	if len(instanceType) > 0 {
+		return instanceType[0:1]
+	}
+	return ""
 }

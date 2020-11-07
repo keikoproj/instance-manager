@@ -331,13 +331,13 @@ func (ctx *EksInstanceGroupContext) GetTaintList() []string {
 
 func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 	var (
-		labelList      []string
-		isOverride     bool
-		instanceGroup  = ctx.GetInstanceGroup()
-		annotations    = instanceGroup.GetAnnotations()
-		configuration  = instanceGroup.GetEKSConfiguration()
-		mixedInstances = configuration.GetMixedInstancesPolicy()
-		customLabels   = configuration.GetLabels()
+		labelList     []string
+		isOverride    bool
+		instanceGroup = ctx.GetInstanceGroup()
+		status        = instanceGroup.GetStatus()
+		annotations   = instanceGroup.GetAnnotations()
+		configuration = instanceGroup.GetEKSConfiguration()
+		customLabels  = configuration.GetLabels()
 	)
 
 	// get custom labels
@@ -374,17 +374,13 @@ func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 		}
 	}
 
-	if mixedInstances != nil {
-		ratio := common.IntOrStrValue(mixedInstances.SpotRatio)
-		if ratio > 0 {
-			labelList = append(labelList, fmt.Sprintf(InstanceMgrLabelFmt, "lifecycle", v1alpha1.LifecycleStateMixed))
-		} else {
-			labelList = append(labelList, fmt.Sprintf(InstanceMgrLabelFmt, "lifecycle", v1alpha1.LifecycleStateNormal))
-		}
-	} else if configuration.GetSpotPrice() != "" {
-		labelList = append(labelList, fmt.Sprintf(InstanceMgrLabelFmt, "lifecycle", v1alpha1.LifecycleStateSpot))
-	} else {
+	switch status.GetLifecycle() {
+	case v1alpha1.LifecycleStateNormal:
 		labelList = append(labelList, fmt.Sprintf(InstanceMgrLabelFmt, "lifecycle", v1alpha1.LifecycleStateNormal))
+	case v1alpha1.LifecycleStateSpot:
+		labelList = append(labelList, fmt.Sprintf(InstanceMgrLabelFmt, "lifecycle", v1alpha1.LifecycleStateSpot))
+	case v1alpha1.LifecycleStateMixed:
+		labelList = append(labelList, fmt.Sprintf(InstanceMgrLabelFmt, "lifecycle", v1alpha1.LifecycleStateMixed))
 	}
 
 	sort.Strings(labelList)

@@ -17,12 +17,11 @@ package eks
 
 import (
 	"fmt"
-	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
+	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/eks/scaling"
 	corev1 "k8s.io/api/core/v1"
@@ -154,22 +153,39 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	status.SetActiveScalingGroupName(asgName)
 	status.SetCurrentMin(int(aws.Int64Value(targetScalingGroup.MinSize)))
 	status.SetCurrentMax(int(aws.Int64Value(targetScalingGroup.MaxSize)))
+	status.SetLifecycle(v1alpha1.LifecycleStateNormal)
 
 	if spec.IsLaunchConfiguration() {
-		input := &scaling.DiscoverConfigurationInput{
+
+		state.ScalingConfiguration, err = scaling.NewLaunchConfiguration(instanceGroup.NamespacedName(), ctx.AwsWorker, &scaling.DiscoverConfigurationInput{
 			ScalingGroup: targetScalingGroup,
-		}
-		state.ScalingConfiguration, err = scaling.NewLaunchConfiguration(instanceGroup.NamespacedName(), ctx.AwsWorker, input)
+		})
 		if err != nil {
 			return errors.Wrap(err, "failed to discover launch configurations")
 		}
-		status.SetActiveLaunchConfigurationName(state.ScalingConfiguration.Name())
+
+		var resourceName = state.ScalingConfiguration.Name()
+		status.SetActiveLaunchConfigurationName(resourceName)
+
+		err = ctx.discoverSpotPrice()
+		if err != nil {
+			ctx.Log.Error(err, "failed to discover spot price")
+		}
+
+		spotPrice := configuration.GetSpotPrice()
+		if !common.StringEmpty(spotPrice) {
+			status.SetLifecycle(v1alpha1.LifecycleStateSpot)
+		}
 	}
 
 	if spec.IsLaunchTemplate() {
-		input := &scaling.DiscoverConfigurationInput{
+		state.ScalingConfiguration, err = scaling.NewLaunchTemplate(instanceGroup.NamespacedName(), ctx.AwsWorker, &scaling.DiscoverConfigurationInput{
 			ScalingGroup: targetScalingGroup,
+		})
+		if err != nil {
+			return errors.Wrap(err, "failed to discover launch templates")
 		}
+
 		offerings, err := ctx.AwsWorker.DescribeInstanceOfferings()
 		if err != nil {
 			return errors.Wrap(err, "failed to discover launch templates")
@@ -178,19 +194,24 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		if err != nil {
 			return errors.Wrap(err, "failed to discover launch templates")
 		}
-		pool := subFamilyFlexiblePool(offerings, instanceTypes)
+
+		var (
+			pool             = subFamilyFlexiblePool(offerings, instanceTypes)
+			resource         = state.ScalingConfiguration.Resource()
+			resourceName     = state.ScalingConfiguration.Name()
+			template         = scaling.ConvertToLaunchTemplate(resource)
+			latestVersion    = aws.Int64Value(template.LatestVersionNumber)
+			latestVersionStr = common.Int64ToStr(latestVersion)
+		)
+
 		state.SetSubFamilyFlexiblePool(pool)
-		state.ScalingConfiguration, err = scaling.NewLaunchTemplate(instanceGroup.NamespacedName(), ctx.AwsWorker, input)
-		if err != nil {
-			return errors.Wrap(err, "failed to discover launch templates")
-		}
-		status.SetActiveLaunchTemplateName(state.ScalingConfiguration.Name())
-		resource := state.ScalingConfiguration.Resource()
-		var latestVersion int64
-		if lt, ok := resource.(*ec2.LaunchTemplate); ok && lt != nil {
-			latestVersion = aws.Int64Value(lt.LatestVersionNumber)
-			versionString := strconv.FormatInt(latestVersion, 10)
-			status.SetLatestTemplateVersion(versionString)
+		status.SetActiveLaunchTemplateName(resourceName)
+		status.SetLatestTemplateVersion(latestVersionStr)
+
+		if mixedInstances != nil {
+			if ratio := common.IntOrStrValue(mixedInstances.SpotRatio); ratio > 0 {
+				status.SetLifecycle(v1alpha1.LifecycleStateMixed)
+			}
 		}
 	}
 
@@ -202,28 +223,11 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		RetainVersions: ctx.ConfigRetention,
 	})
 
-	if status.GetNodesReadyCondition() == corev1.ConditionTrue {
+	switch status.GetNodesReadyCondition() {
+	case corev1.ConditionTrue:
 		state.SetNodesReady(true)
-	} else {
+	default:
 		state.SetNodesReady(false)
-	}
-
-	err = ctx.discoverSpotPrice()
-	if err != nil {
-		ctx.Log.Error(err, "failed to discover spot price")
-	}
-
-	if mixedInstances != nil {
-		ratio := common.IntOrStrValue(mixedInstances.SpotRatio)
-		if ratio > 0 {
-			status.SetLifecycle(v1alpha1.LifecycleStateMixed)
-		} else {
-			status.SetLifecycle(v1alpha1.LifecycleStateNormal)
-		}
-	} else if configuration.GetSpotPrice() != "" {
-		status.SetLifecycle(v1alpha1.LifecycleStateSpot)
-	} else {
-		status.SetLifecycle(v1alpha1.LifecycleStateNormal)
 	}
 
 	return nil
@@ -333,62 +337,53 @@ func (d *DiscoveredState) SetSubFamilyFlexiblePool(pool map[string][]InstanceSpe
 }
 
 func subFamilyFlexiblePool(offerings []*ec2.InstanceTypeOffering, typeInfo []*ec2.InstanceTypeInfo) map[string][]InstanceSpec {
-	pool := make(map[string][]InstanceSpec, 0)
+	var (
+		DefaultOfferingWeight = "1"
+		pool                  = make(map[string][]InstanceSpec, 0)
+	)
+
 	for _, t := range offerings {
-		offeringType := aws.StringValue(t.InstanceType)
-		desiredFamily, desiredGeneration := getInstanceTypeFamilyGeneration(offeringType)
+		var (
+			offeringType      = aws.StringValue(t.InstanceType)
+			desiredFamily     = awsprovider.GetInstanceFamily(offeringType)
+			desiredGeneration = awsprovider.GetInstanceGeneration(offeringType)
+			cpu               = awsprovider.GetOfferingVCPU(typeInfo, offeringType)
+			mem               = awsprovider.GetOfferingMemory(typeInfo, offeringType)
+			spec              = InstanceSpec{
+				Type:   offeringType,
+				Weight: DefaultOfferingWeight,
+			}
+		)
+
 		pool[offeringType] = make([]InstanceSpec, 0)
-		pool[offeringType] = append(pool[offeringType], InstanceSpec{Type: offeringType, Weight: "1"})
-		cpu, mem := getOfferingSpec(typeInfo, offeringType)
+		pool[offeringType] = append(pool[offeringType], spec)
+
 		for _, i := range typeInfo {
-			iType := aws.StringValue(i.InstanceType)
-			family, generation := getInstanceTypeFamilyGeneration(iType)
+			var (
+				instanceType = aws.StringValue(i.InstanceType)
+				instanceVCPU = aws.Int64Value(i.VCpuInfo.DefaultVCpus)
+				instanceMem  = aws.Int64Value(i.MemoryInfo.SizeInMiB)
+				family       = awsprovider.GetInstanceFamily(instanceType)
+				generation   = awsprovider.GetInstanceGeneration(instanceType)
+				spec         = InstanceSpec{
+					Type:   instanceType,
+					Weight: DefaultOfferingWeight,
+				}
+			)
+
 			if !strings.EqualFold(family, desiredFamily) {
 				continue
 			}
 			if !strings.EqualFold(generation, desiredGeneration) {
 				continue
 			}
-			if strings.EqualFold(offeringType, iType) {
+			if strings.EqualFold(offeringType, instanceType) {
 				continue
 			}
-			if cpu == aws.Int64Value(i.VCpuInfo.DefaultVCpus) && mem == aws.Int64Value(i.MemoryInfo.SizeInMiB) {
-				pool[offeringType] = append(pool[offeringType], InstanceSpec{Type: iType, Weight: "1"})
+			if cpu == instanceVCPU && mem == instanceMem {
+				pool[offeringType] = append(pool[offeringType], spec)
 			}
 		}
 	}
 	return pool
-}
-
-func getOfferingSpec(typeInfo []*ec2.InstanceTypeInfo, instanceType string) (int64, int64) {
-	for _, i := range typeInfo {
-		t := aws.StringValue(i.InstanceType)
-		if strings.EqualFold(instanceType, t) {
-			return aws.Int64Value(i.VCpuInfo.DefaultVCpus), aws.Int64Value(i.MemoryInfo.SizeInMiB)
-		}
-	}
-	return 0, 0
-}
-
-func getInstanceTypeFamilyGeneration(instanceType string) (string, string) {
-	typeSplit := strings.Split(instanceType, ".")
-	if len(typeSplit) < 2 {
-		return "", ""
-	}
-	instanceClass := typeSplit[0]
-	re := regexp.MustCompile("[0-9]+")
-
-	gen := re.FindAllString(instanceClass, -1)
-	if len(gen) < 1 {
-		return "", ""
-	}
-	generation := gen[0]
-
-	genSplit := strings.Split(instanceClass, generation)
-	if len(genSplit) < 1 {
-		return "", ""
-	}
-	family := genSplit[0]
-
-	return family, generation
 }

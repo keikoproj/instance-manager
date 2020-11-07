@@ -33,8 +33,7 @@ const (
 	OverrideDefaultLabelsAnnotationKey  = "instancemgr.keikoproj.io/default-labels"
 	OsFamilyAnnotation                  = "instancemgr.keikoproj.io/os-family"
 	ClusterAutoscalerEnabledAnnotation  = "instancemgr.keikoproj.io/cluster-autoscaler-enabled"
-
-	OsFamilyWindows = "windows"
+	OsFamilyWindows                     = "windows"
 )
 
 var (
