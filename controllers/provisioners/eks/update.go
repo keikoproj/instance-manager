@@ -23,6 +23,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
@@ -90,6 +91,11 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	// update scaling group
 	err = ctx.UpdateScalingGroup(config.Name)
 	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			if aerr.Code() != autoscaling.ErrCodeScalingActivityInProgressFault {
+				return nil
+			}
+		}
 		return errors.Wrap(err, "failed to update scaling group")
 	}
 
