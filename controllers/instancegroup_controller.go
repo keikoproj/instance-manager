@@ -69,6 +69,7 @@ func (r *InstanceGroupReconciler) Finalize(instanceGroup *v1alpha1.InstanceGroup
 			// remove all finalizers
 			meta.SetFinalizers([]string{})
 			if err := r.Update(context.Background(), instanceGroup); err != nil {
+				// avoid update errors for already deleted resources
 				if common.ContainsEqualFoldSubstring(err.Error(), "StorageError: invalid object") {
 					return
 				}
