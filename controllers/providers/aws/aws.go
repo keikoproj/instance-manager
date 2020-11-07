@@ -72,7 +72,7 @@ type AwsWorker struct {
 }
 
 var (
-	DefaultInstanceProfilePropagationDelay = time.Second * 25
+	DefaultInstanceProfilePropagationDelay = time.Second * 35
 	DefaultWaiterDuration                  = time.Second * 5
 	DefaultWaiterRetries                   = 12
 
@@ -118,6 +118,29 @@ const (
 	ARNPrefix                               = "arn:aws:"
 	LaunchConfigurationNotFoundErrorMessage = "Launch configuration name not found"
 )
+
+func IsUsingLaunchConfiguration(group *autoscaling.Group) bool {
+	if group.LaunchConfigurationName != nil {
+		return true
+	}
+	return false
+}
+
+func IsUsingLaunchTemplate(group *autoscaling.Group) bool {
+	if group.LaunchTemplate != nil {
+		if group.LaunchTemplate.LaunchTemplateName != nil {
+			return true
+		}
+	}
+	return false
+}
+
+func IsUsingMixedInstances(group *autoscaling.Group) bool {
+	if group.MixedInstancesPolicy != nil {
+		return true
+	}
+	return false
+}
 
 func (w *AwsWorker) DescribeInstanceOfferings() ([]*ec2.InstanceTypeOffering, error) {
 	offerings := []*ec2.InstanceTypeOffering{}

@@ -295,3 +295,7 @@ func IntOrStrValue(x *intstr.IntOrString) int {
 
 	return value
 }
+
+func Int64ToStr(x int64) string {
+	return strconv.FormatInt(x, 10)
+}
