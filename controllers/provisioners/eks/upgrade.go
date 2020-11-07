@@ -110,8 +110,6 @@ func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *kubeprovider.Roll
 	// Get all Autoscaling Instances that needs update
 	for _, instance := range scalingGroup.Instances {
 		var (
-			config     = aws.StringValue(instance.LaunchTemplate.LaunchTemplateName)
-			version    = aws.StringValue(instance.LaunchTemplate.Version)
 			instanceId = aws.StringValue(instance.InstanceId)
 		)
 
@@ -119,6 +117,7 @@ func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *kubeprovider.Roll
 
 		if awsprovider.IsUsingLaunchConfiguration(scalingGroup) {
 			var (
+				config       = aws.StringValue(instance.LaunchConfigurationName)
 				activeConfig = aws.StringValue(scalingGroup.LaunchConfigurationName)
 			)
 
@@ -129,6 +128,8 @@ func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *kubeprovider.Roll
 
 		if awsprovider.IsUsingLaunchTemplate(scalingGroup) {
 			var (
+				config           = aws.StringValue(instance.LaunchTemplate.LaunchTemplateName)
+				version          = aws.StringValue(instance.LaunchTemplate.Version)
 				launchTemplate   = scaling.ConvertToLaunchTemplate(scalingResource)
 				activeConfig     = aws.StringValue(scalingGroup.LaunchTemplate.LaunchTemplateName)
 				activeVersionNum = aws.Int64Value(launchTemplate.LatestVersionNumber)
@@ -141,6 +142,8 @@ func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *kubeprovider.Roll
 
 		if awsprovider.IsUsingMixedInstances(scalingGroup) {
 			var (
+				config           = aws.StringValue(instance.LaunchTemplate.LaunchTemplateName)
+				version          = aws.StringValue(instance.LaunchTemplate.Version)
 				launchTemplate   = scaling.ConvertToLaunchTemplate(scalingResource)
 				activeConfig     = aws.StringValue(scalingGroup.MixedInstancesPolicy.LaunchTemplate.LaunchTemplateSpecification.LaunchTemplateName)
 				activeVersionNum = aws.Int64Value(launchTemplate.LatestVersionNumber)

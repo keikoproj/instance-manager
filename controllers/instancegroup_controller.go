@@ -33,6 +33,7 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -67,6 +68,16 @@ func (r *InstanceGroupReconciler) Finalize(instanceGroup *v1alpha1.InstanceGroup
 		// And state is "Deleted"
 		if instanceGroup.GetState() == v1alpha1.ReconcileDeleted {
 			// remove all finalizers
+			namespacedName := types.NamespacedName{
+				Namespace: instanceGroup.GetNamespace(),
+				Name:      instanceGroup.GetName(),
+			}
+			if err := r.Get(context.Background(), namespacedName, &v1alpha1.InstanceGroup{}); err != nil {
+				if kerrors.IsNotFound(err) {
+					return
+				}
+			}
+
 			meta.SetFinalizers([]string{})
 			if err := r.Update(context.Background(), instanceGroup); err != nil {
 				r.Log.Error(err, "failed to update custom resource")

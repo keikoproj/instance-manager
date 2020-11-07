@@ -284,17 +284,22 @@ func TestUpgradeRollingUpdateStrategyPositive(t *testing.T) {
 		g.Expect(err).NotTo(gomega.HaveOccurred())
 
 		ig.SetUpgradeStrategy(MockAwsRollingUpdateStrategy(&tc.maxUnavailable))
+		mockScalingGroup := &autoscaling.Group{
+			LaunchConfigurationName: aws.String("some-launch-config"),
+			AutoScalingGroupName:    aws.String("some-scaling-group"),
+			Instances:               tc.scalingInstances,
+			DesiredCapacity:         aws.Int64(int64(len(tc.scalingInstances))),
+		}
+		scalingConfig, err := scaling.NewLaunchConfiguration("", w, &scaling.DiscoverConfigurationInput{ScalingGroup: mockScalingGroup})
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+
 		ctx.SetDiscoveredState(&DiscoveredState{
 			Publisher: kubeprovider.EventPublisher{
 				Client: k.Kubernetes,
 			},
-			ScalingGroup: &autoscaling.Group{
-				LaunchConfigurationName: aws.String("some-launch-config"),
-				AutoScalingGroupName:    aws.String("some-scaling-group"),
-				Instances:               tc.scalingInstances,
-				DesiredCapacity:         aws.Int64(int64(len(tc.scalingInstances))),
-			},
-			ClusterNodes: nodes,
+			ScalingGroup:         mockScalingGroup,
+			ScalingConfiguration: scalingConfig,
+			ClusterNodes:         nodes,
 		})
 
 		ig.SetState(v1alpha1.ReconcileModifying)
