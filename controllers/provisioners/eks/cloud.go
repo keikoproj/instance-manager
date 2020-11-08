@@ -35,6 +35,10 @@ import (
 	"github.com/pkg/errors"
 )
 
+type InstancePoolSpec struct {
+	SubFamilyFlexiblePool InstancePool
+}
+
 type DiscoveredState struct {
 	Provisioned          bool
 	NodesReady           bool
@@ -49,7 +53,7 @@ type DiscoveredState struct {
 	Publisher            kubeprovider.EventPublisher
 	Cluster              *eks.Cluster
 	VPCId                string
-	SubFamilyFlexible    InstancePool
+	InstancePool         InstancePoolSpec
 }
 
 func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
@@ -330,7 +334,7 @@ func (d *DiscoveredState) GetClusterNodes() *corev1.NodeList {
 }
 
 func (d *DiscoveredState) SetSubFamilyFlexiblePool(pool map[string][]InstanceSpec) {
-	d.SubFamilyFlexible = InstancePool{
+	d.InstancePool.SubFamilyFlexiblePool = InstancePool{
 		Type: SubFamilyFlexible,
 		Pool: pool,
 	}

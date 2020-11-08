@@ -58,6 +58,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	instanceProfile := state.GetInstanceProfile()
 
 	config := &scaling.CreateConfigurationInput{
+		Name:                  scalingConfig.Name(),
 		IamInstanceProfileArn: aws.StringValue(instanceProfile.Arn),
 		ImageId:               configuration.Image,
 		InstanceType:          configuration.InstanceType,
@@ -67,8 +68,6 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		UserData:              userData,
 		SpotPrice:             spotPrice,
 	}
-
-	config.Name = scalingConfig.Name()
 
 	// create new launchconfig if it has drifted
 	if scalingConfig.Drifted(config) {

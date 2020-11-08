@@ -42,6 +42,27 @@ func MockLaunchTemplateScalingInstance(id, name, version string) *autoscaling.In
 	}
 }
 
+func MockLaunchTemplateVersion() *ec2.LaunchTemplateVersion {
+	return &ec2.LaunchTemplateVersion{
+		LaunchTemplateData: &ec2.ResponseLaunchTemplateData{
+			IamInstanceProfile: &ec2.LaunchTemplateIamInstanceProfileSpecification{
+				Arn: aws.String(""),
+			},
+			InstanceType:     aws.String(""),
+			SecurityGroupIds: aws.StringSlice([]string{}),
+			ImageId:          aws.String(""),
+			KeyName:          aws.String(""),
+			UserData:         aws.String(""),
+		},
+	}
+}
+
+func MockLaunchTemplate(name string) *ec2.LaunchTemplate {
+	return &ec2.LaunchTemplate{
+		LaunchTemplateName: aws.String(name),
+	}
+}
+
 type MockEc2Client struct {
 	ec2iface.EC2API
 	DescribeLaunchTemplatesErr            error
@@ -494,166 +515,69 @@ func TestLaunchTemplateDrifted(t *testing.T) {
 		shouldDrift    bool
 	}{
 		{
-			launchTemplate: &ec2.LaunchTemplate{
-				LaunchTemplateName: aws.String("my-launch-config"),
-			},
-			latestVersion: &ec2.LaunchTemplateVersion{
-				LaunchTemplateData: &ec2.ResponseLaunchTemplateData{
-					IamInstanceProfile: &ec2.LaunchTemplateIamInstanceProfileSpecification{
-						Arn: aws.String(""),
-					},
-					SecurityGroupIds: aws.StringSlice([]string{}),
-				},
-			},
-			input: &CreateConfigurationInput{
-				SecurityGroups: []string{},
-			},
-			shouldDrift: false,
+			launchTemplate: MockLaunchTemplate("my-launch-template"),
+			latestVersion:  MockLaunchTemplateVersion(),
+			input:          &CreateConfigurationInput{},
+			shouldDrift:    false,
 		},
 		{
-			launchTemplate: &ec2.LaunchTemplate{
-				LaunchTemplateName: aws.String("my-launch-config"),
-			},
-			latestVersion: nil,
+			launchTemplate: MockLaunchTemplate("my-launch-template"),
+			latestVersion:  nil,
+			input:          &CreateConfigurationInput{},
+			shouldDrift:    true,
+		},
+		{
+			launchTemplate: MockLaunchTemplate("my-launch-template"),
+			latestVersion:  MockLaunchTemplateVersion(),
 			input: &CreateConfigurationInput{
-				SecurityGroups: []string{},
+				ImageId: "ami-123456",
 			},
 			shouldDrift: true,
 		},
 		{
-			launchTemplate: &ec2.LaunchTemplate{
-				LaunchTemplateName: aws.String("my-launch-config"),
-			},
-			latestVersion: &ec2.LaunchTemplateVersion{
-				LaunchTemplateData: &ec2.ResponseLaunchTemplateData{
-					IamInstanceProfile: &ec2.LaunchTemplateIamInstanceProfileSpecification{
-						Arn: aws.String(""),
-					},
-					SecurityGroupIds: aws.StringSlice([]string{}),
-					ImageId:          aws.String("ami-000000"),
-				},
-			},
+			launchTemplate: MockLaunchTemplate("my-launch-template"),
+			latestVersion:  MockLaunchTemplateVersion(),
 			input: &CreateConfigurationInput{
-				SecurityGroups: []string{},
-				ImageId:        "ami-123456",
+				InstanceType: "m5.large",
 			},
 			shouldDrift: true,
 		},
 		{
-			launchTemplate: &ec2.LaunchTemplate{
-				LaunchTemplateName: aws.String("my-launch-config"),
-			},
-			latestVersion: &ec2.LaunchTemplateVersion{
-				LaunchTemplateData: &ec2.ResponseLaunchTemplateData{
-					IamInstanceProfile: &ec2.LaunchTemplateIamInstanceProfileSpecification{
-						Arn: aws.String(""),
-					},
-					SecurityGroupIds: aws.StringSlice([]string{}),
-					InstanceType:     aws.String("m5.xlarge"),
-				},
-			},
+			launchTemplate: MockLaunchTemplate("my-launch-template"),
+			latestVersion:  MockLaunchTemplateVersion(),
 			input: &CreateConfigurationInput{
-				SecurityGroups: []string{},
-				InstanceType:   "m5.large",
-			},
-			shouldDrift: true,
-		},
-		{
-			launchTemplate: &ec2.LaunchTemplate{
-				LaunchTemplateName: aws.String("my-launch-config"),
-			},
-			latestVersion: &ec2.LaunchTemplateVersion{
-				LaunchTemplateData: &ec2.ResponseLaunchTemplateData{
-					IamInstanceProfile: &ec2.LaunchTemplateIamInstanceProfileSpecification{
-						Arn: aws.String("arn::aws:my-role"),
-					},
-					SecurityGroupIds: aws.StringSlice([]string{}),
-				},
-			},
-			input: &CreateConfigurationInput{
-				SecurityGroups:        []string{},
 				IamInstanceProfileArn: "arn::aws:other-role",
 			},
 			shouldDrift: true,
 		},
 		{
-			launchTemplate: &ec2.LaunchTemplate{
-				LaunchTemplateName: aws.String("my-launch-config"),
-			},
-			latestVersion: &ec2.LaunchTemplateVersion{
-				LaunchTemplateData: &ec2.ResponseLaunchTemplateData{
-					IamInstanceProfile: &ec2.LaunchTemplateIamInstanceProfileSpecification{
-						Arn: aws.String(""),
-					},
-					SecurityGroupIds: aws.StringSlice([]string{"sg-1"}),
-				},
-			},
+			launchTemplate: MockLaunchTemplate("my-launch-template"),
+			latestVersion:  MockLaunchTemplateVersion(),
 			input: &CreateConfigurationInput{
-				SecurityGroups: []string{"sg-2"},
+				SecurityGroups: []string{"sg-1"},
 			},
 			shouldDrift: true,
 		},
 		{
-			launchTemplate: &ec2.LaunchTemplate{
-				LaunchTemplateName: aws.String("my-launch-config"),
-			},
-			latestVersion: &ec2.LaunchTemplateVersion{
-				LaunchTemplateData: &ec2.ResponseLaunchTemplateData{
-					IamInstanceProfile: &ec2.LaunchTemplateIamInstanceProfileSpecification{
-						Arn: aws.String(""),
-					},
-					SecurityGroupIds: aws.StringSlice([]string{}),
-					KeyName:          aws.String("other-key"),
-				},
-			},
+			launchTemplate: MockLaunchTemplate("my-launch-template"),
+			latestVersion:  MockLaunchTemplateVersion(),
 			input: &CreateConfigurationInput{
-				SecurityGroups: []string{},
-				KeyName:        "my-key",
+				KeyName: "my-key",
 			},
 			shouldDrift: true,
 		},
 		{
-			launchTemplate: &ec2.LaunchTemplate{
-				LaunchTemplateName: aws.String("my-launch-config"),
-			},
-			latestVersion: &ec2.LaunchTemplateVersion{
-				LaunchTemplateData: &ec2.ResponseLaunchTemplateData{
-					IamInstanceProfile: &ec2.LaunchTemplateIamInstanceProfileSpecification{
-						Arn: aws.String(""),
-					},
-					SecurityGroupIds: aws.StringSlice([]string{}),
-					UserData:         aws.String("hello"),
-				},
-			},
+			launchTemplate: MockLaunchTemplate("my-launch-template"),
+			latestVersion:  MockLaunchTemplateVersion(),
 			input: &CreateConfigurationInput{
-				SecurityGroups: []string{},
-				UserData:       "test",
+				UserData: "test",
 			},
 			shouldDrift: true,
 		},
 		{
-			launchTemplate: &ec2.LaunchTemplate{
-				LaunchTemplateName: aws.String("my-launch-config"),
-			},
-			latestVersion: &ec2.LaunchTemplateVersion{
-				LaunchTemplateData: &ec2.ResponseLaunchTemplateData{
-					IamInstanceProfile: &ec2.LaunchTemplateIamInstanceProfileSpecification{
-						Arn: aws.String(""),
-					},
-					SecurityGroupIds: aws.StringSlice([]string{}),
-					BlockDeviceMappings: []*ec2.LaunchTemplateBlockDeviceMapping{
-						{
-							DeviceName: aws.String("/dev/xvda"),
-							Ebs: &ec2.LaunchTemplateEbsBlockDevice{
-								VolumeType: aws.String("gp2"),
-								VolumeSize: aws.Int64(30),
-							},
-						},
-					},
-				},
-			},
+			launchTemplate: MockLaunchTemplate("my-launch-template"),
+			latestVersion:  MockLaunchTemplateVersion(),
 			input: &CreateConfigurationInput{
-				SecurityGroups: []string{},
 				Volumes: []v1alpha1.NodeVolume{
 					{
 						Name: "/dev/xvda",
@@ -668,6 +592,9 @@ func TestLaunchTemplateDrifted(t *testing.T) {
 
 	for i, tc := range tests {
 		t.Logf("Test #%v", i)
+		if len(tc.input.SecurityGroups) == 0 {
+			tc.input.SecurityGroups = []string{}
+		}
 		ec2Mock.LaunchTemplates = []*ec2.LaunchTemplate{tc.launchTemplate}
 		lt, err := NewLaunchTemplate("", w, discoveryInput)
 		g.Expect(err).NotTo(gomega.HaveOccurred())

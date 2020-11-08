@@ -850,7 +850,7 @@ func (ctx *EksInstanceGroupContext) GetOverrides() []*autoscaling.LaunchTemplate
 
 	switch {
 	case strings.EqualFold(*mixedPolicy.InstancePool, string(SubFamilyFlexible)):
-		if pool, ok := state.SubFamilyFlexible.GetInstancePool(primaryType); ok {
+		if pool, ok := state.InstancePool.SubFamilyFlexiblePool.GetPool(primaryType); ok {
 			for _, p := range pool {
 				overrides = append(overrides, &autoscaling.LaunchTemplateOverrides{
 					InstanceType:     aws.String(p.Type),

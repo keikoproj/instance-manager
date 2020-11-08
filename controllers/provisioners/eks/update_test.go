@@ -235,7 +235,7 @@ func TestUpdateWithLaunchTemplate(t *testing.T) {
 	pool := v1alpha1.SubFamilyFlexibleInstancePool
 	ratio := intstr.FromInt(50)
 	strategy := v1alpha1.LaunchTemplateStrategyCapacityOptimized
-	state.SubFamilyFlexible.Pool = map[string][]InstanceSpec{
+	state.InstancePool.SubFamilyFlexiblePool.Pool = map[string][]InstanceSpec{
 		"x1.medium": {
 			{
 				Type:   "x1a.medium",

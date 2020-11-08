@@ -45,9 +45,10 @@ var (
 )
 
 func NewLaunchTemplate(ownerName string, w awsprovider.AwsWorker, input *DiscoverConfigurationInput) (*LaunchTemplate, error) {
-	lt := &LaunchTemplate{}
-	lt.AwsWorker = w
-	lt.OwnerName = ownerName
+	lt := &LaunchTemplate{
+		AwsWorker: w,
+		OwnerName: ownerName,
+	}
 	if err := lt.Discover(input); err != nil {
 		return lt, errors.Wrap(err, "discovery failed")
 	}
@@ -66,9 +67,10 @@ func (lt *LaunchTemplate) Discover(input *DiscoverConfigurationInput) error {
 	}
 
 	var targetName string
-	if input.ScalingGroup.LaunchTemplate != nil {
+	if awsprovider.IsUsingLaunchTemplate(input.ScalingGroup) {
 		targetName = aws.StringValue(input.ScalingGroup.LaunchTemplate.LaunchTemplateName)
-	} else if input.ScalingGroup.MixedInstancesPolicy != nil {
+	}
+	if awsprovider.IsUsingMixedInstances(input.ScalingGroup) {
 		targetName = aws.StringValue(input.ScalingGroup.MixedInstancesPolicy.LaunchTemplate.LaunchTemplateSpecification.LaunchTemplateName)
 	}
 
@@ -90,7 +92,6 @@ func (lt *LaunchTemplate) Discover(input *DiscoverConfigurationInput) error {
 }
 
 func (lt *LaunchTemplate) Create(input *CreateConfigurationInput) error {
-	devices := lt.blockDeviceListRequest(input.Volumes)
 	templateData := &ec2.RequestLaunchTemplateData{
 		IamInstanceProfile: &ec2.LaunchTemplateIamInstanceProfileSpecificationRequest{
 			Arn: aws.String(input.IamInstanceProfileArn),
@@ -100,10 +101,10 @@ func (lt *LaunchTemplate) Create(input *CreateConfigurationInput) error {
 		KeyName:             aws.String(input.KeyName),
 		SecurityGroupIds:    aws.StringSlice(input.SecurityGroups),
 		UserData:            aws.String(input.UserData),
-		BlockDeviceMappings: devices,
+		BlockDeviceMappings: lt.blockDeviceListRequest(input.Volumes),
 	}
 
-	if lt.TargetResource == nil {
+	if !lt.Provisioned() {
 		if err := lt.CreateLaunchTemplate(&ec2.CreateLaunchTemplateInput{
 			LaunchTemplateName: aws.String(input.Name),
 			LaunchTemplateData: templateData,
@@ -111,16 +112,15 @@ func (lt *LaunchTemplate) Create(input *CreateConfigurationInput) error {
 			return err
 		}
 	} else {
-		var createdVersion int64
-		var err error
-		if createdVersion, err = lt.CreateLaunchTemplateVersion(&ec2.CreateLaunchTemplateVersionInput{
+		createdVersion, err := lt.CreateLaunchTemplateVersion(&ec2.CreateLaunchTemplateVersionInput{
 			LaunchTemplateName: aws.String(input.Name),
 			LaunchTemplateData: templateData,
-		}); err != nil {
+		})
+		if err != nil {
 			return err
 		}
 
-		v := strconv.FormatInt(createdVersion, 10)
+		v := common.Int64ToStr(createdVersion)
 		if err := lt.UpdateLaunchTemplateDefaultVersion(input.Name, v); err != nil {
 			return err
 		}

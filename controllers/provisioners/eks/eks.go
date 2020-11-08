@@ -161,7 +161,7 @@ type InstancePool struct {
 	Pool map[string][]InstanceSpec
 }
 
-func (p *InstancePool) GetInstancePool(key string) ([]InstanceSpec, bool) {
+func (p *InstancePool) GetPool(key string) ([]InstanceSpec, bool) {
 	if val, ok := p.Pool[key]; ok {
 		return val, true
 	}
