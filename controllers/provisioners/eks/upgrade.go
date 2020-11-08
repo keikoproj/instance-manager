@@ -100,7 +100,7 @@ func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *kubeprovider.Roll
 		state           = ctx.GetDiscoveredState()
 		scalingConfig   = state.GetScalingConfiguration()
 		scalingResource = scalingConfig.Resource()
-		scalingGroup    = ctx.GetDiscoveredState().GetScalingGroup()
+		scalingGroup    = state.GetScalingGroup()
 		desiredCount    = int(aws.Int64Value(scalingGroup.DesiredCapacity))
 		strategy        = instanceGroup.GetUpgradeStrategy().GetRollingUpdateType()
 		maxUnavailable  = strategy.GetMaxUnavailable()

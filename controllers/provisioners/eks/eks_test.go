@@ -341,14 +341,22 @@ func MockScalingInstances(nonUpdatable, updatable int) []*autoscaling.Instance {
 	for i := 0; i < nonUpdatable; i++ {
 		instances = append(instances, &autoscaling.Instance{
 			LaunchConfigurationName: aws.String("some-launch-config"),
-			InstanceId:              aws.String(fmt.Sprintf("i-00000000%v", i)),
+			LaunchTemplate: &autoscaling.LaunchTemplateSpecification{
+				LaunchTemplateName: aws.String("some-launch-template"),
+				Version:            aws.String("1"),
+			},
+			InstanceId: aws.String(fmt.Sprintf("i-00000000%v", i)),
 		})
 	}
 
 	for i := 0; i < updatable; i++ {
 		instances = append(instances, &autoscaling.Instance{
 			LaunchConfigurationName: aws.String(""),
-			InstanceId:              aws.String(fmt.Sprintf("i-10000000%v", i)),
+			LaunchTemplate: &autoscaling.LaunchTemplateSpecification{
+				LaunchTemplateName: aws.String("some-launch-template"),
+				Version:            aws.String("0"),
+			},
+			InstanceId: aws.String(fmt.Sprintf("i-10000000%v", i)),
 		})
 	}
 

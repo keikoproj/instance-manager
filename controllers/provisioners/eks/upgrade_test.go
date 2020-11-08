@@ -236,21 +236,26 @@ func TestUpgradeRollingUpdateStrategyPositive(t *testing.T) {
 	ctx := MockContext(ig, k, w)
 
 	tests := []struct {
-		maxUnavailable   intstr.IntOrString
-		scalingInstances []*autoscaling.Instance
-		withTerminateErr bool
-		expectedState    v1alpha1.ReconcileState
-		readyNodes       int
-		unreadyNodes     int
+		maxUnavailable          intstr.IntOrString
+		scalingInstances        []*autoscaling.Instance
+		withTerminateErr        bool
+		expectedState           v1alpha1.ReconcileState
+		readyNodes              int
+		unreadyNodes            int
+		withLaunchTemplate      bool
+		withLaunchConfiguration bool
+		withMixedInstances      bool
 	}{
-		{maxUnavailable: intstr.FromString("25%"), readyNodes: 3, scalingInstances: MockScalingInstances(0, 3), expectedState: v1alpha1.ReconcileModifying},
-		{maxUnavailable: intstr.FromString("25%"), readyNodes: 2, scalingInstances: MockScalingInstances(1, 2), expectedState: v1alpha1.ReconcileModifying},
-		{maxUnavailable: intstr.FromString("25%"), readyNodes: 0, scalingInstances: MockScalingInstances(2, 1), expectedState: v1alpha1.ReconcileModifying},
-		{maxUnavailable: intstr.FromString("25%"), readyNodes: 3, scalingInstances: MockScalingInstances(3, 0), expectedState: v1alpha1.ReconcileModified},
-		{maxUnavailable: intstr.FromInt(3), readyNodes: 3, scalingInstances: MockScalingInstances(0, 3), expectedState: v1alpha1.ReconcileModifying},
-		{maxUnavailable: intstr.FromInt(5), readyNodes: 3, scalingInstances: MockScalingInstances(0, 3), expectedState: v1alpha1.ReconcileModifying},
-		{maxUnavailable: intstr.FromInt(0), readyNodes: 3, scalingInstances: MockScalingInstances(0, 3), expectedState: v1alpha1.ReconcileModifying},
-		{maxUnavailable: intstr.FromString("60%"), readyNodes: 2, scalingInstances: MockScalingInstances(1, 2), withTerminateErr: true, expectedState: v1alpha1.ReconcileModifying},
+		{withLaunchConfiguration: true, maxUnavailable: intstr.FromString("25%"), readyNodes: 3, scalingInstances: MockScalingInstances(0, 3), expectedState: v1alpha1.ReconcileModifying},
+		{withLaunchConfiguration: true, maxUnavailable: intstr.FromString("25%"), readyNodes: 2, scalingInstances: MockScalingInstances(1, 2), expectedState: v1alpha1.ReconcileModifying},
+		{withLaunchConfiguration: true, maxUnavailable: intstr.FromString("25%"), readyNodes: 0, scalingInstances: MockScalingInstances(2, 1), expectedState: v1alpha1.ReconcileModifying},
+		{withLaunchConfiguration: true, maxUnavailable: intstr.FromString("25%"), readyNodes: 3, scalingInstances: MockScalingInstances(3, 0), expectedState: v1alpha1.ReconcileModified},
+		{withLaunchConfiguration: true, maxUnavailable: intstr.FromInt(3), readyNodes: 3, scalingInstances: MockScalingInstances(0, 3), expectedState: v1alpha1.ReconcileModifying},
+		{withLaunchConfiguration: true, maxUnavailable: intstr.FromInt(5), readyNodes: 3, scalingInstances: MockScalingInstances(0, 3), expectedState: v1alpha1.ReconcileModifying},
+		{withLaunchConfiguration: true, maxUnavailable: intstr.FromInt(0), readyNodes: 3, scalingInstances: MockScalingInstances(0, 3), expectedState: v1alpha1.ReconcileModifying},
+		{withLaunchConfiguration: true, maxUnavailable: intstr.FromString("60%"), readyNodes: 2, scalingInstances: MockScalingInstances(1, 2), withTerminateErr: true, expectedState: v1alpha1.ReconcileModifying},
+		{withLaunchTemplate: true, maxUnavailable: intstr.FromString("60%"), readyNodes: 2, scalingInstances: MockScalingInstances(1, 2), withTerminateErr: true, expectedState: v1alpha1.ReconcileModifying},
+		{withMixedInstances: true, maxUnavailable: intstr.FromString("60%"), readyNodes: 2, scalingInstances: MockScalingInstances(1, 2), withTerminateErr: true, expectedState: v1alpha1.ReconcileModifying},
 	}
 
 	for i, tc := range tests {
@@ -285,11 +290,28 @@ func TestUpgradeRollingUpdateStrategyPositive(t *testing.T) {
 
 		ig.SetUpgradeStrategy(MockAwsRollingUpdateStrategy(&tc.maxUnavailable))
 		mockScalingGroup := &autoscaling.Group{
-			LaunchConfigurationName: aws.String("some-launch-config"),
-			AutoScalingGroupName:    aws.String("some-scaling-group"),
-			Instances:               tc.scalingInstances,
-			DesiredCapacity:         aws.Int64(int64(len(tc.scalingInstances))),
+			AutoScalingGroupName: aws.String("some-scaling-group"),
+			Instances:            tc.scalingInstances,
+			DesiredCapacity:      aws.Int64(int64(len(tc.scalingInstances))),
 		}
+		if tc.withLaunchConfiguration {
+			mockScalingGroup.LaunchConfigurationName = aws.String("some-launch-config")
+		}
+		if tc.withLaunchTemplate {
+			mockScalingGroup.LaunchTemplate = &autoscaling.LaunchTemplateSpecification{
+				LaunchTemplateName: aws.String("some-launch-template"),
+			}
+		}
+		if tc.withMixedInstances {
+			mockScalingGroup.MixedInstancesPolicy = &autoscaling.MixedInstancesPolicy{
+				LaunchTemplate: &autoscaling.LaunchTemplate{
+					LaunchTemplateSpecification: &autoscaling.LaunchTemplateSpecification{
+						LaunchTemplateName: aws.String("some-launch-template"),
+					},
+				},
+			}
+		}
+
 		scalingConfig, err := scaling.NewLaunchConfiguration("", w, &scaling.DiscoverConfigurationInput{ScalingGroup: mockScalingGroup})
 		g.Expect(err).NotTo(gomega.HaveOccurred())
 
