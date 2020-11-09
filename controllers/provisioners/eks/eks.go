@@ -17,6 +17,7 @@ package eks
 
 import (
 	"fmt"
+	corev1 "k8s.io/api/core/v1"
 	"sync"
 
 	"github.com/go-logr/logr"
@@ -34,13 +35,17 @@ const (
 	OsFamilyAnnotation                  = "instancemgr.keikoproj.io/os-family"
 	ClusterAutoscalerEnabledAnnotation  = "instancemgr.keikoproj.io/cluster-autoscaler-enabled"
 
-	OsFamilyWindows                     = "windows"
+	OsFamilyWindows      = "windows"
+	OsFamilyBottleRocket = "bottlerocket"
 )
 
 var (
-	RoleNewLabelFmt     = "node.kubernetes.io/role=%s"
-	RoleOldLabelFmt     = "node-role.kubernetes.io/%s=\"\""
-	InstanceMgrLabelFmt = "instancemgr.keikoproj.io/%s=%s"
+	RoleNewLabel              = "node.kubernetes.io/role"
+	RoleNewLabelFmt           = "node.kubernetes.io/role=%s"
+	RoleOldLabel              = "node-role.kubernetes.io/%s"
+	RoleOldLabelFmt           = "node-role.kubernetes.io/%s=\"\""
+	InstanceMgrLifecycleLabel = "instancemgr.keikoproj.io/lifecycle"
+	InstanceMgrLabelFmt       = "instancemgr.keikoproj.io/%s=%s"
 
 	DefaultManagedPolicies = []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}
 )
@@ -97,12 +102,16 @@ type MountOpts struct {
 }
 
 type EKSUserData struct {
-	ClusterName   string
+	ApiEndpoint      string
+	ClusterCA        string
+	ClusterName      string
+	NodeLabels       map[string]string
+	NodeTaints       []corev1.Taint
 	KubeletExtraArgs string
-	Arguments     string
-	PreBootstrap  []string
-	PostBootstrap []string
-	MountOptions  []MountOpts
+	Arguments        string
+	PreBootstrap     []string
+	PostBootstrap    []string
+	MountOptions     []MountOpts
 }
 
 func (ctx *EksInstanceGroupContext) GetInstanceGroup() *v1alpha1.InstanceGroup {
@@ -114,13 +123,13 @@ func (ctx *EksInstanceGroupContext) GetInstanceGroup() *v1alpha1.InstanceGroup {
 
 func (ctx *EksInstanceGroupContext) GetOsFamily() string {
 	var (
-		instanceGroup  = ctx.GetInstanceGroup()
-		annotations = instanceGroup.GetAnnotations()
+		instanceGroup = ctx.GetInstanceGroup()
+		annotations   = instanceGroup.GetAnnotations()
 	)
 	if _, exists := annotations[OsFamilyAnnotation]; exists {
 		return annotations[OsFamilyAnnotation]
 	}
-	return "default"  // return "" is will also be fine here
+	return "default" // return "" is will also be fine here
 
 }
 

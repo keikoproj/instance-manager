@@ -46,7 +46,13 @@ func TestCreateManagedRolePositive(t *testing.T) {
 	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 	state := ctx.GetDiscoveredState()
-	state.SetCluster(&eks.Cluster{Version: aws.String("1.15")})
+	state.SetCluster(&eks.Cluster{
+		Version: aws.String("1.15"),
+		CertificateAuthority: &eks.Certificate{
+			Data: aws.String("clusterca"),
+		},
+		Endpoint: aws.String("foo.amazonaws.com"),
+	})
 	state.Publisher.Client = k.Kubernetes
 	state.ScalingConfiguration = &scaling.LaunchConfiguration{
 		AwsWorker: w,
@@ -136,6 +142,12 @@ func TestCreateScalingGroupPositive(t *testing.T) {
 		Publisher: kubeprovider.EventPublisher{
 			Client: k.Kubernetes,
 		},
+		Cluster: &eks.Cluster{
+			CertificateAuthority: &eks.Certificate{
+				Data: aws.String("foo"),
+			},
+			Endpoint: aws.String("foo.amazonaws.com"),
+		},
 		ScalingConfiguration: lc,
 	})
 
@@ -175,6 +187,13 @@ func TestCreateNoOp(t *testing.T) {
 	}
 
 	ctx.SetDiscoveredState(&DiscoveredState{
+		Cluster: &eks.Cluster{
+			CertificateAuthority: &eks.Certificate{
+				Data: aws.String(""),
+			},
+			Endpoint:           aws.String("foo.amazonaws.com"),
+			ResourcesVpcConfig: &eks.VpcConfigResponse{},
+		},
 		Publisher: kubeprovider.EventPublisher{
 			Client: k.Kubernetes,
 		},

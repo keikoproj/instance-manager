@@ -109,7 +109,12 @@ func TestUpdateWithDriftRotationPositive(t *testing.T) {
 		},
 		ClusterNodes: nodes,
 		Cluster: &eks.Cluster{
-			Version: aws.String("1.15"),
+			CertificateAuthority: &eks.Certificate{
+				Data: aws.String(""),
+			},
+			Endpoint:           aws.String("foo.amazonaws.com"),
+			ResourcesVpcConfig: &eks.VpcConfigResponse{},
+			Version:            aws.String("1.15"),
 		},
 	})
 
@@ -138,7 +143,12 @@ func TestUpdateWithRotationPositive(t *testing.T) {
 			Client: k.Kubernetes,
 		},
 		Cluster: &eks.Cluster{
-			Version: aws.String("1.15"),
+			CertificateAuthority: &eks.Certificate{
+				Data: aws.String(""),
+			},
+			Endpoint:           aws.String("foo.amazonaws.com"),
+			ResourcesVpcConfig: &eks.VpcConfigResponse{},
+			Version:            aws.String("1.15"),
 		},
 	})
 
@@ -191,7 +201,12 @@ func TestUpdateWithRotationPositive(t *testing.T) {
 		},
 		ClusterNodes: nodes,
 		Cluster: &eks.Cluster{
-			Version: aws.String("1.15"),
+			CertificateAuthority: &eks.Certificate{
+				Data: aws.String(""),
+			},
+			Endpoint:           aws.String("foo.amazonaws.com"),
+			ResourcesVpcConfig: &eks.VpcConfigResponse{},
+			Version:            aws.String("1.15"),
 		},
 	})
 
@@ -301,7 +316,12 @@ func TestLaunchConfigurationDrifted(t *testing.T) {
 				TargetResource: tc.input,
 			},
 			Cluster: &eks.Cluster{
-				Version: aws.String("1.15"),
+				CertificateAuthority: &eks.Certificate{
+					Data: aws.String(""),
+				},
+				Endpoint:           aws.String("foo.amazonaws.com"),
+				ResourcesVpcConfig: &eks.VpcConfigResponse{},
+				Version:            aws.String("1.15"),
 			},
 		})
 		got := ctx.DiscoveredState.ScalingConfiguration.Drifted(existingConfig)
@@ -343,7 +363,12 @@ func TestUpdateScalingGroupNegative(t *testing.T) {
 			AwsWorker: w,
 		},
 		Cluster: &eks.Cluster{
-			Version: aws.String("1.15"),
+			CertificateAuthority: &eks.Certificate{
+				Data: aws.String(""),
+			},
+			Endpoint:           aws.String("foo.amazonaws.com"),
+			ResourcesVpcConfig: &eks.VpcConfigResponse{},
+			Version:            aws.String("1.15"),
 		},
 	})
 
@@ -426,6 +451,13 @@ func TestScalingGroupUpdatePredicate(t *testing.T) {
 	for i, tc := range tests {
 		t.Logf("Test #%v", i)
 		ctx.SetDiscoveredState(&DiscoveredState{
+			Cluster: &eks.Cluster{
+				CertificateAuthority: &eks.Certificate{
+					Data: aws.String(""),
+				},
+				Endpoint:           aws.String("foo.amazonaws.com"),
+				ResourcesVpcConfig: &eks.VpcConfigResponse{},
+			},
 			Publisher: kubeprovider.EventPublisher{
 				Client: k.Kubernetes,
 			},

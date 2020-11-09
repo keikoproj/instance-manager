@@ -65,6 +65,10 @@ func NewIamMocker() *MockIamClient {
 func NewEksMocker() *MockEksClient {
 	mock := &MockEksClient{
 		EksCluster: &eks.Cluster{
+			CertificateAuthority: &eks.Certificate{
+				Data: aws.String(""),
+			},
+			Endpoint:           aws.String("foo.amazonaws.com"),
 			ResourcesVpcConfig: &eks.VpcConfigResponse{},
 		},
 	}
@@ -92,13 +96,39 @@ func MockKubernetesClientSet() kubeprovider.KubernetesClientSet {
 }
 
 func MockContext(instanceGroup *v1alpha1.InstanceGroup, kube kubeprovider.KubernetesClientSet, w awsprovider.AwsWorker) *EksInstanceGroupContext {
+	var (
+		clusterCa       = "somestring"
+		clusterEndpoint = "foo.amazonaws.com"
+	)
 	input := provisioners.ProvisionerInput{
 		AwsWorker:     w,
 		Kubernetes:    kube,
 		InstanceGroup: instanceGroup,
 		Log:           ctrl.Log.WithName("unit-test").WithName("InstanceGroup"),
 	}
-	return New(input)
+	context := New(input)
+
+	context.DiscoveredState = &DiscoveredState{
+		Provisioned:          false,
+		NodesReady:           false,
+		ClusterNodes:         nil,
+		OwnedScalingGroups:   nil,
+		ScalingGroup:         nil,
+		LifecycleHooks:       nil,
+		ScalingConfiguration: nil,
+		IAMRole:              nil,
+		AttachedPolicies:     nil,
+		InstanceProfile:      nil,
+		Publisher:            kubeprovider.EventPublisher{},
+		Cluster: &eks.Cluster{
+			Endpoint: &clusterEndpoint,
+			CertificateAuthority: &eks.Certificate{
+				Data: &clusterCa,
+			},
+		},
+		VPCId: "",
+	}
+	return context
 }
 
 func MockInstanceGroup() *v1alpha1.InstanceGroup {
@@ -138,7 +168,38 @@ func MockWindowsInstanceGroup() *v1alpha1.InstanceGroup {
 			Namespace: "instance-manager",
 			Annotations: map[string]string{
 				ClusterAutoscalerEnabledAnnotation: "true",
-				OsFamilyAnnotation: OsFamilyWindows,
+				OsFamilyAnnotation:                 OsFamilyWindows,
+			},
+		},
+		Spec: v1alpha1.InstanceGroupSpec{
+			Provisioner: ProvisionerName,
+			EKSSpec: &v1alpha1.EKSSpec{
+				MaxSize: 3,
+				MinSize: 1,
+				EKSConfiguration: &v1alpha1.EKSConfiguration{
+					EksClusterName: "my-cluster",
+					SuspendedProcesses: []string{
+						"AZRebalance",
+					},
+				},
+			},
+			AwsUpgradeStrategy: v1alpha1.AwsUpgradeStrategy{
+				CRDType:           &v1alpha1.CRDUpdateStrategy{},
+				RollingUpdateType: &v1alpha1.RollingUpdateStrategy{},
+			},
+		},
+		Status: v1alpha1.InstanceGroupStatus{},
+	}
+}
+
+func MockBottleRocketInstanceGroup() *v1alpha1.InstanceGroup {
+	return &v1alpha1.InstanceGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "instance-group-1",
+			Namespace: "instance-manager",
+			Annotations: map[string]string{
+				ClusterAutoscalerEnabledAnnotation: "true",
+				OsFamilyAnnotation:                 OsFamilyBottleRocket,
 			},
 		},
 		Spec: v1alpha1.InstanceGroupSpec{
