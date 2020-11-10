@@ -25,7 +25,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
-	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/onsi/gomega"
@@ -46,13 +45,7 @@ func TestCreateManagedRolePositive(t *testing.T) {
 	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 	state := ctx.GetDiscoveredState()
-	state.SetCluster(&eks.Cluster{
-		Version: aws.String("1.15"),
-		CertificateAuthority: &eks.Certificate{
-			Data: aws.String("clusterca"),
-		},
-		Endpoint: aws.String("foo.amazonaws.com"),
-	})
+	state.SetCluster(MockEksCluster("1.15"))
 	state.Publisher.Client = k.Kubernetes
 	state.ScalingConfiguration = &scaling.LaunchConfiguration{
 		AwsWorker: w,
@@ -142,12 +135,7 @@ func TestCreateScalingGroupPositive(t *testing.T) {
 		Publisher: kubeprovider.EventPublisher{
 			Client: k.Kubernetes,
 		},
-		Cluster: &eks.Cluster{
-			CertificateAuthority: &eks.Certificate{
-				Data: aws.String("foo"),
-			},
-			Endpoint: aws.String("foo.amazonaws.com"),
-		},
+		Cluster:              MockEksCluster(""),
 		ScalingConfiguration: lc,
 	})
 
@@ -187,13 +175,7 @@ func TestCreateNoOp(t *testing.T) {
 	}
 
 	ctx.SetDiscoveredState(&DiscoveredState{
-		Cluster: &eks.Cluster{
-			CertificateAuthority: &eks.Certificate{
-				Data: aws.String(""),
-			},
-			Endpoint:           aws.String("foo.amazonaws.com"),
-			ResourcesVpcConfig: &eks.VpcConfigResponse{},
-		},
+		Cluster: MockEksCluster(""),
 		Publisher: kubeprovider.EventPublisher{
 			Client: k.Kubernetes,
 		},

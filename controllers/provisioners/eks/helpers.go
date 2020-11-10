@@ -251,6 +251,7 @@ func (ctx *EksInstanceGroupContext) GetAddedTags(asgName string) []*autoscaling.
 		annotations   = instanceGroup.GetAnnotations()
 		labels        = ctx.GetComputedLabels()
 		taints        = configuration.GetTaints()
+		osFamily      = ctx.GetOsFamily()
 	)
 
 	tags = append(tags, ctx.AwsWorker.NewTag("Name", asgName, asgName))
@@ -262,6 +263,13 @@ func (ctx *EksInstanceGroupContext) GetAddedTags(asgName string) []*autoscaling.
 	if annotations[ClusterAutoscalerEnabledAnnotation] == "true" {
 		tags = append(tags, ctx.AwsWorker.NewTag(fmt.Sprintf("k8s.io/cluster-autoscaler/%v", clusterName), "owned", asgName))
 		tags = append(tags, ctx.AwsWorker.NewTag("k8s.io/cluster-autoscaler/enabled", "true", asgName))
+
+		switch strings.ToLower(osFamily) {
+		case OsFamilyWindows:
+			tags = append(tags, ctx.AwsWorker.NewTag("k8s.io/cluster-autoscaler/node-template/label/kubernetes.io/os", "windows", asgName))
+		default:
+			tags = append(tags, ctx.AwsWorker.NewTag("k8s.io/cluster-autoscaler/node-template/label/kubernetes.io/os", "linux", asgName))
+		}
 
 		for label, labelValue := range labels {
 			tags = append(tags, ctx.AwsWorker.NewTag(fmt.Sprintf("k8s.io/cluster-autoscaler/node-template/label/%v", label), labelValue, asgName))
@@ -381,7 +389,11 @@ func (ctx *EksInstanceGroupContext) GetComputedLabels() map[string]string {
 		overrideLabels := strings.Split(val, ",")
 		for _, label := range overrideLabels {
 			keyVal := strings.Split(label, "=")
-			labelMap[keyVal[0]] = keyVal[1]
+			if len(keyVal) == 2 {
+				labelMap[keyVal[0]] = keyVal[1]
+			} else {
+				labelMap[keyVal[0]] = ""
+			}
 		}
 	}
 

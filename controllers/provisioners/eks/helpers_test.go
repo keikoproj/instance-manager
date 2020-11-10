@@ -26,7 +26,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
@@ -319,14 +318,7 @@ func TestGetLabelList(t *testing.T) {
 			Publisher: kubeprovider.EventPublisher{
 				Client: k.Kubernetes,
 			},
-			Cluster: &eks.Cluster{
-				CertificateAuthority: &eks.Certificate{
-					Data: aws.String(""),
-				},
-				Endpoint:           aws.String("foo.amazonaws.com"),
-				ResourcesVpcConfig: &eks.VpcConfigResponse{},
-				Version:            aws.String(tc.clusterVersion),
-			},
+			Cluster: MockEksCluster(tc.clusterVersion),
 		})
 		if tc.spotPrice == "" {
 			tc.expectedLabels = append(tc.expectedLabels, defaultLifecycleLable)

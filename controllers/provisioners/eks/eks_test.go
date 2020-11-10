@@ -64,13 +64,7 @@ func NewIamMocker() *MockIamClient {
 
 func NewEksMocker() *MockEksClient {
 	mock := &MockEksClient{
-		EksCluster: &eks.Cluster{
-			CertificateAuthority: &eks.Certificate{
-				Data: aws.String(""),
-			},
-			Endpoint:           aws.String("foo.amazonaws.com"),
-			ResourcesVpcConfig: &eks.VpcConfigResponse{},
-		},
+		EksCluster: MockEksCluster("1.18"),
 	}
 	return mock
 }
@@ -88,6 +82,17 @@ func MockAwsWorker(asgClient *MockAutoScalingClient, iamClient *MockIamClient, e
 	}
 }
 
+func MockEksCluster(version string) *eks.Cluster {
+	return &eks.Cluster{
+		CertificateAuthority: &eks.Certificate{
+			Data: aws.String(""),
+		},
+		Endpoint:           aws.String("foo.amazonaws.com"),
+		ResourcesVpcConfig: &eks.VpcConfigResponse{},
+		Version:            &version,
+	}
+}
+
 func MockKubernetesClientSet() kubeprovider.KubernetesClientSet {
 	return kubeprovider.KubernetesClientSet{
 		Kubernetes:  fake.NewSimpleClientset(),
@@ -96,10 +101,6 @@ func MockKubernetesClientSet() kubeprovider.KubernetesClientSet {
 }
 
 func MockContext(instanceGroup *v1alpha1.InstanceGroup, kube kubeprovider.KubernetesClientSet, w awsprovider.AwsWorker) *EksInstanceGroupContext {
-	var (
-		clusterCa       = "somestring"
-		clusterEndpoint = "foo.amazonaws.com"
-	)
 	input := provisioners.ProvisionerInput{
 		AwsWorker:     w,
 		Kubernetes:    kube,
@@ -109,24 +110,9 @@ func MockContext(instanceGroup *v1alpha1.InstanceGroup, kube kubeprovider.Kubern
 	context := New(input)
 
 	context.DiscoveredState = &DiscoveredState{
-		Provisioned:          false,
-		NodesReady:           false,
-		ClusterNodes:         nil,
-		OwnedScalingGroups:   nil,
-		ScalingGroup:         nil,
-		LifecycleHooks:       nil,
-		ScalingConfiguration: nil,
-		IAMRole:              nil,
-		AttachedPolicies:     nil,
-		InstanceProfile:      nil,
-		Publisher:            kubeprovider.EventPublisher{},
-		Cluster: &eks.Cluster{
-			Endpoint: &clusterEndpoint,
-			CertificateAuthority: &eks.Certificate{
-				Data: &clusterCa,
-			},
-		},
-		VPCId: "",
+		Publisher: kubeprovider.EventPublisher{},
+		Cluster:   MockEksCluster("1.18"),
+		VPCId:     "",
 	}
 	return context
 }

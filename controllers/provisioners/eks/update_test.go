@@ -108,14 +108,7 @@ func TestUpdateWithDriftRotationPositive(t *testing.T) {
 			Arn: aws.String("some-instance-arn"),
 		},
 		ClusterNodes: nodes,
-		Cluster: &eks.Cluster{
-			CertificateAuthority: &eks.Certificate{
-				Data: aws.String(""),
-			},
-			Endpoint:           aws.String("foo.amazonaws.com"),
-			ResourcesVpcConfig: &eks.VpcConfigResponse{},
-			Version:            aws.String("1.15"),
-		},
+		Cluster:      MockEksCluster("1.15"),
 	})
 
 	err = ctx.Update()
@@ -142,14 +135,7 @@ func TestUpdateWithRotationPositive(t *testing.T) {
 		Publisher: kubeprovider.EventPublisher{
 			Client: k.Kubernetes,
 		},
-		Cluster: &eks.Cluster{
-			CertificateAuthority: &eks.Certificate{
-				Data: aws.String(""),
-			},
-			Endpoint:           aws.String("foo.amazonaws.com"),
-			ResourcesVpcConfig: &eks.VpcConfigResponse{},
-			Version:            aws.String("1.15"),
-		},
+		Cluster: MockEksCluster("1.15"),
 	})
 
 	input := &autoscaling.CreateLaunchConfigurationInput{
@@ -200,14 +186,7 @@ func TestUpdateWithRotationPositive(t *testing.T) {
 			TargetResource: mockLaunchConfig,
 		},
 		ClusterNodes: nodes,
-		Cluster: &eks.Cluster{
-			CertificateAuthority: &eks.Certificate{
-				Data: aws.String(""),
-			},
-			Endpoint:           aws.String("foo.amazonaws.com"),
-			ResourcesVpcConfig: &eks.VpcConfigResponse{},
-			Version:            aws.String("1.15"),
-		},
+		Cluster:      MockEksCluster("1.15"),
 	})
 
 	err = ctx.Update()
@@ -315,14 +294,7 @@ func TestLaunchConfigurationDrifted(t *testing.T) {
 				AwsWorker:      w,
 				TargetResource: tc.input,
 			},
-			Cluster: &eks.Cluster{
-				CertificateAuthority: &eks.Certificate{
-					Data: aws.String(""),
-				},
-				Endpoint:           aws.String("foo.amazonaws.com"),
-				ResourcesVpcConfig: &eks.VpcConfigResponse{},
-				Version:            aws.String("1.15"),
-			},
+			Cluster: MockEksCluster("1.15"),
 		})
 		got := ctx.DiscoveredState.ScalingConfiguration.Drifted(existingConfig)
 		g.Expect(got).To(gomega.Equal(tc.expected))
@@ -362,14 +334,7 @@ func TestUpdateScalingGroupNegative(t *testing.T) {
 		ScalingConfiguration: &scaling.LaunchConfiguration{
 			AwsWorker: w,
 		},
-		Cluster: &eks.Cluster{
-			CertificateAuthority: &eks.Certificate{
-				Data: aws.String(""),
-			},
-			Endpoint:           aws.String("foo.amazonaws.com"),
-			ResourcesVpcConfig: &eks.VpcConfigResponse{},
-			Version:            aws.String("1.15"),
-		},
+		Cluster: MockEksCluster("1.15"),
 	})
 
 	asgMock.UpdateAutoScalingGroupErr = errors.New("some-update-error")
@@ -451,13 +416,7 @@ func TestScalingGroupUpdatePredicate(t *testing.T) {
 	for i, tc := range tests {
 		t.Logf("Test #%v", i)
 		ctx.SetDiscoveredState(&DiscoveredState{
-			Cluster: &eks.Cluster{
-				CertificateAuthority: &eks.Certificate{
-					Data: aws.String(""),
-				},
-				Endpoint:           aws.String("foo.amazonaws.com"),
-				ResourcesVpcConfig: &eks.VpcConfigResponse{},
-			},
+			Cluster: MockEksCluster(""),
 			Publisher: kubeprovider.EventPublisher{
 				Client: k.Kubernetes,
 			},
