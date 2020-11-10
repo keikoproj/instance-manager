@@ -268,6 +268,20 @@ func (d *DiscoveredState) GetClusterVersion() string {
 	return aws.StringValue(d.Cluster.Version)
 }
 
+func (d *DiscoveredState) GetClusterCA() string {
+	if d.Cluster == nil {
+		return ""
+	}
+	return aws.StringValue(d.Cluster.CertificateAuthority.Data)
+}
+
+func (d *DiscoveredState) GetClusterEndpoint() string {
+	if d.Cluster == nil {
+		return ""
+	}
+	return aws.StringValue(d.Cluster.Endpoint)
+}
+
 func (d *DiscoveredState) SetOwnedScalingGroups(groups []*autoscaling.Group) {
 	d.OwnedScalingGroups = groups
 }

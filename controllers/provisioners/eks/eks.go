@@ -17,8 +17,9 @@ package eks
 
 import (
 	"fmt"
-	corev1 "k8s.io/api/core/v1"
 	"sync"
+
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/go-logr/logr"
 

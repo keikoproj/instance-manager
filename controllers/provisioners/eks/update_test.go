@@ -206,9 +206,7 @@ func TestUpdateWithLaunchTemplate(t *testing.T) {
 			Arn: aws.String("some-instance-arn"),
 		},
 		ClusterNodes: nodes,
-		Cluster: &eks.Cluster{
-			Version: aws.String("1.15"),
-		},
+		Cluster:      MockEksCluster("1.15"),
 	})
 
 	err = ctx.Update()

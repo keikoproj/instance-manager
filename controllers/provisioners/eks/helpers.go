@@ -101,9 +101,9 @@ func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, k
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
 		configuration = instanceGroup.GetEKSConfiguration()
-		cluster       = ctx.GetDiscoveredState().Cluster
-		apiEndpoint   = cluster.Endpoint
-		clusterCa     = cluster.CertificateAuthority.Data
+		state         = ctx.GetDiscoveredState()
+		apiEndpoint   = state.GetClusterEndpoint()
+		clusterCa     = state.GetClusterCA()
 		osFamily      = ctx.GetOsFamily()
 		nodeLabels    = ctx.GetComputedLabels()
 		nodeTaints    = configuration.GetTaints()
@@ -153,8 +153,8 @@ set +o xtrace
 	}
 
 	data := EKSUserData{
-		ApiEndpoint:      *apiEndpoint,
-		ClusterCA:        *clusterCa,
+		ApiEndpoint:      apiEndpoint,
+		ClusterCA:        clusterCa,
 		ClusterName:      clusterName,
 		NodeLabels:       nodeLabels,
 		NodeTaints:       nodeTaints,
@@ -419,7 +419,7 @@ func (ctx *EksInstanceGroupContext) GetComputedLabels() map[string]string {
 
 	switch status.GetLifecycle() {
 	case v1alpha1.LifecycleStateNormal:
-    labelMap[InstanceMgrLifecycleLabel] = v1alpha1.LifecycleStateNormal
+		labelMap[InstanceMgrLifecycleLabel] = v1alpha1.LifecycleStateNormal
 	case v1alpha1.LifecycleStateSpot:
 		labelMap[InstanceMgrLifecycleLabel] = v1alpha1.LifecycleStateSpot
 	case v1alpha1.LifecycleStateMixed:
