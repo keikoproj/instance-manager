@@ -75,14 +75,33 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		ResourceVersion: instanceGroup.GetResourceVersion(),
 	}
 
+	status.SetLifecycle(v1alpha1.LifecycleStateNormal)
+
 	if spec.IsLaunchConfiguration() {
 		state.ScalingConfiguration = &scaling.LaunchConfiguration{
 			AwsWorker: ctx.AwsWorker,
 		}
+
+		err := ctx.discoverSpotPrice()
+		if err != nil {
+			ctx.Log.Error(err, "failed to discover spot price")
+		}
+
+		spotPrice := configuration.GetSpotPrice()
+		if !common.StringEmpty(spotPrice) {
+			status.SetLifecycle(v1alpha1.LifecycleStateSpot)
+		}
 	}
+
 	if spec.IsLaunchTemplate() {
 		state.ScalingConfiguration = &scaling.LaunchTemplate{
 			AwsWorker: ctx.AwsWorker,
+		}
+
+		if mixedInstances != nil {
+			if ratio := common.IntOrStrValue(mixedInstances.SpotRatio); ratio > 0 {
+				status.SetLifecycle(v1alpha1.LifecycleStateMixed)
+			}
 		}
 	}
 
@@ -157,7 +176,6 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	status.SetActiveScalingGroupName(asgName)
 	status.SetCurrentMin(int(aws.Int64Value(targetScalingGroup.MinSize)))
 	status.SetCurrentMax(int(aws.Int64Value(targetScalingGroup.MaxSize)))
-	status.SetLifecycle(v1alpha1.LifecycleStateNormal)
 
 	if spec.IsLaunchConfiguration() {
 
@@ -170,16 +188,6 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 
 		var resourceName = state.ScalingConfiguration.Name()
 		status.SetActiveLaunchConfigurationName(resourceName)
-
-		err = ctx.discoverSpotPrice()
-		if err != nil {
-			ctx.Log.Error(err, "failed to discover spot price")
-		}
-
-		spotPrice := configuration.GetSpotPrice()
-		if !common.StringEmpty(spotPrice) {
-			status.SetLifecycle(v1alpha1.LifecycleStateSpot)
-		}
 	}
 
 	if spec.IsLaunchTemplate() {
@@ -211,12 +219,6 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		state.SetSubFamilyFlexiblePool(pool)
 		status.SetActiveLaunchTemplateName(resourceName)
 		status.SetLatestTemplateVersion(latestVersionStr)
-
-		if mixedInstances != nil {
-			if ratio := common.IntOrStrValue(mixedInstances.SpotRatio); ratio > 0 {
-				status.SetLifecycle(v1alpha1.LifecycleStateMixed)
-			}
-		}
 	}
 
 	// delete old launch configurations
