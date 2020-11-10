@@ -255,6 +255,9 @@ func (lc *LaunchConfiguration) blockDeviceList(volumes []v1alpha1.NodeVolume) []
 		devices = append(devices, lc.GetAutoScalingBasicBlockDevice(v.Name, v.Type, v.SnapshotID, v.Size, v.Iops, v.DeleteOnTermination, v.Encrypted))
 	}
 
+	sort.Slice(devices[:], func(i, j int) bool {
+		return aws.StringValue(devices[i].DeviceName) < aws.StringValue(devices[j].DeviceName)
+	})
 	return devices
 }
 
