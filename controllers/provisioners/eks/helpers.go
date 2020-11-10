@@ -97,18 +97,43 @@ func (ctx *EksInstanceGroupContext) ResolveSecurityGroups() []string {
 }
 
 func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, kubeletExtraArgs string, payload UserDataPayload, mounts []MountOpts) string {
-      osFamily := ctx.GetOsFamily()
+	var (
+		instanceGroup = ctx.GetInstanceGroup()
+		configuration = instanceGroup.GetEKSConfiguration()
+		cluster       = ctx.GetDiscoveredState().Cluster
+		apiEndpoint   = cluster.Endpoint
+		clusterCa     = cluster.CertificateAuthority.Data
+		osFamily      = ctx.GetOsFamily()
+		nodeLabels    = ctx.GetComputedLabels()
+		nodeTaints    = configuration.GetTaints()
+	)
+
 	var UserDataTemplate string
-	if strings.EqualFold(osFamily, OsFamilyWindows) {
+	switch strings.ToLower(osFamily) {
+	case OsFamilyWindows:
 		UserDataTemplate = `
 <powershell>
   [string]$EKSBinDir = "$env:ProgramFiles\Amazon\EKS"
   [string]$EKSBootstrapScriptName = 'Start-EKSBootstrap.ps1'
   [string]$EKSBootstrapScriptFile = "$EKSBinDir\$EKSBootstrapScriptName"
   & $EKSBootstrapScriptFile -EKSClusterName {{ .ClusterName }} -KubeletExtraArgs '{{ .KubeletExtraArgs }}' 3>&1 4>&1 5>&1 6>&1
-</powershell>
-		`
-	} else {
+</powershell>`
+	case OsFamilyBottleRocket:
+		UserDataTemplate = `
+[settings.kubernetes]
+api-server   = "{{ .ApiEndpoint }}"
+cluster-certificate = "{{ .ClusterCA }}"
+cluster-name = "{{ .ClusterName }}"
+[settings.kubernetes.node-labels]
+{{- range $key, $value := .NodeLabels }}
+"{{ $key }}" = "{{ $value }}"
+{{- end}}
+[settings.kubernetes.node-taints]
+{{- range .NodeTaints}}
+"{{ .Key }}" = "{{ .Value }}:{{ .Effect }}"
+{{- end}}
+`
+	case OsFamilyAmazonLinux2:
 		UserDataTemplate = `#!/bin/bash
 {{range $pre := .PreBootstrap}}{{$pre}}{{end}}
 {{- range .MountOptions}}
@@ -125,13 +150,18 @@ set -o xtrace
 set +o xtrace
 {{range $post := .PostBootstrap}}{{$post}}{{end}}`
 	}
+
 	data := EKSUserData{
-		ClusterName:   clusterName,
+		ApiEndpoint:      *apiEndpoint,
+		ClusterCA:        *clusterCa,
+		ClusterName:      clusterName,
+		NodeLabels:       nodeLabels,
+		NodeTaints:       nodeTaints,
 		KubeletExtraArgs: kubeletExtraArgs,
-		Arguments:     args,
-		PreBootstrap:  payload.PreBootstrap,
-		PostBootstrap: payload.PostBootstrap,
-		MountOptions:  mounts,
+		Arguments:        args,
+		PreBootstrap:     payload.PreBootstrap,
+		PostBootstrap:    payload.PostBootstrap,
+		MountOptions:     mounts,
 	}
 	out := &bytes.Buffer{}
 	tmpl := template.New("userData").Funcs(template.FuncMap{
@@ -219,8 +249,9 @@ func (ctx *EksInstanceGroupContext) GetAddedTags(asgName string) []*autoscaling.
 		configuration = instanceGroup.GetEKSConfiguration()
 		clusterName   = configuration.GetClusterName()
 		annotations   = instanceGroup.GetAnnotations()
-		labels 	      = configuration.GetLabels()
+		labels        = ctx.GetComputedLabels()
 		taints        = configuration.GetTaints()
+		osFamily      = ctx.GetOsFamily()
 	)
 
 	tags = append(tags, ctx.AwsWorker.NewTag("Name", asgName, asgName))
@@ -232,6 +263,13 @@ func (ctx *EksInstanceGroupContext) GetAddedTags(asgName string) []*autoscaling.
 	if annotations[ClusterAutoscalerEnabledAnnotation] == "true" {
 		tags = append(tags, ctx.AwsWorker.NewTag(fmt.Sprintf("k8s.io/cluster-autoscaler/%v", clusterName), "owned", asgName))
 		tags = append(tags, ctx.AwsWorker.NewTag("k8s.io/cluster-autoscaler/enabled", "true", asgName))
+
+		switch strings.ToLower(osFamily) {
+		case OsFamilyWindows:
+			tags = append(tags, ctx.AwsWorker.NewTag("k8s.io/cluster-autoscaler/node-template/label/kubernetes.io/os", "windows", asgName))
+		default:
+			tags = append(tags, ctx.AwsWorker.NewTag("k8s.io/cluster-autoscaler/node-template/label/kubernetes.io/os", "linux", asgName))
+		}
 
 		for label, labelValue := range labels {
 			tags = append(tags, ctx.AwsWorker.NewTag(fmt.Sprintf("k8s.io/cluster-autoscaler/node-template/label/%v", label), labelValue, asgName))
@@ -328,10 +366,10 @@ func (ctx *EksInstanceGroupContext) GetTaintList() []string {
 	return taintList
 }
 
-func (ctx *EksInstanceGroupContext) GetLabelList() []string {
+func (ctx *EksInstanceGroupContext) GetComputedLabels() map[string]string {
 	var (
-		labelList     []string
 		isOverride    bool
+		labelMap      = make(map[string]string)
 		instanceGroup = ctx.GetInstanceGroup()
 		annotations   = instanceGroup.GetAnnotations()
 		configuration = instanceGroup.GetEKSConfiguration()
@@ -341,7 +379,7 @@ func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 	// get custom labels
 	if len(customLabels) > 0 {
 		for k, v := range customLabels {
-			labelList = append(labelList, fmt.Sprintf("%v=%v", k, v))
+			labelMap[k] = v
 		}
 	}
 
@@ -350,34 +388,53 @@ func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 		isOverride = true
 		overrideLabels := strings.Split(val, ",")
 		for _, label := range overrideLabels {
-			labelList = append(labelList, label)
+			keyVal := strings.Split(label, "=")
+			if len(keyVal) == 2 {
+				labelMap[keyVal[0]] = keyVal[1]
+			} else {
+				labelMap[keyVal[0]] = ""
+			}
 		}
 	}
 
 	if !isOverride {
 		// add default labels
-		labelList = append(labelList, fmt.Sprintf(RoleNewLabelFmt, instanceGroup.GetName()))
+		labelMap[RoleNewLabel] = instanceGroup.GetName()
 
 		// add the old style role label if the cluster's k8s version is < 1.16
 		clusterVersion := ctx.DiscoveredState.GetClusterVersion()
 		ver, err := semver.NewVersion(clusterVersion)
 		if err != nil {
 			ctx.Log.Error(err, "Failed parsing the cluster's kubernetes version", "instancegroup", instanceGroup.GetName())
-			labelList = append(labelList, fmt.Sprintf(RoleOldLabelFmt, instanceGroup.GetName()))
+			labelMap[fmt.Sprintf(RoleOldLabel, instanceGroup.GetName())] = ""
 		} else {
 			c, _ := semver.NewConstraint("< 1.16-0")
 			if c.Check(ver) {
-				labelList = append(labelList, fmt.Sprintf(RoleOldLabelFmt, instanceGroup.GetName()))
+				labelMap[fmt.Sprintf(RoleOldLabel, instanceGroup.GetName())] = ""
 			}
 		}
 	}
 
 	if configuration.GetSpotPrice() == "" {
-		labelList = append(labelList, fmt.Sprintf(InstanceMgrLabelFmt, "lifecycle", v1alpha1.LifecycleStateNormal))
+		labelMap[InstanceMgrLifecycleLabel] = v1alpha1.LifecycleStateNormal
 	} else {
-		labelList = append(labelList, fmt.Sprintf(InstanceMgrLabelFmt, "lifecycle", v1alpha1.LifecycleStateSpot))
+		labelMap[InstanceMgrLifecycleLabel] = v1alpha1.LifecycleStateSpot
 	}
 
+	return labelMap
+}
+
+func (ctx *EksInstanceGroupContext) GetLabelList() []string {
+	var (
+		labelList []string
+	)
+
+	for key, value := range ctx.GetComputedLabels() {
+		if value == "" {
+			value = "\"\""
+		}
+		labelList = append(labelList, fmt.Sprintf("%v=%v", key, value))
+	}
 	sort.Strings(labelList)
 	return labelList
 }
@@ -733,25 +790,25 @@ func (ctx *EksInstanceGroupContext) UpdateLifecycleHooks(asgName string) error {
 	if hooks, ok := ctx.GetAddedHooks(); ok {
 		for _, hook := range hooks {
 			input := &autoscaling.PutLifecycleHookInput{
-				AutoScalingGroupName:  aws.String(asgName),
-				LifecycleHookName:     aws.String(hook.Name),
-				DefaultResult:         aws.String(hook.DefaultResult),
-				HeartbeatTimeout:      aws.Int64(hook.HeartbeatTimeout),
-				LifecycleTransition:   aws.String(hook.Lifecycle),
+				AutoScalingGroupName: aws.String(asgName),
+				LifecycleHookName:    aws.String(hook.Name),
+				DefaultResult:        aws.String(hook.DefaultResult),
+				HeartbeatTimeout:     aws.Int64(hook.HeartbeatTimeout),
+				LifecycleTransition:  aws.String(hook.Lifecycle),
 			}
-			
+
 			if !common.StringEmpty(hook.Metadata) {
 				input.NotificationMetadata = aws.String(hook.Metadata)
 			}
-			
+
 			if !common.StringEmpty(hook.RoleArn) {
 				input.RoleARN = aws.String(hook.RoleArn)
 			}
-			
+
 			if !common.StringEmpty(hook.NotificationArn) {
 				input.NotificationTargetARN = aws.String(hook.NotificationArn)
 			}
-            
+
 			if err := ctx.AwsWorker.CreateLifecycleHook(input); err != nil {
 				return errors.Wrapf(err, "failed to add lifecycle hook %v", hook)
 			}

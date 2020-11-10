@@ -26,7 +26,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
@@ -55,9 +54,9 @@ func TestAutoscalerTags(t *testing.T) {
 
 	ig.Spec.EKSSpec.EKSConfiguration.Taints = []corev1.Taint{}
 	ig.Spec.EKSSpec.EKSConfiguration.Taints = append(ig.Spec.EKSSpec.EKSConfiguration.Taints, corev1.Taint{
-		Key:       "red",
-		Value:     "green",
-		Effect:    "NoSchedule",
+		Key:    "red",
+		Value:  "green",
+		Effect: "NoSchedule",
 	})
 	ctx := MockContext(ig, k, w)
 
@@ -65,7 +64,7 @@ func TestAutoscalerTags(t *testing.T) {
 	expectedTags := make(map[string]string)
 
 	expectedTags["k8s.io/cluster-autoscaler/enabled"] = "true"
-	expectedTags["k8s.io/cluster-autoscaler/" + ig.Spec.EKSSpec.EKSConfiguration.EksClusterName] = "owned"
+	expectedTags["k8s.io/cluster-autoscaler/"+ig.Spec.EKSSpec.EKSConfiguration.EksClusterName] = "owned"
 	expectedTags["k8s.io/cluster-autoscaler/node-template/label/foo"] = "bar"
 	expectedTags["k8s.io/cluster-autoscaler/node-template/taint/red"] = "green:NoSchedule"
 
@@ -73,12 +72,11 @@ func TestAutoscalerTags(t *testing.T) {
 	for _, tag := range tagSlice {
 		tags[*tag.Key] = *tag.Value
 	}
-	for expectedKey, expectedValue  := range expectedTags {
+	for expectedKey, expectedValue := range expectedTags {
 		if tags[expectedKey] != expectedValue {
-			t.Fatalf("Expected %v=%v, Got %v",expectedKey,expectedValue,tags[expectedKey])
+			t.Fatalf("Expected %v=%v, Got %v", expectedKey, expectedValue, tags[expectedKey])
 		}
 	}
-
 
 }
 
@@ -320,9 +318,7 @@ func TestGetLabelList(t *testing.T) {
 			Publisher: kubeprovider.EventPublisher{
 				Client: k.Kubernetes,
 			},
-			Cluster: &eks.Cluster{
-				Version: aws.String(tc.clusterVersion),
-			},
+			Cluster: MockEksCluster(tc.clusterVersion),
 		})
 		if tc.spotPrice == "" {
 			tc.expectedLabels = append(tc.expectedLabels, defaultLifecycleLable)
@@ -505,42 +501,46 @@ func TestGetUserDataStages(t *testing.T) {
 
 func TestBootstrapDataForOSFamily(t *testing.T) {
 	var (
-		k             = MockKubernetesClientSet()
-		linuxIg       = MockInstanceGroup()
-		windowsIg            = MockWindowsInstanceGroup()
-		asgMock       = NewAutoScalingMocker()
-		iamMock       = NewIamMocker()
-		eksMock       = NewEksMocker()
-		ec2Mock       = NewEc2Mocker()
+		k              = MockKubernetesClientSet()
+		bottleRocketIg = MockBottleRocketInstanceGroup()
+		linuxIg        = MockInstanceGroup()
+		windowsIg      = MockWindowsInstanceGroup()
+		asgMock        = NewAutoScalingMocker()
+		iamMock        = NewIamMocker()
+		eksMock        = NewEksMocker()
+		ec2Mock        = NewEc2Mocker()
 	)
 
 	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 
 	tests := []struct {
-		ig        *v1alpha1.InstanceGroup
+		ig                       *v1alpha1.InstanceGroup
 		expectedScriptSubstrings string
 	}{
 		{
-			ig: linuxIg,
+			ig:                       linuxIg,
 			expectedScriptSubstrings: "/etc/eks/bootstrap.sh",
 		},
 		{
-			ig: windowsIg,
+			ig:                       windowsIg,
 			expectedScriptSubstrings: "<powershell>",
+		},
+		{
+			ig:                       bottleRocketIg,
+			expectedScriptSubstrings: "[settings.kubernetes]",
 		},
 	}
 
 	for i, tc := range tests {
 		t.Logf("Test #%v - %+v", i, tc)
 		ctx := MockContext(tc.ig, k, w)
-		basicUserData := ctx.GetBasicUserData("", "","", UserDataPayload{}, []MountOpts{} )
+		basicUserData := ctx.GetBasicUserData("", "", "", UserDataPayload{}, []MountOpts{})
 		basicUserDataDecoded, _ := base64.StdEncoding.DecodeString(basicUserData)
 		basicUserDataString := string(basicUserDataDecoded)
 		if !strings.Contains(basicUserDataString, tc.expectedScriptSubstrings) {
-			t.Fatalf("Cound not find expected string %v script in %v",tc.expectedScriptSubstrings, basicUserDataString)
+			t.Fatalf("Cound not find expected string %v script in %v", tc.expectedScriptSubstrings, basicUserDataString)
 		}
 	}
-
 
 }
 

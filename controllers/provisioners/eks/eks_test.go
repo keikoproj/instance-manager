@@ -64,9 +64,7 @@ func NewIamMocker() *MockIamClient {
 
 func NewEksMocker() *MockEksClient {
 	mock := &MockEksClient{
-		EksCluster: &eks.Cluster{
-			ResourcesVpcConfig: &eks.VpcConfigResponse{},
-		},
+		EksCluster: MockEksCluster("1.18"),
 	}
 	return mock
 }
@@ -84,6 +82,17 @@ func MockAwsWorker(asgClient *MockAutoScalingClient, iamClient *MockIamClient, e
 	}
 }
 
+func MockEksCluster(version string) *eks.Cluster {
+	return &eks.Cluster{
+		CertificateAuthority: &eks.Certificate{
+			Data: aws.String(""),
+		},
+		Endpoint:           aws.String("foo.amazonaws.com"),
+		ResourcesVpcConfig: &eks.VpcConfigResponse{},
+		Version:            &version,
+	}
+}
+
 func MockKubernetesClientSet() kubeprovider.KubernetesClientSet {
 	return kubeprovider.KubernetesClientSet{
 		Kubernetes:  fake.NewSimpleClientset(),
@@ -98,7 +107,14 @@ func MockContext(instanceGroup *v1alpha1.InstanceGroup, kube kubeprovider.Kubern
 		InstanceGroup: instanceGroup,
 		Log:           ctrl.Log.WithName("unit-test").WithName("InstanceGroup"),
 	}
-	return New(input)
+	context := New(input)
+
+	context.DiscoveredState = &DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{},
+		Cluster:   MockEksCluster("1.18"),
+		VPCId:     "",
+	}
+	return context
 }
 
 func MockInstanceGroup() *v1alpha1.InstanceGroup {
@@ -138,7 +154,38 @@ func MockWindowsInstanceGroup() *v1alpha1.InstanceGroup {
 			Namespace: "instance-manager",
 			Annotations: map[string]string{
 				ClusterAutoscalerEnabledAnnotation: "true",
-				OsFamilyAnnotation: OsFamilyWindows,
+				OsFamilyAnnotation:                 OsFamilyWindows,
+			},
+		},
+		Spec: v1alpha1.InstanceGroupSpec{
+			Provisioner: ProvisionerName,
+			EKSSpec: &v1alpha1.EKSSpec{
+				MaxSize: 3,
+				MinSize: 1,
+				EKSConfiguration: &v1alpha1.EKSConfiguration{
+					EksClusterName: "my-cluster",
+					SuspendedProcesses: []string{
+						"AZRebalance",
+					},
+				},
+			},
+			AwsUpgradeStrategy: v1alpha1.AwsUpgradeStrategy{
+				CRDType:           &v1alpha1.CRDUpdateStrategy{},
+				RollingUpdateType: &v1alpha1.RollingUpdateStrategy{},
+			},
+		},
+		Status: v1alpha1.InstanceGroupStatus{},
+	}
+}
+
+func MockBottleRocketInstanceGroup() *v1alpha1.InstanceGroup {
+	return &v1alpha1.InstanceGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "instance-group-1",
+			Namespace: "instance-manager",
+			Annotations: map[string]string{
+				ClusterAutoscalerEnabledAnnotation: "true",
+				OsFamilyAnnotation:                 OsFamilyBottleRocket,
 			},
 		},
 		Spec: v1alpha1.InstanceGroupSpec{
