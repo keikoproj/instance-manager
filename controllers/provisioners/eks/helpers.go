@@ -133,7 +133,7 @@ cluster-name = "{{ .ClusterName }}"
 "{{ .Key }}" = "{{ .Value }}:{{ .Effect }}"
 {{- end}}
 `
-	default:
+	case OsFamilyAmazonLinux2:
 		UserDataTemplate = `#!/bin/bash
 {{range $pre := .PreBootstrap}}{{$pre}}{{end}}
 {{- range .MountOptions}}

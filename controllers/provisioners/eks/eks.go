@@ -37,6 +37,7 @@ const (
 
 	OsFamilyWindows      = "windows"
 	OsFamilyBottleRocket = "bottlerocket"
+	OsFamilyAmazonLinux2 = "amazonlinux2"
 )
 
 var (
@@ -129,7 +130,7 @@ func (ctx *EksInstanceGroupContext) GetOsFamily() string {
 	if _, exists := annotations[OsFamilyAnnotation]; exists {
 		return annotations[OsFamilyAnnotation]
 	}
-	return "default" // return "" is will also be fine here
+	return OsFamilyAmazonLinux2 // return "" is will also be fine here
 
 }
 
