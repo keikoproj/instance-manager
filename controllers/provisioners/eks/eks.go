@@ -130,8 +130,7 @@ func (ctx *EksInstanceGroupContext) GetOsFamily() string {
 	if _, exists := annotations[OsFamilyAnnotation]; exists {
 		return annotations[OsFamilyAnnotation]
 	}
-	return OsFamilyAmazonLinux2 // return "" is will also be fine here
-
+	return OsFamilyAmazonLinux2
 }
 
 func (ctx *EksInstanceGroupContext) GetUpgradeStrategy() *v1alpha1.AwsUpgradeStrategy {
