@@ -17,6 +17,7 @@ package eks
 
 import (
 	"fmt"
+	corev1 "k8s.io/api/core/v1"
 	"sync"
 
 	"github.com/go-logr/logr"
@@ -33,13 +34,19 @@ const (
 	OverrideDefaultLabelsAnnotationKey  = "instancemgr.keikoproj.io/default-labels"
 	OsFamilyAnnotation                  = "instancemgr.keikoproj.io/os-family"
 	ClusterAutoscalerEnabledAnnotation  = "instancemgr.keikoproj.io/cluster-autoscaler-enabled"
-	OsFamilyWindows                     = "windows"
+
+	OsFamilyWindows      = "windows"
+	OsFamilyBottleRocket = "bottlerocket"
+	OsFamilyAmazonLinux2 = "amazonlinux2"
 )
 
 var (
-	RoleNewLabelFmt     = "node.kubernetes.io/role=%s"
-	RoleOldLabelFmt     = "node-role.kubernetes.io/%s=\"\""
-	InstanceMgrLabelFmt = "instancemgr.keikoproj.io/%s=%s"
+	RoleNewLabel              = "node.kubernetes.io/role"
+	RoleNewLabelFmt           = "node.kubernetes.io/role=%s"
+	RoleOldLabel              = "node-role.kubernetes.io/%s"
+	RoleOldLabelFmt           = "node-role.kubernetes.io/%s=\"\""
+	InstanceMgrLifecycleLabel = "instancemgr.keikoproj.io/lifecycle"
+	InstanceMgrLabelFmt       = "instancemgr.keikoproj.io/%s=%s"
 
 	DefaultManagedPolicies = []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}
 )
@@ -96,7 +103,11 @@ type MountOpts struct {
 }
 
 type EKSUserData struct {
+	ApiEndpoint      string
+	ClusterCA        string
 	ClusterName      string
+	NodeLabels       map[string]string
+	NodeTaints       []corev1.Taint
 	KubeletExtraArgs string
 	Arguments        string
 	PreBootstrap     []string
@@ -119,8 +130,8 @@ func (ctx *EksInstanceGroupContext) GetOsFamily() string {
 	if _, exists := annotations[OsFamilyAnnotation]; exists {
 		return annotations[OsFamilyAnnotation]
 	}
-	return "default" // return "" is will also be fine here
 
+	return OsFamilyAmazonLinux2
 }
 
 func (ctx *EksInstanceGroupContext) GetUpgradeStrategy() *v1alpha1.AwsUpgradeStrategy {

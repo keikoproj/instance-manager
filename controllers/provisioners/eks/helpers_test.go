@@ -27,7 +27,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
@@ -329,9 +328,7 @@ func TestGetLabelList(t *testing.T) {
 			Publisher: kubeprovider.EventPublisher{
 				Client: k.Kubernetes,
 			},
-			Cluster: &eks.Cluster{
-				Version: aws.String(tc.clusterVersion),
-			},
+			Cluster: MockEksCluster(tc.clusterVersion),
 		})
 		sort.Strings(tc.expectedLabels)
 		labels := ctx.GetLabelList()
@@ -511,13 +508,14 @@ func TestGetUserDataStages(t *testing.T) {
 
 func TestBootstrapDataForOSFamily(t *testing.T) {
 	var (
-		k         = MockKubernetesClientSet()
-		linuxIg   = MockInstanceGroup()
-		windowsIg = MockWindowsInstanceGroup()
-		asgMock   = NewAutoScalingMocker()
-		iamMock   = NewIamMocker()
-		eksMock   = NewEksMocker()
-		ec2Mock   = NewEc2Mocker()
+		k              = MockKubernetesClientSet()
+		bottleRocketIg = MockBottleRocketInstanceGroup()
+		linuxIg        = MockInstanceGroup()
+		windowsIg      = MockWindowsInstanceGroup()
+		asgMock        = NewAutoScalingMocker()
+		iamMock        = NewIamMocker()
+		eksMock        = NewEksMocker()
+		ec2Mock        = NewEc2Mocker()
 	)
 
 	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
@@ -533,6 +531,10 @@ func TestBootstrapDataForOSFamily(t *testing.T) {
 		{
 			ig:                       windowsIg,
 			expectedScriptSubstrings: "<powershell>",
+		},
+		{
+			ig:                       bottleRocketIg,
+			expectedScriptSubstrings: "[settings.kubernetes]",
 		},
 	}
 
