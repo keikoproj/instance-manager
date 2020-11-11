@@ -269,10 +269,18 @@ func (lt *LaunchTemplate) RotationNeeded(input *DiscoverConfigurationInput) bool
 		return false
 	}
 
+	if lt.LatestVersion == nil {
+		return true
+	}
+
 	awsLatest := aws.Int64Value(lt.LatestVersion.VersionNumber)
 	latestVersion := strconv.FormatInt(awsLatest, 10)
 	configName := lt.Name()
 	for _, instance := range input.ScalingGroup.Instances {
+		if instance.LaunchTemplate == nil {
+			return true
+		}
+
 		if aws.StringValue(instance.LaunchTemplate.LaunchTemplateName) != configName {
 			return true
 		}

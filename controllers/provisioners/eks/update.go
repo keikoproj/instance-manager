@@ -71,7 +71,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 
 	// create new launchconfig if it has drifted
 	if scalingConfig.Drifted(config) {
-		if spec.IsLaunchConfiguration() {
+		if spec.IsLaunchConfiguration() || common.StringEmpty(config.Name) {
 			config.Name = fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
 		}
 		rotationNeeded = true
