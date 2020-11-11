@@ -236,6 +236,12 @@ func Int64InRange(i, min, max int64) bool {
 }
 
 func StringSliceEquals(x, y []string) bool {
+	if x == nil {
+		x = []string{}
+	}
+	if y == nil {
+		y = []string{}
+	}
 	sort.Strings(x)
 	sort.Strings(y)
 	return reflect.DeepEqual(x, y)
