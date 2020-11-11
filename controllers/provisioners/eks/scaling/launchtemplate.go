@@ -234,7 +234,8 @@ func (lt *LaunchTemplate) Drifted(input *CreateConfigurationInput) bool {
 	}
 
 	devices := lt.blockDeviceList(input.Volumes)
-	if !reflect.DeepEqual(latestVersion.LaunchTemplateData.BlockDeviceMappings, devices) {
+	existingDevices := sortTemplateDevices(latestVersion.LaunchTemplateData.BlockDeviceMappings)
+	if !reflect.DeepEqual(existingDevices, devices) {
 		log.Info("detected drift", "reason", "volumes have changed", "instancegroup", lt.OwnerName,
 			"previousValue", latestVersion.LaunchTemplateData.BlockDeviceMappings,
 			"newValue", devices,
@@ -307,7 +308,7 @@ func (lt *LaunchTemplate) blockDeviceList(volumes []v1alpha1.NodeVolume) []*ec2.
 		devices = append(devices, lt.GetLaunchTemplateBlockDevice(v.Name, v.Type, v.SnapshotID, v.Size, v.Iops, v.DeleteOnTermination, v.Encrypted))
 	}
 
-	return devices
+	return sortTemplateDevices(devices)
 }
 
 func (lt *LaunchTemplate) getVersion(id int64) *ec2.LaunchTemplateVersion {
@@ -318,6 +319,16 @@ func (lt *LaunchTemplate) getVersion(id int64) *ec2.LaunchTemplateVersion {
 		}
 	}
 	return nil
+}
+
+func sortTemplateDevices(devices []*ec2.LaunchTemplateBlockDeviceMapping) []*ec2.LaunchTemplateBlockDeviceMapping {
+	if len(devices) == 0 {
+		return []*ec2.LaunchTemplateBlockDeviceMapping{}
+	}
+	sort.Slice(devices[:], func(i, j int) bool {
+		return aws.StringValue(devices[i].DeviceName) < aws.StringValue(devices[j].DeviceName)
+	})
+	return devices
 }
 
 func sortVersions(versions []*ec2.LaunchTemplateVersion) []*ec2.LaunchTemplateVersion {

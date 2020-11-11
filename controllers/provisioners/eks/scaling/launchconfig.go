@@ -205,7 +205,8 @@ func (lc *LaunchConfiguration) Drifted(input *CreateConfigurationInput) bool {
 	}
 
 	devices := lc.blockDeviceList(input.Volumes)
-	if !reflect.DeepEqual(existingConfig.BlockDeviceMappings, devices) {
+	existingDevices := sortConfigDevices(existingConfig.BlockDeviceMappings)
+	if !reflect.DeepEqual(existingDevices, devices) {
 		log.Info("detected drift", "reason", "volumes have changed", "instancegroup", lc.OwnerName,
 			"previousValue", existingConfig.BlockDeviceMappings,
 			"newValue", devices,
@@ -254,11 +255,7 @@ func (lc *LaunchConfiguration) blockDeviceList(volumes []v1alpha1.NodeVolume) []
 	for _, v := range volumes {
 		devices = append(devices, lc.GetAutoScalingBasicBlockDevice(v.Name, v.Type, v.SnapshotID, v.Size, v.Iops, v.DeleteOnTermination, v.Encrypted))
 	}
-
-	sort.Slice(devices[:], func(i, j int) bool {
-		return aws.StringValue(devices[i].DeviceName) < aws.StringValue(devices[j].DeviceName)
-	})
-	return devices
+	return sortConfigDevices(devices)
 }
 
 func getPrefixedConfigurations(configs []*autoscaling.LaunchConfiguration, prefix string) []*autoscaling.LaunchConfiguration {
@@ -270,6 +267,16 @@ func getPrefixedConfigurations(configs []*autoscaling.LaunchConfiguration, prefi
 		}
 	}
 	return prefixed
+}
+
+func sortConfigDevices(devices []*autoscaling.BlockDeviceMapping) []*autoscaling.BlockDeviceMapping {
+	if len(devices) == 0 {
+		return []*autoscaling.BlockDeviceMapping{}
+	}
+	sort.Slice(devices[:], func(i, j int) bool {
+		return aws.StringValue(devices[i].DeviceName) < aws.StringValue(devices[j].DeviceName)
+	})
+	return devices
 }
 
 func sortConfigurations(configs []*autoscaling.LaunchConfiguration) []*autoscaling.LaunchConfiguration {
