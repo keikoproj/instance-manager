@@ -81,16 +81,6 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		state.ScalingConfiguration = &scaling.LaunchConfiguration{
 			AwsWorker: ctx.AwsWorker,
 		}
-
-		err := ctx.discoverSpotPrice()
-		if err != nil {
-			ctx.Log.Error(err, "failed to discover spot price")
-		}
-
-		spotPrice := configuration.GetSpotPrice()
-		if !common.StringEmpty(spotPrice) {
-			status.SetLifecycle(v1alpha1.LifecycleStateSpot)
-		}
 	}
 
 	if spec.IsLaunchTemplate() {
@@ -149,8 +139,8 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	}
 	state.SetCluster(cluster)
 
-	vpcId := aws.StringValue(cluster.ResourcesVpcConfig.VpcId)
-	state.SetVPCId(vpcId)
+	vpcID := aws.StringValue(cluster.ResourcesVpcConfig.VpcId)
+	state.SetVPCId(vpcID)
 
 	// find all owned scaling groups
 	ownedScalingGroups := ctx.findOwnedScalingGroups(scalingGroups)
@@ -167,6 +157,16 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	state.SetProvisioned(true)
 	state.SetScalingGroup(targetScalingGroup)
 	asgName := aws.StringValue(targetScalingGroup.AutoScalingGroupName)
+
+	err = ctx.discoverSpotPrice()
+	if err != nil {
+		ctx.Log.Error(err, "failed to discover spot price")
+	}
+
+	spotPrice := configuration.GetSpotPrice()
+	if !common.StringEmpty(spotPrice) {
+		status.SetLifecycle(v1alpha1.LifecycleStateSpot)
+	}
 
 	state.LifecycleHooks, err = ctx.AwsWorker.DescribeLifecycleHooks(asgName)
 	if err != nil {
