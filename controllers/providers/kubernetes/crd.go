@@ -112,7 +112,6 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 				}
 			}
 			if isRunning {
-				fmt.Println("isRunning")
 				return false, nil
 			}
 		case strings.EqualFold(policy, v1alpha1.AllowConcurrencyPolicy):
