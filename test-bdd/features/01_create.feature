@@ -9,6 +9,8 @@ Feature: CRUD Create
     And I create a resource instance-group-crd.yaml
     And I create a resource instance-group-managed.yaml
     And I create a resource instance-group-fargate.yaml
+    And I create a resource instance-group-launch-template.yaml
+    And I create a resource instance-group-launch-template-mixed.yaml
 
   Scenario: Create an instance-group with rollingUpdate strategy
     Given an EKS cluster
@@ -24,6 +26,22 @@ Feature: CRUD Create
     When I create a resource instance-group-crd.yaml
     Then the resource should be created
     And the resource should converge to selector .status.lifecycle=spot
+    And the resource should converge to selector .status.currentState=ready
+    And the resource condition NodesReady should be true
+    And 2 nodes should be ready
+
+  Scenario: Create an instance-group with launch template
+    Given an EKS cluster
+    When I create a resource instance-group-launch-template.yaml
+    Then the resource should be created
+    And the resource should converge to selector .status.currentState=ready
+    And the resource condition NodesReady should be true
+    And 2 nodes should be ready
+
+  Scenario: Create an instance-group with launch template and mixed instances
+    Given an EKS cluster
+    When I create a resource instance-group-launch-template-mixed.yaml
+    Then the resource should be created
     And the resource should converge to selector .status.currentState=ready
     And the resource condition NodesReady should be true
     And 2 nodes should be ready

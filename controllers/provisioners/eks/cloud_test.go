@@ -22,10 +22,13 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
 	"github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func TestCloudDiscoveryPositive(t *testing.T) {
@@ -64,7 +67,7 @@ func TestCloudDiscoveryPositive(t *testing.T) {
 		ownershipTag          = MockTagDescription(provisioners.TagClusterName, clusterName)
 		nameTag               = MockTagDescription(provisioners.TagInstanceGroupName, resourceName)
 		namespaceTag          = MockTagDescription(provisioners.TagInstanceGroupNamespace, resourceNamespace)
-		ownedScalingGroup     = MockScalingGroup(ownedScalingGroupName, ownershipTag, nameTag, namespaceTag)
+		ownedScalingGroup     = MockScalingGroup(ownedScalingGroupName, false, ownershipTag, nameTag, namespaceTag)
 	)
 
 	ig.SetName(resourceName)
@@ -73,8 +76,8 @@ func TestCloudDiscoveryPositive(t *testing.T) {
 
 	asgMock.AutoScalingGroups = []*autoscaling.Group{
 		ownedScalingGroup,
-		MockScalingGroup("scaling-group-2", ownershipTag),
-		MockScalingGroup("scaling-group-3", ownershipTag),
+		MockScalingGroup("scaling-group-2", false, ownershipTag),
+		MockScalingGroup("scaling-group-3", false, ownershipTag),
 	}
 
 	launchConfig := &autoscaling.LaunchConfiguration{
@@ -108,6 +111,193 @@ func TestCloudDiscoveryPositive(t *testing.T) {
 	g.Expect(status.GetActiveLaunchConfigurationName()).To(gomega.Equal(launchConfigName))
 	g.Expect(status.GetCurrentMin()).To(gomega.Equal(3))
 	g.Expect(status.GetCurrentMax()).To(gomega.Equal(6))
+}
+
+func TestCloudDiscoveryWithTemplatePositive(t *testing.T) {
+	var (
+		g       = gomega.NewGomegaWithT(t)
+		k       = MockKubernetesClientSet()
+		ig      = MockInstanceGroup()
+		asgMock = NewAutoScalingMocker()
+		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	ctx := MockContext(ig, k, w)
+	state := ctx.GetDiscoveredState()
+	status := ig.GetStatus()
+	configuration := ig.GetEKSConfiguration()
+	spec := ig.GetEKSSpec()
+	spec.Type = v1alpha1.LaunchTemplate
+	spotRatio := intstr.FromInt(100)
+	configuration.MixedInstancesPolicy = &v1alpha1.MixedInstancesPolicySpec{
+		InstancePool: aws.String(v1alpha1.SubFamilyFlexibleInstancePool),
+		SpotRatio:    &spotRatio,
+	}
+
+	iamMock.Role = &iam.Role{
+		RoleName: aws.String("some-role"),
+		Arn:      aws.String("some-arn"),
+	}
+
+	iamMock.InstanceProfile = &iam.InstanceProfile{
+		InstanceProfileName: aws.String("some-profile"),
+	}
+
+	var (
+		clusterName           = "some-cluster"
+		resourceName          = "some-instance-group"
+		resourceNamespace     = "default"
+		launchTemplateName    = "some-launch-template"
+		ownedScalingGroupName = "scaling-group-1"
+		vpcId                 = "vpc-1234567890"
+		ownershipTag          = MockTagDescription(provisioners.TagClusterName, clusterName)
+		nameTag               = MockTagDescription(provisioners.TagInstanceGroupName, resourceName)
+		namespaceTag          = MockTagDescription(provisioners.TagInstanceGroupNamespace, resourceNamespace)
+		ownedScalingGroup     = MockScalingGroup(ownedScalingGroupName, true, ownershipTag, nameTag, namespaceTag)
+	)
+
+	ig.SetName(resourceName)
+	ig.SetNamespace(resourceNamespace)
+	configuration.SetClusterName(clusterName)
+
+	asgMock.AutoScalingGroups = []*autoscaling.Group{
+		ownedScalingGroup,
+		MockScalingGroup("scaling-group-2", true, ownershipTag),
+		MockScalingGroup("scaling-group-3", true, ownershipTag),
+	}
+
+	launchTemplate := &ec2.LaunchTemplate{
+		LaunchTemplateName: aws.String(launchTemplateName),
+	}
+
+	ec2Mock.LaunchTemplates = []*ec2.LaunchTemplate{
+		launchTemplate,
+	}
+
+	eksMock.EksCluster = &eks.Cluster{
+		ResourcesVpcConfig: &eks.VpcConfigResponse{
+			VpcId: aws.String(vpcId),
+		},
+	}
+
+	err := ctx.CloudDiscovery()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	lt := state.ScalingConfiguration.Resource().(*ec2.LaunchTemplate)
+
+	g.Expect(state.GetRole()).To(gomega.Equal(iamMock.Role))
+	g.Expect(state.GetInstanceProfile()).To(gomega.Equal(iamMock.InstanceProfile))
+	g.Expect(state.GetOwnedScalingGroups()).To(gomega.Equal(asgMock.AutoScalingGroups))
+	g.Expect(state.IsProvisioned()).To(gomega.BeTrue())
+	g.Expect(state.GetScalingGroup()).To(gomega.Equal(ownedScalingGroup))
+	g.Expect(lt).To(gomega.Equal(launchTemplate))
+	g.Expect(state.ScalingConfiguration.Name()).To(gomega.Equal(launchTemplateName))
+	g.Expect(state.GetVPCId()).To(gomega.Equal(vpcId))
+	g.Expect(status.GetNodesArn()).To(gomega.Equal(aws.StringValue(iamMock.Role.Arn)))
+	g.Expect(status.GetActiveScalingGroupName()).To(gomega.Equal(ownedScalingGroupName))
+	g.Expect(status.GetActiveLaunchTemplateName()).To(gomega.Equal(launchTemplateName))
+	g.Expect(status.GetCurrentMin()).To(gomega.Equal(3))
+	g.Expect(status.GetCurrentMax()).To(gomega.Equal(6))
+}
+
+func TestDeriveSubFamilyFlexiblePool(t *testing.T) {
+	var (
+		g = gomega.NewGomegaWithT(t)
+	)
+
+	mockOfferings := MockTypeOffering("us-west-2", "z5.large", "z5.xlarge", "z5.2xlarge", "x4.large", "x4a.large", "x4.xlarge", "x3.2xlarge")
+
+	mockInfo := MockTypeInfo(
+		MockInstanceTypeInfo{"z5.large", 1, 100},
+		MockInstanceTypeInfo{"z5.xlarge", 1, 100},
+		MockInstanceTypeInfo{"z5.2xlarge", 1, 100},
+		MockInstanceTypeInfo{"x4.large", 2, 100},
+		MockInstanceTypeInfo{"x4a.large", 2, 100},
+		MockInstanceTypeInfo{"x4.xlarge", 4, 200},
+		MockInstanceTypeInfo{"x3.2xlarge", 6, 400},
+	)
+
+	expectedPool := make(map[string][]InstanceSpec, 0)
+	expectedPool["z5.large"] = []InstanceSpec{
+		{
+			Type:   "z5.large",
+			Weight: "1",
+		},
+		{
+			Type:   "z5.xlarge",
+			Weight: "1",
+		},
+		{
+			Type:   "z5.2xlarge",
+			Weight: "1",
+		},
+	}
+	expectedPool["z5.xlarge"] = []InstanceSpec{
+		{
+			Type:   "z5.xlarge",
+			Weight: "1",
+		},
+		{
+			Type:   "z5.large",
+			Weight: "1",
+		},
+		{
+			Type:   "z5.2xlarge",
+			Weight: "1",
+		},
+	}
+	expectedPool["z5.2xlarge"] = []InstanceSpec{
+		{
+			Type:   "z5.2xlarge",
+			Weight: "1",
+		},
+		{
+			Type:   "z5.large",
+			Weight: "1",
+		},
+		{
+			Type:   "z5.xlarge",
+			Weight: "1",
+		},
+	}
+	expectedPool["x4.large"] = []InstanceSpec{
+		{
+			Type:   "x4.large",
+			Weight: "1",
+		},
+		{
+			Type:   "x4a.large",
+			Weight: "1",
+		},
+	}
+	expectedPool["x4a.large"] = []InstanceSpec{
+		{
+			Type:   "x4a.large",
+			Weight: "1",
+		},
+		{
+			Type:   "x4.large",
+			Weight: "1",
+		},
+	}
+	expectedPool["x4.xlarge"] = []InstanceSpec{
+		{
+			Type:   "x4.xlarge",
+			Weight: "1",
+		},
+	}
+	expectedPool["x3.2xlarge"] = []InstanceSpec{
+		{
+			Type:   "x3.2xlarge",
+			Weight: "1",
+		},
+	}
+
+	p := subFamilyFlexiblePool(mockOfferings, mockInfo)
+	g.Expect(p).To(gomega.Equal(expectedPool))
 }
 
 func TestCloudDiscoveryExistingRole(t *testing.T) {
@@ -183,7 +373,7 @@ func TestCloudDiscoverySpotPrice(t *testing.T) {
 	ig.SetNamespace(resourceNamespace)
 	configuration.SetClusterName(clusterName)
 	mockAsg := []*autoscaling.Group{
-		MockScalingGroup(ownedScalingGroupName, ownershipTag, nameTag, namespaceTag),
+		MockScalingGroup(ownedScalingGroupName, false, ownershipTag, nameTag, namespaceTag),
 	}
 	asgMock.AutoScalingGroups = mockAsg
 
@@ -261,7 +451,7 @@ func TestLaunchConfigDeletion(t *testing.T) {
 	configuration.SetClusterName(clusterName)
 
 	asgMock.AutoScalingGroups = []*autoscaling.Group{
-		MockScalingGroup(ownedScalingGroupName, ownershipTag, nameTag, namespaceTag),
+		MockScalingGroup(ownedScalingGroupName, false, ownershipTag, nameTag, namespaceTag),
 	}
 
 	asgMock.LaunchConfigurations = []*autoscaling.LaunchConfiguration{

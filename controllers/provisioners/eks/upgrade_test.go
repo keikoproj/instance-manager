@@ -23,6 +23,7 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
+	"github.com/keikoproj/instance-manager/controllers/provisioners/eks/scaling"
 	"github.com/onsi/gomega"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -166,7 +167,14 @@ func TestUpgradeCRDStrategy(t *testing.T) {
 		Publisher: kubeprovider.EventPublisher{
 			Client: k.Kubernetes,
 		},
+		ScalingConfiguration: &scaling.LaunchConfiguration{
+			TargetResource: &autoscaling.LaunchConfiguration{
+				LaunchConfigurationName: aws.String("my-lc-0123"),
+			},
+		},
 	})
+	cr.SetName("captain-0123")
+	ig.Status.SetActiveScalingGroupName("my-asg")
 	// get custom resource yaml
 	crYAML, err := yaml.Marshal(cr.Object)
 	g.Expect(err).NotTo(gomega.HaveOccurred())
@@ -198,14 +206,13 @@ func TestUpgradeCRDStrategy(t *testing.T) {
 
 	for i, tc := range tests {
 		t.Logf("#%v - \"%v\"", i, tc.input)
-
 		unstructured.SetNestedField(cr.Object, tc.input, "status", "dogStatus")
-		_, err = k.KubeDynamic.Resource(crGvr).Namespace("default").Update(cr, metav1.UpdateOptions{})
+		_, err := k.KubeDynamic.Resource(crGvr).Namespace("default").Update(cr, metav1.UpdateOptions{})
 		g.Expect(err).NotTo(gomega.HaveOccurred())
 
 		var errOccured bool
 		ig.SetState(v1alpha1.ReconcileModifying)
-		err := ctx.UpgradeNodes()
+		err = ctx.UpgradeNodes()
 		if err != nil {
 			errOccured = true
 		}
@@ -229,21 +236,26 @@ func TestUpgradeRollingUpdateStrategyPositive(t *testing.T) {
 	ctx := MockContext(ig, k, w)
 
 	tests := []struct {
-		maxUnavailable   intstr.IntOrString
-		scalingInstances []*autoscaling.Instance
-		withTerminateErr bool
-		expectedState    v1alpha1.ReconcileState
-		readyNodes       int
-		unreadyNodes     int
+		maxUnavailable          intstr.IntOrString
+		scalingInstances        []*autoscaling.Instance
+		withTerminateErr        bool
+		expectedState           v1alpha1.ReconcileState
+		readyNodes              int
+		unreadyNodes            int
+		withLaunchTemplate      bool
+		withLaunchConfiguration bool
+		withMixedInstances      bool
 	}{
-		{maxUnavailable: intstr.FromString("25%"), readyNodes: 3, scalingInstances: MockScalingInstances(0, 3), expectedState: v1alpha1.ReconcileModifying},
-		{maxUnavailable: intstr.FromString("25%"), readyNodes: 2, scalingInstances: MockScalingInstances(1, 2), expectedState: v1alpha1.ReconcileModifying},
-		{maxUnavailable: intstr.FromString("25%"), readyNodes: 0, scalingInstances: MockScalingInstances(2, 1), expectedState: v1alpha1.ReconcileModifying},
-		{maxUnavailable: intstr.FromString("25%"), readyNodes: 3, scalingInstances: MockScalingInstances(3, 0), expectedState: v1alpha1.ReconcileModified},
-		{maxUnavailable: intstr.FromInt(3), readyNodes: 3, scalingInstances: MockScalingInstances(0, 3), expectedState: v1alpha1.ReconcileModifying},
-		{maxUnavailable: intstr.FromInt(5), readyNodes: 3, scalingInstances: MockScalingInstances(0, 3), expectedState: v1alpha1.ReconcileModifying},
-		{maxUnavailable: intstr.FromInt(0), readyNodes: 3, scalingInstances: MockScalingInstances(0, 3), expectedState: v1alpha1.ReconcileModifying},
-		{maxUnavailable: intstr.FromString("60%"), readyNodes: 2, scalingInstances: MockScalingInstances(1, 2), withTerminateErr: true, expectedState: v1alpha1.ReconcileModifying},
+		{withLaunchConfiguration: true, maxUnavailable: intstr.FromString("25%"), readyNodes: 3, scalingInstances: MockScalingInstances(0, 3), expectedState: v1alpha1.ReconcileModifying},
+		{withLaunchConfiguration: true, maxUnavailable: intstr.FromString("25%"), readyNodes: 2, scalingInstances: MockScalingInstances(1, 2), expectedState: v1alpha1.ReconcileModifying},
+		{withLaunchConfiguration: true, maxUnavailable: intstr.FromString("25%"), readyNodes: 0, scalingInstances: MockScalingInstances(2, 1), expectedState: v1alpha1.ReconcileModifying},
+		{withLaunchConfiguration: true, maxUnavailable: intstr.FromString("25%"), readyNodes: 3, scalingInstances: MockScalingInstances(3, 0), expectedState: v1alpha1.ReconcileModified},
+		{withLaunchConfiguration: true, maxUnavailable: intstr.FromInt(3), readyNodes: 3, scalingInstances: MockScalingInstances(0, 3), expectedState: v1alpha1.ReconcileModifying},
+		{withLaunchConfiguration: true, maxUnavailable: intstr.FromInt(5), readyNodes: 3, scalingInstances: MockScalingInstances(0, 3), expectedState: v1alpha1.ReconcileModifying},
+		{withLaunchConfiguration: true, maxUnavailable: intstr.FromInt(0), readyNodes: 3, scalingInstances: MockScalingInstances(0, 3), expectedState: v1alpha1.ReconcileModifying},
+		{withLaunchConfiguration: true, maxUnavailable: intstr.FromString("60%"), readyNodes: 2, scalingInstances: MockScalingInstances(1, 2), withTerminateErr: true, expectedState: v1alpha1.ReconcileModifying},
+		{withLaunchTemplate: true, maxUnavailable: intstr.FromString("60%"), readyNodes: 2, scalingInstances: MockScalingInstances(1, 2), withTerminateErr: true, expectedState: v1alpha1.ReconcileModifying},
+		{withMixedInstances: true, maxUnavailable: intstr.FromString("60%"), readyNodes: 2, scalingInstances: MockScalingInstances(1, 2), withTerminateErr: true, expectedState: v1alpha1.ReconcileModifying},
 	}
 
 	for i, tc := range tests {
@@ -277,17 +289,39 @@ func TestUpgradeRollingUpdateStrategyPositive(t *testing.T) {
 		g.Expect(err).NotTo(gomega.HaveOccurred())
 
 		ig.SetUpgradeStrategy(MockAwsRollingUpdateStrategy(&tc.maxUnavailable))
+		mockScalingGroup := &autoscaling.Group{
+			AutoScalingGroupName: aws.String("some-scaling-group"),
+			Instances:            tc.scalingInstances,
+			DesiredCapacity:      aws.Int64(int64(len(tc.scalingInstances))),
+		}
+		if tc.withLaunchConfiguration {
+			mockScalingGroup.LaunchConfigurationName = aws.String("some-launch-config")
+		}
+		if tc.withLaunchTemplate {
+			mockScalingGroup.LaunchTemplate = &autoscaling.LaunchTemplateSpecification{
+				LaunchTemplateName: aws.String("some-launch-template"),
+			}
+		}
+		if tc.withMixedInstances {
+			mockScalingGroup.MixedInstancesPolicy = &autoscaling.MixedInstancesPolicy{
+				LaunchTemplate: &autoscaling.LaunchTemplate{
+					LaunchTemplateSpecification: &autoscaling.LaunchTemplateSpecification{
+						LaunchTemplateName: aws.String("some-launch-template"),
+					},
+				},
+			}
+		}
+
+		scalingConfig, err := scaling.NewLaunchConfiguration("", w, &scaling.DiscoverConfigurationInput{ScalingGroup: mockScalingGroup})
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+
 		ctx.SetDiscoveredState(&DiscoveredState{
 			Publisher: kubeprovider.EventPublisher{
 				Client: k.Kubernetes,
 			},
-			ScalingGroup: &autoscaling.Group{
-				LaunchConfigurationName: aws.String("some-launch-config"),
-				AutoScalingGroupName:    aws.String("some-scaling-group"),
-				Instances:               tc.scalingInstances,
-				DesiredCapacity:         aws.Int64(int64(len(tc.scalingInstances))),
-			},
-			ClusterNodes: nodes,
+			ScalingGroup:         mockScalingGroup,
+			ScalingConfiguration: scalingConfig,
+			ClusterNodes:         nodes,
 		})
 
 		ig.SetState(v1alpha1.ReconcileModifying)

@@ -69,6 +69,10 @@ func (r *InstanceGroupReconciler) Finalize(instanceGroup *v1alpha1.InstanceGroup
 			// remove all finalizers
 			meta.SetFinalizers([]string{})
 			if err := r.Update(context.Background(), instanceGroup); err != nil {
+				// avoid update errors for already deleted resources
+				if kubeprovider.IsStorageError(err) {
+					return
+				}
 				r.Log.Error(err, "failed to update custom resource")
 			}
 		}
@@ -180,6 +184,10 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 func (r *InstanceGroupReconciler) UpdateStatus(ig *v1alpha1.InstanceGroup) {
 	r.Log.Info("updating resource status", "instancegroup", ig.NamespacedName())
 	if err := r.Status().Update(context.Background(), ig); err != nil {
+		// avoid error if object already deleted
+		if kubeprovider.IsStorageError(err) {
+			return
+		}
 		r.Log.Info("failed to update status", "error", err, "instancegroup", ig.NamespacedName())
 	}
 }

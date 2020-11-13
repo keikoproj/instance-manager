@@ -24,14 +24,18 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 const (
-	Base64 string = "^(?:[A-Za-z0-9+\\/]{4})*(?:[A-Za-z0-9+\\/]{2}==|[A-Za-z0-9+\\/]{3}=|[A-Za-z0-9+\\/]{4})$"
+	Base64  string = "^(?:[A-Za-z0-9+\\/]{4})*(?:[A-Za-z0-9+\\/]{2}==|[A-Za-z0-9+\\/]{3}=|[A-Za-z0-9+\\/]{4})$"
+	Percent string = "^[0-9]+%$"
 )
 
 var (
@@ -206,7 +210,38 @@ func StringEmpty(str string) bool {
 	return str == ""
 }
 
+func StringValue(str *string) string {
+	if str != nil {
+		return *str
+	}
+	return ""
+}
+
+func StringPtr(str string) *string {
+	return &str
+}
+
+func Int64Value(i *int64) int64 {
+	if i != nil {
+		return *i
+	}
+	return 0
+}
+
+func Int64InRange(i, min, max int64) bool {
+	if (i >= min) && (i <= max) {
+		return true
+	}
+	return false
+}
+
 func StringSliceEquals(x, y []string) bool {
+	if x == nil {
+		x = []string{}
+	}
+	if y == nil {
+		y = []string{}
+	}
 	sort.Strings(x)
 	sort.Strings(y)
 	return reflect.DeepEqual(x, y)
@@ -259,4 +294,28 @@ func Difference(a, b []string) []string {
 		}
 	}
 	return diff
+}
+
+func IsValidPercent(percent string) error {
+	if !regexp.MustCompile(Percent).MatchString(percent) {
+		return errors.Errorf("invalid percent value %v", percent)
+	}
+	return nil
+}
+
+func IntOrStrValue(x *intstr.IntOrString) int {
+	var value int
+	if x.Type == intstr.String {
+		if err := IsValidPercent(x.StrVal); err == nil {
+			value, _ = strconv.Atoi(x.StrVal[:len(x.StrVal)-1])
+		}
+	} else {
+		value = x.IntValue()
+	}
+
+	return value
+}
+
+func Int64ToStr(x int64) string {
+	return strconv.FormatInt(x, 10)
 }

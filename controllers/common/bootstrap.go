@@ -40,10 +40,10 @@ func GetGroupsForOsFamily(osFamily string) []string {
 
 func GetNodeBootstrapUpsert(arn string, osFamily string) *awsauth.MapperArguments {
 	return &awsauth.MapperArguments{
-		MapRoles: true,
-		RoleARN:  arn,
-		Username: "system:node:{{EC2PrivateDNSName}}",
-		Groups: GetGroupsForOsFamily(osFamily),
+		MapRoles:      true,
+		RoleARN:       arn,
+		Username:      "system:node:{{EC2PrivateDNSName}}",
+		Groups:        GetGroupsForOsFamily(osFamily),
 		WithRetries:   true,
 		MinRetryTime:  time.Millisecond * 100,
 		MaxRetryTime:  time.Second * 30,
@@ -53,10 +53,10 @@ func GetNodeBootstrapUpsert(arn string, osFamily string) *awsauth.MapperArgument
 
 func GetNodeBootstrapRemove(arn string, osFamily string) *awsauth.MapperArguments {
 	return &awsauth.MapperArguments{
-		MapRoles: true,
-		RoleARN:  arn,
-		Username: "system:node:{{EC2PrivateDNSName}}",
-		Groups: GetGroupsForOsFamily(osFamily),
+		MapRoles:      true,
+		RoleARN:       arn,
+		Username:      "system:node:{{EC2PrivateDNSName}}",
+		Groups:        GetGroupsForOsFamily(osFamily),
 		WithRetries:   true,
 		MinRetryTime:  time.Millisecond * 100,
 		MaxRetryTime:  time.Second * 30,

@@ -234,7 +234,6 @@ func CRDExists(kubeClient dynamic.Interface, name string) bool {
 	CRDSchema := schema.GroupVersionResource{Group: "apiextensions.k8s.io", Version: "v1beta1", Resource: "customresourcedefinitions"}
 	_, err := kubeClient.Resource(CRDSchema).Get(name, metav1.GetOptions{})
 	if err != nil {
-		fmt.Println(err)
 		return false
 	}
 	return true
@@ -246,7 +245,6 @@ func ParseCustomResourceYaml(raw string) (*unstructured.Unstructured, error) {
 	data := []byte(raw)
 	err = yaml.Unmarshal(data, &cr.Object)
 	if err != nil {
-		fmt.Println(err)
 		return &cr, err
 	}
 	return &cr, nil
@@ -257,4 +255,11 @@ func ConfigmapHash(cm *corev1.ConfigMap) string {
 	cmStr := cm.String()
 	buf.WriteString(cmStr[strings.Index(cm.String(), ",Data:")+1:])
 	return common.StringMD5(buf.String())
+}
+
+func IsStorageError(err error) bool {
+	if common.ContainsEqualFoldSubstring(err.Error(), "StorageError: invalid object") {
+		return true
+	}
+	return false
 }

@@ -17,6 +17,7 @@ package scaling
 
 import (
 	"github.com/aws/aws-sdk-go/service/autoscaling"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
@@ -32,6 +33,7 @@ type Configuration interface {
 	Delete(input *DeleteConfigurationInput) error
 	Discover(input *DiscoverConfigurationInput) error
 	Drifted(input *CreateConfigurationInput) bool
+	RotationNeeded(input *DiscoverConfigurationInput) bool
 	Provisioned() bool
 }
 
@@ -56,4 +58,18 @@ type CreateConfigurationInput struct {
 	Volumes               []v1alpha1.NodeVolume
 	UserData              string
 	SpotPrice             string
+}
+
+func ConvertToLaunchTemplate(resource interface{}) *ec2.LaunchTemplate {
+	if lt, ok := resource.(*ec2.LaunchTemplate); ok && lt != nil {
+		return lt
+	}
+	return &ec2.LaunchTemplate{}
+}
+
+func ConvertToLaunchConfiguration(resource interface{}) *autoscaling.LaunchConfiguration {
+	if lc, ok := resource.(*autoscaling.LaunchConfiguration); ok && lc != nil {
+		return lc
+	}
+	return &autoscaling.LaunchConfiguration{}
 }

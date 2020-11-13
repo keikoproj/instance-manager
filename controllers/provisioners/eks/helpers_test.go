@@ -18,10 +18,11 @@ package eks
 import (
 	"encoding/base64"
 	"fmt"
-	corev1 "k8s.io/api/core/v1"
 	"sort"
 	"strings"
 	"testing"
+
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
@@ -273,17 +274,19 @@ func TestGetLabelList(t *testing.T) {
 		k                          = MockKubernetesClientSet()
 		ig                         = MockInstanceGroup()
 		configuration              = ig.GetEKSConfiguration()
+		status                     = ig.GetStatus()
 		asgMock                    = NewAutoScalingMocker()
 		iamMock                    = NewIamMocker()
 		eksMock                    = NewEksMocker()
 		ec2Mock                    = NewEc2Mocker()
-		expectedLabels115          = []string{"node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
-		expectedLabels116          = []string{"node.kubernetes.io/role=instance-group-1"}
-		expectedLabelsWithCustom   = []string{"custom.kubernetes.io=customlabel", "node.kubernetes.io/role=instance-group-1"}
-		expectedLabelsWithOverride = []string{"custom.kubernetes.io=customlabel", "override.kubernetes.io=instance-group-1", "override2.kubernetes.io=instance-group-1"}
+		defaultLifecycleLabel      = "instancemgr.keikoproj.io/lifecycle=normal"
+		expectedLabels115          = []string{defaultLifecycleLabel, "node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
+		expectedLabels116          = []string{defaultLifecycleLabel, "node.kubernetes.io/role=instance-group-1"}
+		expectedLabelsWithCustom   = []string{defaultLifecycleLabel, "custom.kubernetes.io=customlabel", "node.kubernetes.io/role=instance-group-1"}
+		expectedLabelsWithOverride = []string{defaultLifecycleLabel, "custom.kubernetes.io=customlabel", "override.kubernetes.io=instance-group-1", "override2.kubernetes.io=instance-group-1"}
 		overrideAnnotation         = map[string]string{OverrideDefaultLabelsAnnotationKey: "override.kubernetes.io=instance-group-1,override2.kubernetes.io=instance-group-1"}
-		expectedSpotLable          = []string{"instancemgr.keikoproj.io/lifecycle=spot", "node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
-		defaultLifecycleLable      = "instancemgr.keikoproj.io/lifecycle=normal"
+		expectedSpotLabel          = []string{"instancemgr.keikoproj.io/lifecycle=spot", "node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
+		expectedMixedLabel         = []string{"instancemgr.keikoproj.io/lifecycle=mixed", "node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
 	)
 
 	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
@@ -294,9 +297,11 @@ func TestGetLabelList(t *testing.T) {
 		instanceGroupLabels      map[string]string
 		instanceGroupAnnotations map[string]string
 		expectedLabels           []string
-		spotPrice                string
+		withSpot                 bool
+		withMixedInstances       bool
 	}{
-		{clusterVersion: "", spotPrice: "0.7773", expectedLabels: expectedSpotLable},
+		{clusterVersion: "", withSpot: true, expectedLabels: expectedSpotLabel},
+		{clusterVersion: "", withMixedInstances: true, expectedLabels: expectedMixedLabel},
 		// Default labels with missing cluster version
 		{clusterVersion: "", expectedLabels: expectedLabels115},
 		// Kubernetes 1.15 default labels
@@ -313,16 +318,18 @@ func TestGetLabelList(t *testing.T) {
 		t.Logf("Test #%v - %+v", i, tc)
 		configuration.SetLabels(tc.instanceGroupLabels)
 		ig.SetAnnotations(tc.instanceGroupAnnotations)
-		configuration.SetSpotPrice(tc.spotPrice)
+		status.SetLifecycle(v1alpha1.LifecycleStateNormal)
+		if tc.withSpot {
+			status.SetLifecycle(v1alpha1.LifecycleStateSpot)
+		} else if tc.withMixedInstances {
+			status.SetLifecycle(v1alpha1.LifecycleStateMixed)
+		}
 		ctx.SetDiscoveredState(&DiscoveredState{
 			Publisher: kubeprovider.EventPublisher{
 				Client: k.Kubernetes,
 			},
 			Cluster: MockEksCluster(tc.clusterVersion),
 		})
-		if tc.spotPrice == "" {
-			tc.expectedLabels = append(tc.expectedLabels, defaultLifecycleLable)
-		}
 		sort.Strings(tc.expectedLabels)
 		labels := ctx.GetLabelList()
 		g.Expect(labels).To(gomega.Equal(tc.expectedLabels))

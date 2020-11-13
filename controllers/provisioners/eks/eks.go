@@ -17,8 +17,9 @@ package eks
 
 import (
 	"fmt"
-	corev1 "k8s.io/api/core/v1"
 	"sync"
+
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/go-logr/logr"
 
@@ -130,6 +131,7 @@ func (ctx *EksInstanceGroupContext) GetOsFamily() string {
 	if _, exists := annotations[OsFamilyAnnotation]; exists {
 		return annotations[OsFamilyAnnotation]
 	}
+
 	return OsFamilyAmazonLinux2
 }
 
@@ -153,4 +155,27 @@ func (ctx *EksInstanceGroupContext) GetDiscoveredState() *DiscoveredState {
 }
 func (ctx *EksInstanceGroupContext) SetDiscoveredState(state *DiscoveredState) {
 	ctx.DiscoveredState = state
+}
+
+type InstancePoolType string
+
+const (
+	SubFamilyFlexible InstancePoolType = "SubFamilyFlexible"
+)
+
+type InstanceSpec struct {
+	Type   string
+	Weight string
+}
+
+type InstancePool struct {
+	Type InstancePoolType
+	Pool map[string][]InstanceSpec
+}
+
+func (p *InstancePool) GetPool(key string) ([]InstanceSpec, bool) {
+	if val, ok := p.Pool[key]; ok {
+		return val, true
+	}
+	return nil, false
 }

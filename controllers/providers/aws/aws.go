@@ -17,6 +17,7 @@ package aws
 
 import (
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -44,19 +45,23 @@ var (
 )
 
 const (
-	CacheDefaultTTL                 time.Duration = 0 * time.Second
-	DescribeAutoScalingGroupsTTL    time.Duration = 60 * time.Second
-	DescribeLaunchConfigurationsTTL time.Duration = 60 * time.Second
-	ListAttachedRolePoliciesTTL     time.Duration = 60 * time.Second
-	GetRoleTTL                      time.Duration = 60 * time.Second
-	GetInstanceProfileTTL           time.Duration = 60 * time.Second
-	DescribeNodegroupTTL            time.Duration = 60 * time.Second
-	DescribeLifecycleHooksTTL       time.Duration = 180 * time.Second
-	DescribeClusterTTL              time.Duration = 180 * time.Second
-	DescribeSecurityGroupsTTL       time.Duration = 180 * time.Second
-	DescribeSubnetsTTL              time.Duration = 180 * time.Second
-	CacheMaxItems                   int64         = 5000
-	CacheItemsToPrune               uint32        = 500
+	CacheDefaultTTL                   time.Duration = 0 * time.Second
+	DescribeAutoScalingGroupsTTL      time.Duration = 60 * time.Second
+	DescribeLaunchConfigurationsTTL   time.Duration = 60 * time.Second
+	ListAttachedRolePoliciesTTL       time.Duration = 60 * time.Second
+	GetRoleTTL                        time.Duration = 60 * time.Second
+	GetInstanceProfileTTL             time.Duration = 60 * time.Second
+	DescribeNodegroupTTL              time.Duration = 60 * time.Second
+	DescribeLifecycleHooksTTL         time.Duration = 180 * time.Second
+	DescribeClusterTTL                time.Duration = 180 * time.Second
+	DescribeSecurityGroupsTTL         time.Duration = 180 * time.Second
+	DescribeSubnetsTTL                time.Duration = 180 * time.Second
+	DescribeLaunchTemplatesTTL        time.Duration = 60 * time.Second
+	DescribeLaunchTemplateVersionsTTL time.Duration = 60 * time.Second
+	DescribeInstanceTypesTTL          time.Duration = 24 * time.Hour
+	DescribeInstanceTypeOfferingTTL   time.Duration = 1 * time.Hour
+	CacheMaxItems                     int64         = 5000
+	CacheItemsToPrune                 uint32        = 500
 )
 
 type AwsWorker struct {
@@ -68,7 +73,7 @@ type AwsWorker struct {
 }
 
 var (
-	DefaultInstanceProfilePropagationDelay = time.Second * 25
+	DefaultInstanceProfilePropagationDelay = time.Second * 35
 	DefaultWaiterDuration                  = time.Second * 5
 	DefaultWaiterRetries                   = 12
 
@@ -106,11 +111,111 @@ var (
 )
 
 const (
+	LaunchTemplateStrategyCapacityOptimized = "capacity-optimized"
+	LaunchTemplateStrategyLowestPrice       = "lowest-price"
+	LaunchTemplateLatestVersionKey          = "$Latest"
 	IAMPolicyPrefix                         = "arn:aws:iam::aws:policy"
 	IAMARNPrefix                            = "arn:aws:iam::"
 	ARNPrefix                               = "arn:aws:"
 	LaunchConfigurationNotFoundErrorMessage = "Launch configuration name not found"
 )
+
+func (w *AwsWorker) DescribeInstanceOfferings() ([]*ec2.InstanceTypeOffering, error) {
+	offerings := []*ec2.InstanceTypeOffering{}
+	err := w.Ec2Client.DescribeInstanceTypeOfferingsPages(&ec2.DescribeInstanceTypeOfferingsInput{}, func(page *ec2.DescribeInstanceTypeOfferingsOutput, lastPage bool) bool {
+		offerings = append(offerings, page.InstanceTypeOfferings...)
+		return page.NextToken != nil
+	})
+	if err != nil {
+		return offerings, err
+	}
+	return offerings, nil
+}
+
+func (w *AwsWorker) DescribeInstanceTypes() ([]*ec2.InstanceTypeInfo, error) {
+	types := []*ec2.InstanceTypeInfo{}
+	err := w.Ec2Client.DescribeInstanceTypesPages(&ec2.DescribeInstanceTypesInput{}, func(page *ec2.DescribeInstanceTypesOutput, lastPage bool) bool {
+		types = append(types, page.InstanceTypes...)
+		return page.NextToken != nil
+	})
+	if err != nil {
+		return types, err
+	}
+	return types, nil
+}
+
+func (w *AwsWorker) DescribeLaunchTemplates() ([]*ec2.LaunchTemplate, error) {
+	launchTemplates := []*ec2.LaunchTemplate{}
+	err := w.Ec2Client.DescribeLaunchTemplatesPages(&ec2.DescribeLaunchTemplatesInput{}, func(page *ec2.DescribeLaunchTemplatesOutput, lastPage bool) bool {
+		launchTemplates = append(launchTemplates, page.LaunchTemplates...)
+		return page.NextToken != nil
+	})
+	if err != nil {
+		return launchTemplates, err
+	}
+	return launchTemplates, nil
+}
+
+func (w *AwsWorker) DescribeLaunchTemplateVersions(templateName string) ([]*ec2.LaunchTemplateVersion, error) {
+	versions := []*ec2.LaunchTemplateVersion{}
+	err := w.Ec2Client.DescribeLaunchTemplateVersionsPages(&ec2.DescribeLaunchTemplateVersionsInput{LaunchTemplateName: aws.String(templateName)}, func(page *ec2.DescribeLaunchTemplateVersionsOutput, lastPage bool) bool {
+		versions = append(versions, page.LaunchTemplateVersions...)
+		return page.NextToken != nil
+	})
+	if err != nil {
+		return versions, err
+	}
+	return versions, nil
+}
+
+func (w *AwsWorker) CreateLaunchTemplate(input *ec2.CreateLaunchTemplateInput) error {
+	_, err := w.Ec2Client.CreateLaunchTemplate(input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) UpdateLaunchTemplateDefaultVersion(name, defaultVersion string) error {
+	_, err := w.Ec2Client.ModifyLaunchTemplate(&ec2.ModifyLaunchTemplateInput{
+		LaunchTemplateName: aws.String(name),
+		DefaultVersion:     aws.String(defaultVersion),
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) CreateLaunchTemplateVersion(input *ec2.CreateLaunchTemplateVersionInput) (int64, error) {
+	var version int64
+	v, err := w.Ec2Client.CreateLaunchTemplateVersion(input)
+	if err != nil {
+		return version, err
+	}
+	return aws.Int64Value(v.LaunchTemplateVersion.VersionNumber), nil
+}
+
+func (w *AwsWorker) DeleteLaunchTemplate(name string) error {
+	_, err := w.Ec2Client.DeleteLaunchTemplate(&ec2.DeleteLaunchTemplateInput{
+		LaunchTemplateName: aws.String(name),
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) DeleteLaunchTemplateVersions(name string, versions []string) error {
+	_, err := w.Ec2Client.DeleteLaunchTemplateVersions(&ec2.DeleteLaunchTemplateVersionsInput{
+		LaunchTemplateName: aws.String(name),
+		Versions:           aws.StringSlice(versions),
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 func (w *AwsWorker) CreateLifecycleHook(input *autoscaling.PutLifecycleHookInput) error {
 	_, err := w.AsgClient.PutLifecycleHook(input)
@@ -165,10 +270,66 @@ func (w *AwsWorker) InstanceProfileExist(name string) (*iam.InstanceProfile, boo
 	return out.InstanceProfile, true
 }
 
-func (w *AwsWorker) GetBasicBlockDevice(name, volType, snapshot string, volSize, iops int64, delete, encrypt *bool) *autoscaling.BlockDeviceMapping {
+func (w *AwsWorker) GetAutoScalingBasicBlockDevice(name, volType, snapshot string, volSize, iops int64, delete, encrypt *bool) *autoscaling.BlockDeviceMapping {
 	device := &autoscaling.BlockDeviceMapping{
 		DeviceName: aws.String(name),
 		Ebs: &autoscaling.Ebs{
+			VolumeType: aws.String(volType),
+		},
+	}
+	if delete != nil {
+		device.Ebs.DeleteOnTermination = delete
+	} else {
+		device.Ebs.DeleteOnTermination = aws.Bool(true)
+	}
+	if encrypt != nil {
+		device.Ebs.Encrypted = encrypt
+	}
+	if iops != 0 && strings.EqualFold(volType, "io1") {
+		device.Ebs.Iops = aws.Int64(iops)
+	}
+	if volSize != 0 {
+		device.Ebs.VolumeSize = aws.Int64(volSize)
+	}
+	if !common.StringEmpty(snapshot) {
+		device.Ebs.SnapshotId = aws.String(snapshot)
+	}
+
+	return device
+}
+
+func (w *AwsWorker) GetLaunchTemplateBlockDeviceRequest(name, volType, snapshot string, volSize, iops int64, delete, encrypt *bool) *ec2.LaunchTemplateBlockDeviceMappingRequest {
+	device := &ec2.LaunchTemplateBlockDeviceMappingRequest{
+		DeviceName: aws.String(name),
+		Ebs: &ec2.LaunchTemplateEbsBlockDeviceRequest{
+			VolumeType: aws.String(volType),
+		},
+	}
+	if delete != nil {
+		device.Ebs.DeleteOnTermination = delete
+	} else {
+		device.Ebs.DeleteOnTermination = aws.Bool(true)
+	}
+	if encrypt != nil {
+		device.Ebs.Encrypted = encrypt
+	}
+	if iops != 0 && strings.EqualFold(volType, "io1") {
+		device.Ebs.Iops = aws.Int64(iops)
+	}
+	if volSize != 0 {
+		device.Ebs.VolumeSize = aws.Int64(volSize)
+	}
+	if !common.StringEmpty(snapshot) {
+		device.Ebs.SnapshotId = aws.String(snapshot)
+	}
+
+	return device
+}
+
+func (w *AwsWorker) GetLaunchTemplateBlockDevice(name, volType, snapshot string, volSize, iops int64, delete, encrypt *bool) *ec2.LaunchTemplateBlockDeviceMapping {
+	device := &ec2.LaunchTemplateBlockDeviceMapping{
+		DeviceName: aws.String(name),
+		Ebs: &ec2.LaunchTemplateEbsBlockDevice{
 			VolumeType: aws.String(volType),
 		},
 	}
@@ -850,6 +1011,10 @@ func GetAwsEc2Client(region string, cacheCfg *cache.Config, maxRetries int) ec2i
 	cache.AddCaching(sess, cacheCfg)
 	cacheCfg.SetCacheTTL("ec2", "DescribeSecurityGroups", DescribeSecurityGroupsTTL)
 	cacheCfg.SetCacheTTL("ec2", "DescribeSubnets", DescribeSubnetsTTL)
+	cacheCfg.SetCacheTTL("ec2", "DescribeInstanceTypes", DescribeInstanceTypesTTL)
+	cacheCfg.SetCacheTTL("ec2", "DescribeInstanceTypeOfferings", DescribeInstanceTypeOfferingTTL)
+	cacheCfg.SetCacheTTL("ec2", "DescribeLaunchTemplates", DescribeLaunchTemplatesTTL)
+	cacheCfg.SetCacheTTL("ec2", "DescribeLaunchTemplateVersions", DescribeLaunchTemplateVersionsTTL)
 	sess.Handlers.Complete.PushFront(func(r *request.Request) {
 		ctx := r.HTTPRequest.Context()
 		log.V(1).Info("AWS API call",
@@ -941,61 +1106,6 @@ var ManagedNodeGroupOngoingState = ManagedNodeGroupReconcileState{OngoingState: 
 var ManagedNodeGroupFiniteState = ManagedNodeGroupReconcileState{FiniteState: true}
 var ManagedNodeGroupUnrecoverableError = ManagedNodeGroupReconcileState{UnrecoverableError: true}
 var ManagedNodeGroupUnrecoverableDeleteError = ManagedNodeGroupReconcileState{UnrecoverableDeleteError: true}
-
-func IsNodeGroupInConditionState(key string, condition string) bool {
-	conditionStates := map[string]ManagedNodeGroupReconcileState{
-		"CREATING":      ManagedNodeGroupOngoingState,
-		"UPDATING":      ManagedNodeGroupOngoingState,
-		"DELETING":      ManagedNodeGroupOngoingState,
-		"ACTIVE":        ManagedNodeGroupFiniteState,
-		"DEGRADED":      ManagedNodeGroupFiniteState,
-		"CREATE_FAILED": ManagedNodeGroupUnrecoverableError,
-		"DELETE_FAILED": ManagedNodeGroupUnrecoverableDeleteError,
-	}
-	state := conditionStates[key]
-
-	switch condition {
-	case "OngoingState":
-		return state.OngoingState
-	case "FiniteState":
-		return state.FiniteState
-	case "UnrecoverableError":
-		return state.UnrecoverableError
-	case "UnrecoverableDeleteError":
-		return state.UnrecoverableDeleteError
-	default:
-		return false
-	}
-}
-
-func IsProfileInConditionState(key string, condition string) bool {
-
-	conditionStates := map[string]CloudResourceReconcileState{
-		aws.StringValue(nil):                 FiniteDeleted,
-		eks.FargateProfileStatusCreating:     OngoingState,
-		eks.FargateProfileStatusActive:       FiniteState,
-		eks.FargateProfileStatusDeleting:     OngoingState,
-		eks.FargateProfileStatusCreateFailed: UpdateRecoverableError,
-		eks.FargateProfileStatusDeleteFailed: UnrecoverableDeleteError,
-	}
-	state := conditionStates[key]
-	switch condition {
-	case "OngoingState":
-		return state.OngoingState
-	case "FiniteState":
-		return state.FiniteState
-	case "FiniteDeleted":
-		return state.FiniteDeleted
-	case "UpdateRecoverableError":
-		return state.UpdateRecoverableError
-	case "UnrecoverableError":
-		return state.UnrecoverableError
-	case "UnrecoverableDeleteError":
-		return state.UnrecoverableDeleteError
-	default:
-		return false
-	}
-}
 
 const defaultPolicyArn = "arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy"
 
@@ -1100,4 +1210,45 @@ func (w *AwsWorker) DescribeFargateProfile() (*eks.FargateProfile, error) {
 		return nil, err
 	}
 	return output.FargateProfile, nil
+}
+
+func GetOfferingVCPU(typeInfo []*ec2.InstanceTypeInfo, instanceType string) int64 {
+	for _, i := range typeInfo {
+		t := aws.StringValue(i.InstanceType)
+		if strings.EqualFold(instanceType, t) {
+			return aws.Int64Value(i.VCpuInfo.DefaultVCpus)
+		}
+	}
+	return 0
+}
+
+func GetOfferingMemory(typeInfo []*ec2.InstanceTypeInfo, instanceType string) int64 {
+	for _, i := range typeInfo {
+		t := aws.StringValue(i.InstanceType)
+		if strings.EqualFold(instanceType, t) {
+			return aws.Int64Value(i.MemoryInfo.SizeInMiB)
+		}
+	}
+	return 0
+}
+
+func GetInstanceGeneration(instanceType string) string {
+	typeSplit := strings.Split(instanceType, ".")
+	if len(typeSplit) < 2 {
+		return ""
+	}
+	instanceClass := typeSplit[0]
+	re := regexp.MustCompile("[0-9]+")
+	gen := re.FindAllString(instanceClass, -1)
+	if len(gen) < 1 {
+		return ""
+	}
+	return gen[0]
+}
+
+func GetInstanceFamily(instanceType string) string {
+	if len(instanceType) > 0 {
+		return instanceType[0:1]
+	}
+	return ""
 }

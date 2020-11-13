@@ -38,7 +38,7 @@ type LaunchConfiguration struct {
 }
 
 var (
-	DefaultVersionRetention int = 2
+	DefaultConfigVersionRetention int = 2
 )
 
 func NewLaunchConfiguration(ownerName string, w awsprovider.AwsWorker, input *DiscoverConfigurationInput) (*LaunchConfiguration, error) {
@@ -54,7 +54,7 @@ func NewLaunchConfiguration(ownerName string, w awsprovider.AwsWorker, input *Di
 func (lc *LaunchConfiguration) Discover(input *DiscoverConfigurationInput) error {
 	launchConfigurations, err := lc.DescribeAutoscalingLaunchConfigs()
 	if err != nil {
-		return errors.Wrap(err, "failed to describe autoscaling groups")
+		return errors.Wrap(err, "failed to describe autoscaling launch configurations")
 	}
 	lc.ResourceList = launchConfigurations
 
@@ -99,11 +99,11 @@ func (lc *LaunchConfiguration) Create(input *CreateConfigurationInput) error {
 
 func (lc *LaunchConfiguration) Delete(input *DeleteConfigurationInput) error {
 	if input.RetainVersions == 0 {
-		input.RetainVersions = DefaultVersionRetention
+		input.RetainVersions = DefaultConfigVersionRetention
 	}
 
-	prefixedConfigs := prefixedConfigurations(lc.ResourceList, input.Prefix)
-	sortedConfigs := sortedConfigurations(prefixedConfigs)
+	prefixedConfigs := getPrefixedConfigurations(lc.ResourceList, input.Prefix)
+	sortedConfigs := sortConfigurations(prefixedConfigs)
 
 	var deletable []*autoscaling.LaunchConfiguration
 	if len(sortedConfigs) > input.RetainVersions {
@@ -205,7 +205,8 @@ func (lc *LaunchConfiguration) Drifted(input *CreateConfigurationInput) bool {
 	}
 
 	devices := lc.blockDeviceList(input.Volumes)
-	if !reflect.DeepEqual(existingConfig.BlockDeviceMappings, devices) {
+	existingDevices := sortConfigDevices(existingConfig.BlockDeviceMappings)
+	if !reflect.DeepEqual(existingDevices, devices) {
 		log.Info("detected drift", "reason", "volumes have changed", "instancegroup", lc.OwnerName,
 			"previousValue", existingConfig.BlockDeviceMappings,
 			"newValue", devices,
@@ -214,7 +215,7 @@ func (lc *LaunchConfiguration) Drifted(input *CreateConfigurationInput) bool {
 	}
 
 	if !drift {
-		log.Info("no drift detected", "instancegroup", lc.OwnerName)
+		log.Info("drift not detected", "instancegroup", lc.OwnerName)
 	}
 
 	return drift
@@ -235,16 +236,29 @@ func (lc *LaunchConfiguration) Name() string {
 	return aws.StringValue(lc.TargetResource.LaunchConfigurationName)
 }
 
+func (lc *LaunchConfiguration) RotationNeeded(input *DiscoverConfigurationInput) bool {
+	if len(input.ScalingGroup.Instances) == 0 {
+		return false
+	}
+
+	configName := lc.Name()
+	for _, instance := range input.ScalingGroup.Instances {
+		if aws.StringValue(instance.LaunchConfigurationName) != configName {
+			return true
+		}
+	}
+	return false
+}
+
 func (lc *LaunchConfiguration) blockDeviceList(volumes []v1alpha1.NodeVolume) []*autoscaling.BlockDeviceMapping {
 	var devices []*autoscaling.BlockDeviceMapping
 	for _, v := range volumes {
-		devices = append(devices, lc.GetBasicBlockDevice(v.Name, v.Type, v.SnapshotID, v.Size, v.Iops, v.DeleteOnTermination, v.Encrypted))
+		devices = append(devices, lc.GetAutoScalingBasicBlockDevice(v.Name, v.Type, v.SnapshotID, v.Size, v.Iops, v.DeleteOnTermination, v.Encrypted))
 	}
-
-	return devices
+	return sortConfigDevices(devices)
 }
 
-func prefixedConfigurations(configs []*autoscaling.LaunchConfiguration, prefix string) []*autoscaling.LaunchConfiguration {
+func getPrefixedConfigurations(configs []*autoscaling.LaunchConfiguration, prefix string) []*autoscaling.LaunchConfiguration {
 	prefixed := []*autoscaling.LaunchConfiguration{}
 	for _, lc := range configs {
 		name := aws.StringValue(lc.LaunchConfigurationName)
@@ -255,7 +269,17 @@ func prefixedConfigurations(configs []*autoscaling.LaunchConfiguration, prefix s
 	return prefixed
 }
 
-func sortedConfigurations(configs []*autoscaling.LaunchConfiguration) []*autoscaling.LaunchConfiguration {
+func sortConfigDevices(devices []*autoscaling.BlockDeviceMapping) []*autoscaling.BlockDeviceMapping {
+	if len(devices) == 0 {
+		return []*autoscaling.BlockDeviceMapping{}
+	}
+	sort.Slice(devices[:], func(i, j int) bool {
+		return aws.StringValue(devices[i].DeviceName) < aws.StringValue(devices[j].DeviceName)
+	})
+	return devices
+}
+
+func sortConfigurations(configs []*autoscaling.LaunchConfiguration) []*autoscaling.LaunchConfiguration {
 	// sort matching launch configs by created time
 	sort.Slice(configs, func(i, j int) bool {
 		ti := configs[i].CreatedTime
