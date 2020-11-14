@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [v0.9.0-alpha2] - 2020-11-13
+
+### Added
+
+- Launch Template support (#179)
+- Support windows and bottlerocket images (#188, #186)
+- Cluster Autoscaler configuration support (#183)
+- Lifecycle Hooks support (#176)
+- Add status fields for Strategy & Provisioner (#171)
+- Support additional volume options (#169)
+- Support base64 payload in userData (#168)
+
+### Changed
+
+- Make scaling config retention configurable (#172)
+- Refactor: scaling configuration abstraction (#165)
+
 ## [v0.8.0-alpha2] - 2020-8-7
 
 ### Added
