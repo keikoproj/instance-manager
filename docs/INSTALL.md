@@ -53,6 +53,15 @@ iam:GetInstanceProfile
 iam:PassRole
 ec2:DescribeSecurityGroups
 ec2:DescribeSubnets
+ec2:DescribeInstanceTypeOfferings
+ec2:DescribeInstanceTypes
+ec2:DescribeLaunchTemplates
+ec2:DescribeLaunchTemplateVersions
+ec2:CreateLaunchTemplate
+ec2:CreateLaunchTemplateVersion
+ec2:ModifyLaunchTemplate
+ec2:DeleteLaunchTemplate
+ec2:DeleteLaunchTemplateVersions
 autoscaling:CreateOrUpdateTags
 autoscaling:DeleteTags
 autoscaling:SuspendProcesses
