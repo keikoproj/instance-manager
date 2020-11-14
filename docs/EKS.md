@@ -505,3 +505,11 @@ Any update to the configmap will trigger a reconcile for instancegroups which ar
 This is enforced via the `status.configMD5` field, which has an MD5 hash of the last seen configmap data, this guarantees consistency with the values defined in the configmap.
 
 This also makes upgrades easier across a managed cluster, an operator can now simply modify the default value for `image` and trigger an upgrade across all instance groups.
+
+## Annotations
+
+| Annotation Key | Annotation Value | Purpose |
+|----------------|------------------|---------|
+|instancemgr.keikoproj.io/cluster-autoscaler-enabled|"true"|setting this annotation to true will add the relevant cluster-autoscaler EC2 tags according to cluster name, taints, and labels|
+|instancemgr.keikoproj.io/os-family|either "windows", "bottlerocket", or "amazonlinux2" (default)|this is required if you are running a windows or bottlerocket based AMI, by default the controller will try to bootstrap an amazonlinux2 AMI|
+|instancemgr.keikoproj.io/default-labels|comma-seprarated key-value string e.g. "label1=value1,label2=value2"|allows overriding the default node labels added by the controller, by default the role label is added depending on the cluster version|
