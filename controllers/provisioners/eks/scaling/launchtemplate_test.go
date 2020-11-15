@@ -592,20 +592,22 @@ func TestLaunchTemplateDrifted(t *testing.T) {
 			shouldDrift: true,
 		},
 		{
-			launchTemplate: &ec2.LaunchTemplate{
-				LaunchTemplateName: aws.String("my-launch-config"),
-			},
-			latestVersion: &ec2.LaunchTemplateVersion{
-				LaunchTemplateData: &ec2.ResponseLaunchTemplateData{
-					LicenseSpecifications: []*ec2.LaunchTemplateLicenseConfiguration{
-						&ec2.LaunchTemplateLicenseConfiguration{
-							LicenseConfigurationArn: aws.String("arn:aws:license-manager:us-west-2:493203180918:license-configuration:lic-94ba36399bd98eaad808b0ffb1d1604b"),
-						},
-					},
-				},
-			},
+			launchTemplate: MockLaunchTemplate("my-launch-template"),
+			latestVersion:  MockLaunchTemplateVersion(),
 			input: &CreateConfigurationInput{
-				LicenseSpecifications: []string{"arn:aws:license-manager:us-west-2:493203180918:license-configuration:lic-94ba36399bd98eaad808b0ffb1d1604b"},
+				LicenseSpecifications: []string{"arn:aws:license-manager:us-west-2:1234456789:license-configuration:lic-1111122223333344444111112222333"},
+			},
+			shouldDrift: true,
+		},
+		{
+			launchTemplate: MockLaunchTemplate("my-launch-template"),
+			latestVersion:  MockLaunchTemplateVersion(),
+			input: &CreateConfigurationInput{
+				Placement: &LaunchTemplatePlacementInput{
+					AvailabilityZone:     "us-west-2a",
+					HostResourceGroupArn: "arn:aws:resource-groups:us-west-2:1234456789:group/host-group-name",
+					Tenancy:              "host",
+				},
 			},
 			shouldDrift: true,
 		},
