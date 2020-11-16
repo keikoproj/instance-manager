@@ -253,7 +253,7 @@ func (lt *LaunchTemplate) Drifted(input *CreateConfigurationInput) bool {
 		drift = true
 	}
 	for _, v := range latestVersion.LaunchTemplateData.LicenseSpecifications {
-		if !contains(input.LicenseSpecifications, aws.StringValue(v.LicenseConfigurationArn)) {
+		if !common.ContainsEqualFold(input.LicenseSpecifications, aws.StringValue(v.LicenseConfigurationArn)) {
 			log.Info("detected drift", "reason", "LicenseSpecifications has changed", "instancegroup", lt.OwnerName,
 				"previousValue", aws.StringValue(v.LicenseConfigurationArn),
 				"newValue", input.LicenseSpecifications,
@@ -407,13 +407,4 @@ func sortVersions(versions []*ec2.LaunchTemplateVersion) []*ec2.LaunchTemplateVe
 	})
 
 	return versions
-}
-
-func contains(src []string, value string) bool {
-	for _, v := range src {
-		if v == value {
-			return true
-		}
-	}
-	return false
 }
