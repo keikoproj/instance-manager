@@ -97,7 +97,10 @@ func (c *MockEc2Client) DeleteLaunchTemplate(input *ec2.DeleteLaunchTemplateInpu
 
 func (c *MockEc2Client) ModifyLaunchTemplate(input *ec2.ModifyLaunchTemplateInput) (*ec2.ModifyLaunchTemplateOutput, error) {
 	c.ModifyLaunchTemplateCallCount++
-	return &ec2.ModifyLaunchTemplateOutput{}, nil
+	out := &ec2.ModifyLaunchTemplateOutput{
+		LaunchTemplate: MockLaunchTemplate(*input.LaunchTemplateName),
+	}
+	return out, nil
 }
 
 func (c *MockEc2Client) CreateLaunchTemplateVersion(input *ec2.CreateLaunchTemplateVersionInput) (*ec2.CreateLaunchTemplateVersionOutput, error) {
