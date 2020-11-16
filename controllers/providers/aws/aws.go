@@ -176,15 +176,15 @@ func (w *AwsWorker) CreateLaunchTemplate(input *ec2.CreateLaunchTemplateInput) e
 	return nil
 }
 
-func (w *AwsWorker) UpdateLaunchTemplateDefaultVersion(name, defaultVersion string) error {
-	_, err := w.Ec2Client.ModifyLaunchTemplate(&ec2.ModifyLaunchTemplateInput{
+func (w *AwsWorker) UpdateLaunchTemplateDefaultVersion(name, defaultVersion string) (*ec2.LaunchTemplate, error) {
+	out, err := w.Ec2Client.ModifyLaunchTemplate(&ec2.ModifyLaunchTemplateInput{
 		LaunchTemplateName: aws.String(name),
 		DefaultVersion:     aws.String(defaultVersion),
 	})
 	if err != nil {
-		return err
+		return &ec2.LaunchTemplate{}, err
 	}
-	return nil
+	return out.LaunchTemplate, nil
 }
 
 func (w *AwsWorker) CreateLaunchTemplateVersion(input *ec2.CreateLaunchTemplateVersionInput) (int64, error) {
