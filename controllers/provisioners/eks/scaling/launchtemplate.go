@@ -180,9 +180,8 @@ func (lt *LaunchTemplate) Delete(input *DeleteConfigurationInput) error {
 
 func (lt *LaunchTemplate) Drifted(input *CreateConfigurationInput) bool {
 	var (
-		latestVersion   = lt.LatestVersion
-		placementConfig *ec2.LaunchTemplatePlacement
-		drift           bool
+		latestVersion = lt.LatestVersion
+		drift         bool
 	)
 
 	if latestVersion == nil {
@@ -258,15 +257,7 @@ func (lt *LaunchTemplate) Drifted(input *CreateConfigurationInput) bool {
 		drift = true
 	}
 
-	if input.Placement == nil {
-		placementConfig = &ec2.LaunchTemplatePlacement{}
-	} else {
-		placementConfig = &ec2.LaunchTemplatePlacement{
-			AvailabilityZone:     aws.String(input.Placement.AvailabilityZone),
-			HostResourceGroupArn: aws.String(input.Placement.HostResourceGroupArn),
-			Tenancy:              aws.String(input.Placement.Tenancy),
-		}
-	}
+	placementConfig := launchTemplatePlacement(input.Placement)
 	currentPlacement := latestVersion.LaunchTemplateData.Placement
 	if currentPlacement == nil {
 		currentPlacement = &ec2.LaunchTemplatePlacement{}
@@ -372,6 +363,17 @@ func launchTemplatePlacementRequest(input *LaunchTemplatePlacementInput) *ec2.La
 		return &ec2.LaunchTemplatePlacementRequest{}
 	}
 	return &ec2.LaunchTemplatePlacementRequest{
+		AvailabilityZone:     aws.String(input.AvailabilityZone),
+		HostResourceGroupArn: aws.String(input.HostResourceGroupArn),
+		Tenancy:              aws.String(input.Tenancy),
+	}
+}
+
+func launchTemplatePlacement(input *LaunchTemplatePlacementInput) *ec2.LaunchTemplatePlacement {
+	if input == nil {
+		return &ec2.LaunchTemplatePlacement{}
+	}
+	return &ec2.LaunchTemplatePlacement{
 		AvailabilityZone:     aws.String(input.AvailabilityZone),
 		HostResourceGroupArn: aws.String(input.HostResourceGroupArn),
 		Tenancy:              aws.String(input.Tenancy),
