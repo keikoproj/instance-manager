@@ -40,7 +40,7 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 )
 
-const controllerVersion = "instancemgr-0.9.0"
+const controllerVersion = "instancemgr-0.9.1"
 
 func init() {
 	instancemgrv1alpha1.AddToScheme(scheme)

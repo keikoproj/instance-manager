@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [v0.9.1-alpha2] - 2020-11-17
+
+### Fixed
+
+- rollingUpdate does not trigger an upgrade when using LaunchTemplate (#200)
+- Handle length exceeded error for IAM role creation (#202)
+
 ## [v0.9.0-alpha2] - 2020-11-13
 
 ### Added
