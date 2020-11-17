@@ -162,6 +162,11 @@ func (ctx *EksInstanceGroupContext) CreateManagedRole() error {
 		return nil
 	}
 
+	if len(roleName) > 63 {
+		// use a hash of the actual name in case we exceed the max length
+		roleName = common.StringMD5(roleName)
+	}
+
 	role, profile, err := ctx.AwsWorker.CreateScalingGroupRole(roleName)
 	if err != nil {
 		return errors.Wrap(err, "failed to create scaling group role")

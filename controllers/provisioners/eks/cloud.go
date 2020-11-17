@@ -16,7 +16,6 @@ limitations under the License.
 package eks
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
@@ -106,8 +105,14 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		roleName = configuration.GetRoleName()
 		instanceProfileName = configuration.GetInstanceProfileName()
 	} else {
-		roleName = fmt.Sprintf("%v-%v-%v", clusterName, instanceGroup.GetNamespace(), instanceGroup.GetName())
-		instanceProfileName = fmt.Sprintf("%v-%v-%v", clusterName, instanceGroup.GetNamespace(), instanceGroup.GetName())
+		roleName = ctx.ResourcePrefix
+		instanceProfileName = ctx.ResourcePrefix
+		if len(roleName) > 63 {
+			// use a hash of the actual name in case we exceed the max length
+			roleName = common.StringMD5(roleName)
+			instanceProfileName = common.StringMD5(instanceProfileName)
+		}
+
 	}
 
 	// cache the instancegroup IAM role if it exists
