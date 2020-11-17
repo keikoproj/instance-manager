@@ -248,6 +248,17 @@ func TestUpdateWithLaunchTemplate(t *testing.T) {
 		SpotRatio:    &ratio,
 		Strategy:     &strategy,
 	}
+
+	ec2Mock.LaunchTemplates = []*ec2.LaunchTemplate{
+		{
+			LaunchTemplateName: aws.String("some-launch-template"),
+		},
+	}
+	state.ScalingConfiguration.Discover(&scaling.DiscoverConfigurationInput{
+		ScalingGroup: mockScalingGroup,
+	})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
 	err = ctx.Update()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	g.Expect(ec2Mock.CreateLaunchTemplateVersionCallCount).To(gomega.Equal(1))
@@ -271,6 +282,11 @@ func TestUpdateWithLaunchTemplate(t *testing.T) {
 		SpotRatio:     &ratio,
 		Strategy:      &strategy,
 	}
+	state.ScalingConfiguration.Discover(&scaling.DiscoverConfigurationInput{
+		ScalingGroup: mockScalingGroup,
+	})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
 	err = ctx.Update()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	g.Expect(ec2Mock.CreateLaunchTemplateVersionCallCount).To(gomega.Equal(1))

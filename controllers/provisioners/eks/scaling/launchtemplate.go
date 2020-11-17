@@ -120,10 +120,12 @@ func (lt *LaunchTemplate) Create(input *CreateConfigurationInput) error {
 			return err
 		}
 
+		var modified *ec2.LaunchTemplate
 		v := common.Int64ToStr(createdVersion)
-		if err := lt.UpdateLaunchTemplateDefaultVersion(input.Name, v); err != nil {
+		if modified, err = lt.UpdateLaunchTemplateDefaultVersion(input.Name, v); err != nil {
 			return err
 		}
+		lt.TargetResource = modified
 	}
 
 	return nil
