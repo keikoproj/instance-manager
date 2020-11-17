@@ -72,6 +72,10 @@ const (
 
 	FileSystemTypeXFS  = "xfs"
 	FileSystemTypeEXT4 = "ext4"
+
+	HostPlacementTenancyType      = "host"
+	DefaultPlacementTenancyType   = "default"
+	DedicatedPlacementTenancyType = "dedicated"
 )
 
 type ScalingConfigurationType string
@@ -100,12 +104,13 @@ var (
 		},
 	}
 
-	AllowedFileSystemTypes            = []string{FileSystemTypeXFS, FileSystemTypeEXT4}
-	AllowedMixedPolicyStrategies      = []string{LaunchTemplateStrategyCapacityOptimized, LaunchTemplateStrategyLowestPrice}
-	AllowedInstancePools              = []string{SubFamilyFlexibleInstancePool}
-	LifecycleHookAllowedTransitions   = []string{LifecycleHookTransitionLaunch, LifecycleHookTransitionTerminate}
-	LifecycleHookAllowedDefaultResult = []string{LifecycleHookResultAbandon, LifecycleHookResultContinue}
-	log                               = ctrl.Log.WithName("v1alpha1")
+	AllowedFileSystemTypes              = []string{FileSystemTypeXFS, FileSystemTypeEXT4}
+	AllowedMixedPolicyStrategies        = []string{LaunchTemplateStrategyCapacityOptimized, LaunchTemplateStrategyLowestPrice}
+	AllowedInstancePools                = []string{SubFamilyFlexibleInstancePool}
+	LifecycleHookAllowedTransitions     = []string{LifecycleHookTransitionLaunch, LifecycleHookTransitionTerminate}
+	LifecycleHookAllowedDefaultResult   = []string{LifecycleHookResultAbandon, LifecycleHookResultContinue}
+	LaunchTemplatePlacementTenancyTypes = []string{HostPlacementTenancyType, DefaultPlacementTenancyType, DedicatedPlacementTenancyType}
+	log                                 = ctrl.Log.WithName("v1alpha1")
 )
 
 // InstanceGroup is the Schema for the instancegroups API
@@ -497,12 +502,37 @@ func (c *EKSConfiguration) Validate() error {
 	}
 
 	for i, v := range c.LicenseSpecifications {
-		if !common.StringEmpty(v) && !strings.HasPrefix(v, awsprovider.ARNPrefix) {
+		if !strings.HasPrefix(v, awsprovider.ARNPrefix) {
 			return errors.Errorf("validation failed, 'LicenseSpecifications[%d]' must be a valid IAM role ARN", i)
 		}
 	}
+
+	if c.Placement != nil {
+		if err := c.Placement.Validate(); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
+
+func (p *LaunchTemplatePlacementSpec) Validate() error {
+
+	if !common.ContainsEqualFold(LaunchTemplatePlacementTenancyTypes, p.Tenancy) {
+		return errors.Errorf("validation failed, Tenancy must be one of default, dedicated, host")
+	}
+
+	if !common.StringEmpty(p.HostResourceGroupArn) && !strings.HasPrefix(p.HostResourceGroupArn, awsprovider.ARNPrefix) {
+		return errors.Errorf("validation failed, HostResourceGroupArn must be a valid dedicated HostResourceGroup ARN")
+	}
+
+	if !common.StringEmpty(p.HostResourceGroupArn) && p.Tenancy != HostPlacementTenancyType {
+		return errors.Errorf("validation failed, Tenancy must be \"host\" when HostResourceGroupArn is set")
+	}
+
+	return nil
+}
+
 func (m *MixedInstancesPolicySpec) Validate() error {
 	if m.Strategy == nil {
 		m.Strategy = common.StringPtr(LaunchTemplateStrategyCapacityOptimized)

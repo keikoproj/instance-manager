@@ -21,7 +21,7 @@ import (
 )
 
 type EksUnitTest struct {
-	InstanceGroup InstanceGroup
+	InstanceGroup *InstanceGroup
 }
 
 func (u *EksUnitTest) Run(t *testing.T) string {
@@ -35,7 +35,7 @@ func (u *EksUnitTest) Run(t *testing.T) string {
 
 func TestInstanceGroupSpecValidate(t *testing.T) {
 	type args struct {
-		instancegroup InstanceGroup
+		instancegroup *InstanceGroup
 	}
 	testFunction := func(t *testing.T, args args) string {
 		testCase := EksUnitTest{
@@ -51,23 +51,155 @@ func TestInstanceGroupSpecValidate(t *testing.T) {
 		{
 			name: "eks-fargate with managed strategy",
 			args: args{
-				instancegroup: MockInstanceGroup("eks-fargate", "managed"),
+				instancegroup: MockInstanceGroup("eks-fargate", "managed", nil, nil, basicFargateSpec()),
 			},
 			want: "",
 		},
 		{
 			name: "eks-bogus provisioner",
 			args: args{
-				instancegroup: MockInstanceGroup("eks-bogus", "managed"),
+				instancegroup: MockInstanceGroup("eks-bogus", "managed", nil, nil, nil),
 			},
 			want: "validation failed, provisioner 'eks-bogus' is invalid",
 		},
 		{
 			name: "eks-fargate with bad strategy",
 			args: args{
-				instancegroup: MockInstanceGroup("eks-fargate", "rollingUpdate"),
+				instancegroup: MockInstanceGroup("eks-fargate", "rollingUpdate", nil, nil, basicFargateSpec()),
 			},
 			want: "validation failed, strategy 'rollingUpdate' is invalid for the eks-fargate provisioner",
+		},
+		{
+			name: "eks with empty strings in licenseSpecifications",
+			args: args{
+				instancegroup: MockInstanceGroup("eks", "rollingUpdate", &EKSSpec{
+					MaxSize: 1,
+					MinSize: 1,
+					Type:    "LaunchTemplate",
+					EKSConfiguration: &EKSConfiguration{
+						EksClusterName:        "my-eks-cluster",
+						NodeSecurityGroups:    []string{"sg-123456789"},
+						Image:                 "ami-12345",
+						InstanceType:          "m5.large",
+						KeyPairName:           "thisShouldBeOptional",
+						Subnets:               []string{"subnet-1111111", "subnet-222222"},
+						LicenseSpecifications: []string{""},
+					},
+				}, nil, nil),
+			},
+			want: "validation failed, 'LicenseSpecifications[0]' must be a valid IAM role ARN",
+		},
+		{
+			name: "eks with invalid licenseSpecification",
+			args: args{
+				instancegroup: MockInstanceGroup("eks", "rollingUpdate", &EKSSpec{
+					MaxSize: 1,
+					MinSize: 1,
+					Type:    "LaunchTemplate",
+					EKSConfiguration: &EKSConfiguration{
+						EksClusterName:        "my-eks-cluster",
+						NodeSecurityGroups:    []string{"sg-123456789"},
+						Image:                 "ami-12345",
+						InstanceType:          "m5.large",
+						KeyPairName:           "thisShouldBeOptional",
+						Subnets:               []string{"subnet-1111111", "subnet-222222"},
+						LicenseSpecifications: []string{"thisShouldBeAnARN"},
+					},
+				}, nil, nil),
+			},
+			want: "validation failed, 'LicenseSpecifications[0]' must be a valid IAM role ARN",
+		},
+		{
+			name: "eks with valid Placement",
+			args: args{
+				instancegroup: MockInstanceGroup("eks", "rollingUpdate", &EKSSpec{
+					MaxSize: 1,
+					MinSize: 1,
+					Type:    "LaunchTemplate",
+					EKSConfiguration: &EKSConfiguration{
+						EksClusterName:     "my-eks-cluster",
+						NodeSecurityGroups: []string{"sg-123456789"},
+						Image:              "ami-12345",
+						InstanceType:       "m5.large",
+						KeyPairName:        "thisShouldBeOptional",
+						Subnets:            []string{"subnet-1111111", "subnet-222222"},
+						Placement: &LaunchTemplatePlacementSpec{
+							AvailabilityZone:     "us-west-2a",
+							HostResourceGroupArn: "arn:aws:resource-groups:us-west-2:1122334455:group/resourceName",
+							Tenancy:              "host",
+						},
+					},
+				}, nil, nil),
+			},
+			want: "",
+		},
+		{
+			name: "eks with invalid combination of HostResourceGroupArn and Tenancy in Placement",
+			args: args{
+				instancegroup: MockInstanceGroup("eks", "rollingUpdate", &EKSSpec{
+					MaxSize: 1,
+					MinSize: 1,
+					Type:    "LaunchTemplate",
+					EKSConfiguration: &EKSConfiguration{
+						EksClusterName:     "my-eks-cluster",
+						NodeSecurityGroups: []string{"sg-123456789"},
+						Image:              "ami-12345",
+						InstanceType:       "m5.large",
+						KeyPairName:        "thisShouldBeOptional",
+						Subnets:            []string{"subnet-1111111", "subnet-222222"},
+						Placement: &LaunchTemplatePlacementSpec{
+							HostResourceGroupArn: "arn:aws:resource-groups:us-west-2:1122334455:group/resourceName",
+							Tenancy:              "default",
+						},
+					},
+				}, nil, nil),
+			},
+			want: "validation failed, Tenancy must be \"host\" when HostResourceGroupArn is set",
+		},
+		{
+			name: "eks with invalid HostResourceGroupArn in Placement",
+			args: args{
+				instancegroup: MockInstanceGroup("eks", "rollingUpdate", &EKSSpec{
+					MaxSize: 1,
+					MinSize: 1,
+					Type:    "LaunchTemplate",
+					EKSConfiguration: &EKSConfiguration{
+						EksClusterName:     "my-eks-cluster",
+						NodeSecurityGroups: []string{"sg-123456789"},
+						Image:              "ami-12345",
+						InstanceType:       "m5.large",
+						KeyPairName:        "thisShouldBeOptional",
+						Subnets:            []string{"subnet-1111111", "subnet-222222"},
+						Placement: &LaunchTemplatePlacementSpec{
+							HostResourceGroupArn: "notAnARN",
+							Tenancy:              "host",
+						},
+					},
+				}, nil, nil),
+			},
+			want: "validation failed, HostResourceGroupArn must be a valid dedicated HostResourceGroup ARN",
+		},
+		{
+			name: "eks with invalid Tenancy in Placement",
+			args: args{
+				instancegroup: MockInstanceGroup("eks", "rollingUpdate", &EKSSpec{
+					MaxSize: 1,
+					MinSize: 1,
+					Type:    "LaunchTemplate",
+					EKSConfiguration: &EKSConfiguration{
+						EksClusterName:     "my-eks-cluster",
+						NodeSecurityGroups: []string{"sg-123456789"},
+						Image:              "ami-12345",
+						InstanceType:       "m5.large",
+						KeyPairName:        "thisShouldBeOptional",
+						Subnets:            []string{"subnet-1111111", "subnet-222222"},
+						Placement: &LaunchTemplatePlacementSpec{
+							Tenancy: "invalid",
+						},
+					},
+				}, nil, nil),
+			},
+			want: "validation failed, Tenancy must be one of default, dedicated, host",
 		},
 	}
 	for _, tt := range tests {
@@ -81,26 +213,31 @@ func TestInstanceGroupSpecValidate(t *testing.T) {
 	}
 }
 
-func MockInstanceGroup(provisioner, strategy string) InstanceGroup {
-	ig := InstanceGroup{
+func basicFargateSpec() *EKSFargateSpec {
+	return &EKSFargateSpec{
+		ClusterName:         "",
+		PodExecutionRoleArn: "",
+		Subnets:             []string{"subnet-1111111", "subnet-222222"},
+		Tags: []map[string]string{
+			{
+				"key":   "a-key",
+				"value": "a-value",
+			},
+		},
+	}
+}
+
+func MockInstanceGroup(provisioner, strategy string, eksSpec *EKSSpec, eksManagedSpec *EKSManagedSpec, eksFargateSpec *EKSFargateSpec) *InstanceGroup {
+	return &InstanceGroup{
 		Spec: InstanceGroupSpec{
 			Provisioner: provisioner,
 			AwsUpgradeStrategy: AwsUpgradeStrategy{
 				Type: strategy,
 			},
-			EKSFargateSpec: &EKSFargateSpec{
-				ClusterName:         "",
-				PodExecutionRoleArn: "",
-				Subnets:             []string{"subnet-1111111", "subnet-222222"},
-				Tags: []map[string]string{
-					{
-						"key":   "a-key",
-						"value": "a-value",
-					},
-				},
-			},
+			EKSSpec:        eksSpec,
+			EKSManagedSpec: eksManagedSpec,
+			EKSFargateSpec: eksFargateSpec,
 		},
 	}
 
-	return ig
 }
