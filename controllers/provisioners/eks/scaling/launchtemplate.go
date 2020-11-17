@@ -248,18 +248,14 @@ func (lt *LaunchTemplate) Drifted(input *CreateConfigurationInput) bool {
 		drift = true
 	}
 
-	if len(latestVersion.LaunchTemplateData.LicenseSpecifications) != len(input.LicenseSpecifications) {
-		log.Info("detected drift", "reason", "Number of LicenseSpecifications has changed", "instancegroup", lt.OwnerName)
+	existingSpec := sortLicenseSpecifications(latestVersion.LaunchTemplateData.LicenseSpecifications)
+	newSpec := sortLicenseSpecifications(launchTemplateLicenseConfiguration(input.LicenseSpecifications))
+	if !reflect.DeepEqual(existingSpec, newSpec) {
+		log.Info("detected drift", "reason", "LicenseSpecifications has changed", "instancegroup", lt.OwnerName,
+			"previousValue", existingSpec,
+			"newValue", newSpec,
+		)
 		drift = true
-	}
-	for _, v := range latestVersion.LaunchTemplateData.LicenseSpecifications {
-		if !common.ContainsEqualFold(input.LicenseSpecifications, aws.StringValue(v.LicenseConfigurationArn)) {
-			log.Info("detected drift", "reason", "LicenseSpecifications has changed", "instancegroup", lt.OwnerName,
-				"previousValue", aws.StringValue(v.LicenseConfigurationArn),
-				"newValue", input.LicenseSpecifications,
-			)
-			drift = true
-		}
 	}
 
 	if input.Placement == nil {
@@ -361,6 +357,16 @@ func launchTemplateLicenseSpeficicationRequest(s []string) []*ec2.LaunchTemplate
 	return output
 }
 
+func launchTemplateLicenseConfiguration(input []string) []*ec2.LaunchTemplateLicenseConfiguration {
+	var result []*ec2.LaunchTemplateLicenseConfiguration
+	for _, v := range input {
+		result = append(result, &ec2.LaunchTemplateLicenseConfiguration{
+			LicenseConfigurationArn: aws.String(v),
+		})
+	}
+	return result
+}
+
 func launchTemplatePlacementRequest(input *LaunchTemplatePlacementInput) *ec2.LaunchTemplatePlacementRequest {
 	if input == nil {
 		return &ec2.LaunchTemplatePlacementRequest{}
@@ -407,4 +413,14 @@ func sortVersions(versions []*ec2.LaunchTemplateVersion) []*ec2.LaunchTemplateVe
 	})
 
 	return versions
+}
+
+func sortLicenseSpecifications(licenses []*ec2.LaunchTemplateLicenseConfiguration) []*ec2.LaunchTemplateLicenseConfiguration {
+	if len(licenses) == 0 {
+		return []*ec2.LaunchTemplateLicenseConfiguration{}
+	}
+	sort.Slice(licenses[:], func(i, j int) bool {
+		return aws.StringValue(licenses[i].LicenseConfigurationArn) < aws.StringValue(licenses[j].LicenseConfigurationArn)
+	})
+	return licenses
 }
