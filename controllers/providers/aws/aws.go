@@ -355,39 +355,59 @@ func (w *AwsWorker) GetLaunchTemplateBlockDevice(name, volType, snapshot string,
 }
 
 func (w *AwsWorker) LaunchTemplatePlacementRequest(availabilityZone, hostResourceGroupArn, tenancy string) *ec2.LaunchTemplatePlacementRequest {
-	result := &ec2.LaunchTemplatePlacementRequest{}
+	placement := &ec2.LaunchTemplatePlacementRequest{}
 
 	if !common.StringEmpty(availabilityZone) {
-		result.AvailabilityZone = aws.String(availabilityZone)
+		placement.AvailabilityZone = aws.String(availabilityZone)
 	}
 
 	if !common.StringEmpty(hostResourceGroupArn) {
-		result.HostResourceGroupArn = aws.String(hostResourceGroupArn)
+		placement.HostResourceGroupArn = aws.String(hostResourceGroupArn)
 	}
 
 	if !common.StringEmpty(tenancy) {
-		result.Tenancy = aws.String(tenancy)
+		placement.Tenancy = aws.String(tenancy)
 	}
 
-	return result
+	return placement
 }
 
 func (w *AwsWorker) LaunchTemplatePlacement(availabilityZone, hostResourceGroupArn, tenancy string) *ec2.LaunchTemplatePlacement {
-	result := &ec2.LaunchTemplatePlacement{}
+	placement := &ec2.LaunchTemplatePlacement{}
 
 	if !common.StringEmpty(availabilityZone) {
-		result.AvailabilityZone = aws.String(availabilityZone)
+		placement.AvailabilityZone = aws.String(availabilityZone)
 	}
 
 	if !common.StringEmpty(hostResourceGroupArn) {
-		result.HostResourceGroupArn = aws.String(hostResourceGroupArn)
+		placement.HostResourceGroupArn = aws.String(hostResourceGroupArn)
 	}
 
 	if !common.StringEmpty(tenancy) {
-		result.Tenancy = aws.String(tenancy)
+		placement.Tenancy = aws.String(tenancy)
 	}
 
-	return result
+	return placement
+}
+
+func (w *AwsWorker) LaunchTemplateLicenseConfigurationRequest(input []string) []*ec2.LaunchTemplateLicenseConfigurationRequest {
+	var licenses []*ec2.LaunchTemplateLicenseConfigurationRequest
+	for _, v := range input {
+		licenses = append(licenses, &ec2.LaunchTemplateLicenseConfigurationRequest{
+			LicenseConfigurationArn: aws.String(v),
+		})
+	}
+	return licenses
+}
+
+func (w *AwsWorker) LaunchTemplateLicenseConfiguration(input []string) []*ec2.LaunchTemplateLicenseConfiguration {
+	var licenses []*ec2.LaunchTemplateLicenseConfiguration
+	for _, v := range input {
+		licenses = append(licenses, &ec2.LaunchTemplateLicenseConfiguration{
+			LicenseConfigurationArn: aws.String(v),
+		})
+	}
+	return licenses
 }
 
 func (w *AwsWorker) CreateLaunchConfig(input *autoscaling.CreateLaunchConfigurationInput) error {

@@ -102,7 +102,7 @@ func (lt *LaunchTemplate) Create(input *CreateConfigurationInput) error {
 		SecurityGroupIds:      aws.StringSlice(input.SecurityGroups),
 		UserData:              aws.String(input.UserData),
 		BlockDeviceMappings:   lt.blockDeviceListRequest(input.Volumes),
-		LicenseSpecifications: launchTemplateLicenseSpeficicationRequest(input.LicenseSpecifications),
+		LicenseSpecifications: lt.LaunchTemplateLicenseConfigurationRequest(input.LicenseSpecifications),
 		Placement:             lt.launchTemplatePlacementRequest(input.Placement),
 	}
 
@@ -248,7 +248,7 @@ func (lt *LaunchTemplate) Drifted(input *CreateConfigurationInput) bool {
 	}
 
 	existingSpec := sortLicenseSpecifications(latestVersion.LaunchTemplateData.LicenseSpecifications)
-	newSpec := sortLicenseSpecifications(launchTemplateLicenseConfiguration(input.LicenseSpecifications))
+	newSpec := sortLicenseSpecifications(lt.LaunchTemplateLicenseConfiguration(input.LicenseSpecifications))
 	if !reflect.DeepEqual(existingSpec, newSpec) {
 		log.Info("detected drift", "reason", "LicenseSpecifications has changed", "instancegroup", lt.OwnerName,
 			"previousValue", existingSpec,
@@ -336,26 +336,6 @@ func (lt *LaunchTemplate) blockDeviceList(volumes []v1alpha1.NodeVolume) []*ec2.
 	}
 
 	return sortTemplateDevices(devices)
-}
-
-func launchTemplateLicenseSpeficicationRequest(s []string) []*ec2.LaunchTemplateLicenseConfigurationRequest {
-	var output []*ec2.LaunchTemplateLicenseConfigurationRequest
-	for _, v := range s {
-		output = append(output, &ec2.LaunchTemplateLicenseConfigurationRequest{
-			LicenseConfigurationArn: aws.String(v),
-		})
-	}
-	return output
-}
-
-func launchTemplateLicenseConfiguration(input []string) []*ec2.LaunchTemplateLicenseConfiguration {
-	var result []*ec2.LaunchTemplateLicenseConfiguration
-	for _, v := range input {
-		result = append(result, &ec2.LaunchTemplateLicenseConfiguration{
-			LicenseConfigurationArn: aws.String(v),
-		})
-	}
-	return result
 }
 
 func (lt *LaunchTemplate) launchTemplatePlacementRequest(input *LaunchTemplatePlacementInput) *ec2.LaunchTemplatePlacementRequest {
