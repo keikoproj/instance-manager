@@ -103,7 +103,7 @@ func (lt *LaunchTemplate) Create(input *CreateConfigurationInput) error {
 		UserData:              aws.String(input.UserData),
 		BlockDeviceMappings:   lt.blockDeviceListRequest(input.Volumes),
 		LicenseSpecifications: launchTemplateLicenseSpeficicationRequest(input.LicenseSpecifications),
-		Placement:             launchTemplatePlacementRequest(input.Placement),
+		Placement:             lt.launchTemplatePlacementRequest(input.Placement),
 	}
 
 	if !lt.Provisioned() {
@@ -257,7 +257,7 @@ func (lt *LaunchTemplate) Drifted(input *CreateConfigurationInput) bool {
 		drift = true
 	}
 
-	placementConfig := launchTemplatePlacement(input.Placement)
+	placementConfig := lt.launchTemplatePlacement(input.Placement)
 	currentPlacement := latestVersion.LaunchTemplateData.Placement
 	if currentPlacement == nil {
 		currentPlacement = &ec2.LaunchTemplatePlacement{}
@@ -358,26 +358,18 @@ func launchTemplateLicenseConfiguration(input []string) []*ec2.LaunchTemplateLic
 	return result
 }
 
-func launchTemplatePlacementRequest(input *LaunchTemplatePlacementInput) *ec2.LaunchTemplatePlacementRequest {
+func (lt *LaunchTemplate) launchTemplatePlacementRequest(input *LaunchTemplatePlacementInput) *ec2.LaunchTemplatePlacementRequest {
 	if input == nil {
 		return &ec2.LaunchTemplatePlacementRequest{}
 	}
-	return &ec2.LaunchTemplatePlacementRequest{
-		AvailabilityZone:     aws.String(input.AvailabilityZone),
-		HostResourceGroupArn: aws.String(input.HostResourceGroupArn),
-		Tenancy:              aws.String(input.Tenancy),
-	}
+	return lt.LaunchTemplatePlacementRequest(input.AvailabilityZone, input.HostResourceGroupArn, input.Tenancy)
 }
 
-func launchTemplatePlacement(input *LaunchTemplatePlacementInput) *ec2.LaunchTemplatePlacement {
+func (lt *LaunchTemplate) launchTemplatePlacement(input *LaunchTemplatePlacementInput) *ec2.LaunchTemplatePlacement {
 	if input == nil {
 		return &ec2.LaunchTemplatePlacement{}
 	}
-	return &ec2.LaunchTemplatePlacement{
-		AvailabilityZone:     aws.String(input.AvailabilityZone),
-		HostResourceGroupArn: aws.String(input.HostResourceGroupArn),
-		Tenancy:              aws.String(input.Tenancy),
-	}
+	return lt.LaunchTemplatePlacement(input.AvailabilityZone, input.HostResourceGroupArn, input.Tenancy)
 }
 
 func (lt *LaunchTemplate) getVersion(id int64) *ec2.LaunchTemplateVersion {

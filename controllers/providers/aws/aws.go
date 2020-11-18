@@ -354,6 +354,42 @@ func (w *AwsWorker) GetLaunchTemplateBlockDevice(name, volType, snapshot string,
 	return device
 }
 
+func (w *AwsWorker) LaunchTemplatePlacementRequest(availabilityZone, hostResourceGroupArn, tenancy string) *ec2.LaunchTemplatePlacementRequest {
+	result := &ec2.LaunchTemplatePlacementRequest{}
+
+	if !common.StringEmpty(availabilityZone) {
+		result.AvailabilityZone = aws.String(availabilityZone)
+	}
+
+	if !common.StringEmpty(hostResourceGroupArn) {
+		result.HostResourceGroupArn = aws.String(hostResourceGroupArn)
+	}
+
+	if !common.StringEmpty(tenancy) {
+		result.Tenancy = aws.String(tenancy)
+	}
+
+	return result
+}
+
+func (w *AwsWorker) LaunchTemplatePlacement(availabilityZone, hostResourceGroupArn, tenancy string) *ec2.LaunchTemplatePlacement {
+	result := &ec2.LaunchTemplatePlacement{}
+
+	if !common.StringEmpty(availabilityZone) {
+		result.AvailabilityZone = aws.String(availabilityZone)
+	}
+
+	if !common.StringEmpty(hostResourceGroupArn) {
+		result.HostResourceGroupArn = aws.String(hostResourceGroupArn)
+	}
+
+	if !common.StringEmpty(tenancy) {
+		result.Tenancy = aws.String(tenancy)
+	}
+
+	return result
+}
+
 func (w *AwsWorker) CreateLaunchConfig(input *autoscaling.CreateLaunchConfigurationInput) error {
 	_, err := w.AsgClient.CreateLaunchConfiguration(input)
 	if err != nil {
