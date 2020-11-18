@@ -226,6 +226,8 @@ github.com/keikoproj/aws-auth v0.0.0-20200529211237-b481594963fa h1:UbB7HFHZ8jbm
 github.com/keikoproj/aws-auth v0.0.0-20200529211237-b481594963fa/go.mod h1:3uzLNZsb9kA7gsmMavI/Svq59lemTEKAuyrPswTo7RI=
 github.com/keikoproj/aws-sdk-go-cache v0.0.0-20201014072833-8a87afc2e44a h1:OCsp9BRGw1KNIRXG2pc8kCXIwDrJW4CkDxIrrPEXuKM=
 github.com/keikoproj/aws-sdk-go-cache v0.0.0-20201014072833-8a87afc2e44a/go.mod h1:WuCkHvglMhs9DQnwssll4dy87h352LIfN3qfyk6l6Rg=
+github.com/keikoproj/aws-sdk-go-cache v0.0.0-20201118182730-f6f418a4e2df h1:5CIVZTNmDF4GwbyQzRGYLoG1mo2LHJSO4UwAUDNpgDw=
+github.com/keikoproj/aws-sdk-go-cache v0.0.0-20201118182730-f6f418a4e2df/go.mod h1:WuCkHvglMhs9DQnwssll4dy87h352LIfN3qfyk6l6Rg=
 github.com/kisielk/errcheck v1.1.0/go.mod h1:EZBBE59ingxPouuu3KfxchcWSUPOHkagtvWXihfKN4Q=
 github.com/kisielk/errcheck v1.2.0/go.mod h1:/BMXB+zMLi60iA8Vv6Ksmxu/1UDYcXs4uQLJ+jE2L00=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
