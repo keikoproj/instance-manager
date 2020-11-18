@@ -13,7 +13,7 @@ require (
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/json-iterator/go v1.1.9 // indirect
 	github.com/keikoproj/aws-auth v0.0.0-20200529211237-b481594963fa
-	github.com/keikoproj/aws-sdk-go-cache v0.0.0-20201014072833-8a87afc2e44a
+	github.com/keikoproj/aws-sdk-go-cache v0.0.0-20201118182730-f6f418a4e2df
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/onsi/ginkgo v1.11.0 // indirect
 	github.com/onsi/gomega v1.9.0

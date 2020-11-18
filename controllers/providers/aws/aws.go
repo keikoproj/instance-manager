@@ -1012,7 +1012,9 @@ func GetAwsEc2Client(region string, cacheCfg *cache.Config, maxRetries int) ec2i
 	cacheCfg.SetCacheTTL("ec2", "DescribeSecurityGroups", DescribeSecurityGroupsTTL)
 	cacheCfg.SetCacheTTL("ec2", "DescribeSubnets", DescribeSubnetsTTL)
 	cacheCfg.SetCacheTTL("ec2", "DescribeInstanceTypes", DescribeInstanceTypesTTL)
+	cacheCfg.SetExcludeFlushing("ec2", "DescribeInstanceTypes", true)
 	cacheCfg.SetCacheTTL("ec2", "DescribeInstanceTypeOfferings", DescribeInstanceTypeOfferingTTL)
+	cacheCfg.SetExcludeFlushing("ec2", "DescribeInstanceTypeOfferings", true)
 	cacheCfg.SetCacheTTL("ec2", "DescribeLaunchTemplates", DescribeLaunchTemplatesTTL)
 	cacheCfg.SetCacheTTL("ec2", "DescribeLaunchTemplateVersions", DescribeLaunchTemplateVersionsTTL)
 	sess.Handlers.Complete.PushFront(func(r *request.Request) {
