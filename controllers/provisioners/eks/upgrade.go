@@ -116,6 +116,11 @@ func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *kubeprovider.Roll
 		allInstances = append(allInstances, aws.StringValue(instance.InstanceId))
 
 		if awsprovider.IsUsingLaunchConfiguration(scalingGroup) {
+			if instance.LaunchConfigurationName == nil {
+				needsUpdate = append(needsUpdate, instanceId)
+				continue
+			}
+
 			var (
 				config       = aws.StringValue(instance.LaunchConfigurationName)
 				activeConfig = aws.StringValue(scalingGroup.LaunchConfigurationName)
@@ -127,6 +132,11 @@ func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *kubeprovider.Roll
 		}
 
 		if awsprovider.IsUsingLaunchTemplate(scalingGroup) {
+			if instance.LaunchTemplate == nil {
+				needsUpdate = append(needsUpdate, instanceId)
+				continue
+			}
+
 			var (
 				config           = aws.StringValue(instance.LaunchTemplate.LaunchTemplateName)
 				version          = aws.StringValue(instance.LaunchTemplate.Version)
@@ -141,6 +151,11 @@ func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *kubeprovider.Roll
 		}
 
 		if awsprovider.IsUsingMixedInstances(scalingGroup) {
+			if instance.LaunchTemplate == nil {
+				needsUpdate = append(needsUpdate, instanceId)
+				continue
+			}
+
 			var (
 				config           = aws.StringValue(instance.LaunchTemplate.LaunchTemplateName)
 				version          = aws.StringValue(instance.LaunchTemplate.Version)
