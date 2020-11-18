@@ -31,17 +31,18 @@ import (
 
 func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 	var (
-		instanceGroup = ctx.GetInstanceGroup()
-		strategy      = ctx.GetUpgradeStrategy()
-		state         = ctx.GetDiscoveredState()
-		scalingConfig = state.GetScalingConfiguration()
-		strategyType  = strings.ToLower(strategy.GetType())
+		instanceGroup     = ctx.GetInstanceGroup()
+		strategy          = ctx.GetUpgradeStrategy()
+		state             = ctx.GetDiscoveredState()
+		scalingGroup      = state.GetScalingGroup()
+		scalingConfigName = awsprovider.GetScalingConfigName(scalingGroup)
+		strategyType      = strings.ToLower(strategy.GetType())
 	)
 
 	// process the upgrade strategy
 	switch strategyType {
 	case kubeprovider.CRDStrategyName:
-		ok, err := kubeprovider.ProcessCRDStrategy(ctx.KubernetesClient.KubeDynamic, instanceGroup, scalingConfig.Name())
+		ok, err := kubeprovider.ProcessCRDStrategy(ctx.KubernetesClient.KubeDynamic, instanceGroup, scalingConfigName)
 		if err != nil {
 			state.Publisher.Publish(kubeprovider.InstanceGroupUpgradeFailedEvent, "instancegroup", instanceGroup.GetName(), "type", kubeprovider.CRDStrategyName, "error", err.Error())
 			instanceGroup.SetState(v1alpha1.ReconcileErr)
