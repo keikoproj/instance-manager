@@ -1254,3 +1254,15 @@ func GetInstanceFamily(instanceType string) string {
 	}
 	return ""
 }
+
+func GetScalingConfigName(group *autoscaling.Group) string {
+	var configName string
+	if IsUsingLaunchConfiguration(group) {
+		configName = aws.StringValue(group.LaunchConfigurationName)
+	} else if IsUsingLaunchTemplate(group) {
+		configName = aws.StringValue(group.LaunchTemplate.LaunchTemplateName)
+	} else if IsUsingMixedInstances(group) {
+		configName = aws.StringValue(group.MixedInstancesPolicy.LaunchTemplate.LaunchTemplateSpecification.LaunchTemplateName)
+	}
+	return configName
+}
