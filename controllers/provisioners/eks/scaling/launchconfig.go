@@ -90,6 +90,10 @@ func (lc *LaunchConfiguration) Create(input *CreateConfigurationInput) error {
 		opts.SpotPrice = aws.String(input.SpotPrice)
 	}
 
+	if input.Placement != nil && !common.StringEmpty(input.Placement.Tenancy) {
+		opts.PlacementTenancy = aws.String(input.Placement.Tenancy)
+	}
+
 	if err := lc.CreateLaunchConfig(opts); err != nil {
 		return err
 	}
@@ -204,6 +208,14 @@ func (lc *LaunchConfiguration) Drifted(input *CreateConfigurationInput) bool {
 		drift = true
 	}
 
+	if aws.StringValue(existingConfig.PlacementTenancy) != lc.placementTenancy(input.Placement) {
+		log.Info("detected drift", "reason", "placement tenancy has changed", "instancegroup", lc.OwnerName,
+			"previousValue", aws.StringValue(existingConfig.PlacementTenancy),
+			"newValue", lc.placementTenancy(input.Placement),
+		)
+		drift = true
+	}
+
 	devices := lc.blockDeviceList(input.Volumes)
 	existingDevices := sortConfigDevices(existingConfig.BlockDeviceMappings)
 	if !reflect.DeepEqual(existingDevices, devices) {
@@ -248,6 +260,13 @@ func (lc *LaunchConfiguration) RotationNeeded(input *DiscoverConfigurationInput)
 		}
 	}
 	return false
+}
+
+func (lc *LaunchConfiguration) placementTenancy(placement *PlacementInput) string {
+	if placement != nil {
+		return placement.Tenancy
+	}
+	return ""
 }
 
 func (lc *LaunchConfiguration) blockDeviceList(volumes []v1alpha1.NodeVolume) []*autoscaling.BlockDeviceMapping {

@@ -459,6 +459,19 @@ func TestLaunchConfigurationDrifted(t *testing.T) {
 			},
 			shouldDrift: true,
 		},
+		{
+			launchConfig: &autoscaling.LaunchConfiguration{
+				LaunchConfigurationName: aws.String("my-launch-config"),
+				PlacementTenancy:        aws.String(""),
+			},
+			input: &CreateConfigurationInput{
+				SecurityGroups: []string{},
+				Placement: &PlacementInput{
+					Tenancy: "host",
+				},
+			},
+			shouldDrift: true,
+		},
 	}
 
 	for i, tc := range tests {

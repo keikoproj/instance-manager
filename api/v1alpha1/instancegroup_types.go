@@ -192,28 +192,28 @@ type EKSSpec struct {
 }
 
 type EKSConfiguration struct {
-	EksClusterName              string                       `json:"clusterName,omitempty"`
-	KeyPairName                 string                       `json:"keyPairName,omitempty"`
-	Image                       string                       `json:"image,omitempty"`
-	InstanceType                string                       `json:"instanceType,omitempty"`
-	NodeSecurityGroups          []string                     `json:"securityGroups,omitempty"`
-	Volumes                     []NodeVolume                 `json:"volumes,omitempty"`
-	Subnets                     []string                     `json:"subnets,omitempty"`
-	SuspendedProcesses          []string                     `json:"suspendProcesses,omitempty"`
-	BootstrapArguments          string                       `json:"bootstrapArguments,omitempty"`
-	SpotPrice                   string                       `json:"spotPrice,omitempty"`
-	Tags                        []map[string]string          `json:"tags,omitempty"`
-	Labels                      map[string]string            `json:"labels,omitempty"`
-	Taints                      []corev1.Taint               `json:"taints,omitempty"`
-	UserData                    []UserDataStage              `json:"userData,omitempty"`
-	ExistingRoleName            string                       `json:"roleName,omitempty"`
-	ExistingInstanceProfileName string                       `json:"instanceProfileName,omitempty"`
-	ManagedPolicies             []string                     `json:"managedPolicies,omitempty"`
-	MetricsCollection           []string                     `json:"metricsCollection,omitempty"`
-	LifecycleHooks              []LifecycleHookSpec          `json:"lifecycleHooks,omitempty"`
-	MixedInstancesPolicy        *MixedInstancesPolicySpec    `json:"mixedInstancesPolicy,omitempty"`
-	LicenseSpecifications       []string                     `json:"licenseSpecifications,omitempty"`
-	Placement                   *LaunchTemplatePlacementSpec `json:"placement,omitempty"`
+	EksClusterName              string                    `json:"clusterName,omitempty"`
+	KeyPairName                 string                    `json:"keyPairName,omitempty"`
+	Image                       string                    `json:"image,omitempty"`
+	InstanceType                string                    `json:"instanceType,omitempty"`
+	NodeSecurityGroups          []string                  `json:"securityGroups,omitempty"`
+	Volumes                     []NodeVolume              `json:"volumes,omitempty"`
+	Subnets                     []string                  `json:"subnets,omitempty"`
+	SuspendedProcesses          []string                  `json:"suspendProcesses,omitempty"`
+	BootstrapArguments          string                    `json:"bootstrapArguments,omitempty"`
+	SpotPrice                   string                    `json:"spotPrice,omitempty"`
+	Tags                        []map[string]string       `json:"tags,omitempty"`
+	Labels                      map[string]string         `json:"labels,omitempty"`
+	Taints                      []corev1.Taint            `json:"taints,omitempty"`
+	UserData                    []UserDataStage           `json:"userData,omitempty"`
+	ExistingRoleName            string                    `json:"roleName,omitempty"`
+	ExistingInstanceProfileName string                    `json:"instanceProfileName,omitempty"`
+	ManagedPolicies             []string                  `json:"managedPolicies,omitempty"`
+	MetricsCollection           []string                  `json:"metricsCollection,omitempty"`
+	LifecycleHooks              []LifecycleHookSpec       `json:"lifecycleHooks,omitempty"`
+	MixedInstancesPolicy        *MixedInstancesPolicySpec `json:"mixedInstancesPolicy,omitempty"`
+	LicenseSpecifications       []string                  `json:"licenseSpecifications,omitempty"`
+	Placement                   *PlacementSpec            `json:"placement,omitempty"`
 }
 
 const (
@@ -231,7 +231,7 @@ type MixedInstancesPolicySpec struct {
 	InstanceTypes []*InstanceTypeSpec `json:"instanceTypes,omitempty"`
 }
 
-type LaunchTemplatePlacementSpec struct {
+type PlacementSpec struct {
 	AvailabilityZone     string `json:"availabilityZone,omitempty"`
 	HostResourceGroupArn string `json:"hostResourceGroupArn,omitempty"`
 	Tenancy              string `json:"tenancy,omitempty"`
@@ -516,7 +516,7 @@ func (c *EKSConfiguration) Validate() error {
 	return nil
 }
 
-func (p *LaunchTemplatePlacementSpec) Validate() error {
+func (p *PlacementSpec) Validate() error {
 
 	if !common.ContainsEqualFold(LaunchTemplatePlacementTenancyTypes, p.Tenancy) {
 		return errors.Errorf("validation failed, Tenancy must be one of default, dedicated, host")
@@ -637,7 +637,7 @@ func (c *EKSConfiguration) GetRoleName() string {
 func (c *EKSConfiguration) GetMixedInstancesPolicy() *MixedInstancesPolicySpec {
 	return c.MixedInstancesPolicy
 }
-func (c *EKSConfiguration) GetPlacement() *LaunchTemplatePlacementSpec {
+func (c *EKSConfiguration) GetPlacement() *PlacementSpec {
 	return c.Placement
 }
 func (c *EKSConfiguration) GetLifecycleHooks() []LifecycleHookSpec {

@@ -964,12 +964,12 @@ func (ctx *EksInstanceGroupContext) GetDesiredMixedInstancesPolicy(name string) 
 	return policy
 }
 
-func GetLaunchTemplatePlacementInput(placement *v1alpha1.LaunchTemplatePlacementSpec) *scaling.LaunchTemplatePlacementInput {
+func GetPlacementInput(placement *v1alpha1.PlacementSpec) *scaling.PlacementInput {
 	if placement == nil {
 		return nil
 	}
 
-	result := &scaling.LaunchTemplatePlacementInput{
+	result := &scaling.PlacementInput{
 		AvailabilityZone:     placement.AvailabilityZone,
 		HostResourceGroupArn: placement.HostResourceGroupArn,
 		Tenancy:              placement.Tenancy,

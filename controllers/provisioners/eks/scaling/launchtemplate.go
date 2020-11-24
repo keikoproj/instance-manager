@@ -338,14 +338,14 @@ func (lt *LaunchTemplate) blockDeviceList(volumes []v1alpha1.NodeVolume) []*ec2.
 	return sortTemplateDevices(devices)
 }
 
-func (lt *LaunchTemplate) launchTemplatePlacementRequest(input *LaunchTemplatePlacementInput) *ec2.LaunchTemplatePlacementRequest {
+func (lt *LaunchTemplate) launchTemplatePlacementRequest(input *PlacementInput) *ec2.LaunchTemplatePlacementRequest {
 	if input == nil {
 		return &ec2.LaunchTemplatePlacementRequest{}
 	}
 	return lt.LaunchTemplatePlacementRequest(input.AvailabilityZone, input.HostResourceGroupArn, input.Tenancy)
 }
 
-func (lt *LaunchTemplate) launchTemplatePlacement(input *LaunchTemplatePlacementInput) *ec2.LaunchTemplatePlacement {
+func (lt *LaunchTemplate) launchTemplatePlacement(input *PlacementInput) *ec2.LaunchTemplatePlacement {
 	if input == nil {
 		return &ec2.LaunchTemplatePlacement{}
 	}

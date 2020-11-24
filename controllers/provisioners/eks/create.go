@@ -70,7 +70,7 @@ func (ctx *EksInstanceGroupContext) Create() error {
 			UserData:              userData,
 			SpotPrice:             spotPrice,
 			LicenseSpecifications: configuration.LicenseSpecifications,
-			Placement:             GetLaunchTemplatePlacementInput(placement),
+			Placement:             GetPlacementInput(placement),
 		}); err != nil {
 			return errors.Wrap(err, "failed to create scaling configuration")
 		}

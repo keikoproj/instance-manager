@@ -123,7 +123,7 @@ func TestInstanceGroupSpecValidate(t *testing.T) {
 						InstanceType:       "m5.large",
 						KeyPairName:        "thisShouldBeOptional",
 						Subnets:            []string{"subnet-1111111", "subnet-222222"},
-						Placement: &LaunchTemplatePlacementSpec{
+						Placement: &PlacementSpec{
 							AvailabilityZone:     "us-west-2a",
 							HostResourceGroupArn: "arn:aws:resource-groups:us-west-2:1122334455:group/resourceName",
 							Tenancy:              "host",
@@ -147,7 +147,7 @@ func TestInstanceGroupSpecValidate(t *testing.T) {
 						InstanceType:       "m5.large",
 						KeyPairName:        "thisShouldBeOptional",
 						Subnets:            []string{"subnet-1111111", "subnet-222222"},
-						Placement: &LaunchTemplatePlacementSpec{
+						Placement: &PlacementSpec{
 							HostResourceGroupArn: "arn:aws:resource-groups:us-west-2:1122334455:group/resourceName",
 							Tenancy:              "default",
 						},
@@ -170,7 +170,7 @@ func TestInstanceGroupSpecValidate(t *testing.T) {
 						InstanceType:       "m5.large",
 						KeyPairName:        "thisShouldBeOptional",
 						Subnets:            []string{"subnet-1111111", "subnet-222222"},
-						Placement: &LaunchTemplatePlacementSpec{
+						Placement: &PlacementSpec{
 							HostResourceGroupArn: "notAnARN",
 							Tenancy:              "host",
 						},
@@ -193,7 +193,7 @@ func TestInstanceGroupSpecValidate(t *testing.T) {
 						InstanceType:       "m5.large",
 						KeyPairName:        "thisShouldBeOptional",
 						Subnets:            []string{"subnet-1111111", "subnet-222222"},
-						Placement: &LaunchTemplatePlacementSpec{
+						Placement: &PlacementSpec{
 							Tenancy: "invalid",
 						},
 					},

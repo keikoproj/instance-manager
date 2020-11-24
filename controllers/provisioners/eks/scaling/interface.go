@@ -59,10 +59,10 @@ type CreateConfigurationInput struct {
 	UserData              string
 	SpotPrice             string
 	LicenseSpecifications []string
-	Placement             *LaunchTemplatePlacementInput
+	Placement             *PlacementInput
 }
 
-type LaunchTemplatePlacementInput struct {
+type PlacementInput struct {
 	AvailabilityZone     string
 	HostResourceGroupArn string
 	Tenancy              string

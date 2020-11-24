@@ -603,7 +603,7 @@ func TestLaunchTemplateDrifted(t *testing.T) {
 			launchTemplate: MockLaunchTemplate("my-launch-template"),
 			latestVersion:  MockLaunchTemplateVersion(),
 			input: &CreateConfigurationInput{
-				Placement: &LaunchTemplatePlacementInput{
+				Placement: &PlacementInput{
 					AvailabilityZone:     "us-west-2a",
 					HostResourceGroupArn: "arn:aws:resource-groups:us-west-2:1234456789:group/host-group-name",
 					Tenancy:              "host",
