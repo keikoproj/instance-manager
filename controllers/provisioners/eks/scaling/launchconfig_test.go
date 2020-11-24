@@ -185,6 +185,9 @@ func TestLaunchConfigurationCreate(t *testing.T) {
 				Size: 30,
 			},
 		},
+		Placement: &PlacementInput{
+			Tenancy: "host",
+		},
 	})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
