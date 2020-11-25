@@ -373,6 +373,20 @@ func (s *EKSSpec) Validate() error {
 		s.Type = LaunchConfiguration
 	}
 
+	if s.IsLaunchConfiguration() {
+		if !common.SliceEmpty(s.EKSConfiguration.LicenseSpecifications) {
+			return errors.Errorf("validation failed, field 'licenseSpecifications' is only valid for LaunchTemplates")
+		}
+		if s.EKSConfiguration.GetPlacement() != nil {
+			if s.EKSConfiguration.GetPlacement().HostResourceGroupArn != "" {
+				return errors.Errorf("validation failed, field 'hostResourceGroupArn' is only valid for LaunchTemplates")
+			}
+			if s.EKSConfiguration.GetPlacement().AvailabilityZone != "" {
+				return errors.Errorf("validation failed, field 'availabilityZone' is only valid for LaunchTemplates")
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -517,6 +531,10 @@ func (c *EKSConfiguration) Validate() error {
 }
 
 func (p *PlacementSpec) Validate() error {
+
+	if p == nil {
+		return nil
+	}
 
 	if !common.ContainsEqualFold(LaunchTemplatePlacementTenancyTypes, p.Tenancy) {
 		return errors.Errorf("validation failed, Tenancy must be one of default, dedicated, host")
