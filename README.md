@@ -11,15 +11,22 @@
 
 ![instance-manager](hack/instance-manager.png)
 
-- [Installation](#installation)
-- [Usage Example](#usage-example)
-  - [Currently supported provisioners](#currently-supported-provisioners)
-  - [EKS sample spec](#EKS-sample-spec)
-  - [Submit and Verify](#submit-and-verify)
-  - [Features](#features)
-  - [Alpha-2 Version](#alpha-2-version)
-- [Contributing](#contributing)
-- [Developer Guide](#developer-guide)
+- [instance-manager](#instance-manager)
+  - [Installation](#installation)
+  - [Usage example](#usage-example)
+    - [Currently supported provisioners](#currently-supported-provisioners)
+    - [EKS sample spec](#eks-sample-spec)
+    - [Submit and Verify](#submit-and-verify)
+    - [Features](#features)
+      - [Spot instance support](#spot-instance-support)
+      - [Upgrade Strategies](#upgrade-strategies)
+      - [EKS Managed Node Group (alpha-1)](#eks-managed-node-group-alpha-1)
+      - [EKS Fargate](#eks-fargate)
+      - [Bring your own role](#bring-your-own-role)
+      - [EC2 Instance placement](#ec2-instance-placement)
+    - [Alpha-2 Version](#alpha-2-version)
+  - [Contributing](#contributing)
+  - [Developer Guide](#developer-guide)
 
 Worker nodes in Kubernetes clusters work best if provisioned and managed using a logical grouping. Kops introduced the term “InstanceGroup” for this logical grouping. In AWS, an InstanceGroup maps to an AutoScalingGroup.
 
@@ -360,6 +367,29 @@ spec:
 ```
 
 if you do not provide these fields, a role will be created for your instance-group by the controller (will require IAM access).
+
+
+#### EC2 Instance placement
+
+When using Launch Templates, you can provide EC2 placement information to take advantage on EC2 dedicated hosts.
+
+```yaml
+apiVersion: instancemgr.keikoproj.io/v1alpha1
+kind: InstanceGroup
+metadata:
+  name: hello-world
+  namespace: instance-manager
+spec:
+  strategy: <...>
+  provisioner: eks
+  eks:
+    type: LaunchTemplate
+    configuration:
+      placement:
+        availabiltyZone: "us-west-2a"
+        hostResourceGroupArn: "arn:aws:resource-groups:us-west-2:1234456789:group/host-group-name"
+        tenancy: "host"
+```
 
 ### Alpha-2 Version
 
