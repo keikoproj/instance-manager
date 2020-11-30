@@ -270,20 +270,6 @@ func IsResourceActive(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGr
 	return true
 }
 
-func IsPathValue(resource unstructured.Unstructured, path, value string) bool {
-	val, err := GetUnstructuredPath(&resource, path)
-	if err != nil {
-		log.Error(err, "failed to get unstructured path from resource", "path", path)
-		return false
-	}
-
-	if strings.EqualFold(val, value) {
-		return true
-	}
-
-	return false
-}
-
 func GetResources(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGroup, resource *unstructured.Unstructured) ([]*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 	var (
 		status            = instanceGroup.GetStatus()

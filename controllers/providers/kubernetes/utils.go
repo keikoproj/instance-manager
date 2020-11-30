@@ -263,3 +263,17 @@ func IsStorageError(err error) bool {
 	}
 	return false
 }
+
+func IsPathValue(resource unstructured.Unstructured, path, value string) bool {
+	val, err := GetUnstructuredPath(&resource, path)
+	if err != nil {
+		log.Error(err, "failed to get unstructured path from resource", "path", path)
+		return false
+	}
+
+	if strings.EqualFold(val, value) {
+		return true
+	}
+
+	return false
+}
