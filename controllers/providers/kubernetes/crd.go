@@ -25,6 +25,7 @@ import (
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 )
 
@@ -81,6 +82,7 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 		return false, errors.Errorf("custom resource definition '%v' is missing, could not upgrade", crdFullName)
 	}
 	status.SetStrategyResourceName(customResource.GetName())
+	status.SetStrategyResourceNamespace(customResource.GetNamespace())
 
 	policy := strategy.GetConcurrencyPolicy()
 
@@ -199,6 +201,89 @@ func NormalizeName(customResource *unstructured.Unstructured, id string) {
 	}
 }
 
+func ResourceGVR(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGroup) (schema.GroupVersionResource, error) {
+	var (
+		strategy = instanceGroup.GetUpgradeStrategy().GetCRDType()
+	)
+
+	renderParams := struct {
+		InstanceGroup *v1alpha1.InstanceGroup
+	}{
+		InstanceGroup: instanceGroup,
+	}
+
+	templatedCustomResource, err := RenderCustomResource(strategy.GetSpec(), renderParams)
+	if err != nil {
+		return schema.GroupVersionResource{}, errors.Wrap(err, "failed to render custom resource templating")
+	}
+
+	customResource, err := ParseCustomResourceYaml(templatedCustomResource)
+	if err != nil {
+		return schema.GroupVersionResource{}, errors.Wrap(err, "failed to parse custom resource yaml")
+	}
+
+	return GetGVR(customResource, strategy.GetCRDName()), nil
+}
+
+func IsResourceActive(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGroup) bool {
+	var (
+		strategy = instanceGroup.GetUpgradeStrategy().GetCRDType()
+		status   = instanceGroup.GetStatus()
+	)
+
+	if strategy == nil {
+		return false
+	}
+
+	var (
+		statusJSONPath  = strategy.GetStatusJSONPath()
+		completedStatus = strategy.GetStatusSuccessString()
+		errorStatus     = strategy.GetStatusFailureString()
+	)
+
+	name := status.GetStrategyResourceName()
+	namespace := status.GetStrategyResourceNamespace()
+
+	if common.StringEmpty(name) || common.StringEmpty(namespace) {
+		return false
+	}
+
+	gvr, err := ResourceGVR(kube, instanceGroup)
+	if err != nil {
+		log.Error(err, "failed to get resource gvr")
+		return false
+	}
+
+	r, err := kube.Resource(gvr).Namespace(namespace).Get(name, metav1.GetOptions{})
+	if err != nil {
+		if kerr.IsNotFound(err) {
+			return false
+		}
+		log.Error(err, "failed to get upgrade resource")
+		return false
+	}
+
+	if IsPathValue(*r, statusJSONPath, completedStatus) || IsPathValue(*r, statusJSONPath, errorStatus) {
+		return false
+	}
+
+	return true
+}
+
+func IsPathValue(resource unstructured.Unstructured, path, value string) bool {
+	val, err := GetUnstructuredPath(&resource, path)
+	if err != nil {
+		log.Error(err, "failed to get unstructured path from resource", "path", path)
+		return false
+	}
+
+	if strings.EqualFold(val, value) {
+		return true
+	}
+
+	return false
+}
+
 func GetResources(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGroup, resource *unstructured.Unstructured) ([]*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 	var (
 		status            = instanceGroup.GetStatus()
@@ -223,17 +308,13 @@ func GetResources(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGroup,
 			continue
 		}
 
-		val, err := GetUnstructuredPath(&r, statusJSONPath)
-		if err != nil {
-			return inactiveResources, activeResources, err
-		}
-
-		if strings.EqualFold(val, completedStatus) || strings.EqualFold(val, errorStatus) {
+		if IsPathValue(r, statusJSONPath, completedStatus) || IsPathValue(r, statusJSONPath, errorStatus) {
 			// if resource is not completed and not failed, it must be still active
 			inactiveResources = append(inactiveResources, &r)
 		} else {
 			activeResources = append(activeResources, &r)
 		}
+
 	}
 
 	return inactiveResources, activeResources, nil

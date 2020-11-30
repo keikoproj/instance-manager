@@ -27,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
+	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/eks/scaling"
 )
 
@@ -84,6 +85,11 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		ScalingGroup: state.ScalingGroup,
 	}) {
 		ctx.Log.Info("node rotation required", "instancegroup", instanceGroup.GetName(), "scalingconfig", config.Name)
+		rotationNeeded = true
+	}
+
+	if kubeprovider.IsResourceActive(ctx.KubernetesClient.KubeDynamic, instanceGroup) {
+		ctx.Log.Info("upgrade resource is still active", "instancegroup", instanceGroup.GetName(), "scalingconfig", config.Name)
 		rotationNeeded = true
 	}
 
