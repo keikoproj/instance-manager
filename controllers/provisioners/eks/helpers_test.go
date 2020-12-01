@@ -30,7 +30,6 @@ import (
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
-	"github.com/keikoproj/instance-manager/controllers/provisioners/eks/scaling"
 	"github.com/onsi/gomega"
 	"github.com/pkg/errors"
 )
@@ -627,35 +626,5 @@ func TestUpdateLifecycleHooks(t *testing.T) {
 		ctx.UpdateLifecycleHooks("my-asg")
 		g.Expect(len(tc.expectedRemoved)).To(gomega.Equal(asgMock.DeleteLifecycleHookCallCount))
 		g.Expect(len(tc.expectedAdded)).To(gomega.Equal(asgMock.PutLifecycleHookCallCount))
-	}
-}
-
-func TestGetPlacementInput(t *testing.T) {
-	var (
-		g = gomega.NewGomegaWithT(t)
-	)
-	tests := []struct {
-		name     string
-		input    *v1alpha1.PlacementSpec
-		expected *scaling.PlacementInput
-	}{
-		{
-			name: "happy-path",
-			input: &v1alpha1.PlacementSpec{
-				AvailabilityZone:     "us-west-2a",
-				HostResourceGroupArn: "arn:aws:resource-groups:us-west-2:1234456789:group/host-group-name",
-				Tenancy:              "host",
-			},
-			expected: &scaling.PlacementInput{
-				AvailabilityZone:     "us-west-2a",
-				HostResourceGroupArn: "arn:aws:resource-groups:us-west-2:1234456789:group/host-group-name",
-				Tenancy:              "host",
-			}},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			output := GetPlacementInput(tc.input)
-			g.Expect(output).To(gomega.Equal(tc.expected))
-		})
 	}
 }

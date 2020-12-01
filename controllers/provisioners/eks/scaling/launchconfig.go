@@ -262,7 +262,7 @@ func (lc *LaunchConfiguration) RotationNeeded(input *DiscoverConfigurationInput)
 	return false
 }
 
-func (lc *LaunchConfiguration) placementTenancy(placement *PlacementInput) string {
+func (lc *LaunchConfiguration) placementTenancy(placement *v1alpha1.PlacementSpec) string {
 	if placement != nil {
 		return placement.Tenancy
 	}

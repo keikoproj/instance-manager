@@ -33,7 +33,6 @@ import (
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
-	"github.com/keikoproj/instance-manager/controllers/provisioners/eks/scaling"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -962,18 +961,4 @@ func (ctx *EksInstanceGroupContext) GetDesiredMixedInstancesPolicy(name string) 
 	}
 
 	return policy
-}
-
-func GetPlacementInput(placement *v1alpha1.PlacementSpec) *scaling.PlacementInput {
-	if placement == nil {
-		return nil
-	}
-
-	result := &scaling.PlacementInput{
-		AvailabilityZone:     placement.AvailabilityZone,
-		HostResourceGroupArn: placement.HostResourceGroupArn,
-		Tenancy:              placement.Tenancy,
-	}
-	return result
-
 }

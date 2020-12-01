@@ -59,13 +59,7 @@ type CreateConfigurationInput struct {
 	UserData              string
 	SpotPrice             string
 	LicenseSpecifications []string
-	Placement             *PlacementInput
-}
-
-type PlacementInput struct {
-	AvailabilityZone     string
-	HostResourceGroupArn string
-	Tenancy              string
+	Placement             *v1alpha1.PlacementSpec
 }
 
 func ConvertToLaunchTemplate(resource interface{}) *ec2.LaunchTemplate {

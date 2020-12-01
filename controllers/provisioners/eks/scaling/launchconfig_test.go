@@ -185,7 +185,7 @@ func TestLaunchConfigurationCreate(t *testing.T) {
 				Size: 30,
 			},
 		},
-		Placement: &PlacementInput{
+		Placement: &v1alpha1.PlacementSpec{
 			Tenancy: "host",
 		},
 	})
@@ -469,7 +469,7 @@ func TestLaunchConfigurationDrifted(t *testing.T) {
 			},
 			input: &CreateConfigurationInput{
 				SecurityGroups: []string{},
-				Placement: &PlacementInput{
+				Placement: &v1alpha1.PlacementSpec{
 					Tenancy: "host",
 				},
 			},

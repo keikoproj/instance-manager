@@ -69,7 +69,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		UserData:              userData,
 		SpotPrice:             spotPrice,
 		LicenseSpecifications: configuration.LicenseSpecifications,
-		Placement:             GetPlacementInput(placement),
+		Placement:             placement,
 	}
 
 	// create new launchconfig if it has drifted
