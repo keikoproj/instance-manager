@@ -228,10 +228,21 @@ All fields are supported for Launch Templates; Launch Configuration's only suppo
 spec:
   provisioner: eks
   eks:
+    type: LaunchTemplate
     configuration:
       placement:
         availabiltyZone: "us-west-2a"
         hostResourceGroupArn: "arn:aws:resource-groups:us-west-2:1234456789:group/host-group-name"
+        tenancy: "host"
+```
+
+```yaml
+spec:
+  provisioner: eks
+  eks:
+    type: LaunchConfiguration # can be omitted as the default
+    configuration:
+      placement:
         tenancy: "host"
 ```
 
