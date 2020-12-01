@@ -98,7 +98,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			if aerr.Code() == autoscaling.ErrCodeScalingActivityInProgressFault {
-				ctx.Log.Info("autoscaling activity in progress, will requeue", "instancegroup", instanceGroup.GetName())
+				ctx.Log.Info("cannot update scaling group due to autoscaling activity in progress", "instancegroup", instanceGroup.GetName())
 				return nil
 			}
 		}
