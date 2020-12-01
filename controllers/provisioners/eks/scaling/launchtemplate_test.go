@@ -626,3 +626,159 @@ func TestLaunchTemplateDrifted(t *testing.T) {
 		g.Expect(result).To(gomega.Equal(tc.shouldDrift))
 	}
 }
+
+func TestLaunchTemplatePlacementRequest(t *testing.T) {
+	var (
+		g       = gomega.NewGomegaWithT(t)
+		asgMock = &MockAutoScalingClient{}
+		ec2Mock = &MockEc2Client{}
+	)
+
+	w := awsprovider.AwsWorker{
+		AsgClient: asgMock,
+		Ec2Client: ec2Mock,
+	}
+
+	discoveryInput := &DiscoverConfigurationInput{
+		ScalingGroup: &autoscaling.Group{
+			AutoScalingGroupName: aws.String("my-asg"),
+			LaunchTemplate: &autoscaling.LaunchTemplateSpecification{
+				LaunchTemplateName: aws.String("prefix-my-launch-template"),
+				Version:            aws.String("6"),
+			},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		input    *v1alpha1.PlacementSpec
+		expected *ec2.LaunchTemplatePlacementRequest
+	}{
+		{
+			name:     "nil input",
+			input:    nil,
+			expected: &ec2.LaunchTemplatePlacementRequest{},
+		},
+		{
+			name: "valid input",
+			input: &v1alpha1.PlacementSpec{
+				AvailabilityZone:     "us-west-2a",
+				HostResourceGroupArn: "arn:aws:resource-groups:us-west-2:1234456789:group/host-group-name",
+				Tenancy:              "host",
+			},
+			expected: &ec2.LaunchTemplatePlacementRequest{
+				AvailabilityZone:     aws.String("us-west-2a"),
+				HostResourceGroupArn: aws.String("arn:aws:resource-groups:us-west-2:1234456789:group/host-group-name"),
+				Tenancy:              aws.String("host"),
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			lt, err := NewLaunchTemplate("", w, discoveryInput)
+			g.Expect(err).NotTo(gomega.HaveOccurred())
+			output := lt.launchTemplatePlacementRequest(tc.input)
+
+			g.Expect(output).To(gomega.Equal(tc.expected))
+		})
+	}
+}
+
+func TestLaunchTemplatePlacement(t *testing.T) {
+	var (
+		g       = gomega.NewGomegaWithT(t)
+		asgMock = &MockAutoScalingClient{}
+		ec2Mock = &MockEc2Client{}
+	)
+
+	w := awsprovider.AwsWorker{
+		AsgClient: asgMock,
+		Ec2Client: ec2Mock,
+	}
+
+	discoveryInput := &DiscoverConfigurationInput{
+		ScalingGroup: &autoscaling.Group{
+			AutoScalingGroupName: aws.String("my-asg"),
+			LaunchTemplate: &autoscaling.LaunchTemplateSpecification{
+				LaunchTemplateName: aws.String("prefix-my-launch-template"),
+				Version:            aws.String("6"),
+			},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		input    *v1alpha1.PlacementSpec
+		expected *ec2.LaunchTemplatePlacement
+	}{
+		{
+			name:     "nil input",
+			input:    nil,
+			expected: &ec2.LaunchTemplatePlacement{},
+		},
+		{
+			name: "valid input",
+			input: &v1alpha1.PlacementSpec{
+				AvailabilityZone:     "us-west-2a",
+				HostResourceGroupArn: "arn:aws:resource-groups:us-west-2:1234456789:group/host-group-name",
+				Tenancy:              "host",
+			},
+			expected: &ec2.LaunchTemplatePlacement{
+				AvailabilityZone:     aws.String("us-west-2a"),
+				HostResourceGroupArn: aws.String("arn:aws:resource-groups:us-west-2:1234456789:group/host-group-name"),
+				Tenancy:              aws.String("host"),
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			lt, err := NewLaunchTemplate("", w, discoveryInput)
+			g.Expect(err).NotTo(gomega.HaveOccurred())
+			output := lt.launchTemplatePlacement(tc.input)
+
+			g.Expect(output).To(gomega.Equal(tc.expected))
+		})
+	}
+}
+
+func TestSortLicenseSpecifications(t *testing.T) {
+	g := gomega.NewGomegaWithT(t)
+
+	tests := []struct {
+		input    []*ec2.LaunchTemplateLicenseConfiguration
+		expected []*ec2.LaunchTemplateLicenseConfiguration
+	}{
+		{
+			input: []*ec2.LaunchTemplateLicenseConfiguration{
+				&ec2.LaunchTemplateLicenseConfiguration{
+					LicenseConfigurationArn: aws.String("arn:aws:license-manager:us-west-2:1234456789:license-configuration:lic-2"),
+				},
+				&ec2.LaunchTemplateLicenseConfiguration{
+					LicenseConfigurationArn: aws.String("arn:aws:license-manager:us-west-2:1234456789:license-configuration:lic-3"),
+				},
+				&ec2.LaunchTemplateLicenseConfiguration{
+					LicenseConfigurationArn: aws.String("arn:aws:license-manager:us-west-2:1234456789:license-configuration:lic-1"),
+				},
+			},
+			expected: []*ec2.LaunchTemplateLicenseConfiguration{
+				&ec2.LaunchTemplateLicenseConfiguration{
+					LicenseConfigurationArn: aws.String("arn:aws:license-manager:us-west-2:1234456789:license-configuration:lic-1"),
+				},
+				&ec2.LaunchTemplateLicenseConfiguration{
+					LicenseConfigurationArn: aws.String("arn:aws:license-manager:us-west-2:1234456789:license-configuration:lic-2"),
+				},
+				&ec2.LaunchTemplateLicenseConfiguration{
+					LicenseConfigurationArn: aws.String("arn:aws:license-manager:us-west-2:1234456789:license-configuration:lic-3"),
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		output := sortLicenseSpecifications(tc.input)
+		g.Expect(output).To(gomega.Equal(tc.expected))
+	}
+
+}
