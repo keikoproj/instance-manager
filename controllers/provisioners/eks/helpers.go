@@ -99,14 +99,14 @@ func (ctx *EksInstanceGroupContext) ResolveSecurityGroups() []string {
 
 func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, kubeletExtraArgs string, payload UserDataPayload, mounts []MountOpts) string {
 	var (
-		instanceGroup = ctx.GetInstanceGroup()
-		configuration = instanceGroup.GetEKSConfiguration()
-		state         = ctx.GetDiscoveredState()
-		apiEndpoint   = state.GetClusterEndpoint()
-		clusterCa     = state.GetClusterCA()
-		osFamily      = ctx.GetOsFamily()
-		nodeLabels    = ctx.GetComputedLabels()
-		nodeTaints    = configuration.GetTaints()
+		instanceGroup    = ctx.GetInstanceGroup()
+		configuration    = instanceGroup.GetEKSConfiguration()
+		state            = ctx.GetDiscoveredState()
+		apiEndpoint      = state.GetClusterEndpoint()
+		clusterCa        = state.GetClusterCA()
+		osFamily         = ctx.GetOsFamily()
+		nodeLabels       = ctx.GetComputedLabels()
+		nodeTaints       = configuration.GetTaints()
 		bootstrapOptions = configuration.GetBootstrapOptions()
 	)
 	var maxPods int64 = 0
