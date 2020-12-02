@@ -184,6 +184,10 @@ type EKSManagedSpec struct {
 	EKSManagedConfiguration *EKSManagedConfiguration `json:"configuration"`
 }
 
+type BootstrapOptions struct {
+	MaxPods int64 `json:"maxPods,omitempty"`
+}
+
 type EKSSpec struct {
 	MaxSize          int64                    `json:"maxSize,omitempty"`
 	MinSize          int64                    `json:"minSize,omitempty"`
@@ -201,6 +205,7 @@ type EKSConfiguration struct {
 	Subnets                     []string                  `json:"subnets,omitempty"`
 	SuspendedProcesses          []string                  `json:"suspendProcesses,omitempty"`
 	BootstrapArguments          string                    `json:"bootstrapArguments,omitempty"`
+	BootstrapOptions            *BootstrapOptions         `json:"bootstrapOptions,omitempty"`
 	SpotPrice                   string                    `json:"spotPrice,omitempty"`
 	Tags                        []map[string]string       `json:"tags,omitempty"`
 	Labels                      map[string]string         `json:"labels,omitempty"`
@@ -724,6 +729,11 @@ func (c *EKSConfiguration) GetVolumes() []NodeVolume {
 func (c *EKSConfiguration) GetBootstrapArguments() string {
 	return c.BootstrapArguments
 }
+
+func (c *EKSConfiguration) GetBootstrapOptions() *BootstrapOptions {
+	return c.BootstrapOptions
+}
+
 func (c *EKSConfiguration) GetSecurityGroups() []string {
 	if c.NodeSecurityGroups == nil {
 		return []string{}

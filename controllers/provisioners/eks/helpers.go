@@ -99,16 +99,20 @@ func (ctx *EksInstanceGroupContext) ResolveSecurityGroups() []string {
 
 func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, kubeletExtraArgs string, payload UserDataPayload, mounts []MountOpts) string {
 	var (
-		instanceGroup = ctx.GetInstanceGroup()
-		configuration = instanceGroup.GetEKSConfiguration()
-		state         = ctx.GetDiscoveredState()
-		apiEndpoint   = state.GetClusterEndpoint()
-		clusterCa     = state.GetClusterCA()
-		osFamily      = ctx.GetOsFamily()
-		nodeLabels    = ctx.GetComputedLabels()
-		nodeTaints    = configuration.GetTaints()
+		instanceGroup    = ctx.GetInstanceGroup()
+		configuration    = instanceGroup.GetEKSConfiguration()
+		state            = ctx.GetDiscoveredState()
+		apiEndpoint      = state.GetClusterEndpoint()
+		clusterCa        = state.GetClusterCA()
+		osFamily         = ctx.GetOsFamily()
+		nodeLabels       = ctx.GetComputedLabels()
+		nodeTaints       = configuration.GetTaints()
+		bootstrapOptions = configuration.GetBootstrapOptions()
 	)
-
+	var maxPods int64 = 0
+	if bootstrapOptions != nil {
+		maxPods = bootstrapOptions.MaxPods
+	}
 	var UserDataTemplate string
 	switch strings.ToLower(osFamily) {
 	case OsFamilyWindows:
@@ -125,6 +129,9 @@ func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, k
 api-server   = "{{ .ApiEndpoint }}"
 cluster-certificate = "{{ .ClusterCA }}"
 cluster-name = "{{ .ClusterName }}"
+{{- if .MaxPods}}
+max-pods = {{ .MaxPods }}
+{{- end}}
 [settings.kubernetes.node-labels]
 {{- range $key, $value := .NodeLabels }}
 "{{ $key }}" = "{{ $value }}"
@@ -156,6 +163,7 @@ set +o xtrace
 		ApiEndpoint:      apiEndpoint,
 		ClusterCA:        clusterCa,
 		ClusterName:      clusterName,
+		MaxPods:          maxPods,
 		NodeLabels:       nodeLabels,
 		NodeTaints:       nodeTaints,
 		KubeletExtraArgs: kubeletExtraArgs,
@@ -445,7 +453,17 @@ func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 }
 
 func (ctx *EksInstanceGroupContext) GetBootstrapArgs() string {
-	return fmt.Sprintf("--kubelet-extra-args '%v'", ctx.GetKubeletExtraArgs())
+	var (
+		instanceGroup = ctx.GetInstanceGroup()
+		configuration = instanceGroup.GetEKSConfiguration()
+	)
+	var sb strings.Builder
+
+	if configuration.BootstrapOptions != nil && configuration.BootstrapOptions.MaxPods > 0 {
+		sb.WriteString("--use-max-pods false ")
+	}
+	sb.WriteString(fmt.Sprintf("--kubelet-extra-args '%v' ", ctx.GetKubeletExtraArgs()))
+	return sb.String()
 }
 
 func (ctx *EksInstanceGroupContext) GetKubeletExtraArgs() string {
@@ -457,7 +475,12 @@ func (ctx *EksInstanceGroupContext) GetKubeletExtraArgs() string {
 
 	labelsFlag := fmt.Sprintf("--node-labels=%v", strings.Join(ctx.GetLabelList(), ","))
 	taintsFlag := fmt.Sprintf("--register-with-taints=%v", strings.Join(ctx.GetTaintList(), ","))
-	return fmt.Sprintf("%v %v %v", labelsFlag, taintsFlag, bootstrapArgs)
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("%v %v %v ", labelsFlag, taintsFlag, bootstrapArgs))
+	if configuration.BootstrapOptions != nil && configuration.BootstrapOptions.MaxPods > 0 {
+		sb.WriteString(fmt.Sprintf("--max-pods=%v ", configuration.BootstrapOptions.MaxPods))
+	}
+	return sb.String()
 }
 
 func (ctx *EksInstanceGroupContext) discoverSpotPrice() error {
