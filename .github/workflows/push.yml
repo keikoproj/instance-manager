@@ -48,7 +48,7 @@ jobs:
       id: docker_meta
       uses: crazy-max/ghaction-docker-meta@v1
       with:
-        images: ${{ github.repository_owner }}/instancemgr,ghcr.io/${{ github.repository_owner }}/instance-manager
+        images: ${{ github.repository_owner }}/instance-manager,ghcr.io/${{ github.repository_owner }}/instance-manager
     -
       name: Build and push
       uses: docker/build-push-action@v2
