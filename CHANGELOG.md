@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [v0.9.2-alpha2] - 2020-12-1
+
+### Fixed
+
+- Premature upgrade completion (#211)
+- LaunchID omitted when switching between configuration types (#208)
+- Caching improvements for DescribeInstanceTypes/Offerings (#206)
+- NPE when switching between configuration types (#205)
+
 ## [v0.9.1-alpha2] - 2020-11-17
 
 ### Fixed
