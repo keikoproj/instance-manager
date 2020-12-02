@@ -62,6 +62,7 @@ ec2:CreateLaunchTemplateVersion
 ec2:ModifyLaunchTemplate
 ec2:DeleteLaunchTemplate
 ec2:DeleteLaunchTemplateVersions
+ec2:RunInstances
 autoscaling:CreateOrUpdateTags
 autoscaling:DeleteTags
 autoscaling:SuspendProcesses
