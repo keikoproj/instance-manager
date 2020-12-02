@@ -27,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
+	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/eks/scaling"
 )
 
@@ -87,11 +88,17 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		rotationNeeded = true
 	}
 
+	if kubeprovider.IsResourceActive(ctx.KubernetesClient.KubeDynamic, instanceGroup) {
+		ctx.Log.Info("upgrade resource is still active", "instancegroup", instanceGroup.GetName(), "scalingconfig", config.Name)
+		rotationNeeded = true
+	}
+
 	// update scaling group
 	err = ctx.UpdateScalingGroup(config.Name)
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() != autoscaling.ErrCodeScalingActivityInProgressFault {
+			if aerr.Code() == autoscaling.ErrCodeScalingActivityInProgressFault {
+				ctx.Log.Info("cannot update scaling group due to autoscaling activity in progress", "instancegroup", instanceGroup.GetName())
 				return nil
 			}
 		}
