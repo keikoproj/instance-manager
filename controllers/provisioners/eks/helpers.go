@@ -453,7 +453,17 @@ func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 }
 
 func (ctx *EksInstanceGroupContext) GetBootstrapArgs() string {
-	return fmt.Sprintf("--kubelet-extra-args '%v'", ctx.GetKubeletExtraArgs())
+	var (
+		instanceGroup = ctx.GetInstanceGroup()
+		configuration = instanceGroup.GetEKSConfiguration()
+	)
+	var sb strings.Builder
+
+	if configuration.BootstrapOptions != nil && configuration.BootstrapOptions.MaxPods > 0 {
+		sb.WriteString("--use-max-pods false ")
+	}
+	sb.WriteString(fmt.Sprintf("--kubelet-extra-args '%v' ", ctx.GetKubeletExtraArgs()))
+	return sb.String()
 }
 
 func (ctx *EksInstanceGroupContext) GetKubeletExtraArgs() string {
@@ -465,7 +475,12 @@ func (ctx *EksInstanceGroupContext) GetKubeletExtraArgs() string {
 
 	labelsFlag := fmt.Sprintf("--node-labels=%v", strings.Join(ctx.GetLabelList(), ","))
 	taintsFlag := fmt.Sprintf("--register-with-taints=%v", strings.Join(ctx.GetTaintList(), ","))
-	return fmt.Sprintf("%v %v %v", labelsFlag, taintsFlag, bootstrapArgs)
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("%v %v %v ", labelsFlag, taintsFlag, bootstrapArgs))
+	if configuration.BootstrapOptions != nil && configuration.BootstrapOptions.MaxPods > 0 {
+		sb.WriteString(fmt.Sprintf("--max-pods=%v ", configuration.BootstrapOptions.MaxPods))
+	}
+	return sb.String()
 }
 
 func (ctx *EksInstanceGroupContext) discoverSpotPrice() error {

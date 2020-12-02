@@ -511,6 +511,7 @@ func TestMaxPodsSetCorrectly(t *testing.T) {
 		k                         = MockKubernetesClientSet()
 		bottleRocketIgWithMaxPods = MockBottleRocketInstanceGroup()
 		bottleRocketIg            = MockBottleRocketInstanceGroup()
+		amazonLinuxIgWithMaxPods  = MockInstanceGroup()
 		asgMock                   = NewAutoScalingMocker()
 		iamMock                   = NewIamMocker()
 		eksMock                   = NewEksMocker()
@@ -523,9 +524,13 @@ func TestMaxPodsSetCorrectly(t *testing.T) {
 		MaxPods: 15,
 	}
 
+	amazonLinuxIgWithMaxPods.Spec.EKSSpec.EKSConfiguration.BootstrapOptions = &v1alpha1.BootstrapOptions{
+		MaxPods: 15,
+	}
+
 	tests := []struct {
-		ig                       *v1alpha1.InstanceGroup
-		expectedScriptSubstrings  string
+		ig                         *v1alpha1.InstanceGroup
+		expectedScriptSubstrings   string
 		unexpectedScriptSubstrings string
 	}{
 		{
@@ -533,8 +538,12 @@ func TestMaxPodsSetCorrectly(t *testing.T) {
 			expectedScriptSubstrings: "max-pods = 15",
 		},
 		{
-			ig:                       bottleRocketIg,
-			expectedScriptSubstrings: "",
+			ig:                       amazonLinuxIgWithMaxPods,
+			expectedScriptSubstrings: "--max-pods=15",
+		},
+		{
+			ig:                         bottleRocketIg,
+			expectedScriptSubstrings:   "",
 			unexpectedScriptSubstrings: "max-pods",
 		},
 	}
@@ -542,7 +551,8 @@ func TestMaxPodsSetCorrectly(t *testing.T) {
 	for i, tc := range tests {
 		t.Logf("Test #%v - %+v", i, tc)
 		ctx := MockContext(tc.ig, k, w)
-		basicUserData := ctx.GetBasicUserData("", "", "", UserDataPayload{}, []MountOpts{})
+		args := ctx.GetBootstrapArgs()
+		basicUserData := ctx.GetBasicUserData("", args, "", UserDataPayload{}, []MountOpts{})
 		basicUserDataDecoded, _ := base64.StdEncoding.DecodeString(basicUserData)
 		basicUserDataString := string(basicUserDataDecoded)
 		if !strings.Contains(basicUserDataString, tc.expectedScriptSubstrings) {
