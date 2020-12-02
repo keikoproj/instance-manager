@@ -180,7 +180,7 @@ type EKSManagedSpec struct {
 }
 
 type BootstrapOptions struct {
-	MaxPods          int64    `json:"maxPods,omitempty"`
+	MaxPods int64 `json:"maxPods,omitempty"`
 }
 
 type EKSSpec struct {
