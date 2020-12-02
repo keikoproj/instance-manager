@@ -32,19 +32,21 @@ install: skip
 jobs:
   include:
 
-    - stage: unit-test
-      if: type IN (push, pull_request)
-      script:
-      - go test -v ./controllers/... -coverprofile coverage.txt
-      - bash <(curl -s https://codecov.io/bash)
+    ## Removed in favor of github actions workflows
 
-    - stage: publish-image
-      if: type IN (push)
-      script:
-      - echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
-      - if [ $TRAVIS_EVENT_TYPE = push ]; then export IMG=keikoproj/instance-manager:$TRAVIS_BRANCH; fi
-      - make docker-build
-      - make docker-push
+    # - stage: unit-test
+    #   if: type IN (push, pull_request)
+    #   script:
+    #   - go test -v ./controllers/... -coverprofile coverage.txt
+    #   - bash <(curl -s https://codecov.io/bash)
+
+    # - stage: publish-image
+    #   if: type IN (push)
+    #   script:
+    #   - echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+    #   - if [ $TRAVIS_EVENT_TYPE = push ]; then export IMG=keikoproj/instance-manager:$TRAVIS_BRANCH; fi
+    #   - make docker-build
+    #   - make docker-push
 
     - stage: functional-test
       if: type = cron
