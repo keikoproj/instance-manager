@@ -890,7 +890,7 @@ func (ctx *EksInstanceGroupContext) GetOverrides() []*autoscaling.LaunchTemplate
 	)
 	overrides := []*autoscaling.LaunchTemplateOverrides{}
 
-	if mixedPolicy.InstanceTypes != nil {
+	if mixedPolicy != nil && mixedPolicy.InstanceTypes != nil {
 		overrides = append(overrides, &autoscaling.LaunchTemplateOverrides{
 			InstanceType:     aws.String(primaryType),
 			WeightedCapacity: aws.String("1"),

@@ -72,6 +72,10 @@ const (
 
 	FileSystemTypeXFS  = "xfs"
 	FileSystemTypeEXT4 = "ext4"
+
+	HostPlacementTenancyType      = "host"
+	DefaultPlacementTenancyType   = "default"
+	DedicatedPlacementTenancyType = "dedicated"
 )
 
 type ScalingConfigurationType string
@@ -100,12 +104,13 @@ var (
 		},
 	}
 
-	AllowedFileSystemTypes            = []string{FileSystemTypeXFS, FileSystemTypeEXT4}
-	AllowedMixedPolicyStrategies      = []string{LaunchTemplateStrategyCapacityOptimized, LaunchTemplateStrategyLowestPrice}
-	AllowedInstancePools              = []string{SubFamilyFlexibleInstancePool}
-	LifecycleHookAllowedTransitions   = []string{LifecycleHookTransitionLaunch, LifecycleHookTransitionTerminate}
-	LifecycleHookAllowedDefaultResult = []string{LifecycleHookResultAbandon, LifecycleHookResultContinue}
-	log                               = ctrl.Log.WithName("v1alpha1")
+	AllowedFileSystemTypes              = []string{FileSystemTypeXFS, FileSystemTypeEXT4}
+	AllowedMixedPolicyStrategies        = []string{LaunchTemplateStrategyCapacityOptimized, LaunchTemplateStrategyLowestPrice}
+	AllowedInstancePools                = []string{SubFamilyFlexibleInstancePool}
+	LifecycleHookAllowedTransitions     = []string{LifecycleHookTransitionLaunch, LifecycleHookTransitionTerminate}
+	LifecycleHookAllowedDefaultResult   = []string{LifecycleHookResultAbandon, LifecycleHookResultContinue}
+	LaunchTemplatePlacementTenancyTypes = []string{HostPlacementTenancyType, DefaultPlacementTenancyType, DedicatedPlacementTenancyType}
+	log                                 = ctrl.Log.WithName("v1alpha1")
 )
 
 // InstanceGroup is the Schema for the instancegroups API
@@ -207,6 +212,8 @@ type EKSConfiguration struct {
 	MetricsCollection           []string                  `json:"metricsCollection,omitempty"`
 	LifecycleHooks              []LifecycleHookSpec       `json:"lifecycleHooks,omitempty"`
 	MixedInstancesPolicy        *MixedInstancesPolicySpec `json:"mixedInstancesPolicy,omitempty"`
+	LicenseSpecifications       []string                  `json:"licenseSpecifications,omitempty"`
+	Placement                   *PlacementSpec            `json:"placement,omitempty"`
 }
 
 const (
@@ -222,6 +229,12 @@ type MixedInstancesPolicySpec struct {
 	SpotRatio     *intstr.IntOrString `json:"spotRatio,omitempty"`
 	InstancePool  *string             `json:"instancePool,omitempty"`
 	InstanceTypes []*InstanceTypeSpec `json:"instanceTypes,omitempty"`
+}
+
+type PlacementSpec struct {
+	AvailabilityZone     string `json:"availabilityZone,omitempty"`
+	HostResourceGroupArn string `json:"hostResourceGroupArn,omitempty"`
+	Tenancy              string `json:"tenancy,omitempty"`
 }
 
 type InstanceTypeSpec struct {
@@ -361,6 +374,20 @@ func (s *EKSSpec) Validate() error {
 		s.Type = LaunchConfiguration
 	}
 
+	if s.IsLaunchConfiguration() {
+		if !common.SliceEmpty(s.EKSConfiguration.LicenseSpecifications) {
+			return errors.Errorf("validation failed, field 'licenseSpecifications' is only valid for LaunchTemplates")
+		}
+		if s.EKSConfiguration.GetPlacement() != nil {
+			if s.EKSConfiguration.GetPlacement().HostResourceGroupArn != "" {
+				return errors.Errorf("validation failed, field 'hostResourceGroupArn' is only valid for LaunchTemplates")
+			}
+			if s.EKSConfiguration.GetPlacement().AvailabilityZone != "" {
+				return errors.Errorf("validation failed, field 'availabilityZone' is only valid for LaunchTemplates")
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -488,8 +515,43 @@ func (c *EKSConfiguration) Validate() error {
 			return err
 		}
 	}
+
+	for i, v := range c.LicenseSpecifications {
+		if !strings.HasPrefix(v, awsprovider.ARNPrefix) {
+			return errors.Errorf("validation failed, 'LicenseSpecifications[%d]' must be a valid IAM role ARN", i)
+		}
+	}
+
+	if c.Placement != nil {
+		if err := c.Placement.Validate(); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
+
+func (p *PlacementSpec) Validate() error {
+
+	if p == nil {
+		return nil
+	}
+
+	if !common.ContainsEqualFold(LaunchTemplatePlacementTenancyTypes, p.Tenancy) {
+		return errors.Errorf("validation failed, Tenancy must be one of default, dedicated, host")
+	}
+
+	if !common.StringEmpty(p.HostResourceGroupArn) && !strings.HasPrefix(p.HostResourceGroupArn, awsprovider.ARNPrefix) {
+		return errors.Errorf("validation failed, HostResourceGroupArn must be a valid dedicated HostResourceGroup ARN")
+	}
+
+	if !common.StringEmpty(p.HostResourceGroupArn) && p.Tenancy != HostPlacementTenancyType {
+		return errors.Errorf("validation failed, Tenancy must be \"host\" when HostResourceGroupArn is set")
+	}
+
+	return nil
+}
+
 func (m *MixedInstancesPolicySpec) Validate() error {
 	if m.Strategy == nil {
 		m.Strategy = common.StringPtr(LaunchTemplateStrategyCapacityOptimized)
@@ -593,6 +655,9 @@ func (c *EKSConfiguration) GetRoleName() string {
 }
 func (c *EKSConfiguration) GetMixedInstancesPolicy() *MixedInstancesPolicySpec {
 	return c.MixedInstancesPolicy
+}
+func (c *EKSConfiguration) GetPlacement() *PlacementSpec {
+	return c.Placement
 }
 func (c *EKSConfiguration) GetLifecycleHooks() []LifecycleHookSpec {
 	return c.LifecycleHooks

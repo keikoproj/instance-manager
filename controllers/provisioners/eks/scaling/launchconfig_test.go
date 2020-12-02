@@ -185,6 +185,9 @@ func TestLaunchConfigurationCreate(t *testing.T) {
 				Size: 30,
 			},
 		},
+		Placement: &v1alpha1.PlacementSpec{
+			Tenancy: "host",
+		},
 	})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
@@ -455,6 +458,19 @@ func TestLaunchConfigurationDrifted(t *testing.T) {
 						Type: "gp2",
 						Size: 32,
 					},
+				},
+			},
+			shouldDrift: true,
+		},
+		{
+			launchConfig: &autoscaling.LaunchConfiguration{
+				LaunchConfigurationName: aws.String("my-launch-config"),
+				PlacementTenancy:        aws.String(""),
+			},
+			input: &CreateConfigurationInput{
+				SecurityGroups: []string{},
+				Placement: &v1alpha1.PlacementSpec{
+					Tenancy: "host",
 				},
 			},
 			shouldDrift: true,

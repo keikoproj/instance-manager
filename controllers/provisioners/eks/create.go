@@ -45,6 +45,7 @@ func (ctx *EksInstanceGroupContext) Create() error {
 		userData        = ctx.GetBasicUserData(clusterName, args, kubeletArgs, userDataPayload, mounts)
 		sgs             = ctx.ResolveSecurityGroups()
 		spotPrice       = configuration.GetSpotPrice()
+		placement       = configuration.GetPlacement()
 	)
 
 	instanceGroup.SetState(v1alpha1.ReconcileModifying)
@@ -68,6 +69,8 @@ func (ctx *EksInstanceGroupContext) Create() error {
 			Volumes:               configuration.Volumes,
 			UserData:              userData,
 			SpotPrice:             spotPrice,
+			LicenseSpecifications: configuration.LicenseSpecifications,
+			Placement:             placement,
 		}); err != nil {
 			return errors.Wrap(err, "failed to create scaling configuration")
 		}

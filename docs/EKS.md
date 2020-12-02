@@ -92,6 +92,10 @@ spec:
 
       # add LifecycleHooks to be created as part of the scaling group
       lifecycleHooks: <[]LifecycleHookSpec> : must be a list of LifecycleHookSpec
+
+      # add Placement information
+      licenseSpecifications: <[]string> : must be a list of strings containing ARNs to Dedicated host license specifications
+      placement: <PlacementSpec> : placement information for EC2 instances.
 ```
 
 ### LifecycleHookSpec
@@ -213,6 +217,33 @@ spec:
       - key: <string> : the key of the taint
         value: <string> : the value of the taint
         effect: <string> : the effect of the taint
+```
+
+### PlacementSpec
+
+Represents the EC2 Placement information for your EC2 instances.
+All fields are supported for Launch Templates; Launch Configuration's only support setting `tenancy`.
+
+```yaml
+spec:
+  provisioner: eks
+  eks:
+    type: LaunchTemplate
+    configuration:
+      placement:
+        availabiltyZone: "us-west-2a"
+        hostResourceGroupArn: "arn:aws:resource-groups:us-west-2:1234456789:group/host-group-name"
+        tenancy: "host"
+```
+
+```yaml
+spec:
+  provisioner: eks
+  eks:
+    type: LaunchConfiguration # can be omitted as the default
+    configuration:
+      placement:
+        tenancy: "host"
 ```
 
 ## Upgrade Strategies

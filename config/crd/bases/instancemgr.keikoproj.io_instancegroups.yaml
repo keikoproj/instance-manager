@@ -91,6 +91,10 @@ spec:
                       additionalProperties:
                         type: string
                       type: object
+                    licenseSpecifications:
+                      items:
+                        type: string
+                      type: array
                     lifecycleHooks:
                       items:
                         properties:
@@ -150,6 +154,15 @@ spec:
                           - type: string
                           x-kubernetes-int-or-string: true
                         strategy:
+                          type: string
+                      type: object
+                    placement:
+                      properties:
+                        availabilityZone:
+                          type: string
+                        hostResourceGroupArn:
+                          type: string
+                        tenancy:
                           type: string
                       type: object
                     roleName:
