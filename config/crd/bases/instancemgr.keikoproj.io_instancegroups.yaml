@@ -432,6 +432,8 @@ spec:
               type: string
             strategyResourceName:
               type: string
+            strategyResourceNamespace:
+              type: string
             usingSpotRecommendation:
               type: boolean
           type: object

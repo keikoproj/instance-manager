@@ -322,6 +322,7 @@ type InstanceGroupStatus struct {
 	ActiveScalingGroupName        string                   `json:"activeScalingGroupName,omitempty"`
 	NodesArn                      string                   `json:"nodesInstanceRoleArn,omitempty"`
 	StrategyResourceName          string                   `json:"strategyResourceName,omitempty"`
+	StrategyResourceNamespace     string                   `json:"strategyResourceNamespace,omitempty"`
 	UsingSpotRecommendation       bool                     `json:"usingSpotRecommendation,omitempty"`
 	Lifecycle                     string                   `json:"lifecycle,omitempty"`
 	ConfigHash                    string                   `json:"configMD5,omitempty"`
@@ -962,8 +963,16 @@ func (status *InstanceGroupStatus) GetStrategyResourceName() string {
 	return status.StrategyResourceName
 }
 
+func (status *InstanceGroupStatus) GetStrategyResourceNamespace() string {
+	return status.StrategyResourceNamespace
+}
+
 func (status *InstanceGroupStatus) SetStrategyResourceName(name string) {
 	status.StrategyResourceName = name
+}
+
+func (status *InstanceGroupStatus) SetStrategyResourceNamespace(namespace string) {
+	status.StrategyResourceNamespace = namespace
 }
 
 func (status *InstanceGroupStatus) GetCurrentMin() int {
