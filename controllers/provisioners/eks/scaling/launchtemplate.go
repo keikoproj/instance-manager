@@ -96,12 +96,14 @@ func (lt *LaunchTemplate) Create(input *CreateConfigurationInput) error {
 		IamInstanceProfile: &ec2.LaunchTemplateIamInstanceProfileSpecificationRequest{
 			Arn: aws.String(input.IamInstanceProfileArn),
 		},
-		ImageId:             aws.String(input.ImageId),
-		InstanceType:        aws.String(input.InstanceType),
-		KeyName:             aws.String(input.KeyName),
-		SecurityGroupIds:    aws.StringSlice(input.SecurityGroups),
-		UserData:            aws.String(input.UserData),
-		BlockDeviceMappings: lt.blockDeviceListRequest(input.Volumes),
+		ImageId:               aws.String(input.ImageId),
+		InstanceType:          aws.String(input.InstanceType),
+		KeyName:               aws.String(input.KeyName),
+		SecurityGroupIds:      aws.StringSlice(input.SecurityGroups),
+		UserData:              aws.String(input.UserData),
+		BlockDeviceMappings:   lt.blockDeviceListRequest(input.Volumes),
+		LicenseSpecifications: lt.LaunchTemplateLicenseConfigurationRequest(input.LicenseSpecifications),
+		Placement:             lt.launchTemplatePlacementRequest(input.Placement),
 	}
 
 	if !lt.Provisioned() {
@@ -245,6 +247,29 @@ func (lt *LaunchTemplate) Drifted(input *CreateConfigurationInput) bool {
 		drift = true
 	}
 
+	existingSpec := sortLicenseSpecifications(latestVersion.LaunchTemplateData.LicenseSpecifications)
+	newSpec := sortLicenseSpecifications(lt.LaunchTemplateLicenseConfiguration(input.LicenseSpecifications))
+	if !reflect.DeepEqual(existingSpec, newSpec) {
+		log.Info("detected drift", "reason", "LicenseSpecifications has changed", "instancegroup", lt.OwnerName,
+			"previousValue", existingSpec,
+			"newValue", newSpec,
+		)
+		drift = true
+	}
+
+	placementConfig := lt.launchTemplatePlacement(input.Placement)
+	currentPlacement := latestVersion.LaunchTemplateData.Placement
+	if currentPlacement == nil {
+		currentPlacement = &ec2.LaunchTemplatePlacement{}
+	}
+	if !reflect.DeepEqual(currentPlacement, placementConfig) {
+		log.Info("detected drift", "reason", "placement configuration has changed", "instancegroup", lt.OwnerName,
+			"previousValue", currentPlacement,
+			"newValue", placementConfig,
+		)
+		drift = true
+	}
+
 	if !drift {
 		log.Info("drift not detected", "instancegroup", lt.OwnerName)
 	}
@@ -313,6 +338,20 @@ func (lt *LaunchTemplate) blockDeviceList(volumes []v1alpha1.NodeVolume) []*ec2.
 	return sortTemplateDevices(devices)
 }
 
+func (lt *LaunchTemplate) launchTemplatePlacementRequest(input *v1alpha1.PlacementSpec) *ec2.LaunchTemplatePlacementRequest {
+	if input == nil {
+		return &ec2.LaunchTemplatePlacementRequest{}
+	}
+	return lt.LaunchTemplatePlacementRequest(input.AvailabilityZone, input.HostResourceGroupArn, input.Tenancy)
+}
+
+func (lt *LaunchTemplate) launchTemplatePlacement(input *v1alpha1.PlacementSpec) *ec2.LaunchTemplatePlacement {
+	if input == nil {
+		return &ec2.LaunchTemplatePlacement{}
+	}
+	return lt.LaunchTemplatePlacement(input.AvailabilityZone, input.HostResourceGroupArn, input.Tenancy)
+}
+
 func (lt *LaunchTemplate) getVersion(id int64) *ec2.LaunchTemplateVersion {
 	for _, v := range lt.TargetVersions {
 		n := aws.Int64Value(v.VersionNumber)
@@ -348,4 +387,14 @@ func sortVersions(versions []*ec2.LaunchTemplateVersion) []*ec2.LaunchTemplateVe
 	})
 
 	return versions
+}
+
+func sortLicenseSpecifications(licenses []*ec2.LaunchTemplateLicenseConfiguration) []*ec2.LaunchTemplateLicenseConfiguration {
+	if len(licenses) == 0 {
+		return []*ec2.LaunchTemplateLicenseConfiguration{}
+	}
+	sort.Slice(licenses[:], func(i, j int) bool {
+		return aws.StringValue(licenses[i].LicenseConfigurationArn) < aws.StringValue(licenses[j].LicenseConfigurationArn)
+	})
+	return licenses
 }
