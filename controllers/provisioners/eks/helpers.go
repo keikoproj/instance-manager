@@ -107,8 +107,12 @@ func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, k
 		osFamily      = ctx.GetOsFamily()
 		nodeLabels    = ctx.GetComputedLabels()
 		nodeTaints    = configuration.GetTaints()
+		bootstrapOptions = configuration.GetBootstrapOptions()
 	)
-
+	var maxPods int64 = 0
+	if bootstrapOptions != nil {
+		maxPods = bootstrapOptions.MaxPods
+	}
 	var UserDataTemplate string
 	switch strings.ToLower(osFamily) {
 	case OsFamilyWindows:
@@ -125,6 +129,9 @@ func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, k
 api-server   = "{{ .ApiEndpoint }}"
 cluster-certificate = "{{ .ClusterCA }}"
 cluster-name = "{{ .ClusterName }}"
+{{- if .MaxPods}}
+max-pods = {{ .MaxPods }}
+{{- end}}
 [settings.kubernetes.node-labels]
 {{- range $key, $value := .NodeLabels }}
 "{{ $key }}" = "{{ $value }}"
@@ -156,6 +163,7 @@ set +o xtrace
 		ApiEndpoint:      apiEndpoint,
 		ClusterCA:        clusterCa,
 		ClusterName:      clusterName,
+		MaxPods:          maxPods,
 		NodeLabels:       nodeLabels,
 		NodeTaints:       nodeTaints,
 		KubeletExtraArgs: kubeletExtraArgs,

@@ -77,6 +77,11 @@ spec:
                   properties:
                     bootstrapArguments:
                       type: string
+                    bootstrapOptions:
+                      type: object
+                      properties:
+                        maxPods:
+                          type: int64
                     clusterName:
                       type: string
                     image:

@@ -114,6 +114,7 @@ type EKSUserData struct {
 	PreBootstrap     []string
 	PostBootstrap    []string
 	MountOptions     []MountOpts
+	MaxPods			 int64
 }
 
 func (ctx *EksInstanceGroupContext) GetInstanceGroup() *v1alpha1.InstanceGroup {
