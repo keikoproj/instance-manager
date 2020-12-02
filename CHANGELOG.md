@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
-- Premature upgrade completion (#211)
+- Fix premature upgrade completion (#211)
 - LaunchID omitted when switching between configuration types (#208)
 - Caching improvements for DescribeInstanceTypes/Offerings (#206)
 - NPE when switching between configuration types (#205)
