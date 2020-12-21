@@ -118,10 +118,12 @@ func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, k
 	case OsFamilyWindows:
 		UserDataTemplate = `
 <powershell>
+  {{range $pre := .PreBootstrap}}{{$pre}}{{end}}
   [string]$EKSBinDir = "$env:ProgramFiles\Amazon\EKS"
   [string]$EKSBootstrapScriptName = 'Start-EKSBootstrap.ps1'
   [string]$EKSBootstrapScriptFile = "$EKSBinDir\$EKSBootstrapScriptName"
   & $EKSBootstrapScriptFile -EKSClusterName {{ .ClusterName }} -KubeletExtraArgs '{{ .KubeletExtraArgs }}' 3>&1 4>&1 5>&1 6>&1
+  {{range $post := .PostBootstrap}}{{$post}}{{end}}
 </powershell>`
 	case OsFamilyBottleRocket:
 		UserDataTemplate = `
