@@ -539,8 +539,9 @@ This also makes upgrades easier across a managed cluster, an operator can now si
 
 ## Annotations
 
-| Annotation Key | Annotation Value | Purpose |
-|----------------|------------------|---------|
-|instancemgr.keikoproj.io/cluster-autoscaler-enabled|"true"|setting this annotation to true will add the relevant cluster-autoscaler EC2 tags according to cluster name, taints, and labels|
-|instancemgr.keikoproj.io/os-family|either "windows", "bottlerocket", or "amazonlinux2" (default)|this is required if you are running a windows or bottlerocket based AMI, by default the controller will try to bootstrap an amazonlinux2 AMI|
+| Annotation Key | Object | Annotation Value | Purpose |
+|:----------------:|:------------------:|:------------------:|:---------:|
+|instancemgr.keikoproj.io/config-excluded|Namespace|"true"|settings this annotation on a namespace will allow opt-out from a configuration configmap, all instancegroups under such namespace will not use configmap boundaries and default values|
+|instancemgr.keikoproj.io/cluster-autoscaler-enabled|InstanceGroup|"true"|setting this annotation to true will add the relevant cluster-autoscaler EC2 tags according to cluster name, taints, and labels|
+|instancemgr.keikoproj.io/os-family|InstanceGroup|either "windows", "bottlerocket", or "amazonlinux2" (default)|this is required if you are running a windows or bottlerocket based AMI, by default the controller will try to bootstrap an amazonlinux2 AMI|InstanceGroup|
 |instancemgr.keikoproj.io/default-labels|comma-seprarated key-value string e.g. "label1=value1,label2=value2"|allows overriding the default node labels added by the controller, by default the role label is added depending on the cluster version|
