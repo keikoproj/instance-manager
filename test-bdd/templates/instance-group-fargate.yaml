@@ -2,7 +2,7 @@ apiVersion: instancemgr.keikoproj.io/v1alpha1
 kind: InstanceGroup
 metadata:
   name: bdd-test-fargate
-  namespace: instance-manager
+  namespace: instance-manager-bdd
 spec:
   provisioner: eks-fargate
   strategy:
