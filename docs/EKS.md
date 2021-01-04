@@ -540,7 +540,7 @@ This also makes upgrades easier across a managed cluster, an operator can now si
 ## Annotations
 
 | Annotation Key | Object | Annotation Value | Purpose |
-|:----------------:|:------------------:|:------------------:|:---------:|
+|:--------------:|:------:|:----------------:|:-------:|
 |instancemgr.keikoproj.io/config-excluded|Namespace|"true"|settings this annotation on a namespace will allow opt-out from a configuration configmap, all instancegroups under such namespace will not use configmap boundaries and default values|
 |instancemgr.keikoproj.io/cluster-autoscaler-enabled|InstanceGroup|"true"|setting this annotation to true will add the relevant cluster-autoscaler EC2 tags according to cluster name, taints, and labels|
 |instancemgr.keikoproj.io/os-family|InstanceGroup|either "windows", "bottlerocket", or "amazonlinux2" (default)|this is required if you are running a windows or bottlerocket based AMI, by default the controller will try to bootstrap an amazonlinux2 AMI|InstanceGroup|
