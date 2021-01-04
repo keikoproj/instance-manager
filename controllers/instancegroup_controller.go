@@ -19,6 +19,7 @@ import (
 	"context"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -33,6 +34,8 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -48,6 +51,7 @@ type InstanceGroupReconciler struct {
 	Auth                   *InstanceGroupAuthenticator
 	ConfigMap              *corev1.ConfigMap
 	Namespaces             map[string]corev1.Namespace
+	NamespacesLock         *sync.Mutex
 	ConfigRetention        int
 }
 
@@ -132,10 +136,19 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	if !reflect.DeepEqual(r.ConfigMap, &corev1.ConfigMap{}) {
 
 		var isExcludedNamespace bool
-
-		if r.IsNamespaceAnnotated(instanceGroup.GetNamespace(), provisioners.ConfigurationExclusionAnnotationKey, "true") {
-			isExcludedNamespace = true
-			r.Log.Info("namespace excluded from managed configuration", "namespace", instanceGroup.GetNamespace())
+		namespace := instanceGroup.GetNamespace()
+		if ns, ok := r.Namespaces[namespace]; ok {
+			nsObject, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&ns)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			unstructuredNamespace := &unstructured.Unstructured{
+				Object: nsObject,
+			}
+			if kubeprovider.HasAnnotation(unstructuredNamespace, provisioners.ConfigurationExclusionAnnotationKey, "true") {
+				isExcludedNamespace = true
+				r.Log.Info("namespace excluded from managed configuration", "namespace", namespace)
+			}
 		}
 
 		if !isExcludedNamespace {
@@ -202,23 +215,4 @@ func (r *InstanceGroupReconciler) UpdateStatus(ig *v1alpha1.InstanceGroup) {
 		}
 		r.Log.Info("failed to update status", "error", err, "instancegroup", ig.NamespacedName())
 	}
-}
-
-func (r *InstanceGroupReconciler) IsNamespaceAnnotated(name, key, value string) bool {
-	var (
-		targetNamespace corev1.Namespace
-	)
-
-	if ns, ok := r.Namespaces[name]; ok {
-		targetNamespace = ns
-	}
-
-	annotations := targetNamespace.GetAnnotations()
-	if val, ok := annotations[provisioners.ConfigurationExclusionAnnotationKey]; ok {
-		if strings.EqualFold(val, "true") {
-			return true
-		}
-	}
-
-	return false
 }
