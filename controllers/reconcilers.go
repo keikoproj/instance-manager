@@ -160,6 +160,9 @@ func (r *InstanceGroupReconciler) namespaceReconciler(obj handler.MapObject) []c
 
 	ns := obj.Object.(*corev1.Namespace)
 
+	r.NamespacesLock.Lock()
+	defer r.NamespacesLock.Unlock()
+
 	if _, ok := r.Namespaces[name]; !ok {
 		// new namespace
 		r.Namespaces[name] = *ns
