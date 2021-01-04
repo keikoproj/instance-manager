@@ -537,6 +537,8 @@ This is enforced via the `status.configMD5` field, which has an MD5 hash of the 
 
 This also makes upgrades easier across a managed cluster, an operator can now simply modify the default value for `image` and trigger an upgrade across all instance groups.
 
+Individual namespaces can opt-out by adding the annotation `instancemgr.keikoproj.io/config-excluded=true`, this is useful for system namespaces which may need to override a global restrictive configuration, e.g. subnet, while keeping the boundary as is for other namespaces - adding this annotation to a namespace will opt-out all instancegroups under the namespace from using the cluster configuration.
+
 ## Annotations
 
 | Annotation Key | Object | Annotation Value | Purpose |
