@@ -142,6 +142,7 @@ func main() {
 		ConfigRetention:        configRetention,
 		SpotRecommendationTime: spotRecommendationTime,
 		ConfigNamespace:        configNamespace,
+		Namespaces:             make(map[string]corev1.Namespace),
 		NodeRelabel:            nodeRelabel,
 		Client:                 mgr.GetClient(),
 		Log:                    ctrl.Log.WithName("controllers").WithName("instancegroup"),

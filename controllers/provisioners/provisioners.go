@@ -20,6 +20,8 @@ const (
 	TagInstanceGroupNamespace = "instancegroups.keikoproj.io/Namespace"
 	TagClusterOwnershipFmt    = "kubernetes.io/cluster/%s"
 	TagKubernetesCluster      = "KubernetesCluster"
+
+	ConfigurationExclusionAnnotationKey = "instancemgr.keikoproj.io/config-excluded"
 )
 
 type ProvisionerInput struct {

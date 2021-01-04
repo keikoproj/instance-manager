@@ -47,6 +47,7 @@ type InstanceGroupReconciler struct {
 	MaxParallel            int
 	Auth                   *InstanceGroupAuthenticator
 	ConfigMap              *corev1.ConfigMap
+	Namespaces             map[string]corev1.Namespace
 	ConfigRetention        int
 }
 
@@ -93,6 +94,7 @@ func (r *InstanceGroupReconciler) SetFinalizer(instanceGroup *v1alpha1.InstanceG
 	}
 }
 
+// +kubebuilder:rbac:groups=core,resources=namespaces,verbs=list;get
 // +kubebuilder:rbac:groups=core,resources=nodes,verbs=list;patch;watch
 // +kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch;create
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;create;update;patch;watch
@@ -128,17 +130,27 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	}
 
 	if !reflect.DeepEqual(r.ConfigMap, &corev1.ConfigMap{}) {
-		var defaultConfig *provisioners.ProvisionerConfiguration
-		if defaultConfig, err = provisioners.NewProvisionerConfiguration(r.ConfigMap, instanceGroup); err != nil {
-			return ctrl.Result{}, err
+
+		var isExcludedNamespace bool
+
+		if r.IsNamespaceAnnotated(instanceGroup.GetNamespace(), provisioners.ConfigurationExclusionAnnotationKey, "true") {
+			isExcludedNamespace = true
+			r.Log.Info("namespace excluded from managed configuration", "namespace", instanceGroup.GetNamespace())
 		}
 
-		if err = defaultConfig.SetDefaults(); err != nil {
-			r.Log.Error(err, "failed to set configuration defaults", "instancegroup", instanceGroup.NamespacedName())
-			return ctrl.Result{}, err
-		}
+		if !isExcludedNamespace {
+			var defaultConfig *provisioners.ProvisionerConfiguration
+			if defaultConfig, err = provisioners.NewProvisionerConfiguration(r.ConfigMap, instanceGroup); err != nil {
+				return ctrl.Result{}, err
+			}
 
-		input.InstanceGroup = defaultConfig.InstanceGroup
+			if err = defaultConfig.SetDefaults(); err != nil {
+				r.Log.Error(err, "failed to set configuration defaults", "instancegroup", instanceGroup.NamespacedName())
+				return ctrl.Result{}, err
+			}
+
+			input.InstanceGroup = defaultConfig.InstanceGroup
+		}
 	}
 
 	provisionerKind := strings.ToLower(input.InstanceGroup.Spec.Provisioner)
@@ -190,4 +202,23 @@ func (r *InstanceGroupReconciler) UpdateStatus(ig *v1alpha1.InstanceGroup) {
 		}
 		r.Log.Info("failed to update status", "error", err, "instancegroup", ig.NamespacedName())
 	}
+}
+
+func (r *InstanceGroupReconciler) IsNamespaceAnnotated(name, key, value string) bool {
+	var (
+		targetNamespace corev1.Namespace
+	)
+
+	if ns, ok := r.Namespaces[name]; ok {
+		targetNamespace = ns
+	}
+
+	annotations := targetNamespace.GetAnnotations()
+	if val, ok := annotations[provisioners.ConfigurationExclusionAnnotationKey]; ok {
+		if strings.EqualFold(val, "true") {
+			return true
+		}
+	}
+
+	return false
 }
