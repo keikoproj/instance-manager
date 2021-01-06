@@ -1,6 +1,6 @@
 module github.com/keikoproj/instance-manager
 
-go 1.13
+go 1.14
 
 require (
 	github.com/Masterminds/semver v1.5.0
