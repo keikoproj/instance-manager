@@ -147,6 +147,9 @@ func (r *InstanceGroupReconciler) namespaceReconciler(obj handler.MapObject) []c
 		Name:      name,
 	}
 
+	r.NamespacesLock.Lock()
+	defer r.NamespacesLock.Unlock()
+
 	err := r.Get(context.Background(), namespacedName, obj.Object)
 	if err != nil {
 		if kerrors.IsNotFound(err) {
@@ -159,9 +162,6 @@ func (r *InstanceGroupReconciler) namespaceReconciler(obj handler.MapObject) []c
 	}
 
 	ns := obj.Object.(*corev1.Namespace)
-
-	r.NamespacesLock.Lock()
-	defer r.NamespacesLock.Unlock()
 
 	if _, ok := r.Namespaces[name]; !ok {
 		// new namespace
