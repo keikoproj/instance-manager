@@ -16,6 +16,7 @@ limitations under the License.
 package eks
 
 import (
+	"context"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -57,7 +58,7 @@ func TestUpgradeCRDStrategyValidation(t *testing.T) {
 
 	// create dogs crd
 	definitionsGvr := kubeprovider.GetGVR(crd, "customresourcedefinitions")
-	_, err = k.KubeDynamic.Resource(definitionsGvr).Create(crd, metav1.CreateOptions{})
+	_, err = k.KubeDynamic.Resource(definitionsGvr).Create(context.Background(), crd, metav1.CreateOptions{})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	var (
@@ -182,7 +183,7 @@ func TestUpgradeCRDStrategy(t *testing.T) {
 	// create dogs crd
 	definitionsGvr := kubeprovider.GetGVR(crd, "customresourcedefinitions")
 	crGvr := kubeprovider.GetGVR(cr, "dogs")
-	_, err = k.KubeDynamic.Resource(definitionsGvr).Create(crd, metav1.CreateOptions{})
+	_, err = k.KubeDynamic.Resource(definitionsGvr).Create(context.Background(), crd, metav1.CreateOptions{})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	// add dog custom resource to strategy
@@ -207,7 +208,7 @@ func TestUpgradeCRDStrategy(t *testing.T) {
 	for i, tc := range tests {
 		t.Logf("#%v - \"%v\"", i, tc.input)
 		unstructured.SetNestedField(cr.Object, tc.input, "status", "dogStatus")
-		_, err := k.KubeDynamic.Resource(crGvr).Namespace("default").Update(cr, metav1.UpdateOptions{})
+		_, err := k.KubeDynamic.Resource(crGvr).Namespace("default").Update(context.Background(), cr, metav1.UpdateOptions{})
 		g.Expect(err).NotTo(gomega.HaveOccurred())
 
 		var errOccured bool
@@ -265,27 +266,27 @@ func TestUpgradeRollingUpdateStrategyPositive(t *testing.T) {
 			asgMock.TerminateInstanceInAutoScalingGroupErr = errors.New("some-error")
 		}
 		// delete all mock nodes
-		allNodes, err := k.Kubernetes.CoreV1().Nodes().List(metav1.ListOptions{})
+		allNodes, err := k.Kubernetes.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
 		g.Expect(err).NotTo(gomega.HaveOccurred())
 
 		for _, node := range allNodes.Items {
-			err = k.Kubernetes.CoreV1().Nodes().Delete(node.Name, &metav1.DeleteOptions{})
+			err = k.Kubernetes.CoreV1().Nodes().Delete(context.Background(), node.Name, metav1.DeleteOptions{})
 			g.Expect(err).NotTo(gomega.HaveOccurred())
 		}
 
 		for i := 0; i < tc.readyNodes; i++ {
 			id := aws.StringValue(tc.scalingInstances[i].InstanceId)
-			_, err := k.Kubernetes.CoreV1().Nodes().Create(MockNode(id, corev1.ConditionTrue))
+			_, err := k.Kubernetes.CoreV1().Nodes().Create(context.Background(), MockNode(id, corev1.ConditionTrue), metav1.CreateOptions{})
 			g.Expect(err).NotTo(gomega.HaveOccurred())
 		}
 
 		for i := tc.readyNodes; i < tc.unreadyNodes; i++ {
 			id := aws.StringValue(tc.scalingInstances[i].InstanceId)
-			_, err := k.Kubernetes.CoreV1().Nodes().Create(MockNode(id, corev1.ConditionFalse))
+			_, err := k.Kubernetes.CoreV1().Nodes().Create(context.Background(), MockNode(id, corev1.ConditionFalse), metav1.CreateOptions{})
 			g.Expect(err).NotTo(gomega.HaveOccurred())
 		}
 
-		nodes, err := k.Kubernetes.CoreV1().Nodes().List(metav1.ListOptions{})
+		nodes, err := k.Kubernetes.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
 		g.Expect(err).NotTo(gomega.HaveOccurred())
 
 		ig.SetUpgradeStrategy(MockAwsRollingUpdateStrategy(&tc.maxUnavailable))

@@ -17,6 +17,7 @@ package kubernetes
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"html/template"
 	"os"
@@ -232,7 +233,7 @@ func GetKubernetesLocalConfig() (*rest.Config, error) {
 
 func CRDExists(kubeClient dynamic.Interface, name string) bool {
 	CRDSchema := schema.GroupVersionResource{Group: "apiextensions.k8s.io", Version: "v1beta1", Resource: "customresourcedefinitions"}
-	_, err := kubeClient.Resource(CRDSchema).Get(name, metav1.GetOptions{})
+	_, err := kubeClient.Resource(CRDSchema).Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
 		return false
 	}

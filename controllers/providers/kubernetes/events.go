@@ -16,6 +16,7 @@ limitations under the License.
 package kubernetes
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -115,7 +116,7 @@ func (e *EventPublisher) Publish(kind EventKind, keysAndValues ...interface{}) {
 		LastTimestamp:  metav1.NewTime(now),
 	}
 
-	_, err = e.Client.CoreV1().Events(e.Namespace).Create(event)
+	_, err = e.Client.CoreV1().Events(e.Namespace).Create(context.Background(), event, metav1.CreateOptions{})
 	if err != nil {
 		log.Error(err, "failed to publish event", "event", event)
 	}

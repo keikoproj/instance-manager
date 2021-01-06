@@ -100,12 +100,11 @@ func (r *InstanceGroupReconciler) SetFinalizer(instanceGroup *v1alpha1.InstanceG
 // +kubebuilder:rbac:groups=instancemgr.keikoproj.io,resources=instancegroups,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=instancemgr.keikoproj.io,resources=instancegroups/status,verbs=get;update;patch
 
-func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	_ = context.Background()
+func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = r.Log.WithValues("instancegroup", req.NamespacedName)
 
 	instanceGroup := &v1alpha1.InstanceGroup{}
-	err := r.Get(context.Background(), req.NamespacedName, instanceGroup)
+	err := r.Get(ctxt, req.NamespacedName, instanceGroup)
 	if err != nil {
 		if kerrors.IsNotFound(err) {
 			r.Log.Info("instancegroup not found", "instancegroup", req.NamespacedName)
