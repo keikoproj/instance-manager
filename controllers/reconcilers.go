@@ -52,7 +52,7 @@ func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			Watches(&source.Kind{Type: &corev1.Event{}}, handler.EnqueueRequestsFromMapFunc(r.spotEventReconciler)).
 			Watches(&source.Kind{Type: &corev1.Node{}}, handler.EnqueueRequestsFromMapFunc(r.nodeReconciler)).
 			Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.configMapReconciler)).
-    	Watches(&source.Kind{Type: &corev1.Namespace{}}, handler.EnqueueRequestsFromMapFunc(r.namespaceReconciler)).
+			Watches(&source.Kind{Type: &corev1.Namespace{}}, handler.EnqueueRequestsFromMapFunc(r.namespaceReconciler)).
 			WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
 			Complete(r)
 	default:
@@ -60,7 +60,7 @@ func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			For(&v1alpha1.InstanceGroup{}).
 			Watches(&source.Kind{Type: &corev1.Event{}}, handler.EnqueueRequestsFromMapFunc(r.spotEventReconciler)).
 			Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.configMapReconciler)).
-      Watches(&source.Kind{Type: &corev1.Namespace{}}, handler.EnqueueRequestsFromMapFunc(r.namespaceReconciler)).
+			Watches(&source.Kind{Type: &corev1.Namespace{}}, handler.EnqueueRequestsFromMapFunc(r.namespaceReconciler)).
 			WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
 			Complete(r)
 	}
@@ -122,9 +122,9 @@ func (r *InstanceGroupReconciler) configMapReconciler(obj client.Object) []ctrl.
 	return nil
 }
 
-func (r *InstanceGroupReconciler) namespaceReconciler(obj handler.MapObject) []ctrl.Request {
+func (r *InstanceGroupReconciler) namespaceReconciler(obj client.Object) []ctrl.Request {
 	var (
-		name = obj.Meta.GetName()
+		name = obj.GetName()
 	)
 
 	ctrl.Log.Info("namespace watch event", "object", name)
@@ -137,7 +137,7 @@ func (r *InstanceGroupReconciler) namespaceReconciler(obj handler.MapObject) []c
 	r.NamespacesLock.Lock()
 	defer r.NamespacesLock.Unlock()
 
-	err := r.Get(context.Background(), namespacedName, obj.Object)
+	err := r.Get(context.Background(), namespacedName, obj)
 	if err != nil {
 		if kerrors.IsNotFound(err) {
 			r.Log.Info("namespace deleted", "object", name)
@@ -148,7 +148,7 @@ func (r *InstanceGroupReconciler) namespaceReconciler(obj handler.MapObject) []c
 		return nil
 	}
 
-	ns := obj.Object.(*corev1.Namespace)
+	ns := obj.(*corev1.Namespace)
 
 	if _, ok := r.Namespaces[name]; !ok {
 		// new namespace
