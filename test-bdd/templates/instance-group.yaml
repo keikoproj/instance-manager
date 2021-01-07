@@ -4,7 +4,7 @@ metadata:
   labels:
     controller-tools.k8s.io: "1.0"
   name: bdd-test-rolling
-  namespace: instance-manager
+  namespace: instance-manager-bdd
 spec:
   provisioner: eks
   strategy:

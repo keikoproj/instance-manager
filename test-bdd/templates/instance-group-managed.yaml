@@ -2,7 +2,7 @@ apiVersion: instancemgr.keikoproj.io/v1alpha1
 kind: InstanceGroup
 metadata:
   name: bdd-test-managed
-  namespace: instance-manager
+  namespace: instance-manager-bdd
 spec:
   provisioner: eks-managed
   strategy:

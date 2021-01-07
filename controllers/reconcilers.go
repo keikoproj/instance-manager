@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -51,6 +52,7 @@ func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			Watches(&source.Kind{Type: &corev1.Event{}}, handler.EnqueueRequestsFromMapFunc(r.spotEventReconciler)).
 			Watches(&source.Kind{Type: &corev1.Node{}}, handler.EnqueueRequestsFromMapFunc(r.nodeReconciler)).
 			Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.configMapReconciler)).
+    	Watches(&source.Kind{Type: &corev1.Namespace{}}, handler.EnqueueRequestsFromMapFunc(r.namespaceReconciler)).
 			WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
 			Complete(r)
 	default:
@@ -58,6 +60,7 @@ func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			For(&v1alpha1.InstanceGroup{}).
 			Watches(&source.Kind{Type: &corev1.Event{}}, handler.EnqueueRequestsFromMapFunc(r.spotEventReconciler)).
 			Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.configMapReconciler)).
+      Watches(&source.Kind{Type: &corev1.Namespace{}}, handler.EnqueueRequestsFromMapFunc(r.namespaceReconciler)).
 			WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
 			Complete(r)
 	}
@@ -117,6 +120,70 @@ func (r *InstanceGroupReconciler) configMapReconciler(obj client.Object) []ctrl.
 		return requests
 	}
 	return nil
+}
+
+func (r *InstanceGroupReconciler) namespaceReconciler(obj handler.MapObject) []ctrl.Request {
+	var (
+		name = obj.Meta.GetName()
+	)
+
+	ctrl.Log.Info("namespace watch event", "object", name)
+
+	namespacedName := types.NamespacedName{
+		Namespace: "",
+		Name:      name,
+	}
+
+	r.NamespacesLock.Lock()
+	defer r.NamespacesLock.Unlock()
+
+	err := r.Get(context.Background(), namespacedName, obj.Object)
+	if err != nil {
+		if kerrors.IsNotFound(err) {
+			r.Log.Info("namespace deleted", "object", name)
+			delete(r.Namespaces, name)
+			return nil
+		}
+		r.Log.Error(err, "could not get namespace")
+		return nil
+	}
+
+	ns := obj.Object.(*corev1.Namespace)
+
+	if _, ok := r.Namespaces[name]; !ok {
+		// new namespace
+		r.Namespaces[name] = *ns
+		return nil
+	}
+
+	if val, ok := r.Namespaces[name]; ok {
+		if reflect.DeepEqual(val.GetAnnotations(), ns.GetAnnotations()) {
+			// annotations not modified
+			return nil
+		}
+	}
+
+	// namespace mutation - triggers reconcile for all instancegroups
+	r.Namespaces[name] = *ns
+
+	instanceGroups := &v1alpha1.InstanceGroupList{}
+	err = r.List(context.Background(), instanceGroups, client.InNamespace(name))
+	if err != nil {
+		r.Log.Error(err, "could not get namespaced instancegroups")
+		return nil
+	}
+
+	requests := make([]ctrl.Request, 0)
+	for _, ig := range instanceGroups.Items {
+		requests = append(requests, ctrl.Request{
+			NamespacedName: types.NamespacedName{
+				Namespace: ig.GetNamespace(),
+				Name:      ig.GetName(),
+			},
+		})
+	}
+
+	return requests
 }
 
 type NodeLabels struct {
