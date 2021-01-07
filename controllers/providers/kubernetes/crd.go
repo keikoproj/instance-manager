@@ -16,6 +16,7 @@ limitations under the License.
 package kubernetes
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -106,7 +107,7 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 					continue
 				}
 				log.Info("active custom resource/s exists, will replace", "instancegroup", instanceGroup.GetName())
-				err = kube.Resource(GVR).Namespace(resource.GetNamespace()).Delete(resource.GetName(), &metav1.DeleteOptions{})
+				err = kube.Resource(GVR).Namespace(resource.GetNamespace()).Delete(context.Background(), resource.GetName(), metav1.DeleteOptions{})
 				if err != nil {
 					if !kerr.IsNotFound(err) {
 						return false, errors.Wrap(err, "failed to delete custom resource")
@@ -126,7 +127,7 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 	for _, resource := range inactiveResources {
 		if strings.EqualFold(resource.GetName(), customResource.GetName()) && strings.EqualFold(resource.GetNamespace(), customResource.GetNamespace()) {
 			log.Info("name conflict with inactive resource, will delete", "instancegroup", instanceGroup.GetName(), "resource", resource.GetName())
-			err = kube.Resource(GVR).Namespace(resource.GetNamespace()).Delete(resource.GetName(), &metav1.DeleteOptions{})
+			err = kube.Resource(GVR).Namespace(resource.GetNamespace()).Delete(context.Background(), resource.GetName(), metav1.DeleteOptions{})
 			if err != nil {
 				if !kerr.IsNotFound(err) {
 					return false, errors.Wrap(err, "failed to delete custom resource")
@@ -141,7 +142,7 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 	}
 	log.Info("submitted custom resource", "instancegroup", instanceGroup.GetName())
 
-	customResource, err = kube.Resource(GVR).Namespace(customResource.GetNamespace()).Get(customResource.GetName(), metav1.GetOptions{})
+	customResource, err = kube.Resource(GVR).Namespace(customResource.GetNamespace()).Get(context.Background(), customResource.GetName(), metav1.GetOptions{})
 	if kerr.IsNotFound(err) {
 		log.Info("custom resource did not propagate, will requeue", "instancegroup", instanceGroup.GetName())
 		instanceGroup.SetState(v1alpha1.ReconcileModifying)
@@ -254,7 +255,7 @@ func IsResourceActive(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGr
 		return false
 	}
 
-	r, err := kube.Resource(gvr).Namespace(namespace).Get(name, metav1.GetOptions{})
+	r, err := kube.Resource(gvr).Namespace(namespace).Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
 		if kerr.IsNotFound(err) {
 			return false
@@ -282,7 +283,7 @@ func GetResources(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGroup,
 		GVR               = GetGVR(resource, strategy.GetCRDName())
 	)
 
-	r, err := kube.Resource(GVR).Namespace(resource.GetNamespace()).List(metav1.ListOptions{})
+	r, err := kube.Resource(GVR).Namespace(resource.GetNamespace()).List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		return inactiveResources, activeResources, err
 	}
@@ -312,7 +313,7 @@ func SubmitCustomResource(kube dynamic.Interface, customResource *unstructured.U
 		GVR                     = GetGVR(customResource, CRDName)
 	)
 
-	_, err := kube.Resource(GVR).Namespace(customResourceNamespace).Create(customResource, metav1.CreateOptions{})
+	_, err := kube.Resource(GVR).Namespace(customResourceNamespace).Create(context.Background(), customResource, metav1.CreateOptions{})
 	if !kerr.IsAlreadyExists(err) {
 		return err
 	}

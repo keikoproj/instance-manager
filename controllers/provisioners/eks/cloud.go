@@ -16,6 +16,7 @@ limitations under the License.
 package eks
 
 import (
+	"context"
 	"strings"
 
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
@@ -94,7 +95,7 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		}
 	}
 
-	nodes, err := ctx.KubernetesClient.Kubernetes.CoreV1().Nodes().List(metav1.ListOptions{})
+	nodes, err := ctx.KubernetesClient.Kubernetes.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		return errors.Wrap(err, "failed to list cluster nodes")
 	}

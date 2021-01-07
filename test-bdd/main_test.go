@@ -16,6 +16,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -183,7 +184,7 @@ func (t *FunctionalTest) iOperateOnResource(operation, fileName string) error {
 
 	switch operation {
 	case OperationCreate:
-		_, err = t.DynamicClient.Resource(gvr.Resource).Namespace(t.ResourceNamespace).Create(resource, metav1.CreateOptions{})
+		_, err = t.DynamicClient.Resource(gvr.Resource).Namespace(t.ResourceNamespace).Create(context.Background(), resource, metav1.CreateOptions{})
 		if err != nil {
 			if kerrors.IsAlreadyExists(err) {
 				// already created
@@ -192,7 +193,7 @@ func (t *FunctionalTest) iOperateOnResource(operation, fileName string) error {
 			return err
 		}
 	case OperationDelete:
-		err = t.DynamicClient.Resource(gvr.Resource).Namespace(t.ResourceNamespace).Delete(t.ResourceName, &metav1.DeleteOptions{})
+		err = t.DynamicClient.Resource(gvr.Resource).Namespace(t.ResourceNamespace).Delete(context.Background(), t.ResourceName, metav1.DeleteOptions{})
 		if err != nil {
 			if kerrors.IsNotFound(err) {
 				// already deleted
@@ -228,7 +229,7 @@ func (t *FunctionalTest) iUpdateResourceWithField(fileName, key string, value st
 	t.ResourceName = resource.GetName()
 	t.ResourceNamespace = resource.GetNamespace()
 
-	updateTarget, err := t.DynamicClient.Resource(gvr.Resource).Namespace(t.ResourceNamespace).Get(t.ResourceName, metav1.GetOptions{})
+	updateTarget, err := t.DynamicClient.Resource(gvr.Resource).Namespace(t.ResourceNamespace).Get(context.Background(), t.ResourceName, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -239,7 +240,7 @@ func (t *FunctionalTest) iUpdateResourceWithField(fileName, key string, value st
 		unstructured.SetNestedField(updateTarget.UnstructuredContent(), value, keySlice...)
 	}
 
-	_, err = t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Update(updateTarget, metav1.UpdateOptions{})
+	_, err = t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Update(context.Background(), updateTarget, metav1.UpdateOptions{})
 	if err != nil {
 		return err
 	}
@@ -258,7 +259,7 @@ func (t *FunctionalTest) theResourceConditionShouldBe(cType string, cond string)
 			return errors.New("waiter timed out waiting for resource state")
 		}
 		log.Infof("BDD >> waiting for resource %v/%v to meet condition %v=%v", t.ResourceNamespace, t.ResourceName, cType, cond)
-		resource, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Get(t.ResourceName, metav1.GetOptions{})
+		resource, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Get(context.Background(), t.ResourceName, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -306,7 +307,7 @@ func (t *FunctionalTest) theResourceShouldBe(state string) error {
 			return errors.New("waiter timed out waiting for resource state")
 		}
 		log.Infof("BDD >> waiting for resource %v/%v to become %v", t.ResourceNamespace, t.ResourceName, state)
-		_, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Get(t.ResourceName, metav1.GetOptions{})
+		_, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Get(context.Background(), t.ResourceName, metav1.GetOptions{})
 		if err != nil {
 			if !kerrors.IsNotFound(err) {
 				return err
@@ -347,7 +348,7 @@ func (t *FunctionalTest) theResourceShouldConvergeToSelector(selector string) er
 		}
 
 		log.Infof("BDD >> waiting for resource %v/%v to converge to %v=%v", t.ResourceNamespace, t.ResourceName, key, value)
-		resource, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Get(t.ResourceName, metav1.GetOptions{})
+		resource, err := t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Get(context.Background(), t.ResourceName, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -391,7 +392,7 @@ func (t *FunctionalTest) waitForNodeCountState(count int, state, selector string
 			return errors.New("waiter timed out waiting for nodes")
 		}
 		log.Infof("BDD >> %v/%v waiting for %v nodes to be %v with selector %v", t.ResourceNamespace, t.ResourceName, count, state, selector)
-		nodes, err := t.KubeClient.CoreV1().Nodes().List(opts)
+		nodes, err := t.KubeClient.CoreV1().Nodes().List(context.Background(), opts)
 		if err != nil {
 			return err
 		}
@@ -436,7 +437,7 @@ func (t *FunctionalTest) deleteAll() error {
 			return err
 		}
 
-		t.DynamicClient.Resource(gvr.Resource).Namespace(resource.GetNamespace()).Delete(resource.GetName(), &metav1.DeleteOptions{})
+		t.DynamicClient.Resource(gvr.Resource).Namespace(resource.GetNamespace()).Delete(context.Background(), resource.GetName(), metav1.DeleteOptions{})
 		log.Infof("BDD >> submitted deletion for %v/%v", resource.GetNamespace(), resource.GetName())
 		return nil
 	}
@@ -460,7 +461,7 @@ func (t *FunctionalTest) deleteAll() error {
 				return errors.New("waiter timed out waiting for deletion")
 			}
 			log.Infof("BDD >> waiting for resource deletion of %v/%v", resource.GetNamespace(), resource.GetName())
-			_, err := t.DynamicClient.Resource(gvr.Resource).Namespace(resource.GetNamespace()).Get(resource.GetName(), metav1.GetOptions{})
+			_, err := t.DynamicClient.Resource(gvr.Resource).Namespace(resource.GetNamespace()).Get(context.Background(), resource.GetName(), metav1.GetOptions{})
 			if err != nil {
 				if kerrors.IsNotFound(err) {
 					log.Infof("BDD >> resource %v/%v is deleted", resource.GetNamespace(), resource.GetName())

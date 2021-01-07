@@ -17,6 +17,7 @@ package eks
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"reflect"
@@ -877,7 +878,7 @@ func (ctx *EksInstanceGroupContext) RemoveAuthRole(arn string) error {
 	var list = &unstructured.UnstructuredList{}
 	var sharedGroups = make([]string, 0)
 
-	list, err := ctx.KubernetesClient.KubeDynamic.Resource(v1alpha1.GroupVersionResource).List(metav1.ListOptions{})
+	list, err := ctx.KubernetesClient.KubeDynamic.Resource(v1alpha1.GroupVersionResource).List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}

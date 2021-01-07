@@ -16,6 +16,7 @@ limitations under the License.
 package eks
 
 import (
+	"context"
 	"testing"
 
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
@@ -91,10 +92,10 @@ func TestUpdateWithDriftRotationPositive(t *testing.T) {
 			},
 		},
 	}
-	_, err := k.Kubernetes.CoreV1().Nodes().Create(mockNode)
+	_, err := k.Kubernetes.CoreV1().Nodes().Create(context.Background(), mockNode, metav1.CreateOptions{})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
-	nodes, err := k.Kubernetes.CoreV1().Nodes().List(metav1.ListOptions{})
+	nodes, err := k.Kubernetes.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	// missing launch config causes drift
@@ -174,10 +175,10 @@ func TestUpdateWithLaunchTemplate(t *testing.T) {
 			},
 		},
 	}
-	_, err := k.Kubernetes.CoreV1().Nodes().Create(mockNode)
+	_, err := k.Kubernetes.CoreV1().Nodes().Create(context.Background(), mockNode, metav1.CreateOptions{})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
-	nodes, err := k.Kubernetes.CoreV1().Nodes().List(metav1.ListOptions{})
+	nodes, err := k.Kubernetes.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	ctx.SetDiscoveredState(&DiscoveredState{
@@ -347,10 +348,10 @@ func TestUpdateWithRotationPositive(t *testing.T) {
 			},
 		},
 	}
-	_, err := k.Kubernetes.CoreV1().Nodes().Create(mockNode)
+	_, err := k.Kubernetes.CoreV1().Nodes().Create(context.Background(), mockNode, metav1.CreateOptions{})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
-	nodes, err := k.Kubernetes.CoreV1().Nodes().List(metav1.ListOptions{})
+	nodes, err := k.Kubernetes.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	ctx.SetDiscoveredState(&DiscoveredState{

@@ -273,7 +273,7 @@ func (u *EksFargateUnitTest) BuildProvisioner(t *testing.T) *FargateInstanceGrou
 			DeleteRoleNoSuchEntityException:       u.DeleteRoleNoSuchEntityException,
 		},
 	}
-	ctrl.SetLogger(zap.Logger(true))
+	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 	p := provisioners.ProvisionerInput{
 		InstanceGroup: u.InstanceGroup,
 		AwsWorker:     *aws,

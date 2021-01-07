@@ -16,6 +16,7 @@ limitations under the License.
 package kubernetes
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -44,7 +45,7 @@ func GetSpotRecommendation(kube kubernetes.Interface, identifier string) (SpotRe
 
 	fieldSelector := fmt.Sprintf("reason=%v,involvedObject.name=%v", SpotRecommendationReason, identifier)
 
-	eventList, err := kube.CoreV1().Events("").List(metav1.ListOptions{
+	eventList, err := kube.CoreV1().Events("").List(context.Background(), metav1.ListOptions{
 		FieldSelector: fieldSelector,
 	})
 	if err != nil {

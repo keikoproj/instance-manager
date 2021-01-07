@@ -1,46 +1,13 @@
 
 ---
-apiVersion: apiextensions.k8s.io/v1beta1
+apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.2.9
+    controller-gen.kubebuilder.io/version: v0.4.1
   creationTimestamp: null
   name: instancegroups.instancemgr.keikoproj.io
 spec:
-  additionalPrinterColumns:
-  - JSONPath: .status.currentState
-    description: current state of the instancegroup
-    name: State
-    type: string
-  - JSONPath: .status.currentMin
-    description: currently set min instancegroup size
-    name: Min
-    type: integer
-  - JSONPath: .status.currentMax
-    description: currently set max instancegroup size
-    name: Max
-    type: integer
-  - JSONPath: .status.activeScalingGroupName
-    description: instancegroup created scalinggroup name
-    name: Group Name
-    type: string
-  - JSONPath: .status.provisioner
-    description: instance group provisioner
-    name: Provisioner
-    type: string
-  - JSONPath: .status.strategy
-    description: instance group upgrade strategy
-    name: Strategy
-    type: string
-  - JSONPath: .status.lifecycle
-    description: instance group lifecycle spot/normal
-    name: Lifecycle
-    type: string
-  - JSONPath: .metadata.creationTimestamp
-    description: time passed since instancegroup creation
-    name: Age
-    type: date
   group: instancemgr.keikoproj.io
   names:
     kind: InstanceGroup
@@ -50,408 +17,428 @@ spec:
     - ig
     singular: instancegroup
   scope: Namespaced
-  subresources:
-    status: {}
-  validation:
-    openAPIV3Schema:
-      description: InstanceGroup is the Schema for the instancegroups API
-      properties:
-        apiVersion:
-          description: 'APIVersion defines the versioned schema of this representation
-            of an object. Servers should convert recognized schemas to the latest
-            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
-          type: string
-        kind:
-          description: 'Kind is a string value representing the REST resource this
-            object represents. Servers may infer this from the endpoint the client
-            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
-          type: string
-        metadata:
-          type: object
-        spec:
-          description: InstanceGroupSpec defines the schema of resource Spec
-          properties:
-            eks:
-              properties:
-                configuration:
-                  properties:
-                    bootstrapArguments:
-                      type: string
-                    bootstrapOptions:
-                      properties:
-                        maxPods:
-                          format: int64
-                          type: integer
-                      type: object
-                    clusterName:
-                      type: string
-                    image:
-                      type: string
-                    instanceProfileName:
-                      type: string
-                    instanceType:
-                      type: string
-                    keyPairName:
-                      type: string
-                    labels:
-                      additionalProperties:
-                        type: string
-                      type: object
-                    licenseSpecifications:
-                      items:
-                        type: string
-                      type: array
-                    lifecycleHooks:
-                      items:
-                        properties:
-                          defaultResult:
-                            type: string
-                          heartbeatTimeout:
-                            format: int64
-                            type: integer
-                          lifecycle:
-                            type: string
-                          metadata:
-                            type: string
-                          name:
-                            type: string
-                          notificationArn:
-                            type: string
-                          roleArn:
-                            type: string
-                        required:
-                        - lifecycle
-                        - name
-                        type: object
-                      type: array
-                    managedPolicies:
-                      items:
-                        type: string
-                      type: array
-                    metricsCollection:
-                      items:
-                        type: string
-                      type: array
-                    mixedInstancesPolicy:
-                      properties:
-                        baseCapacity:
-                          format: int64
-                          type: integer
-                        instancePool:
-                          type: string
-                        instanceTypes:
-                          items:
-                            properties:
-                              type:
-                                type: string
-                              weight:
-                                format: int64
-                                type: integer
-                            required:
-                            - type
-                            type: object
-                          type: array
-                        spotPools:
-                          format: int64
-                          type: integer
-                        spotRatio:
-                          anyOf:
-                          - type: integer
-                          - type: string
-                          x-kubernetes-int-or-string: true
-                        strategy:
-                          type: string
-                      type: object
-                    placement:
-                      properties:
-                        availabilityZone:
-                          type: string
-                        hostResourceGroupArn:
-                          type: string
-                        tenancy:
-                          type: string
-                      type: object
-                    roleName:
-                      type: string
-                    securityGroups:
-                      items:
-                        type: string
-                      type: array
-                    spotPrice:
-                      type: string
-                    subnets:
-                      items:
-                        type: string
-                      type: array
-                    suspendProcesses:
-                      items:
-                        type: string
-                      type: array
-                    tags:
-                      items:
-                        additionalProperties:
-                          type: string
-                        type: object
-                      type: array
-                    taints:
-                      items:
-                        description: The node this Taint is attached to has the "effect"
-                          on any pod that does not tolerate the Taint.
-                        properties:
-                          effect:
-                            description: Required. The effect of the taint on pods
-                              that do not tolerate the taint. Valid effects are NoSchedule,
-                              PreferNoSchedule and NoExecute.
-                            type: string
-                          key:
-                            description: Required. The taint key to be applied to
-                              a node.
-                            type: string
-                          timeAdded:
-                            description: TimeAdded represents the time at which the
-                              taint was added. It is only written for NoExecute taints.
-                            format: date-time
-                            type: string
-                          value:
-                            description: Required. The taint value corresponding to
-                              the taint key.
-                            type: string
-                        required:
-                        - effect
-                        - key
-                        type: object
-                      type: array
-                    userData:
-                      items:
-                        properties:
-                          data:
-                            type: string
-                          name:
-                            type: string
-                          stage:
-                            type: string
-                        required:
-                        - data
-                        - stage
-                        type: object
-                      type: array
-                    volumes:
-                      items:
-                        properties:
-                          deleteOnTermination:
-                            type: boolean
-                          encrypted:
-                            type: boolean
-                          iops:
-                            format: int64
-                            type: integer
-                          mountOptions:
-                            properties:
-                              fileSystem:
-                                type: string
-                              mount:
-                                type: string
-                              persistance:
-                                type: boolean
-                            type: object
-                          name:
-                            type: string
-                          size:
-                            format: int64
-                            type: integer
-                          snapshotId:
-                            type: string
-                          type:
-                            type: string
-                        required:
-                        - name
-                        - size
-                        - type
-                        type: object
-                      type: array
-                  type: object
-                maxSize:
-                  format: int64
-                  type: integer
-                minSize:
-                  format: int64
-                  type: integer
-                type:
-                  type: string
-              required:
-              - configuration
-              type: object
-            eks-fargate:
-              properties:
-                clusterName:
-                  type: string
-                podExecutionRoleArn:
-                  type: string
-                selectors:
-                  items:
+  versions:
+  - additionalPrinterColumns:
+    - description: current state of the instancegroup
+      jsonPath: .status.currentState
+      name: State
+      type: string
+    - description: currently set min instancegroup size
+      jsonPath: .status.currentMin
+      name: Min
+      type: integer
+    - description: currently set max instancegroup size
+      jsonPath: .status.currentMax
+      name: Max
+      type: integer
+    - description: instancegroup created scalinggroup name
+      jsonPath: .status.activeScalingGroupName
+      name: Group Name
+      type: string
+    - description: instance group provisioner
+      jsonPath: .status.provisioner
+      name: Provisioner
+      type: string
+    - description: instance group upgrade strategy
+      jsonPath: .status.strategy
+      name: Strategy
+      type: string
+    - description: instance group lifecycle spot/normal
+      jsonPath: .status.lifecycle
+      name: Lifecycle
+      type: string
+    - description: time passed since instancegroup creation
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: InstanceGroup is the Schema for the instancegroups API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: InstanceGroupSpec defines the schema of resource Spec
+            properties:
+              eks:
+                properties:
+                  configuration:
                     properties:
+                      bootstrapArguments:
+                        type: string
+                      bootstrapOptions:
+                        properties:
+                          maxPods:
+                            format: int64
+                            type: integer
+                        type: object
+                      clusterName:
+                        type: string
+                      image:
+                        type: string
+                      instanceProfileName:
+                        type: string
+                      instanceType:
+                        type: string
+                      keyPairName:
+                        type: string
                       labels:
                         additionalProperties:
                           type: string
                         type: object
-                      namespace:
+                      licenseSpecifications:
+                        items:
+                          type: string
+                        type: array
+                      lifecycleHooks:
+                        items:
+                          properties:
+                            defaultResult:
+                              type: string
+                            heartbeatTimeout:
+                              format: int64
+                              type: integer
+                            lifecycle:
+                              type: string
+                            metadata:
+                              type: string
+                            name:
+                              type: string
+                            notificationArn:
+                              type: string
+                            roleArn:
+                              type: string
+                          required:
+                          - lifecycle
+                          - name
+                          type: object
+                        type: array
+                      managedPolicies:
+                        items:
+                          type: string
+                        type: array
+                      metricsCollection:
+                        items:
+                          type: string
+                        type: array
+                      mixedInstancesPolicy:
+                        properties:
+                          baseCapacity:
+                            format: int64
+                            type: integer
+                          instancePool:
+                            type: string
+                          instanceTypes:
+                            items:
+                              properties:
+                                type:
+                                  type: string
+                                weight:
+                                  format: int64
+                                  type: integer
+                              required:
+                              - type
+                              type: object
+                            type: array
+                          spotPools:
+                            format: int64
+                            type: integer
+                          spotRatio:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
+                          strategy:
+                            type: string
+                        type: object
+                      placement:
+                        properties:
+                          availabilityZone:
+                            type: string
+                          hostResourceGroupArn:
+                            type: string
+                          tenancy:
+                            type: string
+                        type: object
+                      roleName:
                         type: string
-                    required:
-                    - namespace
+                      securityGroups:
+                        items:
+                          type: string
+                        type: array
+                      spotPrice:
+                        type: string
+                      subnets:
+                        items:
+                          type: string
+                        type: array
+                      suspendProcesses:
+                        items:
+                          type: string
+                        type: array
+                      tags:
+                        items:
+                          additionalProperties:
+                            type: string
+                          type: object
+                        type: array
+                      taints:
+                        items:
+                          description: The node this Taint is attached to has the "effect" on any pod that does not tolerate the Taint.
+                          properties:
+                            effect:
+                              description: Required. The effect of the taint on pods that do not tolerate the taint. Valid effects are NoSchedule, PreferNoSchedule and NoExecute.
+                              type: string
+                            key:
+                              description: Required. The taint key to be applied to a node.
+                              type: string
+                            timeAdded:
+                              description: TimeAdded represents the time at which the taint was added. It is only written for NoExecute taints.
+                              format: date-time
+                              type: string
+                            value:
+                              description: The taint value corresponding to the taint key.
+                              type: string
+                          required:
+                          - effect
+                          - key
+                          type: object
+                        type: array
+                      userData:
+                        items:
+                          properties:
+                            data:
+                              type: string
+                            name:
+                              type: string
+                            stage:
+                              type: string
+                          required:
+                          - data
+                          - stage
+                          type: object
+                        type: array
+                      volumes:
+                        items:
+                          properties:
+                            deleteOnTermination:
+                              type: boolean
+                            encrypted:
+                              type: boolean
+                            iops:
+                              format: int64
+                              type: integer
+                            mountOptions:
+                              properties:
+                                fileSystem:
+                                  type: string
+                                mount:
+                                  type: string
+                                persistance:
+                                  type: boolean
+                              type: object
+                            name:
+                              type: string
+                            size:
+                              format: int64
+                              type: integer
+                            snapshotId:
+                              type: string
+                            type:
+                              type: string
+                          required:
+                          - name
+                          - size
+                          - type
+                          type: object
+                        type: array
                     type: object
-                  type: array
-                subnets:
-                  items:
+                  maxSize:
+                    format: int64
+                    type: integer
+                  minSize:
+                    format: int64
+                    type: integer
+                  type:
                     type: string
-                  type: array
-                tags:
-                  items:
-                    additionalProperties:
+                required:
+                - configuration
+                type: object
+              eks-fargate:
+                properties:
+                  clusterName:
+                    type: string
+                  podExecutionRoleArn:
+                    type: string
+                  selectors:
+                    items:
+                      properties:
+                        labels:
+                          additionalProperties:
+                            type: string
+                          type: object
+                        namespace:
+                          type: string
+                      required:
+                      - namespace
+                      type: object
+                    type: array
+                  subnets:
+                    items:
                       type: string
-                    type: object
-                  type: array
-              required:
-              - clusterName
-              - selectors
-              type: object
-            eks-managed:
-              properties:
-                configuration:
-                  properties:
-                    amiType:
-                      type: string
-                    clusterName:
-                      type: string
-                    instanceType:
-                      type: string
-                    keyPairName:
-                      type: string
-                    nodeLabels:
+                    type: array
+                  tags:
+                    items:
                       additionalProperties:
                         type: string
                       type: object
-                    nodeRole:
-                      type: string
-                    releaseVersion:
-                      type: string
-                    securityGroups:
-                      items:
+                    type: array
+                required:
+                - clusterName
+                - selectors
+                type: object
+              eks-managed:
+                properties:
+                  configuration:
+                    properties:
+                      amiType:
                         type: string
-                      type: array
-                    subnets:
-                      items:
+                      clusterName:
                         type: string
-                      type: array
-                    tags:
-                      items:
+                      instanceType:
+                        type: string
+                      keyPairName:
+                        type: string
+                      nodeLabels:
                         additionalProperties:
                           type: string
                         type: object
-                      type: array
-                    version:
-                      type: string
-                    volSize:
-                      format: int64
-                      type: integer
-                  type: object
-                maxSize:
-                  format: int64
-                  type: integer
-                minSize:
-                  format: int64
-                  type: integer
-              required:
-              - configuration
-              - maxSize
-              - minSize
-              type: object
-            provisioner:
-              type: string
-            strategy:
-              description: AwsUpgradeStrategy defines the upgrade strategy of an AWS
-                Instance Group
-              properties:
-                crd:
-                  properties:
-                    concurrencyPolicy:
-                      type: string
-                    crdName:
-                      type: string
-                    spec:
-                      type: string
-                    statusFailureString:
-                      type: string
-                    statusJSONPath:
-                      type: string
-                    statusSuccessString:
-                      type: string
-                  type: object
-                rollingUpdate:
-                  properties:
-                    maxUnavailable:
-                      anyOf:
-                      - type: integer
-                      - type: string
-                      x-kubernetes-int-or-string: true
-                  type: object
-                type:
-                  type: string
-              type: object
-          type: object
-        status:
-          description: InstanceGroupStatus defines the schema of resource Status
-          properties:
-            activeLaunchConfigurationName:
-              type: string
-            activeLaunchTemplateName:
-              type: string
-            activeScalingGroupName:
-              type: string
-            conditions:
-              items:
-                description: InstanceGroupConditions describes the conditions of the
-                  InstanceGroup
+                      nodeRole:
+                        type: string
+                      releaseVersion:
+                        type: string
+                      securityGroups:
+                        items:
+                          type: string
+                        type: array
+                      subnets:
+                        items:
+                          type: string
+                        type: array
+                      tags:
+                        items:
+                          additionalProperties:
+                            type: string
+                          type: object
+                        type: array
+                      version:
+                        type: string
+                      volSize:
+                        format: int64
+                        type: integer
+                    type: object
+                  maxSize:
+                    format: int64
+                    type: integer
+                  minSize:
+                    format: int64
+                    type: integer
+                required:
+                - configuration
+                - maxSize
+                - minSize
+                type: object
+              provisioner:
+                type: string
+              strategy:
+                description: AwsUpgradeStrategy defines the upgrade strategy of an AWS Instance Group
                 properties:
-                  status:
-                    type: string
+                  crd:
+                    properties:
+                      concurrencyPolicy:
+                        type: string
+                      crdName:
+                        type: string
+                      spec:
+                        type: string
+                      statusFailureString:
+                        type: string
+                      statusJSONPath:
+                        type: string
+                      statusSuccessString:
+                        type: string
+                    type: object
+                  rollingUpdate:
+                    properties:
+                      maxUnavailable:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        x-kubernetes-int-or-string: true
+                    type: object
                   type:
                     type: string
                 type: object
-              type: array
-            configMD5:
-              type: string
-            currentMax:
-              type: integer
-            currentMin:
-              type: integer
-            currentState:
-              type: string
-            latestTemplateVersion:
-              type: string
-            lifecycle:
-              type: string
-            nodesInstanceRoleArn:
-              type: string
-            provisioner:
-              type: string
-            strategy:
-              type: string
-            strategyResourceName:
-              type: string
-            strategyResourceNamespace:
-              type: string
-            usingSpotRecommendation:
-              type: boolean
-          type: object
-      required:
-      - metadata
-      - spec
-      type: object
-  version: v1alpha1
-  versions:
-  - name: v1alpha1
+            type: object
+          status:
+            description: InstanceGroupStatus defines the schema of resource Status
+            properties:
+              activeLaunchConfigurationName:
+                type: string
+              activeLaunchTemplateName:
+                type: string
+              activeScalingGroupName:
+                type: string
+              conditions:
+                items:
+                  description: InstanceGroupConditions describes the conditions of the InstanceGroup
+                  properties:
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  type: object
+                type: array
+              configMD5:
+                type: string
+              currentMax:
+                type: integer
+              currentMin:
+                type: integer
+              currentState:
+                type: string
+              latestTemplateVersion:
+                type: string
+              lifecycle:
+                type: string
+              nodesInstanceRoleArn:
+                type: string
+              provisioner:
+                type: string
+              strategy:
+                type: string
+              strategyResourceName:
+                type: string
+              strategyResourceNamespace:
+                type: string
+              usingSpotRecommendation:
+                type: boolean
+            type: object
+        required:
+        - metadata
+        - spec
+        type: object
     served: true
     storage: true
+    subresources:
+      status: {}
 status:
   acceptedNames:
     kind: ""

@@ -16,6 +16,7 @@ limitations under the License.
 package eksmanaged
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -194,8 +195,8 @@ func (u *EksManagedUnitTest) Run(t *testing.T) {
 	unstructuredInstanceGroup := &unstructured.Unstructured{
 		Object: obj,
 	}
-	ctrl.SetLogger(zap.Logger(true))
-	kube.KubeDynamic.Resource(v1alpha1.GroupVersionResource).Namespace(u.InstanceGroup.GetNamespace()).Create(unstructuredInstanceGroup, metav1.CreateOptions{})
+	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+	kube.KubeDynamic.Resource(v1alpha1.GroupVersionResource).Namespace(u.InstanceGroup.GetNamespace()).Create(context.Background(), unstructuredInstanceGroup, metav1.CreateOptions{})
 	input := provisioners.ProvisionerInput{
 		AwsWorker:     aws,
 		Kubernetes:    kube,

@@ -29,6 +29,7 @@ import (
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -48,52 +49,38 @@ func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	case true:
 		return ctrl.NewControllerManagedBy(mgr).
 			For(&v1alpha1.InstanceGroup{}).
-			Watches(&source.Kind{Type: &corev1.Event{}}, &handler.EnqueueRequestsFromMapFunc{
-				ToRequests: handler.ToRequestsFunc(r.spotEventReconciler),
-			}).
-			Watches(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestsFromMapFunc{
-				ToRequests: handler.ToRequestsFunc(r.nodeReconciler),
-			}).
-			Watches(&source.Kind{Type: &corev1.ConfigMap{}}, &handler.EnqueueRequestsFromMapFunc{
-				ToRequests: handler.ToRequestsFunc(r.configMapReconciler),
-			}).
-			Watches(&source.Kind{Type: &corev1.Namespace{}}, &handler.EnqueueRequestsFromMapFunc{
-				ToRequests: handler.ToRequestsFunc(r.namespaceReconciler),
-			}).
+			Watches(&source.Kind{Type: &corev1.Event{}}, handler.EnqueueRequestsFromMapFunc(r.spotEventReconciler)).
+			Watches(&source.Kind{Type: &corev1.Node{}}, handler.EnqueueRequestsFromMapFunc(r.nodeReconciler)).
+			Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.configMapReconciler)).
+			Watches(&source.Kind{Type: &corev1.Namespace{}}, handler.EnqueueRequestsFromMapFunc(r.namespaceReconciler)).
 			WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
 			Complete(r)
 	default:
 		return ctrl.NewControllerManagedBy(mgr).
 			For(&v1alpha1.InstanceGroup{}).
-			Watches(&source.Kind{Type: &corev1.Event{}}, &handler.EnqueueRequestsFromMapFunc{
-				ToRequests: handler.ToRequestsFunc(r.spotEventReconciler),
-			}).
-			Watches(&source.Kind{Type: &corev1.ConfigMap{}}, &handler.EnqueueRequestsFromMapFunc{
-				ToRequests: handler.ToRequestsFunc(r.configMapReconciler),
-			}).
-			Watches(&source.Kind{Type: &corev1.Namespace{}}, &handler.EnqueueRequestsFromMapFunc{
-				ToRequests: handler.ToRequestsFunc(r.namespaceReconciler),
-			}).
+			Watches(&source.Kind{Type: &corev1.Event{}}, handler.EnqueueRequestsFromMapFunc(r.spotEventReconciler)).
+			Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.configMapReconciler)).
+			Watches(&source.Kind{Type: &corev1.Namespace{}}, handler.EnqueueRequestsFromMapFunc(r.namespaceReconciler)).
 			WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
 			Complete(r)
 	}
 }
 
-func (r *InstanceGroupReconciler) configMapReconciler(obj handler.MapObject) []ctrl.Request {
+func (r *InstanceGroupReconciler) configMapReconciler(obj client.Object) []ctrl.Request {
 	var (
-		name      = obj.Meta.GetName()
-		namespace = obj.Meta.GetNamespace()
+		name      = obj.GetName()
+		namespace = obj.GetNamespace()
 	)
 
 	if strings.EqualFold(name, ConfigMapName) && strings.EqualFold(namespace, r.ConfigNamespace) {
-		ctrl.Log.Info("configmap watch event", "name", obj.Meta.GetName(), "namespace", obj.Meta.GetNamespace())
+		ctrl.Log.Info("configmap watch event", "name", obj.GetName(), "namespace", obj.GetNamespace())
 
 		namespacedName := types.NamespacedName{
 			Namespace: namespace,
 			Name:      name,
 		}
 
-		err := r.Get(context.Background(), namespacedName, obj.Object)
+		err := r.Get(context.Background(), namespacedName, obj)
 		if err != nil {
 			if kerrors.IsNotFound(err) {
 				r.Log.Info("configmap deleted", "object", namespacedName)
@@ -104,7 +91,7 @@ func (r *InstanceGroupReconciler) configMapReconciler(obj handler.MapObject) []c
 			return nil
 		}
 
-		r.ConfigMap = obj.Object.(*corev1.ConfigMap)
+		r.ConfigMap = obj.(*corev1.ConfigMap)
 		configHash := kubeprovider.ConfigmapHash(r.ConfigMap)
 
 		ctrl.Log.Info("configmap MD5", "hash", configHash)
@@ -135,9 +122,9 @@ func (r *InstanceGroupReconciler) configMapReconciler(obj handler.MapObject) []c
 	return nil
 }
 
-func (r *InstanceGroupReconciler) namespaceReconciler(obj handler.MapObject) []ctrl.Request {
+func (r *InstanceGroupReconciler) namespaceReconciler(obj client.Object) []ctrl.Request {
 	var (
-		name = obj.Meta.GetName()
+		name = obj.GetName()
 	)
 
 	ctrl.Log.Info("namespace watch event", "object", name)
@@ -150,7 +137,7 @@ func (r *InstanceGroupReconciler) namespaceReconciler(obj handler.MapObject) []c
 	r.NamespacesLock.Lock()
 	defer r.NamespacesLock.Unlock()
 
-	err := r.Get(context.Background(), namespacedName, obj.Object)
+	err := r.Get(context.Background(), namespacedName, obj)
 	if err != nil {
 		if kerrors.IsNotFound(err) {
 			r.Log.Info("namespace deleted", "object", name)
@@ -161,7 +148,7 @@ func (r *InstanceGroupReconciler) namespaceReconciler(obj handler.MapObject) []c
 		return nil
 	}
 
-	ns := obj.Object.(*corev1.Namespace)
+	ns := obj.(*corev1.Namespace)
 
 	if _, ok := r.Namespaces[name]; !ok {
 		// new namespace
@@ -207,10 +194,10 @@ type LabelPatch struct {
 	Metadata *NodeLabels `json:"metadata,omitempty"`
 }
 
-func (r *InstanceGroupReconciler) nodeReconciler(obj handler.MapObject) []ctrl.Request {
+func (r *InstanceGroupReconciler) nodeReconciler(obj client.Object) []ctrl.Request {
 	var (
-		nodeName          = obj.Meta.GetName()
-		nodeLabels        = obj.Meta.GetLabels()
+		nodeName          = obj.GetName()
+		nodeLabels        = obj.GetLabels()
 		roleLabelKey      = "kubernetes.io/role"
 		bootstrapLabelKey = "node.kubernetes.io/role"
 	)
@@ -241,15 +228,15 @@ func (r *InstanceGroupReconciler) nodeReconciler(obj handler.MapObject) []ctrl.R
 		return nil
 	}
 
-	if _, err = r.Auth.Kubernetes.Kubernetes.CoreV1().Nodes().Patch(nodeName, types.StrategicMergePatchType, patchJSON); err != nil {
+	if _, err = r.Auth.Kubernetes.Kubernetes.CoreV1().Nodes().Patch(context.Background(), nodeName, types.StrategicMergePatchType, patchJSON, metav1.PatchOptions{}); err != nil {
 		r.Log.Error(err, "failed to patch node labels", "node", nodeName)
 	}
 
 	return nil
 }
 
-func (r *InstanceGroupReconciler) spotEventReconciler(obj handler.MapObject) []ctrl.Request {
-	unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj.Object)
+func (r *InstanceGroupReconciler) spotEventReconciler(obj client.Object) []ctrl.Request {
+	unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
 	if err != nil {
 		return nil
 	}
@@ -262,19 +249,19 @@ func (r *InstanceGroupReconciler) spotEventReconciler(obj handler.MapObject) []c
 		return nil
 	}
 
-	creationTime := obj.Meta.GetCreationTimestamp()
+	creationTime := obj.GetCreationTimestamp()
 	minutesSince := time.Since(creationTime.Time).Minutes()
 	if minutesSince > r.SpotRecommendationTime {
 		return nil
 	}
 
-	ctrl.Log.Info(fmt.Sprintf("spot recommendation %v/%v", obj.Meta.GetNamespace(), obj.Meta.GetName()))
+	ctrl.Log.Info(fmt.Sprintf("spot recommendation %v/%v", obj.GetNamespace(), obj.GetName()))
 
 	involvedObjectName, exists, err := unstructured.NestedString(unstructuredObj, "involvedObject", "name")
 	if err != nil || !exists {
 		r.Log.Error(err,
 			"failed to process v1.event",
-			"event", obj.Meta.GetName(),
+			"event", obj.GetName(),
 		)
 		return nil
 	}

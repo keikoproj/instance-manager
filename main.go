@@ -16,6 +16,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
 	runt "runtime"
@@ -83,7 +84,7 @@ func main() {
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&nodeRelabel, "node-relabel", true, "relabel nodes as they join with kubernetes.io/role label via controller")
 	flag.Parse()
-	ctrl.SetLogger(zap.Logger(true))
+	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
@@ -128,7 +129,7 @@ func main() {
 	}
 
 	var cm *corev1.ConfigMap
-	cm, err = client.CoreV1().ConfigMaps(configNamespace).Get(controllers.ConfigMapName, metav1.GetOptions{})
+	cm, err = client.CoreV1().ConfigMaps(configNamespace).Get(context.Background(), controllers.ConfigMapName, metav1.GetOptions{})
 	if err != nil {
 		if !kerrors.IsNotFound(err) {
 			setupLog.Error(err, "could not get instance-manager configmap")
