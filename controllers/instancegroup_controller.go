@@ -19,6 +19,7 @@ import (
 	"context"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -33,6 +34,8 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -47,6 +50,8 @@ type InstanceGroupReconciler struct {
 	MaxParallel            int
 	Auth                   *InstanceGroupAuthenticator
 	ConfigMap              *corev1.ConfigMap
+	Namespaces             map[string]corev1.Namespace
+	NamespacesLock         *sync.Mutex
 	ConfigRetention        int
 }
 
@@ -93,6 +98,7 @@ func (r *InstanceGroupReconciler) SetFinalizer(instanceGroup *v1alpha1.InstanceG
 	}
 }
 
+// +kubebuilder:rbac:groups=core,resources=namespaces,verbs=list;get
 // +kubebuilder:rbac:groups=core,resources=nodes,verbs=list;patch;watch
 // +kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch;create
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;create;update;patch;watch
@@ -128,17 +134,36 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	}
 
 	if !reflect.DeepEqual(r.ConfigMap, &corev1.ConfigMap{}) {
-		var defaultConfig *provisioners.ProvisionerConfiguration
-		if defaultConfig, err = provisioners.NewProvisionerConfiguration(r.ConfigMap, instanceGroup); err != nil {
-			return ctrl.Result{}, err
+
+		var isExcludedNamespace bool
+		namespace := instanceGroup.GetNamespace()
+		if ns, ok := r.Namespaces[namespace]; ok {
+			nsObject, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&ns)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			unstructuredNamespace := &unstructured.Unstructured{
+				Object: nsObject,
+			}
+			if kubeprovider.HasAnnotation(unstructuredNamespace, provisioners.ConfigurationExclusionAnnotationKey, "true") {
+				isExcludedNamespace = true
+				r.Log.Info("namespace excluded from managed configuration", "namespace", namespace)
+			}
 		}
 
-		if err = defaultConfig.SetDefaults(); err != nil {
-			r.Log.Error(err, "failed to set configuration defaults", "instancegroup", instanceGroup.NamespacedName())
-			return ctrl.Result{}, err
-		}
+		if !isExcludedNamespace {
+			var defaultConfig *provisioners.ProvisionerConfiguration
+			if defaultConfig, err = provisioners.NewProvisionerConfiguration(r.ConfigMap, instanceGroup); err != nil {
+				return ctrl.Result{}, err
+			}
 
-		input.InstanceGroup = defaultConfig.InstanceGroup
+			if err = defaultConfig.SetDefaults(); err != nil {
+				r.Log.Error(err, "failed to set configuration defaults", "instancegroup", instanceGroup.NamespacedName())
+				return ctrl.Result{}, err
+			}
+
+			input.InstanceGroup = defaultConfig.InstanceGroup
+		}
 	}
 
 	provisionerKind := strings.ToLower(input.InstanceGroup.Spec.Provisioner)

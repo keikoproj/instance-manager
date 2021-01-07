@@ -46,3 +46,10 @@ Feature: CRUD Delete
     Given an EKS cluster
     Then I delete a resource instance-group-fargate.yaml
     And the resource should be deleted
+
+  Scenario: Delete an instance-group with shortened resource
+    Given an EKS cluster
+    When I delete a resource instance-group-gitops.yaml
+    Then 0 nodes should be found
+    And the resource should be deleted
+    And I delete a resource manager-configmap.yaml

@@ -19,6 +19,7 @@ import (
 	"flag"
 	"os"
 	runt "runtime"
+	"sync"
 
 	"github.com/keikoproj/aws-sdk-go-cache/cache"
 	instancemgrv1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
@@ -142,6 +143,8 @@ func main() {
 		ConfigRetention:        configRetention,
 		SpotRecommendationTime: spotRecommendationTime,
 		ConfigNamespace:        configNamespace,
+		Namespaces:             make(map[string]corev1.Namespace),
+		NamespacesLock:         &sync.Mutex{},
 		NodeRelabel:            nodeRelabel,
 		Client:                 mgr.GetClient(),
 		Log:                    ctrl.Log.WithName("controllers").WithName("instancegroup"),

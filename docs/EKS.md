@@ -537,10 +537,13 @@ This is enforced via the `status.configMD5` field, which has an MD5 hash of the 
 
 This also makes upgrades easier across a managed cluster, an operator can now simply modify the default value for `image` and trigger an upgrade across all instance groups.
 
+Individual namespaces can opt-out by adding the annotation `instancemgr.keikoproj.io/config-excluded=true`, this is useful for system namespaces which may need to override a global restrictive configuration, e.g. subnet, while keeping the boundary as is for other namespaces - adding this annotation to a namespace will opt-out all instancegroups under the namespace from using the cluster configuration.
+
 ## Annotations
 
-| Annotation Key | Annotation Value | Purpose |
-|----------------|------------------|---------|
-|instancemgr.keikoproj.io/cluster-autoscaler-enabled|"true"|setting this annotation to true will add the relevant cluster-autoscaler EC2 tags according to cluster name, taints, and labels|
-|instancemgr.keikoproj.io/os-family|either "windows", "bottlerocket", or "amazonlinux2" (default)|this is required if you are running a windows or bottlerocket based AMI, by default the controller will try to bootstrap an amazonlinux2 AMI|
-|instancemgr.keikoproj.io/default-labels|comma-seprarated key-value string e.g. "label1=value1,label2=value2"|allows overriding the default node labels added by the controller, by default the role label is added depending on the cluster version|
+| Annotation Key | Object | Annotation Value | Purpose |
+|:--------------:|:------:|:----------------:|:-------:|
+|instancemgr.keikoproj.io/config-excluded|Namespace|"true"|settings this annotation on a namespace will allow opt-out from a configuration configmap, all instancegroups under such namespace will not use configmap boundaries and default values|
+|instancemgr.keikoproj.io/cluster-autoscaler-enabled|InstanceGroup|"true"|setting this annotation to true will add the relevant cluster-autoscaler EC2 tags according to cluster name, taints, and labels|
+|instancemgr.keikoproj.io/os-family|InstanceGroup|either "windows", "bottlerocket", or "amazonlinux2" (default)|this is required if you are running a windows or bottlerocket based AMI, by default the controller will try to bootstrap an amazonlinux2 AMI|
+|instancemgr.keikoproj.io/default-labels|InstanceGroup|comma-seprarated key-value string e.g. "label1=value1,label2=value2"|allows overriding the default node labels added by the controller, by default the role label is added depending on the cluster version|
