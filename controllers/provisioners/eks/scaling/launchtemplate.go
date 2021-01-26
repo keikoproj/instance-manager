@@ -111,10 +111,7 @@ func (lt *LaunchTemplate) Create(input *CreateConfigurationInput) error {
 		}); err != nil {
 			return err
 		}
-	} else {
-		if !lt.Drifted(input) {
-			return nil
-		}
+	} else if lt.Drifted(input) {
 		createdVersion, err := lt.CreateLaunchTemplateVersion(&ec2.CreateLaunchTemplateVersionInput{
 			LaunchTemplateName: aws.String(input.Name),
 			LaunchTemplateData: templateData,
