@@ -78,10 +78,8 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	status.SetLifecycle(v1alpha1.LifecycleStateNormal)
 
 	if spec.IsLaunchConfiguration() {
-		input := &scaling.DiscoverConfigurationInput{}
-
-		if status.GetActiveLaunchConfigurationName() != "" {
-			input.TargetConfigName = status.GetActiveLaunchConfigurationName()
+		input := &scaling.DiscoverConfigurationInput{
+			TargetConfigName: status.GetActiveLaunchConfigurationName(),
 		}
 
 		var (
@@ -93,14 +91,12 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 			return errors.Wrap(err, "failed to discover launch configuration")
 		}
 		state.ScalingConfiguration = config
-
+		status.SetActiveLaunchConfigurationName(config.Name())
 	}
 
 	if spec.IsLaunchTemplate() {
-		input := &scaling.DiscoverConfigurationInput{}
-
-		if status.GetActiveLaunchTemplateName() != "" {
-			input.TargetConfigName = status.GetActiveLaunchTemplateName()
+		input := &scaling.DiscoverConfigurationInput{
+			TargetConfigName: status.GetActiveLaunchTemplateName(),
 		}
 
 		var (
@@ -112,6 +108,7 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 			return errors.Wrap(err, "failed to discover launch template")
 		}
 		state.ScalingConfiguration = config
+		status.SetActiveLaunchTemplateName(config.Name())
 
 		if mixedInstancesPolicy != nil {
 			if ratio := common.IntOrStrValue(mixedInstancesPolicy.SpotRatio); ratio > 0 {
