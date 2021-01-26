@@ -78,15 +78,40 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	status.SetLifecycle(v1alpha1.LifecycleStateNormal)
 
 	if spec.IsLaunchConfiguration() {
-		state.ScalingConfiguration = &scaling.LaunchConfiguration{
-			AwsWorker: ctx.AwsWorker,
+		input := &scaling.DiscoverConfigurationInput{}
+
+		if status.GetActiveLaunchConfigurationName() != "" {
+			input.TargetConfigName = status.GetActiveLaunchConfigurationName()
 		}
+
+		var (
+			config *scaling.LaunchConfiguration
+			err    error
+		)
+
+		if config, err = scaling.NewLaunchConfiguration(instanceGroup.NamespacedName(), ctx.AwsWorker, input); err != nil {
+			return errors.Wrap(err, "failed to discover launch configuration")
+		}
+		state.ScalingConfiguration = config
+
 	}
 
 	if spec.IsLaunchTemplate() {
-		state.ScalingConfiguration = &scaling.LaunchTemplate{
-			AwsWorker: ctx.AwsWorker,
+		input := &scaling.DiscoverConfigurationInput{}
+
+		if status.GetActiveLaunchTemplateName() != "" {
+			input.TargetConfigName = status.GetActiveLaunchTemplateName()
 		}
+
+		var (
+			config *scaling.LaunchTemplate
+			err    error
+		)
+
+		if config, err = scaling.NewLaunchTemplate(instanceGroup.NamespacedName(), ctx.AwsWorker, input); err != nil {
+			return errors.Wrap(err, "failed to discover launch template")
+		}
+		state.ScalingConfiguration = config
 
 		if mixedInstancesPolicy != nil {
 			if ratio := common.IntOrStrValue(mixedInstancesPolicy.SpotRatio); ratio > 0 {
