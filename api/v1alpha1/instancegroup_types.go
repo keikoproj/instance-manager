@@ -914,10 +914,13 @@ func (status *InstanceGroupStatus) GetActiveLaunchTemplateName() string {
 
 func (status *InstanceGroupStatus) SetActiveLaunchConfigurationName(name string) {
 	status.ActiveLaunchConfigurationName = name
+	status.ActiveLaunchTemplateName = ""
+	status.LatestTemplateVersion = ""
 }
 
 func (status *InstanceGroupStatus) SetActiveLaunchTemplateName(name string) {
 	status.ActiveLaunchTemplateName = name
+	status.ActiveLaunchConfigurationName = ""
 }
 
 func (status *InstanceGroupStatus) SetLatestTemplateVersion(version string) {
