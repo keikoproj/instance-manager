@@ -68,7 +68,7 @@ func (lt *LaunchTemplate) Discover(input *DiscoverConfigurationInput) error {
 	} else if input.ScalingGroup != nil {
 		targetName = awsprovider.GetScalingConfigName(input.ScalingGroup)
 	} else {
-		// cannot discovery without scaling group name or launch template name
+		// cannot discover without scaling group name or launch template name
 		return nil
 	}
 
