@@ -37,7 +37,6 @@ func (ctx *EksInstanceGroupContext) Create() error {
 		configuration   = instanceGroup.GetEKSConfiguration()
 		args            = ctx.GetBootstrapArgs()
 		kubeletArgs     = ctx.GetKubeletExtraArgs()
-		spec            = instanceGroup.GetEKSSpec()
 		userDataPayload = ctx.GetUserDataStages()
 		clusterName     = configuration.GetClusterName()
 		mounts          = ctx.GetMountOpts()
@@ -56,8 +55,14 @@ func (ctx *EksInstanceGroupContext) Create() error {
 	}
 	instanceProfile := state.GetInstanceProfile()
 
+	var configName = scalingConfig.Name()
+
+	if common.StringEmpty(configName) {
+		configName = fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
+	}
+
 	config := &scaling.CreateConfigurationInput{
-		Name:                  scalingConfig.Name(),
+		Name:                  configName,
 		IamInstanceProfileArn: aws.StringValue(instanceProfile.Arn),
 		ImageId:               configuration.Image,
 		InstanceType:          configuration.InstanceType,
@@ -70,16 +75,12 @@ func (ctx *EksInstanceGroupContext) Create() error {
 		Placement:             placement,
 	}
 
-	if spec.IsLaunchConfiguration() || common.StringEmpty(config.Name) {
-		config.Name = fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
-	}
-
 	if err := scalingConfig.Create(config); err != nil {
 		return errors.Wrap(err, "failed to create scaling configuration")
 	}
 
 	// create scaling group
-	err = ctx.CreateScalingGroup(config.Name)
+	err = ctx.CreateScalingGroup(configName)
 	if err != nil {
 		return errors.Wrap(err, "failed to create scaling group")
 	}
