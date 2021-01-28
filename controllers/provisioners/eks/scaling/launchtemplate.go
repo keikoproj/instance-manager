@@ -62,16 +62,14 @@ func (lt *LaunchTemplate) Discover(input *DiscoverConfigurationInput) error {
 	}
 	lt.ResourceList = launchTemplates
 
-	if input.ScalingGroup == nil {
-		return nil
-	}
-
 	var targetName string
-	if awsprovider.IsUsingLaunchTemplate(input.ScalingGroup) {
-		targetName = aws.StringValue(input.ScalingGroup.LaunchTemplate.LaunchTemplateName)
-	}
-	if awsprovider.IsUsingMixedInstances(input.ScalingGroup) {
-		targetName = aws.StringValue(input.ScalingGroup.MixedInstancesPolicy.LaunchTemplate.LaunchTemplateSpecification.LaunchTemplateName)
+	if !common.StringEmpty(input.TargetConfigName) {
+		targetName = input.TargetConfigName
+	} else if input.ScalingGroup != nil {
+		targetName = awsprovider.GetScalingConfigName(input.ScalingGroup)
+	} else {
+		// cannot discover without scaling group name or launch template name
+		return nil
 	}
 
 	for _, config := range launchTemplates {
@@ -113,7 +111,7 @@ func (lt *LaunchTemplate) Create(input *CreateConfigurationInput) error {
 		}); err != nil {
 			return err
 		}
-	} else {
+	} else if lt.Drifted(input) {
 		createdVersion, err := lt.CreateLaunchTemplateVersion(&ec2.CreateLaunchTemplateVersionInput{
 			LaunchTemplateName: aws.String(input.Name),
 			LaunchTemplateData: templateData,
