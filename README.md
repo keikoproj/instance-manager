@@ -34,6 +34,10 @@ _For installation instructions and more examples of usage, please refer to the [
 
 ## Usage example
 
+### Demo
+
+![Demo](./docs/demo.gif)
+
 ### Submit and Verify
 
 ```bash
@@ -63,8 +67,6 @@ ip-10-10-10-20.us-west-2.compute.internal   Ready    hello-world   32s    v1.14.
 ip-10-10-10-30.us-west-2.compute.internal   Ready    hello-world   32s    v1.14.6-eks-5047ed
 ip-10-10-10-40.us-west-2.compute.internal   Ready    hello-world   32s    v1.14.6-eks-5047ed
 ```
-
-![Demo](./docs/demo.gif)
 
 ### Currently supported provisioners
 
