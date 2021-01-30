@@ -34,16 +34,6 @@ _For installation instructions and more examples of usage, please refer to the [
 
 ## Usage example
 
-### Currently supported provisioners
-
-| Provisioner | Description | Examples |
-| :---------- | :---------- | :----------|
-| eks         | provision nodes on EKS | [EKS.md](./docs/examples/EKS.md)|
-| eks-managed | provision managed node groups on EKS| [EKS-managed.md](./docs/examples/EKS-managed.md) |
-| eks-fargate | provision a cluster to run pods on EKS Fargate| [EKS-fargate.md](./docs/examples/EKS-fargate.md) |
-
-To create an instance group, submit an InstanceGroup custom resource in your cluster, and the controller will provision and bootstrap it to your cluster, and allow you to modify it from within the cluster.
-
 ### Submit and Verify
 
 ```bash
@@ -55,7 +45,7 @@ NAMESPACE          NAME         STATE                MIN   MAX  GROUP NAME    PR
 instance-manager   hello-world  ReconcileModifying   3     6    hello-world   eks           crd        normal      1m
 ```
 
-some time later, once the cloudformation stacks are created
+some time later, once the scaling groups are created
 
 ```bash
 $ kubectl get instancegroups
@@ -73,6 +63,18 @@ ip-10-10-10-20.us-west-2.compute.internal   Ready    hello-world   32s    v1.14.
 ip-10-10-10-30.us-west-2.compute.internal   Ready    hello-world   32s    v1.14.6-eks-5047ed
 ip-10-10-10-40.us-west-2.compute.internal   Ready    hello-world   32s    v1.14.6-eks-5047ed
 ```
+
+![Demo](./docs/demo.gif)
+
+### Currently supported provisioners
+
+| Provisioner | Description | Examples |
+| :---------- | :---------- | :----------|
+| eks         | provision nodes on EKS | [EKS.md](./docs/examples/EKS.md)|
+| eks-managed | provision managed node groups on EKS| [EKS-managed.md](./docs/examples/EKS-managed.md) |
+| eks-fargate | provision a cluster to run pods on EKS Fargate| [EKS-fargate.md](./docs/examples/EKS-fargate.md) |
+
+To create an instance group, submit an InstanceGroup custom resource in your cluster, and the controller will provision and bootstrap it to your cluster, and allow you to modify it from within the cluster.
 
 ### Alpha-2 Version
 
