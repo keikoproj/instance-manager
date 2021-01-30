@@ -34,11 +34,7 @@ _For installation instructions and more examples of usage, please refer to the [
 
 ## Usage example
 
-### Demo
-
 ![Demo](./docs/demo.gif)
-
-### Submit and Verify
 
 ```bash
 $ kubectl create -f instance_group.yaml
