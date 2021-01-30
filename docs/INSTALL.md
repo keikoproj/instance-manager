@@ -206,7 +206,7 @@ NAMESPACE          NAME         STATE                MIN   MAX  GROUP NAME    PR
 instance-manager   hello-world  ReconcileModifying   3     6    hello-world   eks           crd        normal      1m
 ```
 
-some time later, once the cloudformation stacks are created.
+some time later, once the scaling groups are created.
 
 ```bash
 $ kubectl get instancegroups
