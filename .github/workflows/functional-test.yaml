@@ -8,7 +8,7 @@ jobs:
   functional-test:
     name: functional-test
     #if: contains(github.event.comment.html_url, '/pull/') && contains(github.event.comment.body, '/ok-to-test')
-    if: github.event.issue_comment.body == '/test'
+    if: github.event.comment.body == '/test'
     runs-on: ubuntu-latest
     steps:
 
