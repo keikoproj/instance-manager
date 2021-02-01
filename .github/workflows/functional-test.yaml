@@ -58,12 +58,4 @@ jobs:
           aws eks update-kubeconfig --name $EKS_CLUSTER
           make install
           kubectl set image -n instance-manager deployment/instance-manager instance-manager=keikoproj/instance-manager-test:${{ github.event.pull_request.head.sha }}
-          echo "##[set-output name=result;]$(make bdd)"
-
-      - name: comment PR
-        uses: unsplash/comment-on-pr@master
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          msg: ${{ steps.test.outputs.result }}
-          check_for_duplicate_msg: true
+          make bdd
