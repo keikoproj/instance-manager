@@ -16,9 +16,11 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
 	runt "runtime"
+	"sync"
 
 	"github.com/keikoproj/aws-sdk-go-cache/cache"
 	instancemgrv1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
@@ -82,7 +84,7 @@ func main() {
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&nodeRelabel, "node-relabel", true, "relabel nodes as they join with kubernetes.io/role label via controller")
 	flag.Parse()
-	ctrl.SetLogger(zap.Logger(true))
+	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
@@ -127,7 +129,7 @@ func main() {
 	}
 
 	var cm *corev1.ConfigMap
-	cm, err = client.CoreV1().ConfigMaps(configNamespace).Get(controllers.ConfigMapName, metav1.GetOptions{})
+	cm, err = client.CoreV1().ConfigMaps(configNamespace).Get(context.Background(), controllers.ConfigMapName, metav1.GetOptions{})
 	if err != nil {
 		if !kerrors.IsNotFound(err) {
 			setupLog.Error(err, "could not get instance-manager configmap")
@@ -142,6 +144,8 @@ func main() {
 		ConfigRetention:        configRetention,
 		SpotRecommendationTime: spotRecommendationTime,
 		ConfigNamespace:        configNamespace,
+		Namespaces:             make(map[string]corev1.Namespace),
+		NamespacesLock:         &sync.Mutex{},
 		NodeRelabel:            nodeRelabel,
 		Client:                 mgr.GetClient(),
 		Log:                    ctrl.Log.WithName("controllers").WithName("instancegroup"),

@@ -16,6 +16,7 @@ limitations under the License.
 package eks
 
 import (
+	"context"
 	"strings"
 
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
@@ -77,15 +78,37 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	status.SetLifecycle(v1alpha1.LifecycleStateNormal)
 
 	if spec.IsLaunchConfiguration() {
-		state.ScalingConfiguration = &scaling.LaunchConfiguration{
-			AwsWorker: ctx.AwsWorker,
+		input := &scaling.DiscoverConfigurationInput{
+			TargetConfigName: status.GetActiveLaunchConfigurationName(),
 		}
+
+		var (
+			config *scaling.LaunchConfiguration
+			err    error
+		)
+
+		if config, err = scaling.NewLaunchConfiguration(instanceGroup.NamespacedName(), ctx.AwsWorker, input); err != nil {
+			return errors.Wrap(err, "failed to discover launch configuration")
+		}
+		state.ScalingConfiguration = config
+		status.SetActiveLaunchConfigurationName(config.Name())
 	}
 
 	if spec.IsLaunchTemplate() {
-		state.ScalingConfiguration = &scaling.LaunchTemplate{
-			AwsWorker: ctx.AwsWorker,
+		input := &scaling.DiscoverConfigurationInput{
+			TargetConfigName: status.GetActiveLaunchTemplateName(),
 		}
+
+		var (
+			config *scaling.LaunchTemplate
+			err    error
+		)
+
+		if config, err = scaling.NewLaunchTemplate(instanceGroup.NamespacedName(), ctx.AwsWorker, input); err != nil {
+			return errors.Wrap(err, "failed to discover launch template")
+		}
+		state.ScalingConfiguration = config
+		status.SetActiveLaunchTemplateName(config.Name())
 
 		if mixedInstancesPolicy != nil {
 			if ratio := common.IntOrStrValue(mixedInstancesPolicy.SpotRatio); ratio > 0 {
@@ -94,7 +117,7 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		}
 	}
 
-	nodes, err := ctx.KubernetesClient.Kubernetes.CoreV1().Nodes().List(metav1.ListOptions{})
+	nodes, err := ctx.KubernetesClient.Kubernetes.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		return errors.Wrap(err, "failed to list cluster nodes")
 	}

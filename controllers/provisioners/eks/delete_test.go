@@ -16,6 +16,7 @@ limitations under the License.
 package eks
 
 import (
+	"context"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -189,10 +190,10 @@ func TestRemoveAuthRoleNegative(t *testing.T) {
 	ig2Obj, err := kubeprovider.GetUnstructuredInstanceGroup(ig2)
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
-	_, err = ctx.KubernetesClient.KubeDynamic.Resource(v1alpha1.GroupVersionResource).Namespace("instance-manager").Create(igObj, metav1.CreateOptions{})
+	_, err = ctx.KubernetesClient.KubeDynamic.Resource(v1alpha1.GroupVersionResource).Namespace("instance-manager").Create(context.Background(), igObj, metav1.CreateOptions{})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
-	_, err = ctx.KubernetesClient.KubeDynamic.Resource(v1alpha1.GroupVersionResource).Namespace(ig2.Namespace).Create(ig2Obj, metav1.CreateOptions{})
+	_, err = ctx.KubernetesClient.KubeDynamic.Resource(v1alpha1.GroupVersionResource).Namespace(ig2.Namespace).Create(context.Background(), ig2Obj, metav1.CreateOptions{})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	ctx.SetDiscoveredState(&DiscoveredState{
@@ -225,7 +226,7 @@ func TestRemoveAuthRoleNegative(t *testing.T) {
 	g.Expect(len(auth.MapRoles)).To(gomega.Equal(1))
 
 	// this time the role should be successfully removed
-	err = ctx.KubernetesClient.KubeDynamic.Resource(v1alpha1.GroupVersionResource).Namespace(ig2.Namespace).Delete(ig2.Name, &metav1.DeleteOptions{})
+	err = ctx.KubernetesClient.KubeDynamic.Resource(v1alpha1.GroupVersionResource).Namespace(ig2.Namespace).Delete(context.Background(), ig2.Name, metav1.DeleteOptions{})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	err = ctx.Delete()

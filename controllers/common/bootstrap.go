@@ -55,6 +55,7 @@ func GetNodeBootstrapRemove(arn string, osFamily string) *awsauth.MapperArgument
 	return &awsauth.MapperArguments{
 		MapRoles:      true,
 		RoleARN:       arn,
+		Force:         true,
 		Username:      "system:node:{{EC2PrivateDNSName}}",
 		Groups:        GetGroupsForOsFamily(osFamily),
 		WithRetries:   true,

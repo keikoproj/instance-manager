@@ -191,7 +191,6 @@ func TestCreateNoOp(t *testing.T) {
 
 	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
-
 	// skip role creation
 	ig.GetEKSConfiguration().SetInstanceProfileName("some-profile")
 	ig.GetEKSConfiguration().SetRoleName("some-role")
@@ -200,6 +199,7 @@ func TestCreateNoOp(t *testing.T) {
 		LaunchConfigurationName: aws.String("some-launch-config"),
 	}
 	lc := &scaling.LaunchConfiguration{
+		AwsWorker:      w,
 		TargetResource: mockLaunchConfiguration,
 	}
 

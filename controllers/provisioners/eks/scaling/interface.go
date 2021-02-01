@@ -45,7 +45,8 @@ type DeleteConfigurationInput struct {
 }
 
 type DiscoverConfigurationInput struct {
-	ScalingGroup *autoscaling.Group
+	ScalingGroup     *autoscaling.Group
+	TargetConfigName string
 }
 
 type CreateConfigurationInput struct {

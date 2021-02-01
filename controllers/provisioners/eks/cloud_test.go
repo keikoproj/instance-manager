@@ -16,6 +16,7 @@ limitations under the License.
 package eks
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -28,6 +29,7 @@ import (
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
 	"github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -390,7 +392,7 @@ func TestCloudDiscoverySpotPrice(t *testing.T) {
 	g.Expect(status.GetLifecycle()).To(gomega.Equal("spot"))
 
 	status.SetUsingSpotRecommendation(true)
-	_, err = k.Kubernetes.CoreV1().Events("").Create(MockSpotEvent("1", ownedScalingGroupName, "0.80", true, time.Now()))
+	_, err = k.Kubernetes.CoreV1().Events("").Create(context.Background(), MockSpotEvent("1", ownedScalingGroupName, "0.80", true, time.Now()), metav1.CreateOptions{})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	// recommendation should not be used if nodes are not provisioned yet
@@ -404,7 +406,7 @@ func TestCloudDiscoverySpotPrice(t *testing.T) {
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	g.Expect(configuration.GetSpotPrice()).To(gomega.Equal("0.80"))
 
-	_, err = k.Kubernetes.CoreV1().Events("").Create(MockSpotEvent("2", ownedScalingGroupName, "0.90", false, time.Now().Add(time.Minute*time.Duration(3))))
+	_, err = k.Kubernetes.CoreV1().Events("").Create(context.Background(), MockSpotEvent("2", ownedScalingGroupName, "0.90", false, time.Now().Add(time.Minute*time.Duration(3))), metav1.CreateOptions{})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	err = ctx.CloudDiscovery()

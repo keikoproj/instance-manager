@@ -2,7 +2,7 @@ apiVersion: instancemgr.keikoproj.io/v1alpha1
 kind: InstanceGroup
 metadata:
   name: bdd-test-gitops
-  namespace: instance-manager
+  namespace: instance-manager-gitops
 spec:
   eks:
     maxSize: 4

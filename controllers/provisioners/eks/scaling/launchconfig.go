@@ -58,10 +58,15 @@ func (lc *LaunchConfiguration) Discover(input *DiscoverConfigurationInput) error
 	}
 	lc.ResourceList = launchConfigurations
 
-	if input.ScalingGroup == nil {
+	var targetName string
+	if !common.StringEmpty(input.TargetConfigName) {
+		targetName = input.TargetConfigName
+	} else if input.ScalingGroup != nil {
+		targetName = awsprovider.GetScalingConfigName(input.ScalingGroup)
+	} else {
+		// cannot discover without scaling group name or launch config name
 		return nil
 	}
-	targetName := aws.StringValue(input.ScalingGroup.LaunchConfigurationName)
 
 	for _, config := range launchConfigurations {
 		name := aws.StringValue(config.LaunchConfigurationName)

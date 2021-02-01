@@ -31,14 +31,12 @@ import (
 
 func (ctx *EksInstanceGroupContext) Create() error {
 	var (
-		configName    string
-		instanceGroup = ctx.GetInstanceGroup()
-		state         = ctx.GetDiscoveredState()
-		scalingConfig = state.GetScalingConfiguration()
-		configuration = instanceGroup.GetEKSConfiguration()
-		args          = ctx.GetBootstrapArgs()
-		kubeletArgs   = ctx.GetKubeletExtraArgs()
-
+		instanceGroup   = ctx.GetInstanceGroup()
+		state           = ctx.GetDiscoveredState()
+		scalingConfig   = state.GetScalingConfiguration()
+		configuration   = instanceGroup.GetEKSConfiguration()
+		args            = ctx.GetBootstrapArgs()
+		kubeletArgs     = ctx.GetKubeletExtraArgs()
 		userDataPayload = ctx.GetUserDataStages()
 		clusterName     = configuration.GetClusterName()
 		mounts          = ctx.GetMountOpts()
@@ -57,25 +55,28 @@ func (ctx *EksInstanceGroupContext) Create() error {
 	}
 	instanceProfile := state.GetInstanceProfile()
 
-	if !scalingConfig.Provisioned() {
+	var configName = scalingConfig.Name()
+
+	if common.StringEmpty(configName) {
 		configName = fmt.Sprintf("%v-%v", ctx.ResourcePrefix, common.GetTimeString())
-		if err := scalingConfig.Create(&scaling.CreateConfigurationInput{
-			Name:                  configName,
-			IamInstanceProfileArn: aws.StringValue(instanceProfile.Arn),
-			ImageId:               configuration.Image,
-			InstanceType:          configuration.InstanceType,
-			KeyName:               configuration.KeyPairName,
-			SecurityGroups:        sgs,
-			Volumes:               configuration.Volumes,
-			UserData:              userData,
-			SpotPrice:             spotPrice,
-			LicenseSpecifications: configuration.LicenseSpecifications,
-			Placement:             placement,
-		}); err != nil {
-			return errors.Wrap(err, "failed to create scaling configuration")
-		}
-	} else {
-		configName = scalingConfig.Name()
+	}
+
+	config := &scaling.CreateConfigurationInput{
+		Name:                  configName,
+		IamInstanceProfileArn: aws.StringValue(instanceProfile.Arn),
+		ImageId:               configuration.Image,
+		InstanceType:          configuration.InstanceType,
+		KeyName:               configuration.KeyPairName,
+		SecurityGroups:        sgs,
+		Volumes:               configuration.Volumes,
+		UserData:              userData,
+		SpotPrice:             spotPrice,
+		LicenseSpecifications: configuration.LicenseSpecifications,
+		Placement:             placement,
+	}
+
+	if err := scalingConfig.Create(config); err != nil {
+		return errors.Wrap(err, "failed to create scaling configuration")
 	}
 
 	// create scaling group

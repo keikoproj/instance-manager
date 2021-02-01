@@ -1,6 +1,6 @@
 export GO111MODULE=on
 
-CONTROLLER_GEN_VERSION := v0.2.9
+CONTROLLER_GEN_VERSION := v0.4.1
 GO_MIN_VERSION := 11100 # go1.11
 
 define generate_int_from_semver
@@ -42,7 +42,7 @@ test: generate fmt vet manifests
 
 .PHONY: bdd
 bdd:
-	go test -timeout 60m -v ./test-bdd/ --godog.stop-on-failure 
+	go test -timeout 60m -v ./test-bdd/ --godog.stop-on-failure
 
 .PHONY: wip
 wip:
@@ -122,7 +122,7 @@ check-controller-gen:
 controller-gen: controller-gen-find check-controller-gen
 
 .PHONY: controller-gen-real
-controller-gen-find: 
+controller-gen-find:
 ifeq (, $(shell which controller-gen))
 	go get sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
 CONTROLLER_GEN=$(shell go env GOPATH)/bin/controller-gen
