@@ -3,6 +3,8 @@ name: functional-test
 on:
   issue_comment:
     types: [created]
+  pull_request:
+    branches: [master, remove-travis]
 
 jobs:
   functional-test:
