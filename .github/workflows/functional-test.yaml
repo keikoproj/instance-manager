@@ -7,7 +7,7 @@ on:
 jobs:
   functional-test:
     name: functional-test
-    if: ${{ (github.event.issue.pull_request && contains(github.event.comment.body, '/ok-to-test')) }}
+    if: contains(github.event.comment.html_url, '/pull/') && contains(github.event.comment.body, '/ok-to-test')
     runs-on: ubuntu-latest
     steps:
 
