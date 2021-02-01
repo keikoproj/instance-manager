@@ -5,11 +5,14 @@ on:
     types: [created]
   pull_request:
     branches: [master, remove-travis]
+  # schedule:
+  #   # run at 23:05 PM PST (cron uses UTC)
+  #   - cron:  '5 15 * * *'
 
 jobs:
   functional-test:
     name: functional-test
-    #if: contains(github.event.comment.html_url, '/pull/') && contains(github.event.comment.body, '/ok-to-test')
+    #if: github.repository_owner == 'keikoproj' && contains(github.event.comment.html_url, '/pull/') && contains(github.event.comment.body, '/ok-to-test')
     runs-on: ubuntu-latest
     steps:
 
@@ -41,7 +44,6 @@ jobs:
           tags: ${{ github.event.pull_request.head.sha }}
 
       - name: test
-        id: test
         env:
           AWS_REGION: us-west-2
           AWS_DEFAULT_REGION: us-west-2
@@ -49,6 +51,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           NODE_SUBNETS: ${{ secrets.NODE_SUBNETS }}
           NODE_ROLE: ${{ secrets.NODE_ROLE }}
+          NODE_ROLE_ARN: ${{ secrets.NODE_ROLE_ARN }}
           KEYPAIR_NAME: ${{ secrets.KEYPAIR_NAME }}
           AMI_ID: ${{ secrets.AMI_ID }}
           SECURITY_GROUPS: ${{ secrets.SECURITY_GROUPS }}
