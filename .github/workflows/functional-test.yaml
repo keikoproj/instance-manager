@@ -9,10 +9,10 @@ on:
 
 jobs:
 
-  functional-test-comment:
-    name: functional-test-comment
+  functional-test:
+    name: functional-test
     if: github.repository_owner == 'keikoproj' &&
-        (github.event_name == 'pull_request' && github.event.issue.pull_request && contains(github.event.comment.body, '/ok-to-test')) ||
+        (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '/ok-to-test')) ||
         github.event_name == 'schedule'
 
     runs-on: ubuntu-18.04
