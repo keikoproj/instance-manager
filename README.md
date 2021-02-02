@@ -1,6 +1,7 @@
 # instance-manager
 
-[![Build Status](https://travis-ci.org/keikoproj/instance-manager.svg?branch=master)](https://travis-ci.org/keikoproj/instance-manager)
+![functional-test](https://github.com/keikoproj/instance-manager/workflows/functional-test/badge.svg)
+![push](https://github.com/keikoproj/instance-manager/workflows/push/badge.svg)
 [![codecov](https://codecov.io/gh/keikoproj/instance-manager/branch/master/graph/badge.svg)](https://codecov.io/gh/keikoproj/instance-manager)
 [![Go Report Card](https://goreportcard.com/badge/github.com/keikoproj/instance-manager)](https://goreportcard.com/report/github.com/keikoproj/instance-manager)
 [![slack](https://img.shields.io/badge/slack-join%20the%20conversation-ff69b4.svg)][SlackUrl]
