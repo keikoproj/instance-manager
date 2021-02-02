@@ -128,6 +128,7 @@ func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, k
 </powershell>`
 	case OsFamilyBottleRocket:
 		UserDataTemplate = `
+{{range $pre := .PreBootstrap}}{{$pre}}{{end}}
 [settings.kubernetes]
 api-server   = "{{ .ApiEndpoint }}"
 cluster-certificate = "{{ .ClusterCA }}"
@@ -143,6 +144,7 @@ max-pods = {{ .MaxPods }}
 {{- range .NodeTaints}}
 "{{ .Key }}" = "{{ .Value }}:{{ .Effect }}"
 {{- end}}
+{{range $post := .PostBootstrap}}{{$post}}{{end}}
 `
 	case OsFamilyAmazonLinux2:
 		UserDataTemplate = `#!/bin/bash
