@@ -10,7 +10,6 @@ jobs:
   functional-test:
     name: functional-test
     if: github.repository_owner == 'keikoproj'
-
     runs-on: ubuntu-18.04
 
     steps:
@@ -27,6 +26,11 @@ jobs:
           jq --version
           kubectl
           aws --version
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ github.sha }}
 
       - name: test
         env:
