@@ -80,7 +80,7 @@ Please consider that this project is in alpha stages and breaking API changes ma
 
 The previous eks-cf provisioner have been discontinued in favor of the Alpha-2 eks provisioner, which does not use cloudformation as a mechanism to provision the required resources.
 
-In order to migrate instace-groups from versions <0.5.0, delete all instance groups, update the custom resource definition RBAC, and controller IAM role, and deploy new instance-groups with the new provisioner.
+In order to migrate instance-groups from versions <0.5.0, delete all instance groups, update the custom resource definition RBAC, and controller IAM role, and deploy new instance-groups with the new provisioner.
 
 ## Contributing
 
