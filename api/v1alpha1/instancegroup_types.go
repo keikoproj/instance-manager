@@ -111,6 +111,12 @@ var (
 	LifecycleHookAllowedDefaultResult   = []string{LifecycleHookResultAbandon, LifecycleHookResultContinue}
 	LaunchTemplatePlacementTenancyTypes = []string{HostPlacementTenancyType, DefaultPlacementTenancyType, DedicatedPlacementTenancyType}
 	log                                 = ctrl.Log.WithName("v1alpha1")
+
+	volumeTypesWithProvisionedIopsSupport = map[string]bool{
+		"io1": true,
+		"io2": true,
+		"gp3": true,
+	}
 )
 
 // InstanceGroup is the Schema for the instancegroups API
@@ -491,8 +497,10 @@ func (c *EKSConfiguration) Validate() error {
 			return errors.Errorf("validation failed, volume type '%v' is unsuppoeted", v.Type)
 		}
 
-		if v.Iops != 0 && !strings.EqualFold(v.Type, "io1") {
-			log.Info("cannot apply IOPS configuration for volumeType, only type 'io1' supported", "volumeType", v.Type)
+		_, TypeSupportsProvisionedIops := volumeTypesWithProvisionedIopsSupport[v.Type]
+
+		if v.Iops != 0 && !TypeSupportsProvisionedIops {
+			log.Info("cannot apply IOPS configuration for volumeType, only types ['io1','io2','gp3'] supported", "volumeType", v.Type)
 		}
 
 		if v.SnapshotID != "" {
