@@ -111,12 +111,6 @@ var (
 	LifecycleHookAllowedDefaultResult   = []string{LifecycleHookResultAbandon, LifecycleHookResultContinue}
 	LaunchTemplatePlacementTenancyTypes = []string{HostPlacementTenancyType, DefaultPlacementTenancyType, DedicatedPlacementTenancyType}
 	log                                 = ctrl.Log.WithName("v1alpha1")
-
-	volumeTypesWithProvisionedIopsSupport = map[string]bool{
-		"io1": true,
-		"io2": true,
-		"gp3": true,
-	}
 )
 
 // InstanceGroup is the Schema for the instancegroups API
@@ -416,7 +410,7 @@ func (s *EKSSpec) IsLaunchConfiguration() bool {
 	return false
 }
 
-func (c *EKSConfiguration) Validate() error {
+func (c *EKSConfiguration) Validate(scalingConfigurationType ScalingConfigurationType) error {
 	if common.StringEmpty(c.EksClusterName) {
 		return errors.Errorf("validation failed, 'clusterName' is a required parameter")
 	}
@@ -493,13 +487,15 @@ func (c *EKSConfiguration) Validate() error {
 	}
 
 	for _, v := range c.Volumes {
-		if !common.ContainsEqualFold(awsprovider.AllowedVolumeTypes, v.Type) {
-			return errors.Errorf("validation failed, volume type '%v' is unsuppoeted", v.Type)
+		if scalingConfigurationType == LaunchConfiguration && !common.ContainsEqualFold(awsprovider.ConfigurationAllowedVolumeTypes, v.Type) {
+			return errors.Errorf("validation failed, volume type '%v' is unsupported", v.Type)
 		}
 
-		_, TypeSupportsProvisionedIops := volumeTypesWithProvisionedIopsSupport[v.Type]
+		if scalingConfigurationType == LaunchTemplate && !common.ContainsEqualFold(awsprovider.TemplateAllowedVolumeTypes, v.Type) {
+			return errors.Errorf("validation failed, volume type '%v' is unsupported", v.Type)
+		}
 
-		if v.Iops != 0 && !TypeSupportsProvisionedIops {
+		if v.Iops != 0 && !common.ContainsEqualFold(awsprovider.AllowedVolumeTypesWithProvisionedIOPS, v.Type) {
 			log.Info("cannot apply IOPS configuration for volumeType, only types ['io1','io2','gp3'] supported", "volumeType", v.Type)
 		}
 
@@ -634,7 +630,7 @@ func (ig *InstanceGroup) Validate() error {
 			return err
 		}
 
-		if err := config.Validate(); err != nil {
+		if err := config.Validate(spec.Type); err != nil {
 			return err
 		}
 	}
