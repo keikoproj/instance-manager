@@ -410,7 +410,7 @@ func (s *EKSSpec) IsLaunchConfiguration() bool {
 	return false
 }
 
-func (c *EKSConfiguration) Validate() error {
+func (c *EKSConfiguration) Validate(scalingConfigurationType ScalingConfigurationType) error {
 	if common.StringEmpty(c.EksClusterName) {
 		return errors.Errorf("validation failed, 'clusterName' is a required parameter")
 	}
@@ -487,12 +487,16 @@ func (c *EKSConfiguration) Validate() error {
 	}
 
 	for _, v := range c.Volumes {
-		if !common.ContainsEqualFold(awsprovider.AllowedVolumeTypes, v.Type) {
-			return errors.Errorf("validation failed, volume type '%v' is unsuppoeted", v.Type)
+		if scalingConfigurationType == LaunchConfiguration && !common.ContainsEqualFold(awsprovider.ConfigurationAllowedVolumeTypes, v.Type) {
+			return errors.Errorf("validation failed, volume type '%v' is unsupported", v.Type)
 		}
 
-		if v.Iops != 0 && !strings.EqualFold(v.Type, "io1") {
-			log.Info("cannot apply IOPS configuration for volumeType, only type 'io1' supported", "volumeType", v.Type)
+		if scalingConfigurationType == LaunchTemplate && !common.ContainsEqualFold(awsprovider.TemplateAllowedVolumeTypes, v.Type) {
+			return errors.Errorf("validation failed, volume type '%v' is unsupported", v.Type)
+		}
+
+		if v.Iops != 0 && !common.ContainsEqualFold(awsprovider.AllowedVolumeTypesWithProvisionedIOPS, v.Type) {
+			log.Info("cannot apply IOPS configuration for volumeType, only types ['io1','io2','gp3'] supported", "volumeType", v.Type)
 		}
 
 		if v.SnapshotID != "" {
@@ -626,7 +630,7 @@ func (ig *InstanceGroup) Validate() error {
 			return err
 		}
 
-		if err := config.Validate(); err != nil {
+		if err := config.Validate(spec.Type); err != nil {
 			return err
 		}
 	}
