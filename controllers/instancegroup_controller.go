@@ -119,6 +119,7 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 		r.Log.Error(err, "reconcile failed")
 		return ctrl.Result{}, err
 	}
+	existingStatus := instanceGroup.Status
 
 	// set/unset finalizer
 	r.SetFinalizer(instanceGroup)
@@ -200,7 +201,9 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
-	r.UpdateStatus(input.InstanceGroup)
+	if !reflect.DeepEqual(existingStatus, input.InstanceGroup.Status) {
+		r.UpdateStatus(input.InstanceGroup)
+	}
 	r.Finalize(instanceGroup)
 	return ctrl.Result{}, nil
 }
