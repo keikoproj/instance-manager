@@ -141,7 +141,7 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 	if !reflect.DeepEqual(*r.ConfigMap, corev1.ConfigMap{}) {
 		// Configmap exist - apply defaults/boundaries if namespace is not excluded
 
-		if !r.IsNamespaceExcluded(instanceGroup) {
+		if !r.IsNamespaceAnnotated(instanceGroup, provisioners.ConfigurationExclusionAnnotationKey, "true") {
 			// namespace is not excluded - proceed with applying defaults/boundaries
 			var defaultConfig *provisioners.ProvisionerConfiguration
 			if defaultConfig, err = provisioners.NewProvisionerConfiguration(r.ConfigMap, instanceGroup); err != nil {
@@ -156,6 +156,7 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 			input.InstanceGroup = defaultConfig.InstanceGroup
 		} else {
 			// unset config hash if namespace is excluded
+			r.Log.Info("namespace excluded from managed configuration", "namespace", instanceGroup.GetNamespace())
 			status.SetConfigHash("")
 		}
 	}
@@ -216,10 +217,7 @@ func (r *InstanceGroupReconciler) UpdateStatus(instanceGroup *v1alpha1.InstanceG
 	}
 }
 
-func (r *InstanceGroupReconciler) IsNamespaceExcluded(instanceGroup *v1alpha1.InstanceGroup) bool {
-	if reflect.DeepEqual(r.ConfigMap, &corev1.ConfigMap{}) {
-		return false
-	}
+func (r *InstanceGroupReconciler) IsNamespaceAnnotated(instanceGroup *v1alpha1.InstanceGroup, key, value string) bool {
 	namespace := instanceGroup.GetNamespace()
 	if ns, ok := r.Namespaces[namespace]; ok {
 		nsObject, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&ns)
@@ -230,8 +228,7 @@ func (r *InstanceGroupReconciler) IsNamespaceExcluded(instanceGroup *v1alpha1.In
 		unstructuredNamespace := &unstructured.Unstructured{
 			Object: nsObject,
 		}
-		if kubeprovider.HasAnnotation(unstructuredNamespace, provisioners.ConfigurationExclusionAnnotationKey, "true") {
-			r.Log.Info("namespace excluded from managed configuration", "namespace", namespace)
+		if kubeprovider.HasAnnotation(unstructuredNamespace, key, value) {
 			return true
 		}
 	}
