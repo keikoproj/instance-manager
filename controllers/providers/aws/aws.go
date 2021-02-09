@@ -189,13 +189,12 @@ func (w *AwsWorker) UpdateLaunchTemplateDefaultVersion(name, defaultVersion stri
 	return out.LaunchTemplate, nil
 }
 
-func (w *AwsWorker) CreateLaunchTemplateVersion(input *ec2.CreateLaunchTemplateVersionInput) (int64, error) {
-	var version int64
+func (w *AwsWorker) CreateLaunchTemplateVersion(input *ec2.CreateLaunchTemplateVersionInput) (*ec2.LaunchTemplateVersion, error) {
 	v, err := w.Ec2Client.CreateLaunchTemplateVersion(input)
 	if err != nil {
-		return version, err
+		return nil, err
 	}
-	return aws.Int64Value(v.LaunchTemplateVersion.VersionNumber), nil
+	return v.LaunchTemplateVersion, nil
 }
 
 func (w *AwsWorker) DeleteLaunchTemplate(name string) error {
