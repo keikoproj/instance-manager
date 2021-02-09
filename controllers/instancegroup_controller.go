@@ -119,6 +119,7 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 		r.Log.Error(err, "reconcile failed")
 		return ctrl.Result{}, err
 	}
+	existingStatus := instanceGroup.Status
 
 	// set/unset finalizer
 	r.SetFinalizer(instanceGroup)
@@ -180,31 +181,30 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 
 	if err = input.InstanceGroup.Validate(); err != nil {
 		ctx.SetState(v1alpha1.ReconcileErr)
-		r.UpdateStatus(input.InstanceGroup, status)
+		r.UpdateStatus(input.InstanceGroup, existingStatus)
 		return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 	}
 
 	if err = HandleReconcileRequest(ctx); err != nil {
 		ctx.SetState(v1alpha1.ReconcileErr)
-		r.UpdateStatus(input.InstanceGroup, status)
+		r.UpdateStatus(input.InstanceGroup, existingStatus)
 		return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 	}
 
 	if provisioners.IsRetryable(input.InstanceGroup) {
 		r.Log.Info("reconcile event ended with requeue", "instancegroup", req.NamespacedName, "provisioner", provisionerKind)
-		r.UpdateStatus(input.InstanceGroup, status)
+		r.UpdateStatus(input.InstanceGroup, existingStatus)
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
-	r.UpdateStatus(input.InstanceGroup, status)
+	r.UpdateStatus(input.InstanceGroup, existingStatus)
 	r.Finalize(instanceGroup)
 	return ctrl.Result{}, nil
 }
 
-func (r *InstanceGroupReconciler) UpdateStatus(instanceGroup *v1alpha1.InstanceGroup, status *v1alpha1.InstanceGroupStatus) {
+func (r *InstanceGroupReconciler) UpdateStatus(instanceGroup *v1alpha1.InstanceGroup, status v1alpha1.InstanceGroupStatus) {
 	r.Log.Info("updating resource status", "instancegroup", instanceGroup.NamespacedName())
-	newStatus := instanceGroup.GetStatus()
-	if reflect.DeepEqual(newStatus, status) {
+	if reflect.DeepEqual(instanceGroup.Status, status) {
 		r.Log.Info("skipping update due to no changes", "instancegroup", instanceGroup.NamespacedName())
 		return
 	}
