@@ -140,8 +140,8 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 
 	if !reflect.DeepEqual(*r.ConfigMap, corev1.ConfigMap{}) {
 		// Configmap exist - apply defaults/boundaries if namespace is not excluded
-
-		if !r.IsNamespaceAnnotated(instanceGroup, provisioners.ConfigurationExclusionAnnotationKey, "true") {
+		namespace := instanceGroup.GetNamespace()
+		if !r.IsNamespaceAnnotated(namespace, provisioners.ConfigurationExclusionAnnotationKey, "true") {
 			// namespace is not excluded - proceed with applying defaults/boundaries
 			var defaultConfig *provisioners.ProvisionerConfiguration
 			if defaultConfig, err = provisioners.NewProvisionerConfiguration(r.ConfigMap, instanceGroup); err != nil {
@@ -156,7 +156,7 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 			input.InstanceGroup = defaultConfig.InstanceGroup
 		} else {
 			// unset config hash if namespace is excluded
-			r.Log.Info("namespace excluded from managed configuration", "namespace", instanceGroup.GetNamespace())
+			r.Log.Info("namespace excluded from managed configuration", "namespace", namespace)
 			status.SetConfigHash("")
 		}
 	}
@@ -217,8 +217,7 @@ func (r *InstanceGroupReconciler) UpdateStatus(instanceGroup *v1alpha1.InstanceG
 	}
 }
 
-func (r *InstanceGroupReconciler) IsNamespaceAnnotated(instanceGroup *v1alpha1.InstanceGroup, key, value string) bool {
-	namespace := instanceGroup.GetNamespace()
+func (r *InstanceGroupReconciler) IsNamespaceAnnotated(namespace, key, value string) bool {
 	if ns, ok := r.Namespaces[namespace]; ok {
 		nsObject, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&ns)
 		if err != nil {
