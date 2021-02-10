@@ -98,7 +98,7 @@ func (r *InstanceGroupReconciler) SetFinalizer(instanceGroup *v1alpha1.InstanceG
 	}
 }
 
-// +kubebuilder:rbac:groups=core,resources=namespaces,verbs=list;get
+// +kubebuilder:rbac:groups=core,resources=namespaces,verbs=list;get;watch
 // +kubebuilder:rbac:groups=core,resources=nodes,verbs=list;patch;watch
 // +kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch;create
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;create;update;patch;watch
