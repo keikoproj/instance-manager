@@ -59,7 +59,6 @@ func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 		configuration = instanceGroup.GetEKSConfiguration()
 		status        = instanceGroup.GetStatus()
 		strategy      = instanceGroup.GetUpgradeStrategy()
-		configHash    = kubeprovider.ConfigmapHash(p.Configuration)
 	)
 
 	ctx := &EksInstanceGroupContext{
@@ -72,7 +71,6 @@ func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 	}
 
 	instanceGroup.SetState(v1alpha1.ReconcileInit)
-	status.SetConfigHash(configHash)
 	status.SetProvisioner(ProvisionerName)
 	status.SetStrategy(strategy.Type)
 

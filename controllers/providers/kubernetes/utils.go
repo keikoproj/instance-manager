@@ -18,12 +18,15 @@ package kubernetes
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"os"
 	"os/user"
+	"reflect"
 	"strings"
 
+	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/ghodss/yaml"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
@@ -32,10 +35,12 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type KubernetesClientSet struct {
@@ -253,6 +258,11 @@ func ParseCustomResourceYaml(raw string) (*unstructured.Unstructured, error) {
 
 func ConfigmapHash(cm *corev1.ConfigMap) string {
 	var buf strings.Builder
+
+	if reflect.DeepEqual(*cm, corev1.ConfigMap{}) {
+		return ""
+	}
+
 	cmStr := cm.String()
 	buf.WriteString(cmStr[strings.Index(cm.String(), ",Data:")+1:])
 	return common.StringMD5(buf.String())
@@ -277,4 +287,34 @@ func IsPathValue(resource unstructured.Unstructured, path, value string) bool {
 	}
 
 	return false
+}
+
+type statusPatch struct {
+	from v1alpha1.InstanceGroup
+}
+
+func (s *statusPatch) Type() types.PatchType {
+	return types.MergePatchType
+}
+
+func (s *statusPatch) Data(obj runtime.Object) ([]byte, error) {
+	origObj := s.from.DeepCopyObject()
+	originalJSON, err := json.Marshal(origObj)
+	if err != nil {
+		return nil, err
+	}
+
+	modObj := obj.(*v1alpha1.InstanceGroup)
+	modObj.Spec = v1alpha1.InstanceGroupSpec{}
+	modifiedJSON, err := json.Marshal(modObj.DeepCopyObject())
+	if err != nil {
+		return nil, err
+	}
+
+	return jsonpatch.CreateMergePatch(originalJSON, modifiedJSON)
+}
+
+func MergePatch(obj v1alpha1.InstanceGroup) client.Patch {
+	obj.Spec = v1alpha1.InstanceGroupSpec{}
+	return &statusPatch{obj}
 }

@@ -119,6 +119,7 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 		r.Log.Error(err, "reconcile failed")
 		return ctrl.Result{}, err
 	}
+	statusPatch := kubeprovider.MergePatch(*instanceGroup)
 
 	// set/unset finalizer
 	r.SetFinalizer(instanceGroup)
@@ -132,25 +133,17 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 		ConfigRetention: r.ConfigRetention,
 	}
 
-	if !reflect.DeepEqual(r.ConfigMap, &corev1.ConfigMap{}) {
+	var (
+		status     = instanceGroup.GetStatus()
+		configHash = kubeprovider.ConfigmapHash(r.ConfigMap)
+	)
+	status.SetConfigHash(configHash)
 
-		var isExcludedNamespace bool
+	if !reflect.DeepEqual(*r.ConfigMap, corev1.ConfigMap{}) {
+		// Configmap exist - apply defaults/boundaries if namespace is not excluded
 		namespace := instanceGroup.GetNamespace()
-		if ns, ok := r.Namespaces[namespace]; ok {
-			nsObject, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&ns)
-			if err != nil {
-				return ctrl.Result{}, err
-			}
-			unstructuredNamespace := &unstructured.Unstructured{
-				Object: nsObject,
-			}
-			if kubeprovider.HasAnnotation(unstructuredNamespace, provisioners.ConfigurationExclusionAnnotationKey, "true") {
-				isExcludedNamespace = true
-				r.Log.Info("namespace excluded from managed configuration", "namespace", namespace)
-			}
-		}
-
-		if !isExcludedNamespace {
+		if !r.IsNamespaceAnnotated(namespace, provisioners.ConfigurationExclusionAnnotationKey, "true") {
+			// namespace is not excluded - proceed with applying defaults/boundaries
 			var defaultConfig *provisioners.ProvisionerConfiguration
 			if defaultConfig, err = provisioners.NewProvisionerConfiguration(r.ConfigMap, instanceGroup); err != nil {
 				return ctrl.Result{}, err
@@ -162,6 +155,10 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 			}
 
 			input.InstanceGroup = defaultConfig.InstanceGroup
+		} else {
+			// unset config hash if namespace is excluded
+			r.Log.Info("namespace excluded from managed configuration", "namespace", namespace)
+			status.SetConfigHash("")
 		}
 	}
 
@@ -184,34 +181,53 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 
 	if err = input.InstanceGroup.Validate(); err != nil {
 		ctx.SetState(v1alpha1.ReconcileErr)
-		r.UpdateStatus(input.InstanceGroup)
+		r.PatchStatus(input.InstanceGroup, statusPatch)
 		return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 	}
 
 	if err = HandleReconcileRequest(ctx); err != nil {
 		ctx.SetState(v1alpha1.ReconcileErr)
-		r.UpdateStatus(input.InstanceGroup)
+		r.PatchStatus(input.InstanceGroup, statusPatch)
 		return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 	}
 
 	if provisioners.IsRetryable(input.InstanceGroup) {
 		r.Log.Info("reconcile event ended with requeue", "instancegroup", req.NamespacedName, "provisioner", provisionerKind)
-		r.UpdateStatus(input.InstanceGroup)
+		r.PatchStatus(input.InstanceGroup, statusPatch)
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
-	r.UpdateStatus(input.InstanceGroup)
+	r.Log.Info("reconcile event ended", "instancegroup", req.NamespacedName, "provisioner", provisionerKind)
+	r.PatchStatus(input.InstanceGroup, statusPatch)
 	r.Finalize(instanceGroup)
 	return ctrl.Result{}, nil
 }
 
-func (r *InstanceGroupReconciler) UpdateStatus(ig *v1alpha1.InstanceGroup) {
-	r.Log.Info("updating resource status", "instancegroup", ig.NamespacedName())
-	if err := r.Status().Update(context.Background(), ig); err != nil {
+func (r *InstanceGroupReconciler) PatchStatus(instanceGroup *v1alpha1.InstanceGroup, patch client.Patch) {
+	patchData, _ := patch.Data(instanceGroup)
+	r.Log.Info("patching resource status", "instancegroup", instanceGroup.NamespacedName(), "patch", string(patchData), "resourceVersion", instanceGroup.GetResourceVersion())
+	if err := r.Status().Patch(context.Background(), instanceGroup, patch); err != nil {
 		// avoid error if object already deleted
 		if kubeprovider.IsStorageError(err) {
 			return
 		}
-		r.Log.Info("failed to update status", "error", err, "instancegroup", ig.NamespacedName())
+		r.Log.Info("failed to patch status", "error", err, "instancegroup", instanceGroup.NamespacedName())
 	}
+}
+
+func (r *InstanceGroupReconciler) IsNamespaceAnnotated(namespace, key, value string) bool {
+	if ns, ok := r.Namespaces[namespace]; ok {
+		nsObject, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&ns)
+		if err != nil {
+			r.Log.Error(err, "failed to convert namespace to unstructured", "namespace", namespace)
+			return false
+		}
+		unstructuredNamespace := &unstructured.Unstructured{
+			Object: nsObject,
+		}
+		if kubeprovider.HasAnnotation(unstructuredNamespace, key, value) {
+			return true
+		}
+	}
+	return false
 }
