@@ -108,9 +108,10 @@ func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, k
 		osFamily         = ctx.GetOsFamily()
 		nodeLabels       = ctx.GetComputedLabels()
 		nodeTaints       = configuration.GetTaints()
-		bootstrapOptions = configuration.GetBootstrapOptions()
+		bootstrapOptions = ctx.GetComputedBootstrapOptions()
 	)
 	var maxPods int64 = 0
+
 	if bootstrapOptions != nil {
 		maxPods = bootstrapOptions.MaxPods
 	}
@@ -457,14 +458,43 @@ func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 	return labelList
 }
 
-func (ctx *EksInstanceGroupContext) GetBootstrapArgs() string {
+func (ctx *EksInstanceGroupContext) GetComputedBootstrapOptions() *v1alpha1.BootstrapOptions {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
+		state         = ctx.GetDiscoveredState()
 		configuration = instanceGroup.GetEKSConfiguration()
+	)
+	if instanceGroup.GetAnnotations()[CustomNetworkingEnabledAnnotation] == "true" {
+		hostNetworkPods, err := strconv.ParseInt(instanceGroup.GetAnnotations()[CustomNetworkingHostPodsAnnotation], 10, 64)
+		if err != nil {
+			hostNetworkPods = 2 //Default on EKS. Kube-Proxy and AWS VPC CNI
+		}
+
+		instanceTypeNetworkInfo := awsprovider.GetInstanceTypeNetworkInfo(state.GetInstanceTypeInfo(), configuration.InstanceType)
+		maxPods := (*instanceTypeNetworkInfo.MaximumNetworkInterfaces-1)*
+			(*instanceTypeNetworkInfo.Ipv4AddressesPerInterface-1) + hostNetworkPods
+		if configuration.BootstrapOptions == nil {
+			return &v1alpha1.BootstrapOptions{
+				MaxPods: maxPods,
+			}
+		} else {
+			bootstrapOptions := *configuration.BootstrapOptions
+			if bootstrapOptions.MaxPods == 0 {
+				bootstrapOptions.MaxPods = maxPods
+			}
+			return &bootstrapOptions
+		}
+	}
+	return configuration.BootstrapOptions
+}
+
+func (ctx *EksInstanceGroupContext) GetBootstrapArgs() string {
+	var (
+		bootstrapOptions = ctx.GetComputedBootstrapOptions()
 	)
 	var sb strings.Builder
 
-	if configuration.BootstrapOptions != nil && configuration.BootstrapOptions.MaxPods > 0 {
+	if bootstrapOptions != nil && bootstrapOptions.MaxPods > 0 {
 		sb.WriteString("--use-max-pods false ")
 	}
 	sb.WriteString(fmt.Sprintf("--kubelet-extra-args '%v' ", ctx.GetKubeletExtraArgs()))
@@ -473,17 +503,18 @@ func (ctx *EksInstanceGroupContext) GetBootstrapArgs() string {
 
 func (ctx *EksInstanceGroupContext) GetKubeletExtraArgs() string {
 	var (
-		instanceGroup = ctx.GetInstanceGroup()
-		configuration = instanceGroup.GetEKSConfiguration()
-		bootstrapArgs = configuration.GetBootstrapArguments()
+		instanceGroup    = ctx.GetInstanceGroup()
+		configuration    = instanceGroup.GetEKSConfiguration()
+		bootstrapArgs    = configuration.GetBootstrapArguments()
+		bootstrapOptions = ctx.GetComputedBootstrapOptions()
 	)
 
 	labelsFlag := fmt.Sprintf("--node-labels=%v", strings.Join(ctx.GetLabelList(), ","))
 	taintsFlag := fmt.Sprintf("--register-with-taints=%v", strings.Join(ctx.GetTaintList(), ","))
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("%v %v %v ", labelsFlag, taintsFlag, bootstrapArgs))
-	if configuration.BootstrapOptions != nil && configuration.BootstrapOptions.MaxPods > 0 {
-		sb.WriteString(fmt.Sprintf("--max-pods=%v ", configuration.BootstrapOptions.MaxPods))
+	if bootstrapOptions != nil && bootstrapOptions.MaxPods > 0 {
+		sb.WriteString(fmt.Sprintf("--max-pods=%v ", bootstrapOptions.MaxPods))
 	}
 	return sb.String()
 }
