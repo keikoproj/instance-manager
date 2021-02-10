@@ -461,6 +461,7 @@ func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 func (ctx *EksInstanceGroupContext) GetComputedBootstrapOptions() *v1alpha1.BootstrapOptions {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
+		state         = ctx.GetDiscoveredState()
 		configuration = instanceGroup.GetEKSConfiguration()
 	)
 	if instanceGroup.GetAnnotations()[CustomNetworkingEnabledAnnotation] == "true" {
@@ -469,7 +470,7 @@ func (ctx *EksInstanceGroupContext) GetComputedBootstrapOptions() *v1alpha1.Boot
 			hostNetworkPods = 2 //Default on EKS. Kube-Proxy and AWS VPC CNI
 		}
 
-		instanceTypes, _ := ctx.AwsWorker.DescribeInstanceTypes()
+		instanceTypes := state.GetInstanceTypeInfo()
 		for _, instanceType := range instanceTypes {
 			if aws.StringValue(instanceType.InstanceType) == configuration.InstanceType {
 				maxPods := (*instanceType.NetworkInfo.MaximumNetworkInterfaces-1)*

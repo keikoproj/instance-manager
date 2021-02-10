@@ -91,16 +91,6 @@ func TestCustomNetworkingMaxPods(t *testing.T) {
 		ec2Mock = NewEc2Mocker()
 	)
 
-	ec2Mock.InstanceTypes = []*ec2.InstanceTypeInfo{
-		&ec2.InstanceTypeInfo{
-			InstanceType: aws.String("m5.large"),
-			NetworkInfo: &ec2.NetworkInfo{
-				MaximumNetworkInterfaces:  aws.Int64(3),
-				Ipv4AddressesPerInterface: aws.Int64(10),
-			},
-		},
-	}
-
 	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 
 	ig.Annotations = map[string]string{
@@ -110,6 +100,15 @@ func TestCustomNetworkingMaxPods(t *testing.T) {
 	}
 
 	ctx := MockContext(ig, k, w)
+	ctx.GetDiscoveredState().SetInstanceTypeInfo([]*ec2.InstanceTypeInfo{
+		&ec2.InstanceTypeInfo{
+			InstanceType: aws.String("m5.large"),
+			NetworkInfo: &ec2.NetworkInfo{
+				MaximumNetworkInterfaces:  aws.Int64(3),
+				Ipv4AddressesPerInterface: aws.Int64(10),
+			},
+		},
+	})
 
 	userData := ctx.GetBasicUserData("foo", ctx.GetBootstrapArgs(), "", UserDataPayload{}, []MountOpts{})
 	basicUserDataDecoded, _ := base64.StdEncoding.DecodeString(userData)
@@ -120,7 +119,7 @@ func TestCustomNetworkingMaxPods(t *testing.T) {
 
 	tests := []struct {
 		bootstrapOptions *v1alpha1.BootstrapOptions
-		annotations map[string]string
+		annotations      map[string]string
 		expectedMaxPods  string
 	}{
 		{
@@ -130,7 +129,7 @@ func TestCustomNetworkingMaxPods(t *testing.T) {
 				CustomNetworkingEnabledAnnotation:  "true",
 			},
 			bootstrapOptions: &v1alpha1.BootstrapOptions{MaxPods: 22},
-			expectedMaxPods: "--max-pods=22",
+			expectedMaxPods:  "--max-pods=22",
 		},
 		{
 			annotations: map[string]string{
@@ -139,7 +138,7 @@ func TestCustomNetworkingMaxPods(t *testing.T) {
 				CustomNetworkingEnabledAnnotation:  "true",
 			},
 			bootstrapOptions: &v1alpha1.BootstrapOptions{MaxPods: 0},
-			expectedMaxPods: "--max-pods=20",
+			expectedMaxPods:  "--max-pods=20",
 		},
 		{
 			annotations: map[string]string{
@@ -148,7 +147,7 @@ func TestCustomNetworkingMaxPods(t *testing.T) {
 				CustomNetworkingEnabledAnnotation:  "true",
 			},
 			bootstrapOptions: nil,
-			expectedMaxPods: "--max-pods=20",
+			expectedMaxPods:  "--max-pods=20",
 		},
 		{
 			annotations: map[string]string{
@@ -157,7 +156,7 @@ func TestCustomNetworkingMaxPods(t *testing.T) {
 				CustomNetworkingEnabledAnnotation:  "true",
 			},
 			bootstrapOptions: nil,
-			expectedMaxPods: "--max-pods=20",
+			expectedMaxPods:  "--max-pods=20",
 		},
 	}
 

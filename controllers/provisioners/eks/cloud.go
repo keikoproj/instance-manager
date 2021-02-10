@@ -54,6 +54,7 @@ type DiscoveredState struct {
 	Cluster              *eks.Cluster
 	VPCId                string
 	InstancePool         InstancePoolSpec
+	InstanceTypeInfo     []*ec2.InstanceTypeInfo
 }
 
 func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
@@ -205,6 +206,12 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	status.SetCurrentMin(int(aws.Int64Value(targetScalingGroup.MinSize)))
 	status.SetCurrentMax(int(aws.Int64Value(targetScalingGroup.MaxSize)))
 
+	instanceTypes, err := ctx.AwsWorker.DescribeInstanceTypes()
+	if err != nil {
+		return errors.Wrap(err, "failed to discover launch templates")
+	}
+	state.SetInstanceTypeInfo(instanceTypes)
+
 	if spec.IsLaunchConfiguration() {
 
 		state.ScalingConfiguration, err = scaling.NewLaunchConfiguration(instanceGroup.NamespacedName(), ctx.AwsWorker, &scaling.DiscoverConfigurationInput{
@@ -230,11 +237,6 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		if err != nil {
 			return errors.Wrap(err, "failed to discover launch templates")
 		}
-		instanceTypes, err := ctx.AwsWorker.DescribeInstanceTypes()
-		if err != nil {
-			return errors.Wrap(err, "failed to discover launch templates")
-		}
-
 		var (
 			pool             = subFamilyFlexiblePool(offerings, instanceTypes)
 			resource         = state.ScalingConfiguration.Resource()
@@ -352,6 +354,19 @@ func (d *DiscoveredState) GetInstanceProfile() *iam.InstanceProfile {
 	}
 	return &iam.InstanceProfile{}
 }
+
+func (d *DiscoveredState) SetInstanceTypeInfo(instanceTypeInfo []*ec2.InstanceTypeInfo) {
+	if instanceTypeInfo != nil {
+		d.InstanceTypeInfo = instanceTypeInfo
+	}
+}
+func (d *DiscoveredState) GetInstanceTypeInfo() []*ec2.InstanceTypeInfo {
+	if d.InstanceTypeInfo != nil {
+		return d.InstanceTypeInfo
+	}
+	return []*ec2.InstanceTypeInfo{}
+}
+
 func (d *DiscoveredState) GetRole() *iam.Role {
 	if d.IAMRole != nil {
 		return d.IAMRole
