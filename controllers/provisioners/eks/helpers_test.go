@@ -81,6 +81,57 @@ func TestAutoscalerTags(t *testing.T) {
 
 }
 
+func TestCustomNetworkingMaxPods(t *testing.T) {
+	var (
+		k       = MockKubernetesClientSet()
+		ig      = MockInstanceGroup()
+		asgMock = NewAutoScalingMocker()
+		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
+	)
+
+	ec2Mock.InstanceTypes = []*ec2.InstanceTypeInfo{
+		&ec2.InstanceTypeInfo{
+			InstanceType: aws.String("m5.large"),
+			NetworkInfo: &ec2.NetworkInfo{
+				MaximumNetworkInterfaces:  aws.Int64(3),
+				Ipv4AddressesPerInterface: aws.Int64(10),
+			},
+		},
+	}
+
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+
+	ig.Annotations = map[string]string{
+		ClusterAutoscalerEnabledAnnotation: "true",
+		CustomNetworkingHostPodsAnnotation: "2",
+		CustomNetworkingEnabledAnnotation:  "true",
+	}
+
+	ctx := MockContext(ig, k, w)
+
+	userData := ctx.GetBasicUserData("foo", ctx.GetBootstrapArgs(), "", UserDataPayload{}, []MountOpts{})
+	basicUserDataDecoded, _ := base64.StdEncoding.DecodeString(userData)
+	basicUserDataString := string(basicUserDataDecoded)
+	if !strings.Contains(basicUserDataString, "--max-pods=20") {
+		t.Fail()
+	}
+
+	//Override with static value and ensure it's respected
+	ctx.InstanceGroup.GetEKSConfiguration().BootstrapOptions = &v1alpha1.BootstrapOptions{
+		MaxPods: 22,
+	}
+
+	userData = ctx.GetBasicUserData("foo", ctx.GetBootstrapArgs(), "", UserDataPayload{}, []MountOpts{})
+	basicUserDataDecoded, _ = base64.StdEncoding.DecodeString(userData)
+	basicUserDataString = string(basicUserDataDecoded)
+	if !strings.Contains(basicUserDataString, "--max-pods=22") {
+		t.Fail()
+	}
+
+}
+
 func TestResolveSecurityGroups(t *testing.T) {
 	var (
 		g       = gomega.NewGomegaWithT(t)

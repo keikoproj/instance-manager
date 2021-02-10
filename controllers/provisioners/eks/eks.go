@@ -35,6 +35,8 @@ const (
 	OverrideDefaultLabelsAnnotationKey  = "instancemgr.keikoproj.io/default-labels"
 	OsFamilyAnnotation                  = "instancemgr.keikoproj.io/os-family"
 	ClusterAutoscalerEnabledAnnotation  = "instancemgr.keikoproj.io/cluster-autoscaler-enabled"
+	CustomNetworkingEnabledAnnotation   = "instancemgr.keikoproj.io/custom-networking-enabled"
+	CustomNetworkingHostPodsAnnotation  = "instancemgr.keikoproj.io/custom-networking-host-pods"
 
 	OsFamilyWindows      = "windows"
 	OsFamilyBottleRocket = "bottlerocket"
