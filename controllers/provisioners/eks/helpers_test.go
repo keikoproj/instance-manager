@@ -81,6 +81,97 @@ func TestAutoscalerTags(t *testing.T) {
 
 }
 
+func TestCustomNetworkingMaxPods(t *testing.T) {
+	var (
+		k       = MockKubernetesClientSet()
+		ig      = MockInstanceGroup()
+		asgMock = NewAutoScalingMocker()
+		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+
+	ig.Annotations = map[string]string{
+		ClusterAutoscalerEnabledAnnotation: "true",
+		CustomNetworkingHostPodsAnnotation: "2",
+		CustomNetworkingEnabledAnnotation:  "true",
+	}
+
+	ctx := MockContext(ig, k, w)
+	ctx.GetDiscoveredState().SetInstanceTypeInfo([]*ec2.InstanceTypeInfo{
+		&ec2.InstanceTypeInfo{
+			InstanceType: aws.String("m5.large"),
+			NetworkInfo: &ec2.NetworkInfo{
+				MaximumNetworkInterfaces:  aws.Int64(3),
+				Ipv4AddressesPerInterface: aws.Int64(10),
+			},
+		},
+	})
+
+	userData := ctx.GetBasicUserData("foo", ctx.GetBootstrapArgs(), "", UserDataPayload{}, []MountOpts{})
+	basicUserDataDecoded, _ := base64.StdEncoding.DecodeString(userData)
+	basicUserDataString := string(basicUserDataDecoded)
+	if !strings.Contains(basicUserDataString, "--max-pods=20") {
+		t.Fail()
+	}
+
+	tests := []struct {
+		bootstrapOptions *v1alpha1.BootstrapOptions
+		annotations      map[string]string
+		expectedMaxPods  string
+	}{
+		{
+			annotations: map[string]string{
+				ClusterAutoscalerEnabledAnnotation: "true",
+				CustomNetworkingHostPodsAnnotation: "2",
+				CustomNetworkingEnabledAnnotation:  "true",
+			},
+			bootstrapOptions: &v1alpha1.BootstrapOptions{MaxPods: 22},
+			expectedMaxPods:  "--max-pods=22",
+		},
+		{
+			annotations: map[string]string{
+				ClusterAutoscalerEnabledAnnotation: "true",
+				CustomNetworkingHostPodsAnnotation: "2",
+				CustomNetworkingEnabledAnnotation:  "true",
+			},
+			bootstrapOptions: &v1alpha1.BootstrapOptions{MaxPods: 0},
+			expectedMaxPods:  "--max-pods=20",
+		},
+		{
+			annotations: map[string]string{
+				ClusterAutoscalerEnabledAnnotation: "true",
+				CustomNetworkingHostPodsAnnotation: "2",
+				CustomNetworkingEnabledAnnotation:  "true",
+			},
+			bootstrapOptions: nil,
+			expectedMaxPods:  "--max-pods=20",
+		},
+		{
+			annotations: map[string]string{
+				ClusterAutoscalerEnabledAnnotation: "true",
+				CustomNetworkingHostPodsAnnotation: "",
+				CustomNetworkingEnabledAnnotation:  "true",
+			},
+			bootstrapOptions: nil,
+			expectedMaxPods:  "--max-pods=20",
+		},
+	}
+
+	for _, tc := range tests {
+		ctx.InstanceGroup.GetEKSConfiguration().BootstrapOptions = tc.bootstrapOptions
+		ctx.InstanceGroup.Annotations = tc.annotations
+		userData = ctx.GetBasicUserData("foo", ctx.GetBootstrapArgs(), "", UserDataPayload{}, []MountOpts{})
+		basicUserDataDecoded, _ = base64.StdEncoding.DecodeString(userData)
+		basicUserDataString = string(basicUserDataDecoded)
+		if !strings.Contains(basicUserDataString, tc.expectedMaxPods) {
+			t.Fail()
+		}
+	}
+}
+
 func TestResolveSecurityGroups(t *testing.T) {
 	var (
 		g       = gomega.NewGomegaWithT(t)

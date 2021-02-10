@@ -134,6 +134,7 @@ func MockInstanceGroup() *v1alpha1.InstanceGroup {
 				MinSize: 1,
 				EKSConfiguration: &v1alpha1.EKSConfiguration{
 					EksClusterName: "my-cluster",
+					InstanceType:   "m5.large",
 					SuspendedProcesses: []string{
 						"AZRebalance",
 					},

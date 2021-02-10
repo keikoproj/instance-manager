@@ -1323,3 +1323,12 @@ func GetScalingConfigName(group *autoscaling.Group) string {
 	}
 	return configName
 }
+
+func GetInstanceTypeNetworkInfo(instanceTypes []*ec2.InstanceTypeInfo, instanceType string) *ec2.NetworkInfo {
+	for _, instanceTypeInfo := range instanceTypes {
+		if aws.StringValue(instanceTypeInfo.InstanceType) == instanceType {
+			return instanceTypeInfo.NetworkInfo
+		}
+	}
+	return nil
+}
