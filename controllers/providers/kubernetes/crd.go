@@ -32,6 +32,7 @@ import (
 
 const (
 	CRDStrategyName          = "crd"
+	DefaultUpgradeNamespace  = "default"
 	OwnershipAnnotationKey   = "app.kubernetes.io/managed-by"
 	ScopeAnnotationKey       = "instancemgr.keikoproj.io/upgrade-scope"
 	OwnershipAnnotationValue = "instance-manager"
@@ -40,10 +41,16 @@ const (
 func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGroup, configName string) (bool, error) {
 
 	var (
-		status   = instanceGroup.GetStatus()
-		strategy = instanceGroup.GetUpgradeStrategy().GetCRDType()
-		spec     = instanceGroup.GetEKSSpec()
-		asgName  = status.GetActiveScalingGroupName()
+		status                      = instanceGroup.GetStatus()
+		strategy                    = instanceGroup.GetUpgradeStrategy().GetCRDType()
+		spec                        = instanceGroup.GetEKSSpec()
+		instanceGroupNamespacedName = instanceGroup.NamespacedName()
+		asgName                     = status.GetActiveScalingGroupName()
+		statusPath                  = strategy.GetStatusJSONPath()
+		successString               = strategy.GetStatusSuccessString()
+		failureString               = strategy.GetStatusFailureString()
+		crdName                     = strategy.GetCRDName()
+		policy                      = strategy.GetConcurrencyPolicy()
 	)
 
 	renderParams := struct {
@@ -62,14 +69,17 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 		return false, errors.Wrap(err, "failed to parse custom resource yaml")
 
 	}
+
 	AddAnnotation(customResource, OwnershipAnnotationKey, OwnershipAnnotationValue)
 	AddAnnotation(customResource, ScopeAnnotationKey, asgName)
-	GVR := GetGVR(customResource, strategy.GetCRDName())
+	GVR := GetGVR(customResource, crdName)
 
 	var launchID string
 	if spec.IsLaunchConfiguration() {
+		// <name>-<epoch>: upgrade-20210210043140
 		launchID = common.GetLastElementBy(configName, "-")
 	} else if spec.IsLaunchTemplate() {
+		// <name>-<epoch>-<version>: upgrade-20210210043140-2
 		templateID := common.GetLastElementBy(configName, "-")
 		version := status.GetLatestTemplateVersion()
 		if common.StringEmpty(version) {
@@ -78,36 +88,47 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 		launchID = strings.Join([]string{templateID, version}, "-")
 	}
 	NormalizeName(customResource, launchID)
-	crdFullName := strings.Join([]string{GVR.Resource, GVR.Group}, ".")
+
+	crdFullName := CRDFullName(GVR.Resource, GVR.Group)
 	if !CRDExists(kube, crdFullName) {
 		return false, errors.Errorf("custom resource definition '%v' is missing, could not upgrade", crdFullName)
 	}
-	status.SetStrategyResourceName(customResource.GetName())
-	status.SetStrategyResourceNamespace(customResource.GetNamespace())
 
-	policy := strategy.GetConcurrencyPolicy()
+	var (
+		customResourceName      = customResource.GetName()
+		customResourceNamespace = customResource.GetNamespace()
+	)
+	status.SetStrategyResourceName(customResourceName)
+	status.SetStrategyResourceNamespace(customResourceNamespace)
 
-	inactiveResources, activeResources, err := GetResources(kube, instanceGroup, customResource)
+	_, activeResources, err := GetResources(kube, instanceGroup, customResource)
 	if err != nil {
 		return false, errors.Wrap(err, "failed to discover active custom resources")
 	}
 
 	if len(activeResources) > 0 {
 
-		switch {
-		case strings.EqualFold(policy, v1alpha1.ForbidConcurrencyPolicy):
-			log.Info("custom resource/s still active, will requeue", "instancegroup", instanceGroup.GetName())
-			instanceGroup.SetState(v1alpha1.ReconcileModifying)
+		switch strings.ToLower(policy) {
+
+		case v1alpha1.ForbidConcurrencyPolicy:
+			// if any active resource exist for the ASG, it must first complete
+			log.Info("custom resource/s still active, will requeue", "instancegroup", instanceGroupNamespacedName)
+			//instanceGroup.SetState(v1alpha1.ReconcileModifying)
 			return false, nil
-		case strings.EqualFold(policy, v1alpha1.ReplaceConcurrencyPolicy):
+
+		case v1alpha1.ReplaceConcurrencyPolicy:
 			var isRunning bool
 			for _, resource := range activeResources {
-				if strings.HasSuffix(resource.GetName(), launchID) {
+				resourceName := resource.GetName()
+				// if active resource exist with same launch id, it's not replaceable
+				if strings.HasSuffix(resourceName, launchID) {
 					isRunning = true
 					continue
 				}
-				log.Info("active custom resource/s exists, will replace", "instancegroup", instanceGroup.GetName())
-				err = kube.Resource(GVR).Namespace(resource.GetNamespace()).Delete(context.Background(), resource.GetName(), metav1.DeleteOptions{})
+
+				// if active resource exist with a different launch id, it is replaceable
+				log.Info("active custom resource/s exists, will replace", "instancegroup", instanceGroupNamespacedName)
+				err = kube.Resource(GVR).Namespace(resource.GetNamespace()).Delete(context.Background(), resourceName, metav1.DeleteOptions{})
 				if err != nil {
 					if !kerr.IsNotFound(err) {
 						return false, errors.Wrap(err, "failed to delete custom resource")
@@ -115,90 +136,96 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 				}
 			}
 			if isRunning {
+				// finally, if an active resource is still running, requeue until it's done
 				return false, nil
 			}
-		case strings.EqualFold(policy, v1alpha1.AllowConcurrencyPolicy):
-			log.Info("concurrency set to allow, will submit new resource", "instancegroup", instanceGroup.GetName())
+
+		case v1alpha1.AllowConcurrencyPolicy:
+			log.Info("concurrency set to allow, will submit new resource", "instancegroup", instanceGroupNamespacedName)
 		}
 
 	}
 
 	// delete inactive resources if there is a name conflict
-	for _, resource := range inactiveResources {
-		if strings.EqualFold(resource.GetName(), customResource.GetName()) && strings.EqualFold(resource.GetNamespace(), customResource.GetNamespace()) {
-			log.Info("name conflict with inactive resource, will delete", "instancegroup", instanceGroup.GetName(), "resource", resource.GetName())
-			err = kube.Resource(GVR).Namespace(resource.GetNamespace()).Delete(context.Background(), resource.GetName(), metav1.DeleteOptions{})
-			if err != nil {
-				if !kerr.IsNotFound(err) {
-					return false, errors.Wrap(err, "failed to delete custom resource")
-				}
-			}
-		}
-	}
+	// if NamespacedResourceInList(inactiveResources, customResourceName, customResourceNamespace) {
+	// 	log.Info("name conflict with inactive resource, will delete", "instancegroup", instanceGroupNamespacedName, "resource", customResourceName)
+	// 	err = kube.Resource(GVR).Namespace(customResourceNamespace).Delete(context.Background(), customResourceName, metav1.DeleteOptions{})
+	// 	if err != nil {
+	// 		if !kerr.IsNotFound(err) {
+	// 			return false, errors.Wrap(err, "failed to delete custom resource")
+	// 		}
+	// 	}
+	// }
 
-	err = SubmitCustomResource(kube, customResource, strategy.GetCRDName())
+	// create new resource if not exist
+	_, err = kube.Resource(GVR).Namespace(customResourceNamespace).Create(context.Background(), customResource, metav1.CreateOptions{})
 	if err != nil {
-		return false, errors.Wrap(err, "failed to submit custom resource")
+		if !kerr.IsAlreadyExists(err) {
+			return false, errors.Wrap(err, "failed to submit custom resource")
+		}
+	} else {
+		log.Info("submitted custom resource", "instancegroup", instanceGroupNamespacedName)
 	}
-	log.Info("submitted custom resource", "instancegroup", instanceGroup.GetName())
 
-	customResource, err = kube.Resource(GVR).Namespace(customResource.GetNamespace()).Get(context.Background(), customResource.GetName(), metav1.GetOptions{})
+	// get created resource
+	customResource, err = kube.Resource(GVR).Namespace(customResourceNamespace).Get(context.Background(), customResourceName, metav1.GetOptions{})
 	if kerr.IsNotFound(err) {
-		log.Info("custom resource did not propagate, will requeue", "instancegroup", instanceGroup.GetName())
-		instanceGroup.SetState(v1alpha1.ReconcileModifying)
+		log.Info("custom resource did not propagate, will requeue", "instancegroup", instanceGroupNamespacedName)
+		//instanceGroup.SetState(v1alpha1.ReconcileModifying)
 		return false, nil
 	}
 
-	resourceStatus, err := GetUnstructuredPath(customResource, strategy.GetStatusJSONPath())
+	// check if resource completed / failed
+	resourceStatus, err := GetUnstructuredPath(customResource, statusPath)
 	if err != nil {
 		return false, err
 	}
 
-	log.Info("watching custom resource status",
-		"instancegroup", instanceGroup.GetName(),
-		"resource", customResource.GetName(),
-		"statuspath", strategy.GetStatusJSONPath(),
-		"status", resourceStatus,
-	)
-	switch strings.ToLower(resourceStatus) {
-	case strings.ToLower(strategy.GetStatusSuccessString()):
-		log.Info("custom resource succeeded",
-			"instancegroup", instanceGroup.GetName(),
-			"resource", customResource.GetName(),
-			"statuspath", strategy.GetStatusJSONPath(),
-			"status", resourceStatus,
-		)
+	log.Info("watching custom resource status", "instancegroup", instanceGroupNamespacedName, "resource", customResourceName, "status", resourceStatus)
+
+	if strings.EqualFold(resourceStatus, successString) {
+		log.Info("custom resource succeeded", "instancegroup", instanceGroupNamespacedName, "resource", customResourceName, "status", resourceStatus)
 		return true, nil
-	case strings.ToLower(strategy.GetStatusFailureString()):
-		return false, errors.Errorf("custom resource failed to converge, %v status is %v", strategy.GetStatusJSONPath(), resourceStatus)
-	default:
-		log.Info("custom resource still converging",
-			"instancegroup", instanceGroup.GetName(),
-			"resource", customResource.GetName(),
-			"statuspath", strategy.GetStatusJSONPath(),
-			"status", resourceStatus,
-		)
-		return false, nil
 	}
+
+	if strings.EqualFold(resourceStatus, failureString) {
+		log.Info("custom resource failed", "instancegroup", instanceGroupNamespacedName, "resource", customResourceName, "status", resourceStatus)
+		return false, errors.Errorf("custom resource failed to converge, %v status is %v", statusPath, resourceStatus)
+	}
+
+	log.Info("custom resource still converging", "instancegroup", instanceGroupNamespacedName, "resource", customResourceName, "status", resourceStatus)
+	return false, nil
 }
 
 func NormalizeName(customResource *unstructured.Unstructured, id string) {
-	if providedName := customResource.GetName(); providedName != "" {
-		if !strings.HasSuffix(providedName, id) {
-			customResource.SetName(fmt.Sprintf("%v-%v", providedName, id))
-		}
+	var (
+		name              string
+		resourceName      = customResource.GetName()
+		resourceNamespace = customResource.GetNamespace()
+		generatedName     = customResource.GetGenerateName()
+	)
+
+	// Add missing id suffix if missing
+	if !common.StringEmpty(resourceName) && !strings.HasSuffix(resourceName, id) {
+		name = fmt.Sprintf("%v-%v", resourceName, id)
+		customResource.SetName(name)
 	}
 
-	if generatedName := customResource.GetGenerateName(); generatedName != "" {
-		customResource.SetName(fmt.Sprintf("%v-%v", generatedName, id))
+	// If generatedName provided use instead
+	if !common.StringEmpty(generatedName) {
+		name = fmt.Sprintf("%v-%v", generatedName, id)
+		customResource.SetName(name)
 	}
 
-	if len(customResource.GetName()) > 63 {
-		customResource.SetName(fmt.Sprintf("instancemgr-%v", id))
+	// Shorten long name
+	if len(name) > 63 {
+		name = fmt.Sprintf("instancemgr-%v", id)
+		customResource.SetName(name)
 	}
 
-	if customResource.GetNamespace() == "" {
-		customResource.SetNamespace("default")
+	// Use default namespace if not provided
+	if common.StringEmpty(resourceNamespace) {
+		customResource.SetNamespace(DefaultUpgradeNamespace)
 	}
 }
 
@@ -281,9 +308,10 @@ func GetResources(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGroup,
 		activeResources   = make([]*unstructured.Unstructured, 0)
 		inactiveResources = make([]*unstructured.Unstructured, 0)
 		GVR               = GetGVR(resource, strategy.GetCRDName())
+		resourceNamespace = resource.GetNamespace()
 	)
 
-	r, err := kube.Resource(GVR).Namespace(resource.GetNamespace()).List(context.Background(), metav1.ListOptions{})
+	r, err := kube.Resource(GVR).Namespace(resourceNamespace).List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		return inactiveResources, activeResources, err
 	}
@@ -305,17 +333,4 @@ func GetResources(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGroup,
 	}
 
 	return inactiveResources, activeResources, nil
-}
-
-func SubmitCustomResource(kube dynamic.Interface, customResource *unstructured.Unstructured, CRDName string) error {
-	var (
-		customResourceNamespace = customResource.GetNamespace()
-		GVR                     = GetGVR(customResource, CRDName)
-	)
-
-	_, err := kube.Resource(GVR).Namespace(customResourceNamespace).Create(context.Background(), customResource, metav1.CreateOptions{})
-	if !kerr.IsAlreadyExists(err) {
-		return err
-	}
-	return nil
 }
