@@ -470,23 +470,19 @@ func (ctx *EksInstanceGroupContext) GetComputedBootstrapOptions() *v1alpha1.Boot
 			hostNetworkPods = 2 //Default on EKS. Kube-Proxy and AWS VPC CNI
 		}
 
-		instanceTypes := state.GetInstanceTypeInfo()
-		for _, instanceType := range instanceTypes {
-			if aws.StringValue(instanceType.InstanceType) == configuration.InstanceType {
-				maxPods := (*instanceType.NetworkInfo.MaximumNetworkInterfaces-1)*
-					(*instanceType.NetworkInfo.Ipv4AddressesPerInterface-1) + hostNetworkPods
-				if configuration.BootstrapOptions == nil {
-					return &v1alpha1.BootstrapOptions{
-						MaxPods: maxPods,
-					}
-				} else {
-					bootstrapOptions := *configuration.BootstrapOptions
-					if bootstrapOptions.MaxPods == 0 {
-						bootstrapOptions.MaxPods = maxPods
-					}
-					return &bootstrapOptions
-				}
+		instanceTypeNetworkInfo := awsprovider.GetInstanceTypeNetworkInfo(state.GetInstanceTypeInfo(), configuration.InstanceType)
+		maxPods := (*instanceTypeNetworkInfo.MaximumNetworkInterfaces-1)*
+			(*instanceTypeNetworkInfo.Ipv4AddressesPerInterface-1) + hostNetworkPods
+		if configuration.BootstrapOptions == nil {
+			return &v1alpha1.BootstrapOptions{
+				MaxPods: maxPods,
 			}
+		} else {
+			bootstrapOptions := *configuration.BootstrapOptions
+			if bootstrapOptions.MaxPods == 0 {
+				bootstrapOptions.MaxPods = maxPods
+			}
+			return &bootstrapOptions
 		}
 	}
 	return configuration.BootstrapOptions

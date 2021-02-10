@@ -208,7 +208,7 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 
 	instanceTypes, err := ctx.AwsWorker.DescribeInstanceTypes()
 	if err != nil {
-		return errors.Wrap(err, "failed to discover launch templates")
+		return errors.Wrap(err, "failed to discover instance types")
 	}
 	state.SetInstanceTypeInfo(instanceTypes)
 
