@@ -283,6 +283,7 @@ func TestLaunchTemplateCreate(t *testing.T) {
 		Name:      "some-config",
 		SpotPrice: "1.0",
 	})
+	lt.LatestVersion = nil
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	ec2Mock.CreateLaunchTemplateVersionErr = errors.New("some-error")

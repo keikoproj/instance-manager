@@ -18,6 +18,7 @@ package eks
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -82,6 +83,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		if err := scalingConfig.Create(config); err != nil {
 			return errors.Wrap(err, "failed to create scaling configuration")
 		}
+
 	}
 
 	if scalingConfig.RotationNeeded(&scaling.DiscoverConfigurationInput{
@@ -97,7 +99,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	}
 
 	// update scaling group
-	err = ctx.UpdateScalingGroup(config.Name)
+	err = ctx.UpdateScalingGroup(config.Name, &scalingConfig)
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			if aerr.Code() == autoscaling.ErrCodeScalingActivityInProgressFault {
@@ -126,7 +128,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	return nil
 }
 
-func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string) error {
+func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string, scalingConfig *scaling.Configuration) error {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
 		spec          = instanceGroup.GetEKSSpec()
@@ -159,7 +161,11 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string) error 
 				Version:            aws.String("$Latest"),
 			}
 		}
+		latestVersion := (*scalingConfig).(*scaling.LaunchTemplate).LatestVersion.VersionNumber
+		latestVersionString := strconv.FormatInt(*latestVersion, 10)
+
 		status.SetActiveLaunchTemplateName(configName)
+		status.SetLatestTemplateVersion(latestVersionString)
 	}
 
 	if ctx.ScalingGroupUpdateNeeded(configName) {
