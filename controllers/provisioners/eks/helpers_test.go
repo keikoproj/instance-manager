@@ -118,18 +118,59 @@ func TestCustomNetworkingMaxPods(t *testing.T) {
 		t.Fail()
 	}
 
-	//Override with static value and ensure it's respected
-	ctx.InstanceGroup.GetEKSConfiguration().BootstrapOptions = &v1alpha1.BootstrapOptions{
-		MaxPods: 22,
+	tests := []struct {
+		bootstrapOptions *v1alpha1.BootstrapOptions
+		annotations map[string]string
+		expectedMaxPods  string
+	}{
+		{
+			annotations: map[string]string{
+				ClusterAutoscalerEnabledAnnotation: "true",
+				CustomNetworkingHostPodsAnnotation: "2",
+				CustomNetworkingEnabledAnnotation:  "true",
+			},
+			bootstrapOptions: &v1alpha1.BootstrapOptions{MaxPods: 22},
+			expectedMaxPods: "--max-pods=22",
+		},
+		{
+			annotations: map[string]string{
+				ClusterAutoscalerEnabledAnnotation: "true",
+				CustomNetworkingHostPodsAnnotation: "2",
+				CustomNetworkingEnabledAnnotation:  "true",
+			},
+			bootstrapOptions: &v1alpha1.BootstrapOptions{MaxPods: 0},
+			expectedMaxPods: "--max-pods=20",
+		},
+		{
+			annotations: map[string]string{
+				ClusterAutoscalerEnabledAnnotation: "true",
+				CustomNetworkingHostPodsAnnotation: "2",
+				CustomNetworkingEnabledAnnotation:  "true",
+			},
+			bootstrapOptions: nil,
+			expectedMaxPods: "--max-pods=20",
+		},
+		{
+			annotations: map[string]string{
+				ClusterAutoscalerEnabledAnnotation: "true",
+				CustomNetworkingHostPodsAnnotation: "",
+				CustomNetworkingEnabledAnnotation:  "true",
+			},
+			bootstrapOptions: nil,
+			expectedMaxPods: "--max-pods=20",
+		},
 	}
 
-	userData = ctx.GetBasicUserData("foo", ctx.GetBootstrapArgs(), "", UserDataPayload{}, []MountOpts{})
-	basicUserDataDecoded, _ = base64.StdEncoding.DecodeString(userData)
-	basicUserDataString = string(basicUserDataDecoded)
-	if !strings.Contains(basicUserDataString, "--max-pods=22") {
-		t.Fail()
+	for _, tc := range tests {
+		ctx.InstanceGroup.GetEKSConfiguration().BootstrapOptions = tc.bootstrapOptions
+		ctx.InstanceGroup.Annotations = tc.annotations
+		userData = ctx.GetBasicUserData("foo", ctx.GetBootstrapArgs(), "", UserDataPayload{}, []MountOpts{})
+		basicUserDataDecoded, _ = base64.StdEncoding.DecodeString(userData)
+		basicUserDataString = string(basicUserDataDecoded)
+		if !strings.Contains(basicUserDataString, tc.expectedMaxPods) {
+			t.Fail()
+		}
 	}
-
 }
 
 func TestResolveSecurityGroups(t *testing.T) {
