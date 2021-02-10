@@ -293,21 +293,6 @@ func CRDFullName(resource, group string) string {
 	return strings.Join([]string{resource, group}, ".")
 }
 
-func NamespacedResourceInList(resources []*unstructured.Unstructured, name, namespace string) bool {
-	for _, resource := range resources {
-		var (
-			resourceName           = resource.GetName()
-			resourceNamespace      = resource.GetNamespace()
-			resourceNamespacedName = fmt.Sprintf("%v/%v", resourceNamespace, resourceName)
-			targetNamespacedName   = fmt.Sprintf("%v/%v", namespace, name)
-		)
-		if strings.EqualFold(targetNamespacedName, resourceNamespacedName) {
-			return true
-		}
-	}
-	return false
-}
-
 type statusPatch struct {
 	from v1alpha1.InstanceGroup
 }

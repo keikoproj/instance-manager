@@ -76,10 +76,8 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 
 	var launchID string
 	if spec.IsLaunchConfiguration() {
-		// <name>-<epoch>: upgrade-20210210043140
 		launchID = common.GetLastElementBy(configName, "-")
 	} else if spec.IsLaunchTemplate() {
-		// <name>-<epoch>-<version>: upgrade-20210210043140-2
 		templateID := common.GetLastElementBy(configName, "-")
 		version := status.GetLatestTemplateVersion()
 		if common.StringEmpty(version) {
@@ -113,7 +111,6 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 		case v1alpha1.ForbidConcurrencyPolicy:
 			// if any active resource exist for the ASG, it must first complete
 			log.Info("custom resource/s still active, will requeue", "instancegroup", instanceGroupNamespacedName)
-			//instanceGroup.SetState(v1alpha1.ReconcileModifying)
 			return false, nil
 
 		case v1alpha1.ReplaceConcurrencyPolicy:
@@ -146,17 +143,6 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 
 	}
 
-	// delete inactive resources if there is a name conflict
-	// if NamespacedResourceInList(inactiveResources, customResourceName, customResourceNamespace) {
-	// 	log.Info("name conflict with inactive resource, will delete", "instancegroup", instanceGroupNamespacedName, "resource", customResourceName)
-	// 	err = kube.Resource(GVR).Namespace(customResourceNamespace).Delete(context.Background(), customResourceName, metav1.DeleteOptions{})
-	// 	if err != nil {
-	// 		if !kerr.IsNotFound(err) {
-	// 			return false, errors.Wrap(err, "failed to delete custom resource")
-	// 		}
-	// 	}
-	// }
-
 	// create new resource if not exist
 	_, err = kube.Resource(GVR).Namespace(customResourceNamespace).Create(context.Background(), customResource, metav1.CreateOptions{})
 	if err != nil {
@@ -171,7 +157,6 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 	customResource, err = kube.Resource(GVR).Namespace(customResourceNamespace).Get(context.Background(), customResourceName, metav1.GetOptions{})
 	if kerr.IsNotFound(err) {
 		log.Info("custom resource did not propagate, will requeue", "instancegroup", instanceGroupNamespacedName)
-		//instanceGroup.SetState(v1alpha1.ReconcileModifying)
 		return false, nil
 	}
 
