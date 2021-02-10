@@ -289,6 +289,10 @@ func IsPathValue(resource unstructured.Unstructured, path, value string) bool {
 	return false
 }
 
+func CRDFullName(resource, group string) string {
+	return strings.Join([]string{resource, group}, ".")
+}
+
 type statusPatch struct {
 	from v1alpha1.InstanceGroup
 }
