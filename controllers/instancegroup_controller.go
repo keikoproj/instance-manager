@@ -119,7 +119,7 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 		r.Log.Error(err, "reconcile failed")
 		return ctrl.Result{}, err
 	}
-	existingStatus := instanceGroup.Status
+	statusPatch := kubeprovider.MergePatch(*instanceGroup)
 
 	// set/unset finalizer
 	r.SetFinalizer(instanceGroup)
@@ -181,39 +181,37 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 
 	if err = input.InstanceGroup.Validate(); err != nil {
 		ctx.SetState(v1alpha1.ReconcileErr)
-		r.UpdateStatus(input.InstanceGroup, existingStatus)
+		r.PatchStatus(input.InstanceGroup, statusPatch)
 		return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 	}
 
 	if err = HandleReconcileRequest(ctx); err != nil {
 		ctx.SetState(v1alpha1.ReconcileErr)
-		r.UpdateStatus(input.InstanceGroup, existingStatus)
+		r.PatchStatus(input.InstanceGroup, statusPatch)
 		return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 	}
 
 	if provisioners.IsRetryable(input.InstanceGroup) {
 		r.Log.Info("reconcile event ended with requeue", "instancegroup", req.NamespacedName, "provisioner", provisionerKind)
-		r.UpdateStatus(input.InstanceGroup, existingStatus)
+		r.PatchStatus(input.InstanceGroup, statusPatch)
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
-	r.UpdateStatus(input.InstanceGroup, existingStatus)
+	r.Log.Info("reconcile event ended", "instancegroup", req.NamespacedName, "provisioner", provisionerKind)
+	r.PatchStatus(input.InstanceGroup, statusPatch)
 	r.Finalize(instanceGroup)
 	return ctrl.Result{}, nil
 }
 
-func (r *InstanceGroupReconciler) UpdateStatus(instanceGroup *v1alpha1.InstanceGroup, status v1alpha1.InstanceGroupStatus) {
-	r.Log.Info("updating resource status", "instancegroup", instanceGroup.NamespacedName())
-	if reflect.DeepEqual(instanceGroup.Status, status) {
-		r.Log.Info("skipping update due to no changes", "instancegroup", instanceGroup.NamespacedName())
-		return
-	}
-	if err := r.Status().Update(context.Background(), instanceGroup); err != nil {
+func (r *InstanceGroupReconciler) PatchStatus(instanceGroup *v1alpha1.InstanceGroup, patch client.Patch) {
+	patchData, _ := patch.Data(instanceGroup)
+	r.Log.Info("patching resource status", "instancegroup", instanceGroup.NamespacedName(), "patch", string(patchData), "resourceVersion", instanceGroup.GetResourceVersion())
+	if err := r.Status().Patch(context.Background(), instanceGroup, patch); err != nil {
 		// avoid error if object already deleted
 		if kubeprovider.IsStorageError(err) {
 			return
 		}
-		r.Log.Info("failed to update status", "error", err, "instancegroup", instanceGroup.NamespacedName())
+		r.Log.Info("failed to patch status", "error", err, "instancegroup", instanceGroup.NamespacedName())
 	}
 }
 
