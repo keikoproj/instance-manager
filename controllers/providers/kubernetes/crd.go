@@ -180,7 +180,15 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 		log.Info("custom resource failed", "instancegroup", instanceGroupNamespacedName, "resource", customResourceName, "status", resourceStatus)
 		maxRetries := *strategy.MaxRetries
 		if maxRetries > status.GetStrategyRetryCount() {
-			status.IncrementStrategyRetryCount()
+
+			if maxRetries == -1 {
+				// if maxRetries is set to -1, retry forever
+				status.SetStrategyRetryCount(-1)
+			} else {
+				// otherwise increment retry counter
+				status.IncrementStrategyRetryCount()
+			}
+
 			log.Info("max retries not met, will resubmit", "instancegroup", instanceGroupNamespacedName, "maxRetries", maxRetries, "retryNumber", status.StrategyRetryCount)
 			err = kube.Resource(GVR).Namespace(customResourceNamespace).Delete(context.Background(), customResourceName, metav1.DeleteOptions{})
 			if err != nil {

@@ -313,9 +313,9 @@ spec:
               args: ["echo", "{{ .InstanceGroup.Status.ActiveScalingGroupName }}"]
 ```
 
-#### Upgrade Failures
+#### Recovering from Upgrade Failures
 
-You can configure whether you want the controller to retry by setting the `spec.strategy.crd.maxRetries` field - if left unset it will default to 3.
+You can configure whether you want the controller to retry by setting the `spec.strategy.crd.maxRetries` field - if left unset it will default to 3, max retries can also be set to -1 which would retry until success.
 When the submitted resource fails, the controller will delete/recreate the resource up to configured amount of times, once the max retries are met, the instance-group will enter an error state and requeue with exponential backoff.
 In order to manually retry, you must delete the failed custom resource and either wait for the next reconcile, or trigger a reconcile by making a modifications to the instance group or restarting the controller.
 
