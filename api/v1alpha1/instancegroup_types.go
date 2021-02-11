@@ -103,6 +103,7 @@ var (
 			IntVal: 1,
 		},
 	}
+	DefaultCRDStrategyMaxRetries = 3
 
 	AllowedFileSystemTypes              = []string{FileSystemTypeXFS, FileSystemTypeEXT4}
 	AllowedMixedPolicyStrategies        = []string{LaunchTemplateStrategyCapacityOptimized, LaunchTemplateStrategyLowestPrice}
@@ -164,6 +165,7 @@ type CRDUpdateStrategy struct {
 	Spec                string `json:"spec,omitempty"`
 	CRDName             string `json:"crdName,omitempty"`
 	ConcurrencyPolicy   string `json:"concurrencyPolicy,omitempty"`
+	MaxRetries          *int   `json:"maxRetries,omitempty"`
 	StatusJSONPath      string `json:"statusJSONPath,omitempty"`
 	StatusSuccessString string `json:"statusSuccessString,omitempty"`
 	StatusFailureString string `json:"statusFailureString,omitempty"`
@@ -319,8 +321,8 @@ type EKSFargateSelectors struct {
 // InstanceGroupStatus defines the schema of resource Status
 type InstanceGroupStatus struct {
 	CurrentState                  string                   `json:"currentState,omitempty"`
-	CurrentMin                    int                      `json:"currentMin,omitempty"`
-	CurrentMax                    int                      `json:"currentMax,omitempty"`
+	CurrentMin                    int                      `json:"currentMin"`
+	CurrentMax                    int                      `json:"currentMax"`
 	ActiveLaunchConfigurationName string                   `json:"activeLaunchConfigurationName,omitempty"`
 	ActiveLaunchTemplateName      string                   `json:"activeLaunchTemplateName,omitempty"`
 	LatestTemplateVersion         string                   `json:"latestTemplateVersion,omitempty"`
@@ -328,6 +330,7 @@ type InstanceGroupStatus struct {
 	NodesArn                      string                   `json:"nodesInstanceRoleArn,omitempty"`
 	StrategyResourceName          string                   `json:"strategyResourceName,omitempty"`
 	StrategyResourceNamespace     string                   `json:"strategyResourceNamespace,omitempty"`
+	StrategyRetryCount            int                      `json:"strategyRetryCount,omitempty"`
 	UsingSpotRecommendation       bool                     `json:"usingSpotRecommendation,omitempty"`
 	Lifecycle                     string                   `json:"lifecycle,omitempty"`
 	ConfigHash                    string                   `json:"configMD5,omitempty"`
@@ -842,6 +845,10 @@ func (c *CRDUpdateStrategy) Validate() error {
 		c.SetConcurrencyPolicy(ForbidConcurrencyPolicy)
 	}
 
+	if c.MaxRetries == nil {
+		c.MaxRetries = &DefaultCRDStrategyMaxRetries
+	}
+
 	if c.GetCRDName() == "" {
 		return errors.New("crdName is empty")
 	}
@@ -906,6 +913,14 @@ func (c *CRDUpdateStrategy) GetStatusFailureString() string {
 
 func (c *CRDUpdateStrategy) SetStatusFailureString(str string) {
 	c.StatusFailureString = str
+}
+
+func (status *InstanceGroupStatus) IncrementStrategyRetryCount() {
+	status.StrategyRetryCount++
+}
+
+func (status *InstanceGroupStatus) SetStrategyRetryCount(n int) {
+	status.StrategyRetryCount = n
 }
 
 func (status *InstanceGroupStatus) GetActiveLaunchConfigurationName() string {
@@ -978,6 +993,10 @@ func (status *InstanceGroupStatus) SetNodesArn(arn string) {
 
 func (status *InstanceGroupStatus) GetStrategyResourceName() string {
 	return status.StrategyResourceName
+}
+
+func (status *InstanceGroupStatus) GetStrategyRetryCount() int {
+	return status.StrategyRetryCount
 }
 
 func (status *InstanceGroupStatus) GetStrategyResourceNamespace() string {

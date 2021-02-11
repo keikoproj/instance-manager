@@ -37,6 +37,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		rotationNeeded  bool
 		instanceGroup   = ctx.GetInstanceGroup()
 		state           = ctx.GetDiscoveredState()
+		status          = instanceGroup.GetStatus()
 		scalingConfig   = state.GetScalingConfiguration()
 		configuration   = instanceGroup.GetEKSConfiguration()
 		spec            = instanceGroup.GetEKSSpec()
@@ -123,6 +124,8 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	}
 	if rotationNeeded {
 		instanceGroup.SetState(v1alpha1.ReconcileInitUpgrade)
+	} else {
+		status.SetStrategyRetryCount(0)
 	}
 
 	return nil

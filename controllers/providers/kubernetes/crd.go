@@ -117,6 +117,7 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 			var isRunning bool
 			for _, resource := range activeResources {
 				resourceName := resource.GetName()
+				resourceNamespace := resource.GetNamespace()
 				// if active resource exist with same launch id, it's not replaceable
 				if strings.HasSuffix(resourceName, launchID) {
 					isRunning = true
@@ -125,7 +126,7 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 
 				// if active resource exist with a different launch id, it is replaceable
 				log.Info("active custom resource/s exists, will replace", "instancegroup", instanceGroupNamespacedName)
-				err = kube.Resource(GVR).Namespace(resource.GetNamespace()).Delete(context.Background(), resourceName, metav1.DeleteOptions{})
+				err = kube.Resource(GVR).Namespace(resourceNamespace).Delete(context.Background(), resourceName, metav1.DeleteOptions{})
 				if err != nil {
 					if !kerr.IsNotFound(err) {
 						return false, errors.Wrap(err, "failed to delete custom resource")
@@ -151,6 +152,7 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 		}
 	} else {
 		log.Info("submitted custom resource", "instancegroup", instanceGroupNamespacedName)
+		status.SetStrategyRetryCount(0)
 	}
 
 	// get created resource
@@ -170,11 +172,25 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 
 	if strings.EqualFold(resourceStatus, successString) {
 		log.Info("custom resource succeeded", "instancegroup", instanceGroupNamespacedName, "resource", customResourceName, "status", resourceStatus)
+		status.SetStrategyRetryCount(0)
 		return true, nil
 	}
 
 	if strings.EqualFold(resourceStatus, failureString) {
 		log.Info("custom resource failed", "instancegroup", instanceGroupNamespacedName, "resource", customResourceName, "status", resourceStatus)
+		maxRetries := *strategy.MaxRetries
+		if maxRetries > status.GetStrategyRetryCount() {
+			status.IncrementStrategyRetryCount()
+			log.Info("max retries not met, will resubmit", "instancegroup", instanceGroupNamespacedName, "maxRetries", maxRetries, "retryNumber", status.StrategyRetryCount)
+			err = kube.Resource(GVR).Namespace(customResourceNamespace).Delete(context.Background(), customResourceName, metav1.DeleteOptions{})
+			if err != nil {
+				if !kerr.IsNotFound(err) {
+					return false, errors.Wrap(err, "failed to delete custom resource")
+				}
+			}
+			return false, nil
+		}
+
 		return false, errors.Errorf("custom resource failed to converge, %v status is %v", statusPath, resourceStatus)
 	}
 
