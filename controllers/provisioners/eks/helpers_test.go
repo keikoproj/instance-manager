@@ -81,6 +81,82 @@ func TestAutoscalerTags(t *testing.T) {
 
 }
 
+func TestGetBasicUserDataAmazonLinux2(t *testing.T) {
+	var (
+		k             = MockKubernetesClientSet()
+		ig            = MockInstanceGroup()
+		asgMock       = NewAutoScalingMocker()
+		iamMock       = NewIamMocker()
+		eksMock       = NewEksMocker()
+		ec2Mock       = NewEc2Mocker()
+		configuration = ig.GetEKSConfiguration()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	ctx := MockContext(ig, k, w)
+
+	configuration.BootstrapOptions = &v1alpha1.BootstrapOptions{
+		MaxPods: 4,
+	}
+	configuration.Labels = map[string]string{
+		"foo": "bar",
+	}
+	configuration.Taints = []corev1.Taint{
+		{
+			Key:    "foo",
+			Value:  "bar",
+			Effect: "NoSchedule",
+		},
+	}
+	persistance := true
+	configuration.Volumes = []v1alpha1.NodeVolume{
+		{
+			Name: "/dev/xvda",
+			Type: "gp2",
+			MountOptions: &v1alpha1.NodeVolumeMountOptions{
+				FileSystem:  "xfs",
+				Mount:       "/mnt/foo",
+				Persistance: &persistance,
+			},
+		},
+	}
+	configuration.BootstrapArguments = "--eviction-hard=memory.available<300Mi,nodefs.available<5% --system-reserved=memory=2.5Gi --v=2"
+	configuration.UserData = []v1alpha1.UserDataStage{
+		{
+			Stage: "PreBootstrap",
+			Data:  "foo",
+		},
+		{
+			Stage: "PostBootstrap",
+			Data:  "bar",
+		},
+	}
+	var (
+		args            = ctx.GetBootstrapArgs()
+		kubeletArgs     = ctx.GetKubeletExtraArgs()
+		userDataPayload = ctx.GetUserDataStages()
+		mounts          = ctx.GetMountOpts()
+	)
+
+	expectedData := `#!/bin/bash
+foo
+mkfs.xfs /dev/xvda
+mkdir /mnt/foo
+mount /dev/xvda /mnt/foo
+mount
+set -o xtrace
+/etc/eks/bootstrap.sh foo --use-max-pods false --kubelet-extra-args '--node-labels=foo=bar,node.kubernetes.io/role=instance-group-1 --register-with-taints=foo=bar:NoSchedule --eviction-hard=memory.available<300Mi,nodefs.available<5% --system-reserved=memory=2.5Gi --v=2 --max-pods=4'
+set +o xtrace
+bar`
+	userData := ctx.GetBasicUserData("foo", args, kubeletArgs, userDataPayload, mounts)
+	basicUserDataDecoded, _ := base64.StdEncoding.DecodeString(userData)
+	basicUserDataString := string(basicUserDataDecoded)
+	if basicUserDataString != expectedData {
+		t.Fatalf("\nExpected: START>%v<END\n Got: START>%v<END", expectedData, basicUserDataString)
+	}
+
+}
+
 func TestCustomNetworkingMaxPods(t *testing.T) {
 	var (
 		k       = MockKubernetesClientSet()

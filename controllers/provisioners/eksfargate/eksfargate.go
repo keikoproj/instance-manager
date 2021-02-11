@@ -207,12 +207,22 @@ func (ctx *FargateInstanceGroupContext) Create() error {
 	return nil
 }
 func (ctx *FargateInstanceGroupContext) CloudDiscovery() error {
+	var (
+		instanceGroup = ctx.GetInstanceGroup()
+		status        = instanceGroup.GetStatus()
+	)
+
 	profile, err := ctx.AwsWorker.DescribeFargateProfile()
 	if err != nil {
 		profile = &eks.FargateProfile{
 			Status: nil,
 		}
 	}
+
+	// set required status fields
+	status.SetCurrentMax(1)
+	status.SetCurrentMin(1)
+
 	if profile.Status == nil {
 		ctx.DiscoveredState.ProfileStatus = aws.StringValue(nil)
 	} else {
