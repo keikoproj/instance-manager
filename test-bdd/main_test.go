@@ -502,7 +502,13 @@ func (t *FunctionalTest) deleteAll() error {
 	}
 
 	// Delete configmap last
-	t.KubeClient.CoreV1().ConfigMaps("instance-manager").Delete(context.Background(), "instance-manager", metav1.DeleteOptions{})
+	var (
+		cmName      = "instance-manager"
+		cmNamespace = "instance-manager"
+		cmKind      = "ConfigMap"
+	)
+	log.Infof("BDD >> submitted deletion for %v %v/%v", cmKind, cmNamespace, cmName)
+	t.KubeClient.CoreV1().ConfigMaps(cmNamespace).Delete(context.Background(), cmName, metav1.DeleteOptions{})
 
 	return nil
 }
