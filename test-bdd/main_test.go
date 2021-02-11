@@ -62,8 +62,8 @@ const (
 	NodeStateReady = "ready"
 	NodeStateFound = "found"
 
-	DefaultWaiterInterval = time.Second * 30
-	DefaultWaiterRetries  = 40
+	DefaultWaiterInterval = time.Second * 15
+	DefaultWaiterRetries  = 80
 )
 
 var InstanceGroupSchema = schema.GroupVersionResource{
