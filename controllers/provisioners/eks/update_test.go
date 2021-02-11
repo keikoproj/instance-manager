@@ -117,7 +117,7 @@ func TestUpdateWithDriftRotationPositive(t *testing.T) {
 	err = ctx.Update()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	g.Expect(ctx.TagsUpdateNeeded()).To(gomega.BeTrue())
-	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileInitUpgrade))
+	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
 }
 
 func TestUpdateWithLaunchTemplate(t *testing.T) {
@@ -214,7 +214,7 @@ func TestUpdateWithLaunchTemplate(t *testing.T) {
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	g.Expect(ec2Mock.CreateLaunchTemplateVersionCallCount).To(gomega.Equal(1))
 	g.Expect(ec2Mock.ModifyLaunchTemplateCallCount).To(gomega.Equal(1))
-	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileInitUpgrade))
+	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
 
 	state := ctx.GetDiscoveredState()
 	ec2Mock.CreateLaunchTemplateVersionCallCount = 0
@@ -264,7 +264,7 @@ func TestUpdateWithLaunchTemplate(t *testing.T) {
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	g.Expect(ec2Mock.CreateLaunchTemplateVersionCallCount).To(gomega.Equal(1))
 	g.Expect(ec2Mock.ModifyLaunchTemplateCallCount).To(gomega.Equal(1))
-	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileInitUpgrade))
+	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
 
 	ec2Mock.CreateLaunchTemplateVersionCallCount = 0
 	ec2Mock.ModifyLaunchTemplateCallCount = 0
@@ -292,7 +292,7 @@ func TestUpdateWithLaunchTemplate(t *testing.T) {
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	g.Expect(ec2Mock.CreateLaunchTemplateVersionCallCount).To(gomega.Equal(1))
 	g.Expect(ec2Mock.ModifyLaunchTemplateCallCount).To(gomega.Equal(1))
-	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileInitUpgrade))
+	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
 }
 
 func TestUpdateWithRotationPositive(t *testing.T) {
@@ -369,7 +369,7 @@ func TestUpdateWithRotationPositive(t *testing.T) {
 
 	err = ctx.Update()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
-	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileInitUpgrade))
+	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
 }
 
 func TestLaunchConfigurationDrifted(t *testing.T) {
