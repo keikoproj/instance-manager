@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Pre/Post bootstrap userdata for Bottlerocket Nodes (#227)
 - ConfigMap Namespace Exclusion (#221)
 - Build ARM compatible images (#224)
+- Add MaxRetries to CRD Strategy (#249)
 
 ### Changes
 
@@ -33,6 +34,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - BDD cleanup timing (#245)
 - Set launch template version after creation (#239)
 - Add missing namespace watch permissions (#242)
+- Remove whitespace in userdata (#248)
 
 ## [v0.9.2-alpha2] - 2020-12-1
 
