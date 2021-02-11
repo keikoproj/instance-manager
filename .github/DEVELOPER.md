@@ -65,10 +65,13 @@ export KUBECONFIG=~/.kube/config
 
 export EKS_CLUSTER=my-eks-cluster
 export KEYPAIR_NAME=MyKeyPair
-export VPC_ID=vpc-EXAMPLE23dk9
 export AMI_ID=ami-EXAMPLEdk93
 export SECURITY_GROUPS=sg-EXAMPLE2323,sg-EXAMPLE4433
-export SUBNETS=subnet-EXAMPLE223d,subnet-EXAMPLEdkkf,subnet-EXAMPLEkkr9
+export NODE_SUBNETS=subnet-EXAMPLE223d,subnet-EXAMPLEdkkf,subnet-EXAMPLEkkr9
+
+# an existing role for nodes
+export NODE_ROLE_ARN=arn:aws:iam::123456789012:role/basic-eks-role
+export NODE_ROLE=basic-eks-role
 
 $ make bdd
 

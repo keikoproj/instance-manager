@@ -62,8 +62,8 @@ const (
 	NodeStateReady = "ready"
 	NodeStateFound = "found"
 
-	DefaultWaiterInterval = time.Second * 30
-	DefaultWaiterRetries  = 40
+	DefaultWaiterInterval = time.Second * 15
+	DefaultWaiterRetries  = 80
 )
 
 var InstanceGroupSchema = schema.GroupVersionResource{
@@ -437,15 +437,23 @@ func (t *FunctionalTest) deleteAll() error {
 			return err
 		}
 
-		t.DynamicClient.Resource(gvr.Resource).Namespace(resource.GetNamespace()).Delete(context.Background(), resource.GetName(), metav1.DeleteOptions{})
-		log.Infof("BDD >> submitted deletion for %v/%v", resource.GetNamespace(), resource.GetName())
+		var (
+			namespace = resource.GetNamespace()
+			name      = resource.GetName()
+			kind      = resource.GetKind()
+		)
+
+		if strings.EqualFold(kind, "ConfigMap") {
+			return nil
+		}
+
+		t.DynamicClient.Resource(gvr.Resource).Namespace(namespace).Delete(context.Background(), name, metav1.DeleteOptions{})
+		log.Infof("BDD >> submitted deletion for %v %v/%v", kind, namespace, name)
 		return nil
 	}
 
 	var waitFn = func(path string, info os.FileInfo, err error) error {
-		var (
-			counter int
-		)
+		var counter int
 
 		if info.IsDir() || filepath.Ext(path) != ".yaml" {
 			return nil
@@ -456,15 +464,26 @@ func (t *FunctionalTest) deleteAll() error {
 			return err
 		}
 
+		var (
+			namespace = resource.GetNamespace()
+			name      = resource.GetName()
+			kind      = resource.GetKind()
+		)
+
+		if strings.EqualFold(kind, "ConfigMap") {
+			return nil
+		}
+
 		for {
 			if counter >= DefaultWaiterRetries {
 				return errors.New("waiter timed out waiting for deletion")
 			}
-			log.Infof("BDD >> waiting for resource deletion of %v/%v", resource.GetNamespace(), resource.GetName())
-			_, err := t.DynamicClient.Resource(gvr.Resource).Namespace(resource.GetNamespace()).Get(context.Background(), resource.GetName(), metav1.GetOptions{})
+
+			log.Infof("BDD >> waiting for %v deletion of %v/%v", kind, namespace, name)
+			_, err := t.DynamicClient.Resource(gvr.Resource).Namespace(namespace).Get(context.Background(), name, metav1.GetOptions{})
 			if err != nil {
 				if kerrors.IsNotFound(err) {
-					log.Infof("BDD >> resource %v/%v is deleted", resource.GetNamespace(), resource.GetName())
+					log.Infof("BDD >> %v %v/%v is deleted", kind, namespace, name)
 					break
 				}
 			}
@@ -481,6 +500,15 @@ func (t *FunctionalTest) deleteAll() error {
 	if err := filepath.Walk("templates", waitFn); err != nil {
 		return err
 	}
+
+	// Delete configmap last
+	var (
+		cmName      = "instance-manager"
+		cmNamespace = "instance-manager"
+		cmKind      = "ConfigMap"
+	)
+	log.Infof("BDD >> submitted deletion for %v %v/%v", cmKind, cmNamespace, cmName)
+	t.KubeClient.CoreV1().ConfigMaps(cmNamespace).Delete(context.Background(), cmName, metav1.DeleteOptions{})
 
 	return nil
 }
