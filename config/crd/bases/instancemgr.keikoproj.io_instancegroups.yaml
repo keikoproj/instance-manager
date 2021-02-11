@@ -366,6 +366,8 @@ spec:
                         type: string
                       crdName:
                         type: string
+                      maxRetries:
+                        type: integer
                       spec:
                         type: string
                       statusFailureString:
@@ -428,8 +430,13 @@ spec:
                 type: string
               strategyResourceNamespace:
                 type: string
+              strategyRetryCount:
+                type: integer
               usingSpotRecommendation:
                 type: boolean
+            required:
+            - currentMax
+            - currentMin
             type: object
         required:
         - metadata

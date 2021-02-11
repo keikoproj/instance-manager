@@ -141,7 +141,9 @@ func MockInstanceGroup() *v1alpha1.InstanceGroup {
 				},
 			},
 			AwsUpgradeStrategy: v1alpha1.AwsUpgradeStrategy{
-				CRDType:           &v1alpha1.CRDUpdateStrategy{},
+				CRDType: &v1alpha1.CRDUpdateStrategy{
+					MaxRetries: &v1alpha1.DefaultCRDStrategyMaxRetries,
+				},
 				RollingUpdateType: &v1alpha1.RollingUpdateStrategy{},
 			},
 		},
@@ -363,6 +365,7 @@ func MockTypeInfo(types ...MockInstanceTypeInfo) []*ec2.InstanceTypeInfo {
 }
 
 func MockAwsCRDStrategy(spec string) v1alpha1.AwsUpgradeStrategy {
+	infiniteRetries := -1
 	return v1alpha1.AwsUpgradeStrategy{
 		Type: kubeprovider.CRDStrategyName,
 		CRDType: &v1alpha1.CRDUpdateStrategy{
@@ -371,6 +374,7 @@ func MockAwsCRDStrategy(spec string) v1alpha1.AwsUpgradeStrategy {
 			StatusJSONPath:      ".status.dogStatus",
 			StatusSuccessString: "woof",
 			StatusFailureString: "grr",
+			MaxRetries:          &infiniteRetries,
 		},
 	}
 }
