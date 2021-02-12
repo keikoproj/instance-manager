@@ -307,15 +307,15 @@ func IsResourceActive(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGr
 	return true
 }
 
-func GetResources(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGroup, resource *unstructured.Unstructured) ([]*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+func GetResources(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGroup, resource *unstructured.Unstructured) ([]unstructured.Unstructured, []unstructured.Unstructured, error) {
 	var (
 		status            = instanceGroup.GetStatus()
 		strategy          = instanceGroup.GetUpgradeStrategy().GetCRDType()
 		statusJSONPath    = strategy.GetStatusJSONPath()
 		completedStatus   = strategy.GetStatusSuccessString()
 		errorStatus       = strategy.GetStatusFailureString()
-		activeResources   = make([]*unstructured.Unstructured, 0)
-		inactiveResources = make([]*unstructured.Unstructured, 0)
+		activeResources   = make([]unstructured.Unstructured, 0)
+		inactiveResources = make([]unstructured.Unstructured, 0)
 		GVR               = GetGVR(resource, strategy.GetCRDName())
 		resourceNamespace = resource.GetNamespace()
 	)
@@ -325,18 +325,17 @@ func GetResources(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGroup,
 		return inactiveResources, activeResources, err
 	}
 
-	for _, r := range r.Items {
+	for _, ru := range r.Items {
 
-		if !HasAnnotation(&r, OwnershipAnnotationKey, OwnershipAnnotationValue) || !HasAnnotation(&r, ScopeAnnotationKey, status.GetActiveScalingGroupName()) {
-			// skip resources not owned by controller
-			continue
-		}
+		annotations := ru.GetAnnotations()
 
-		if IsPathValue(r, statusJSONPath, completedStatus) || IsPathValue(r, statusJSONPath, errorStatus) {
-			// if resource is not completed and not failed, it must be still active
-			inactiveResources = append(inactiveResources, &r)
-		} else {
-			activeResources = append(activeResources, &r)
+		if HasAnnotation(annotations, OwnershipAnnotationKey, OwnershipAnnotationValue) && HasAnnotation(annotations, ScopeAnnotationKey, status.GetActiveScalingGroupName()) {
+			if IsPathValue(ru, statusJSONPath, completedStatus) || IsPathValue(ru, statusJSONPath, errorStatus) {
+				// if resource is not completed and not failed, it must be still active
+				inactiveResources = append(inactiveResources, ru)
+			} else {
+				activeResources = append(activeResources, ru)
+			}
 		}
 
 	}

@@ -115,6 +115,7 @@ var (
 const (
 	LaunchTemplateStrategyCapacityOptimized = "capacity-optimized"
 	LaunchTemplateStrategyLowestPrice       = "lowest-price"
+	LaunchTemplateAllocationStrategy        = "prioritized"
 	LaunchTemplateLatestVersionKey          = "$Latest"
 	IAMPolicyPrefix                         = "arn:aws:iam::aws:policy"
 	IAMARNPrefix                            = "arn:aws:iam::"

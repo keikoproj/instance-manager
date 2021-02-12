@@ -1001,11 +1001,19 @@ func (ctx *EksInstanceGroupContext) GetDesiredMixedInstancesPolicy(name string) 
 		allocationStrategy = awsprovider.LaunchTemplateStrategyLowestPrice
 	}
 
+	var baseCapacity *int64
+	if mixedPolicy.BaseCapacity == nil {
+		baseCapacity = aws.Int64(0)
+	} else {
+		baseCapacity = mixedPolicy.BaseCapacity
+	}
+
 	spotRatio := common.IntOrStrValue(mixedPolicy.SpotRatio)
 
 	policy := &autoscaling.MixedInstancesPolicy{
 		InstancesDistribution: &autoscaling.InstancesDistribution{
-			OnDemandBaseCapacity:                mixedPolicy.BaseCapacity,
+			OnDemandAllocationStrategy:          aws.String(awsprovider.LaunchTemplateAllocationStrategy),
+			OnDemandBaseCapacity:                baseCapacity,
 			SpotAllocationStrategy:              aws.String(allocationStrategy),
 			SpotInstancePools:                   mixedPolicy.SpotPools,
 			OnDemandPercentageAboveBaseCapacity: aws.Int64(int64(100 - spotRatio)),
