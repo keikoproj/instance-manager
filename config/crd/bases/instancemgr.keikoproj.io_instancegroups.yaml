@@ -434,9 +434,6 @@ spec:
                 type: integer
               usingSpotRecommendation:
                 type: boolean
-            required:
-            - currentMax
-            - currentMin
             type: object
         required:
         - metadata

@@ -100,7 +100,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	}
 
 	// update scaling group
-	err = ctx.UpdateScalingGroup(config.Name, &scalingConfig)
+	updated, err := ctx.UpdateScalingGroup(config.Name, &scalingConfig)
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			if aerr.Code() == autoscaling.ErrCodeScalingActivityInProgressFault {
@@ -109,6 +109,11 @@ func (ctx *EksInstanceGroupContext) Update() error {
 			}
 		}
 		return errors.Wrap(err, "failed to update scaling group")
+	}
+
+	if updated {
+		// requeue after scaling group update occurs to refresh cache
+		return nil
 	}
 
 	// we should try to bootstrap the role before we wait for nodes to be ready
@@ -131,8 +136,9 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	return nil
 }
 
-func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string, scalingConfig *scaling.Configuration) error {
+func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string, scalingConfig *scaling.Configuration) (bool, error) {
 	var (
+		asgUpdated    bool
 		instanceGroup = ctx.GetInstanceGroup()
 		spec          = instanceGroup.GetEKSSpec()
 		configuration = instanceGroup.GetEKSConfiguration()
@@ -174,9 +180,9 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string, scalin
 	if ctx.ScalingGroupUpdateNeeded(configName) {
 		err := ctx.AwsWorker.UpdateScalingGroup(input)
 		if err != nil {
-			return err
+			return asgUpdated, err
 		}
-
+		asgUpdated = true
 		ctx.Log.Info("updated scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 	}
 
@@ -186,23 +192,23 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string, scalin
 	if ctx.TagsUpdateNeeded() {
 		err := ctx.AwsWorker.UpdateScalingGroupTags(tags, rmTags)
 		if err != nil {
-			return err
+			return asgUpdated, err
 		}
 		ctx.Log.Info("updated scaling group tags", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
 	}
 
 	if err := ctx.UpdateScalingProcesses(asgName); err != nil {
-		return err
+		return asgUpdated, err
 	}
 
 	if err := ctx.UpdateMetricsCollection(asgName); err != nil {
-		return err
+		return asgUpdated, err
 	}
 	if err := ctx.UpdateLifecycleHooks(asgName); err != nil {
-		return err
+		return asgUpdated, err
 	}
 
-	return nil
+	return asgUpdated, nil
 }
 
 func (ctx *EksInstanceGroupContext) TagsUpdateNeeded() bool {
@@ -269,6 +275,7 @@ func (ctx *EksInstanceGroupContext) ScalingGroupUpdateNeeded(configName string) 
 		}
 	case scalingGroup.MixedInstancesPolicy != nil:
 		name = aws.StringValue(scalingGroup.MixedInstancesPolicy.LaunchTemplate.LaunchTemplateSpecification.LaunchTemplateName)
+		scalingGroup.MixedInstancesPolicy.LaunchTemplate.LaunchTemplateSpecification.LaunchTemplateId = nil
 		if desiredPolicy == nil {
 			return true
 		}

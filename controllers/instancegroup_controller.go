@@ -225,7 +225,9 @@ func (r *InstanceGroupReconciler) IsNamespaceAnnotated(namespace, key, value str
 		unstructuredNamespace := &unstructured.Unstructured{
 			Object: nsObject,
 		}
-		if kubeprovider.HasAnnotation(unstructuredNamespace, key, value) {
+
+		annotations := unstructuredNamespace.GetAnnotations()
+		if kubeprovider.HasAnnotation(annotations, key, value) {
 			return true
 		}
 	}
