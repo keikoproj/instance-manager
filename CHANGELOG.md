@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [v0.10.0-alpha2] - 2020-2-10
+
+### Added
+
+- Launch template placement support (#199)
+- Support bootstrap options / maxPods (#216)
+- Automatic caluclation of custom networking maxPods (#244)
+- Support new volume types (#233)
+- Pre/Post bootstrap userdata for Windows Nodes (#220)
+- Pre/Post bootstrap userdata for Bottlerocket Nodes (#227)
+- ConfigMap Namespace Exclusion (#221)
+- Build ARM compatible images (#224)
+- Add MaxRetries to CRD Strategy (#249)
+
+### Changes
+
+- Move BDD to Github Actions (#228, #229, #231, #232)
+- Readme improvements (#226)
+- Update dependency versions (#222)
+- Move to Go 1.15 (#246)
+
+### Fixed
+
+- Avoid launch template creation loop (#225)
+- Remove confighash on excluded namespace (#236)
+- Remove handling of upgrade resource name conflicts (#243, #252)
+- Guard cast of launchtemplate with type check (#254)
+- BDD cleanup timing (#245)
+- Set launch template version after creation (#239)
+- Add missing namespace watch permissions (#242)
+- Remove whitespace in userdata (#248)
+
 ## [v0.9.2-alpha2] - 2020-12-1
 
 ### Fixed
