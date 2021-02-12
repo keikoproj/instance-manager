@@ -65,13 +65,13 @@ ip-10-10-10-30.us-west-2.compute.internal   Ready    hello-world   32s    v1.14.
 ip-10-10-10-40.us-west-2.compute.internal   Ready    hello-world   32s    v1.14.6-eks-5047ed
 ```
 
-### Currently supported provisioners
+### Provisioners
 
-| Provisioner | Description | Examples |
-| :---------- | :---------- | :----------|
-| eks         | provision nodes on EKS | [EKS.md](./docs/examples/EKS.md)|
-| eks-managed | provision managed node groups on EKS| [EKS-managed.md](./docs/examples/EKS-managed.md) |
-| eks-fargate | provision a cluster to run pods on EKS Fargate| [EKS-fargate.md](./docs/examples/EKS-fargate.md) |
+| Provisioner | Description | Documentation | API Reference | Maturity |
+| :---------- | :---------- | :----------| :----------| :----------|
+| eks         | provision nodes on EKS | [Documentation](./docs/examples/EKS.md) | [API Reference](./docs/EKS.md#api-reference)| Production
+| eks-managed | provision managed node groups on EKS| [Documentation](./docs/examples/EKS-managed.md) | | Experimental
+| eks-fargate | provision a cluster to run pods on EKS Fargate| [Documentation](./docs/examples/EKS-fargate.md) | | Experimental
 
 To create an instance group, submit an InstanceGroup custom resource in your cluster, and the controller will provision and bootstrap it to your cluster, and allow you to modify it from within the cluster.
 
