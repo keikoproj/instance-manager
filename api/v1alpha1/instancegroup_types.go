@@ -321,8 +321,8 @@ type EKSFargateSelectors struct {
 // InstanceGroupStatus defines the schema of resource Status
 type InstanceGroupStatus struct {
 	CurrentState                  string                   `json:"currentState,omitempty"`
-	CurrentMin                    int                      `json:"currentMin"`
-	CurrentMax                    int                      `json:"currentMax"`
+	CurrentMin                    int                      `json:"currentMin,omitempty"`
+	CurrentMax                    int                      `json:"currentMax,omitempty"`
 	ActiveLaunchConfigurationName string                   `json:"activeLaunchConfigurationName,omitempty"`
 	ActiveLaunchTemplateName      string                   `json:"activeLaunchTemplateName,omitempty"`
 	LatestTemplateVersion         string                   `json:"latestTemplateVersion,omitempty"`
