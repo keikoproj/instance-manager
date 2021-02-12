@@ -174,9 +174,11 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string, scalin
 		status.SetActiveLaunchTemplateName(configName)
 		switch scalingConfigType := (*scalingConfig).(type) {
 		case *scaling.LaunchTemplate:
-			latestVersion := scalingConfigType.LatestVersion.VersionNumber
-			latestVersionString := strconv.FormatInt(*latestVersion, 10)
-			status.SetLatestTemplateVersion(latestVersionString)
+			if scalingConfigType.LatestVersion != nil {
+				version := aws.Int64Value(scalingConfigType.LatestVersion.VersionNumber)
+				latestVersionString := strconv.FormatInt(version, 10)
+				status.SetLatestTemplateVersion(latestVersionString)
+			}
 		case *scaling.LaunchConfiguration:
 			//LaunchConfiguration to LaunchTemplate migration. Latest version is the initial version.
 			status.SetLatestTemplateVersion("1")
