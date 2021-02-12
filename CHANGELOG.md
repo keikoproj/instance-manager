@@ -30,7 +30,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 - Avoid launch template creation loop (#225)
 - Remove confighash on excluded namespace (#236)
-- Remove handling of upgrade resource name conflicts (#243)
+- Remove handling of upgrade resource name conflicts (#243, #252)
+- Guard cast of launchtemplate with type check (#254)
 - BDD cleanup timing (#245)
 - Set launch template version after creation (#239)
 - Add missing namespace watch permissions (#242)
