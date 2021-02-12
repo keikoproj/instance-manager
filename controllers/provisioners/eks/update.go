@@ -275,6 +275,7 @@ func (ctx *EksInstanceGroupContext) ScalingGroupUpdateNeeded(configName string) 
 		}
 	case scalingGroup.MixedInstancesPolicy != nil:
 		name = aws.StringValue(scalingGroup.MixedInstancesPolicy.LaunchTemplate.LaunchTemplateSpecification.LaunchTemplateName)
+		scalingGroup.MixedInstancesPolicy.LaunchTemplate.LaunchTemplateSpecification.LaunchTemplateId = nil
 		if desiredPolicy == nil {
 			return true
 		}
