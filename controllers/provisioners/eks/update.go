@@ -171,6 +171,9 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string, scalin
 			latestVersion := scalingConfigType.LatestVersion.VersionNumber
 			latestVersionString := strconv.FormatInt(*latestVersion, 10)
 			status.SetLatestTemplateVersion(latestVersionString)
+		case *scaling.LaunchConfiguration:
+			//LaunchConfiguration to LaunchTemplate migration. Latest version is the initial version.
+			status.SetLatestTemplateVersion("1")
 		}
 
 	}
