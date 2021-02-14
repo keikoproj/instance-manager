@@ -7,7 +7,7 @@ metadata:
 rules:
 - apiGroups:
   # Replace with API group of your choice for CRD strategy
-  - upgrademgr.orkaproj.io
+  - upgrademgr.keikoproj.io
   resources:
   # Replace with API resource of your choice for CRD strategy
   - rollingupgrades
