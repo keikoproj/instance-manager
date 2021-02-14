@@ -26,8 +26,8 @@ spec:
         name: instance-manager
         resources:
           limits:
-            cpu: 100m
-            memory: 300Mi
+            cpu: 1000m
+            memory: 1024Mi
           requests:
             cpu: 100m
             memory: 300Mi

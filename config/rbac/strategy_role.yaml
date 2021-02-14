@@ -1,0 +1,18 @@
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: instance-manager-strategy
+rules:
+- apiGroups:
+  # Replace with API group of your choice for CRD strategy
+  - upgrademgr.keikoproj.io
+  resources:
+  # Replace with API resource of your choice for CRD strategy
+  - rollingupgrades
+  verbs:
+  - get
+  - list
+  - create
+  - delete

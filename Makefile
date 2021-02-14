@@ -68,7 +68,9 @@ run: generate fmt vet
 install: manifests
 	kubectl apply -f config/rbac/service_account.yaml
 	kubectl auth reconcile -f config/rbac/role.yaml
+	kubectl auth reconcile -f config/rbac/strategy_role.yaml
 	kubectl auth reconcile -f config/rbac/role_binding.yaml
+	kubectl auth reconcile -f config/rbac/strategy_role_binding.yaml
 	kubectl apply -f config/crd/bases
 
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
@@ -142,11 +144,6 @@ lint: check-go
 	@for pkg in $(shell go list ./...) ; do \
 		golint $(LINTARGS) $$pkg ; \
 	done
-
-.PHONY: vendor
-vendor:
-	go mod tidy
-	go mod vendor
 
 .PHONY: clean
 clean:
