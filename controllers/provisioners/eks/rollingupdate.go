@@ -235,7 +235,7 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 
 	// Only create new threads if waitgroup is empty
 	drainErrs := make(chan error)
-	if !reflect.DeepEqual(r.DrainGroup, &sync.WaitGroup{}) {
+	if reflect.DeepEqual(r.DrainGroup, &sync.WaitGroup{}) {
 		for _, node := range targetNodes.Items {
 
 			nodeName := node.GetName()
