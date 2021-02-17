@@ -381,7 +381,7 @@ func MockAwsCRDStrategy(spec string) v1alpha1.AwsUpgradeStrategy {
 
 func MockAwsRollingUpdateStrategy(maxUnavailable *intstr.IntOrString) v1alpha1.AwsUpgradeStrategy {
 	return v1alpha1.AwsUpgradeStrategy{
-		Type: kubeprovider.RollingUpdateStrategyName,
+		Type: RollingUpdateStrategyName,
 		RollingUpdateType: &v1alpha1.RollingUpdateStrategy{
 			MaxUnavailable: maxUnavailable,
 		},

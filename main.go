@@ -150,6 +150,7 @@ func main() {
 		Client:                 mgr.GetClient(),
 		Log:                    ctrl.Log.WithName("controllers").WithName("instancegroup"),
 		MaxParallel:            maxParallel,
+		DrainGroups:            &sync.Map{},
 		Auth: &controllers.InstanceGroupAuthenticator{
 			Aws:        awsWorker,
 			Kubernetes: kube,

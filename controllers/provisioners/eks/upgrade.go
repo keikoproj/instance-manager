@@ -23,10 +23,8 @@ import (
 	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
-	"github.com/keikoproj/instance-manager/controllers/provisioners/eks/scaling"
 
 	"github.com/pkg/errors"
-	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
@@ -52,11 +50,11 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 			break
 		}
 		return nil
-	case kubeprovider.RollingUpdateStrategyName:
+	case RollingUpdateStrategyName:
 		req := ctx.NewRollingUpdateRequest()
-		ok, err := kubeprovider.ProcessRollingUpgradeStrategy(req)
+		ok, err := req.ProcessRollingUpgradeStrategy()
 		if err != nil {
-			state.Publisher.Publish(kubeprovider.InstanceGroupUpgradeFailedEvent, "instancegroup", instanceGroup.GetName(), "type", kubeprovider.RollingUpdateStrategyName, "error", err)
+			state.Publisher.Publish(kubeprovider.InstanceGroupUpgradeFailedEvent, "instancegroup", instanceGroup.GetName(), "type", RollingUpdateStrategyName, "error", err)
 			instanceGroup.SetState(v1alpha1.ReconcileErr)
 			return errors.Wrap(err, "failed to process rolling-update strategy")
 		}
@@ -91,107 +89,4 @@ func (ctx *EksInstanceGroupContext) BootstrapNodes() error {
 	defer ctx.Unlock()
 
 	return common.UpsertAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{roleARN}, []string{osFamily})
-}
-
-func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *kubeprovider.RollingUpdateRequest {
-	var (
-		needsUpdate     []string
-		allInstances    []string
-		instanceGroup   = ctx.GetInstanceGroup()
-		state           = ctx.GetDiscoveredState()
-		scalingConfig   = state.GetScalingConfiguration()
-		scalingResource = scalingConfig.Resource()
-		scalingGroup    = state.GetScalingGroup()
-		desiredCount    = int(aws.Int64Value(scalingGroup.DesiredCapacity))
-		strategy        = instanceGroup.GetUpgradeStrategy().GetRollingUpdateType()
-		maxUnavailable  = strategy.GetMaxUnavailable()
-		asgName         = aws.StringValue(scalingGroup.AutoScalingGroupName)
-	)
-
-	// Get all Autoscaling Instances that needs update
-	for _, instance := range scalingGroup.Instances {
-		var (
-			instanceId = aws.StringValue(instance.InstanceId)
-		)
-
-		allInstances = append(allInstances, aws.StringValue(instance.InstanceId))
-
-		if awsprovider.IsUsingLaunchConfiguration(scalingGroup) {
-			if instance.LaunchConfigurationName == nil {
-				needsUpdate = append(needsUpdate, instanceId)
-				continue
-			}
-
-			var (
-				config       = aws.StringValue(instance.LaunchConfigurationName)
-				activeConfig = aws.StringValue(scalingGroup.LaunchConfigurationName)
-			)
-
-			if !strings.EqualFold(config, activeConfig) {
-				needsUpdate = append(needsUpdate, instanceId)
-			}
-		}
-
-		if awsprovider.IsUsingLaunchTemplate(scalingGroup) {
-			if instance.LaunchTemplate == nil {
-				needsUpdate = append(needsUpdate, instanceId)
-				continue
-			}
-
-			var (
-				config           = aws.StringValue(instance.LaunchTemplate.LaunchTemplateName)
-				version          = aws.StringValue(instance.LaunchTemplate.Version)
-				launchTemplate   = scaling.ConvertToLaunchTemplate(scalingResource)
-				activeConfig     = aws.StringValue(scalingGroup.LaunchTemplate.LaunchTemplateName)
-				activeVersionNum = aws.Int64Value(launchTemplate.LatestVersionNumber)
-				activeVersion    = common.Int64ToStr(activeVersionNum)
-			)
-			if !strings.EqualFold(config, activeConfig) || !strings.EqualFold(version, activeVersion) {
-				needsUpdate = append(needsUpdate, instanceId)
-			}
-		}
-
-		if awsprovider.IsUsingMixedInstances(scalingGroup) {
-			if instance.LaunchTemplate == nil {
-				needsUpdate = append(needsUpdate, instanceId)
-				continue
-			}
-
-			var (
-				config           = aws.StringValue(instance.LaunchTemplate.LaunchTemplateName)
-				version          = aws.StringValue(instance.LaunchTemplate.Version)
-				launchTemplate   = scaling.ConvertToLaunchTemplate(scalingResource)
-				activeConfig     = aws.StringValue(scalingGroup.MixedInstancesPolicy.LaunchTemplate.LaunchTemplateSpecification.LaunchTemplateName)
-				activeVersionNum = aws.Int64Value(launchTemplate.LatestVersionNumber)
-				activeVersion    = common.Int64ToStr(activeVersionNum)
-			)
-
-			if !strings.EqualFold(config, activeConfig) || !strings.EqualFold(version, activeVersion) {
-				needsUpdate = append(needsUpdate, instanceId)
-			}
-		}
-
-	}
-	allCount := len(allInstances)
-
-	var unavailableInt int
-	if maxUnavailable.Type == intstr.String {
-		unavailableInt, _ = intstr.GetValueFromIntOrPercent(maxUnavailable, allCount, true)
-	} else {
-		unavailableInt = maxUnavailable.IntValue()
-	}
-
-	if unavailableInt == 0 {
-		unavailableInt = 1
-	}
-
-	return &kubeprovider.RollingUpdateRequest{
-		AwsWorker:        ctx.AwsWorker,
-		ClusterNodes:     state.GetClusterNodes(),
-		MaxUnavailable:   unavailableInt,
-		DesiredCapacity:  desiredCount,
-		AllInstances:     allInstances,
-		UpdateTargets:    needsUpdate,
-		ScalingGroupName: asgName,
-	}
 }

@@ -15,9 +15,10 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.6.0
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d // indirect
+	golang.org/x/tools v0.0.0-20200616195046-dc31b401abb5 // indirect
 	k8s.io/api v0.19.6
 	k8s.io/apimachinery v0.19.6
 	k8s.io/client-go v0.19.6
+	k8s.io/kubectl v0.19.6
 	sigs.k8s.io/controller-runtime v0.7.0
-	sigs.k8s.io/controller-tools v0.4.1 // indirect
 )

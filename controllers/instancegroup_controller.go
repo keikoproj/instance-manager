@@ -52,6 +52,7 @@ type InstanceGroupReconciler struct {
 	ConfigMap              *corev1.ConfigMap
 	Namespaces             map[string]corev1.Namespace
 	NamespacesLock         *sync.Mutex
+	DrainGroups            *sync.Map
 	ConfigRetention        int
 }
 
@@ -123,6 +124,7 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 
 	// set/unset finalizer
 	r.SetFinalizer(instanceGroup)
+	namespacedName := instanceGroup.NamespacedName()
 
 	input := provisioners.ProvisionerInput{
 		AwsWorker:       r.Auth.Aws,
@@ -139,6 +141,9 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 	)
 	status.SetConfigHash(configHash)
 
+	drainGroup, _ := r.DrainGroups.LoadOrStore(namespacedName, &sync.WaitGroup{})
+	input.DrainGroup = drainGroup.(*sync.WaitGroup)
+
 	if !reflect.DeepEqual(*r.ConfigMap, corev1.ConfigMap{}) {
 		// Configmap exist - apply defaults/boundaries if namespace is not excluded
 		namespace := instanceGroup.GetNamespace()
@@ -150,7 +155,7 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 			}
 
 			if err = defaultConfig.SetDefaults(); err != nil {
-				r.Log.Error(err, "failed to set configuration defaults", "instancegroup", instanceGroup.NamespacedName())
+				r.Log.Error(err, "failed to set configuration defaults", "instancegroup", namespacedName)
 				return ctrl.Result{}, err
 			}
 

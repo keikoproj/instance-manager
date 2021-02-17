@@ -19,14 +19,12 @@ import (
 	"fmt"
 	"sync"
 
-	corev1 "k8s.io/api/core/v1"
-
 	"github.com/go-logr/logr"
-
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
+	corev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -65,6 +63,7 @@ func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 
 	ctx := &EksInstanceGroupContext{
 		InstanceGroup:    instanceGroup,
+		DrainGroup:       p.DrainGroup,
 		KubernetesClient: p.Kubernetes,
 		AwsWorker:        p.AwsWorker,
 		Log:              p.Log.WithName("eks"),
@@ -81,6 +80,7 @@ func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 
 type EksInstanceGroupContext struct {
 	sync.Mutex
+	DrainGroup       *sync.WaitGroup
 	InstanceGroup    *v1alpha1.InstanceGroup
 	KubernetesClient kubeprovider.KubernetesClientSet
 	AwsWorker        awsprovider.AwsWorker

@@ -40,7 +40,12 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+var (
+	log = ctrl.Log.WithName("kubernetes-provider")
 )
 
 type KubernetesClientSet struct {
@@ -63,7 +68,7 @@ func IsDesiredNodesReady(nodes *corev1.NodeList, instanceIds []string, desiredCo
 		return false, nil
 	}
 
-	readyInstances := GetReadyNodesByInstance(instanceIds, nodes)
+	readyInstances := GetReadyNodeNamesByInstance(instanceIds, nodes)
 
 	// if discovered nodes match provided instance ids, condition is ready
 	if common.StringSliceEquals(readyInstances, instanceIds) {
@@ -79,7 +84,7 @@ func IsMinNodesReady(nodes *corev1.NodeList, instanceIds []string, minCount int)
 		return false, nil
 	}
 
-	readyInstances := GetReadyNodesByInstance(instanceIds, nodes)
+	readyInstances := GetReadyNodeNamesByInstance(instanceIds, nodes)
 
 	// if discovered nodes match provided instance ids, condition is ready
 	if common.StringSliceContains(readyInstances, instanceIds) {
@@ -89,7 +94,7 @@ func IsMinNodesReady(nodes *corev1.NodeList, instanceIds []string, minCount int)
 	return false, nil
 }
 
-func GetReadyNodesByInstance(instanceIds []string, nodes *corev1.NodeList) []string {
+func GetReadyNodeNamesByInstance(instanceIds []string, nodes *corev1.NodeList) []string {
 	readyInstances := make([]string, 0)
 	for _, id := range instanceIds {
 		for _, node := range nodes.Items {
@@ -99,6 +104,22 @@ func GetReadyNodesByInstance(instanceIds []string, nodes *corev1.NodeList) []str
 		}
 	}
 	return readyInstances
+}
+
+func GetNodesByInstance(instanceIds []string, nodes *corev1.NodeList) *corev1.NodeList {
+	nodeList := &corev1.NodeList{
+		ListMeta: metav1.ListMeta{},
+		Items:    []corev1.Node{},
+	}
+
+	for _, id := range instanceIds {
+		for _, node := range nodes.Items {
+			if common.GetLastElementBy(node.Spec.ProviderID, "/") == id {
+				nodeList.Items = append(nodeList.Items, node)
+			}
+		}
+	}
+	return nodeList
 }
 
 func IsNodeReady(n corev1.Node) bool {
