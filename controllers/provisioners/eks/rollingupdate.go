@@ -187,22 +187,7 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 		scalingGroupName = aws.StringValue(r.ScalingGroup.AutoScalingGroupName)
 	)
 
-	r.Info("starting rolling update", "scalinggroup", scalingGroupName, "targets", r.UpdateTargets, "maxunavailable", r.MaxUnavailable)
-
-	if len(r.UpdateTargets) == 0 {
-		r.Info("no updatable instances", "scalinggroup", scalingGroupName)
-		return true, nil
-	}
-
-	// cannot rotate if maxUnavailable is greater than number of desired
-	if r.MaxUnavailable > r.DesiredCapacity {
-		r.Info("maxUnavailable exceeds desired capacity, setting maxUnavailable match desired",
-			"scalinggroup", scalingGroupName, "maxunavailable", r.MaxUnavailable, "desiredcapacity", r.DesiredCapacity)
-		r.MaxUnavailable = r.DesiredCapacity
-	}
-
 	ok := awsprovider.IsDesiredInService(r.ScalingGroup)
-
 	if !ok {
 		r.Info("desired instances are not in service", "scalinggroup", scalingGroupName)
 		return false, nil
@@ -216,6 +201,20 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 	if !ok {
 		r.Info("desired nodes are not ready", "scalinggroup", scalingGroupName)
 		return false, nil
+	}
+
+	r.Info("starting rolling update", "scalinggroup", scalingGroupName, "targets", r.UpdateTargets, "maxunavailable", r.MaxUnavailable)
+
+	if len(r.UpdateTargets) == 0 {
+		r.Info("no updatable instances", "scalinggroup", scalingGroupName)
+		return true, nil
+	}
+
+	// cannot rotate if maxUnavailable is greater than number of desired
+	if r.MaxUnavailable > r.DesiredCapacity {
+		r.Info("maxUnavailable exceeds desired capacity, setting maxUnavailable match desired",
+			"scalinggroup", scalingGroupName, "maxunavailable", r.MaxUnavailable, "desiredcapacity", r.DesiredCapacity)
+		r.MaxUnavailable = r.DesiredCapacity
 	}
 
 	var terminateTargets []string
@@ -236,7 +235,7 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 
 	// Only create new threads if waitgroup is empty
 	drainErrs := make(chan error)
-	if !reflect.DeepEqual(r.DrainGroup, sync.WaitGroup{}) {
+	if !reflect.DeepEqual(r.DrainGroup, &sync.WaitGroup{}) {
 		for _, node := range targetNodes.Items {
 
 			nodeName := node.GetName()
