@@ -52,7 +52,6 @@ type InstanceGroupReconciler struct {
 	ConfigMap              *corev1.ConfigMap
 	Namespaces             map[string]corev1.Namespace
 	NamespacesLock         *sync.Mutex
-	DrainManager           kubeprovider.DrainManager
 	DrainGroupMapper       *sync.Map
 	DrainErrorMapper       *sync.Map
 	ConfigRetention        int
