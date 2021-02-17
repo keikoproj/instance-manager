@@ -16,7 +16,8 @@ limitations under the License.
 package eks
 
 import (
-	"os"
+	"bytes"
+	"fmt"
 	"reflect"
 	"sort"
 	"strings"
@@ -26,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/go-logr/logr"
+	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
@@ -42,7 +44,7 @@ const (
 )
 
 var (
-	DefaultWaitGroupTimeout  = time.Second * 3
+	DefaultWaitGroupTimeout  = time.Second * 5
 	TransientLifecycleStates = []string{
 		autoscaling.LifecycleStateDetaching,
 		autoscaling.LifecycleStateEnteringStandby,
@@ -61,12 +63,16 @@ type RollingUpdateRequest struct {
 	AwsWorker        awsprovider.AwsWorker
 	KubernetesClient kubeprovider.KubernetesClientSet
 	ClusterNodes     *corev1.NodeList
-	DrainGroup       *sync.WaitGroup
-	ScalingGroup     *autoscaling.Group
-	MaxUnavailable   int
-	DesiredCapacity  int
-	AllInstances     []string
-	UpdateTargets    []string
+	// DrainGroup       *sync.WaitGroup
+	ScalingGroup *autoscaling.Group
+	DrainOptions v1alpha1.RollingUpgradeDrainOptions
+	// DrainErrors      chan error
+	DrainManager    kubeprovider.DrainManager
+	ReadinessGates  []v1alpha1.RollingUpgradeReadinessGate
+	MaxUnavailable  int
+	DesiredCapacity int
+	AllInstances    []string
+	UpdateTargets   []string
 }
 
 func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *RollingUpdateRequest {
@@ -81,6 +87,8 @@ func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *RollingUpdateRequ
 		desiredCount    = int(aws.Int64Value(scalingGroup.DesiredCapacity))
 		strategy        = instanceGroup.GetUpgradeStrategy().GetRollingUpdateType()
 		maxUnavailable  = strategy.GetMaxUnavailable()
+		drainOpts       = strategy.GetDrainOptions()
+		readinessGates  = strategy.GetReadinessGates()
 	)
 
 	// Get all Autoscaling Instances that needs update
@@ -171,7 +179,9 @@ func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *RollingUpdateRequ
 		Logger:           ctx.Log,
 		KubernetesClient: ctx.KubernetesClient,
 		AwsWorker:        ctx.AwsWorker,
-		DrainGroup:       ctx.DrainGroup,
+		DrainManager:     ctx.DrainManager,
+		DrainOptions:     drainOpts,
+		ReadinessGates:   readinessGates,
 		ClusterNodes:     state.GetClusterNodes(),
 		MaxUnavailable:   unavailableInt,
 		DesiredCapacity:  desiredCount,
@@ -185,6 +195,8 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 
 	var (
 		scalingGroupName = aws.StringValue(r.ScalingGroup.AutoScalingGroupName)
+		drainConfig      = r.DrainOptions
+		instanceCount    = len(r.AllInstances)
 	)
 
 	ok := awsprovider.IsDesiredInService(r.ScalingGroup)
@@ -193,17 +205,25 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 		return false, nil
 	}
 
-	ok, err := kubeprovider.IsMinNodesReady(r.ClusterNodes, r.AllInstances, r.MaxUnavailable)
+	ok, err := kubeprovider.IsMinNodesReady(r.ClusterNodes, r.AllInstances, instanceCount)
 	if err != nil {
 		return false, err
 	}
-
 	if !ok {
 		r.Info("desired nodes are not ready", "scalinggroup", scalingGroupName)
 		return false, nil
 	}
 
 	r.Info("starting rolling update", "scalinggroup", scalingGroupName, "targets", r.UpdateTargets, "maxunavailable", r.MaxUnavailable)
+
+	ok, err = r.IsReadinessGateAllowed()
+	if err != nil {
+		return false, err
+	}
+	if !ok {
+		r.Info("readiness gates are not passing", "scalinggroup", scalingGroupName)
+		return false, nil
+	}
 
 	if len(r.UpdateTargets) == 0 {
 		r.Info("no updatable instances", "scalinggroup", scalingGroupName)
@@ -234,41 +254,42 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 	r.Info("starting rotation on target nodes", "targets", targetNames)
 
 	// Only create new threads if waitgroup is empty
-	drainErrs := make(chan error)
-	if reflect.DeepEqual(r.DrainGroup, &sync.WaitGroup{}) {
+	if reflect.DeepEqual(r.DrainManager.DrainGroup, &sync.WaitGroup{}) {
 		for _, node := range targetNodes.Items {
-
+			buff := bytes.NewBufferString("")
 			nodeName := node.GetName()
 			r.Info("creating drainer goroutine for node", "node", nodeName)
-
+			timeoutSeconds := time.Duration(drainConfig.GetTimeoutSeconds()) * time.Second
+			fmt.Println(timeoutSeconds)
 			drainOpts := &drain.Helper{
 				DeleteLocalData:     true,
-				Force:               true,
+				Force:               drainConfig.GetForce(),
 				IgnoreAllDaemonSets: true,
+				Timeout:             timeoutSeconds,
 				GracePeriodSeconds:  -1,
 				Client:              r.KubernetesClient.Kubernetes,
-				Out:                 os.Stdout,
-				ErrOut:              os.Stderr,
+				Out:                 buff,
+				ErrOut:              buff,
 			}
 
-			r.DrainGroup.Add(1)
+			r.DrainManager.DrainGroup.Add(1)
 			n := node
 
 			go func() {
-				defer r.DrainGroup.Done()
+				defer r.DrainManager.DrainGroup.Done()
 				r.Info("cordoning node", "node", nodeName)
 				err := drain.RunCordonOrUncordon(drainOpts, &n, true)
 				if err != nil {
-					errors.Wrap(err, "cordon node failed")
-					drainErrs <- err
+					werr := errors.Errorf("cordon node failed: %v, %v", err.Error(), buff.String())
+					r.DrainManager.DrainErrors <- werr
 				}
 				r.Info("draining node", "node", nodeName)
 				err = drain.RunNodeDrain(drainOpts, nodeName)
 				if err != nil {
 					// If drain has failed, try to uncordon
 					drain.RunCordonOrUncordon(drainOpts, &n, false)
-					errors.Wrap(err, "drain node failed")
-					drainErrs <- err
+					werr := errors.Errorf("drain node failed: %v, %v", err.Error(), buff.String())
+					r.DrainManager.DrainErrors <- werr
 				}
 			}()
 		}
@@ -277,13 +298,14 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 	timeout := make(chan struct{})
 	go func() {
 		defer close(timeout)
-		r.DrainGroup.Wait()
+		r.DrainManager.DrainGroup.Wait()
 	}()
 
 	select {
-	case err := <-drainErrs:
-		r.Info("failed to cordon/drain targets", "scalinggroup", scalingGroupName, "targets", terminateTargets)
+	case err := <-r.DrainManager.DrainErrors:
+		r.Info("failed to cordon/drain targets", "error", err, "scalinggroup", scalingGroupName, "targets", terminateTargets)
 		return false, err
+
 	case <-timeout:
 		// goroutines completed, terminate and requeue
 		r.Info("targets drained successfully, terminating", "scalinggroup", scalingGroupName, "targets", terminateTargets)
@@ -298,4 +320,16 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 		r.Info("targets still draining", "scalinggroup", scalingGroupName, "targets", terminateTargets)
 		return false, nil
 	}
+}
+
+func (r *RollingUpdateRequest) IsReadinessGateAllowed() (bool, error) {
+	var (
+		readinessGates = r.ReadinessGates
+	)
+
+	for _, gate := range readinessGates {
+		_ = gate
+	}
+
+	return true, nil
 }

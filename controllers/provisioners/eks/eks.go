@@ -63,7 +63,7 @@ func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 
 	ctx := &EksInstanceGroupContext{
 		InstanceGroup:    instanceGroup,
-		DrainGroup:       p.DrainGroup,
+		DrainManager:     p.DrainManager,
 		KubernetesClient: p.Kubernetes,
 		AwsWorker:        p.AwsWorker,
 		Log:              p.Log.WithName("eks"),
@@ -80,7 +80,7 @@ func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 
 type EksInstanceGroupContext struct {
 	sync.Mutex
-	DrainGroup       *sync.WaitGroup
+	DrainManager     kubeprovider.DrainManager
 	InstanceGroup    *v1alpha1.InstanceGroup
 	KubernetesClient kubeprovider.KubernetesClientSet
 	AwsWorker        awsprovider.AwsWorker

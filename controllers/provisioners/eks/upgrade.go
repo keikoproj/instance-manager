@@ -54,7 +54,7 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 		req := ctx.NewRollingUpdateRequest()
 		ok, err := req.ProcessRollingUpgradeStrategy()
 		if err != nil {
-			state.Publisher.Publish(kubeprovider.InstanceGroupUpgradeFailedEvent, "instancegroup", instanceGroup.GetName(), "type", RollingUpdateStrategyName, "error", err)
+			state.Publisher.Publish(kubeprovider.InstanceGroupUpgradeFailedEvent, "instancegroup", instanceGroup.GetName(), "type", RollingUpdateStrategyName, "error", err.Error())
 			instanceGroup.SetState(v1alpha1.ReconcileErr)
 			return errors.Wrap(err, "failed to process rolling-update strategy")
 		}

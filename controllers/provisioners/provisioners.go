@@ -1,8 +1,6 @@
 package provisioners
 
 import (
-	"sync"
-
 	"github.com/go-logr/logr"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -27,7 +25,7 @@ const (
 )
 
 type ProvisionerInput struct {
-	DrainGroup      *sync.WaitGroup
+	DrainManager    kubeprovider.DrainManager
 	AwsWorker       awsprovider.AwsWorker
 	Kubernetes      kubeprovider.KubernetesClientSet
 	InstanceGroup   *v1alpha1.InstanceGroup

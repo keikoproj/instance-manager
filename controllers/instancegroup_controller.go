@@ -52,7 +52,9 @@ type InstanceGroupReconciler struct {
 	ConfigMap              *corev1.ConfigMap
 	Namespaces             map[string]corev1.Namespace
 	NamespacesLock         *sync.Mutex
-	DrainGroups            *sync.Map
+	DrainManager           kubeprovider.DrainManager
+	DrainGroupMapper       *sync.Map
+	DrainErrorMapper       *sync.Map
 	ConfigRetention        int
 }
 
@@ -141,8 +143,12 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 	)
 	status.SetConfigHash(configHash)
 
-	drainGroup, _ := r.DrainGroups.LoadOrStore(namespacedName, &sync.WaitGroup{})
-	input.DrainGroup = drainGroup.(*sync.WaitGroup)
+	drainGroup, _ := r.DrainGroupMapper.LoadOrStore(namespacedName, &sync.WaitGroup{})
+	drainErrs, _ := r.DrainErrorMapper.LoadOrStore(namespacedName, make(chan error))
+	input.DrainManager = kubeprovider.DrainManager{
+		DrainErrors: drainErrs.(chan error),
+		DrainGroup:  drainGroup.(*sync.WaitGroup),
+	}
 
 	if !reflect.DeepEqual(*r.ConfigMap, corev1.ConfigMap{}) {
 		// Configmap exist - apply defaults/boundaries if namespace is not excluded

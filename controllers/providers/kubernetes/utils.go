@@ -25,6 +25,7 @@ import (
 	"os/user"
 	"reflect"
 	"strings"
+	"sync"
 
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/ghodss/yaml"
@@ -51,6 +52,11 @@ var (
 type KubernetesClientSet struct {
 	Kubernetes  kubernetes.Interface
 	KubeDynamic dynamic.Interface
+}
+
+type DrainManager struct {
+	DrainErrors chan error
+	DrainGroup  *sync.WaitGroup
 }
 
 func GetUnstructuredInstanceGroup(instanceGroup *v1alpha1.InstanceGroup) (*unstructured.Unstructured, error) {

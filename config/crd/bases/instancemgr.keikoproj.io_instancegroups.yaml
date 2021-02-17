@@ -379,11 +379,31 @@ spec:
                     type: object
                   rollingUpdate:
                     properties:
+                      drainOptions:
+                        properties:
+                          force:
+                            type: boolean
+                          timeoutSeconds:
+                            format: int64
+                            type: integer
+                        type: object
                       maxUnavailable:
                         anyOf:
                         - type: integer
                         - type: string
                         x-kubernetes-int-or-string: true
+                      readinessGates:
+                        items:
+                          properties:
+                            type:
+                              type: string
+                            value:
+                              type: string
+                          required:
+                          - type
+                          - value
+                          type: object
+                        type: array
                     type: object
                   type:
                     type: string
