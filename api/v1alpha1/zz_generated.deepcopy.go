@@ -615,6 +615,11 @@ func (in *RollingUpdateStrategy) DeepCopyInto(out *RollingUpdateStrategy) {
 		*out = new(intstr.IntOrString)
 		**out = **in
 	}
+	if in.MaxRetries != nil {
+		in, out := &in.MaxRetries, &out.MaxRetries
+		*out = new(int)
+		**out = **in
+	}
 	in.DrainOptions.DeepCopyInto(&out.DrainOptions)
 	if in.ReadinessGates != nil {
 		in, out := &in.ReadinessGates, &out.ReadinessGates

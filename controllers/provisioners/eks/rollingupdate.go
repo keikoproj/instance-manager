@@ -60,19 +60,16 @@ var (
 
 type RollingUpdateRequest struct {
 	logr.Logger
+	InstanceGroup    *v1alpha1.InstanceGroup
 	AwsWorker        awsprovider.AwsWorker
 	KubernetesClient kubeprovider.KubernetesClientSet
 	ClusterNodes     *corev1.NodeList
-	// DrainGroup       *sync.WaitGroup
-	ScalingGroup *autoscaling.Group
-	DrainOptions v1alpha1.RollingUpgradeDrainOptions
-	// DrainErrors      chan error
-	DrainManager    kubeprovider.DrainManager
-	ReadinessGates  []v1alpha1.RollingUpgradeReadinessGate
-	MaxUnavailable  int
-	DesiredCapacity int
-	AllInstances    []string
-	UpdateTargets   []string
+	ScalingGroup     *autoscaling.Group
+	DrainManager     kubeprovider.DrainManager
+	MaxUnavailable   int
+	DesiredCapacity  int
+	AllInstances     []string
+	UpdateTargets    []string
 }
 
 func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *RollingUpdateRequest {
@@ -87,8 +84,6 @@ func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *RollingUpdateRequ
 		desiredCount    = int(aws.Int64Value(scalingGroup.DesiredCapacity))
 		strategy        = instanceGroup.GetUpgradeStrategy().GetRollingUpdateType()
 		maxUnavailable  = strategy.GetMaxUnavailable()
-		drainOpts       = strategy.GetDrainOptions()
-		readinessGates  = strategy.GetReadinessGates()
 	)
 
 	// Get all Autoscaling Instances that needs update
@@ -177,11 +172,10 @@ func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *RollingUpdateRequ
 
 	return &RollingUpdateRequest{
 		Logger:           ctx.Log,
+		InstanceGroup:    instanceGroup,
 		KubernetesClient: ctx.KubernetesClient,
 		AwsWorker:        ctx.AwsWorker,
 		DrainManager:     ctx.DrainManager,
-		DrainOptions:     drainOpts,
-		ReadinessGates:   readinessGates,
 		ClusterNodes:     state.GetClusterNodes(),
 		MaxUnavailable:   unavailableInt,
 		DesiredCapacity:  desiredCount,
@@ -195,8 +189,10 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 
 	var (
 		scalingGroupName = aws.StringValue(r.ScalingGroup.AutoScalingGroupName)
-		drainConfig      = r.DrainOptions
 		instanceCount    = len(r.AllInstances)
+		strategy         = r.InstanceGroup.GetUpgradeStrategy().GetRollingUpdateType()
+		drainConfig      = strategy.GetDrainOptions()
+		status           = r.InstanceGroup.GetStatus()
 	)
 
 	ok := awsprovider.IsDesiredInService(r.ScalingGroup)
@@ -304,6 +300,16 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 	select {
 	case err := <-r.DrainManager.DrainErrors:
 		r.Info("failed to cordon/drain targets", "error", err, "scalinggroup", scalingGroupName, "targets", terminateTargets)
+		maxRetries := *strategy.MaxRetries
+		if maxRetries > status.GetStrategyRetryCount() {
+			if maxRetries == -1 {
+				// if maxRetries is set to -1, retry forever
+				status.SetStrategyRetryCount(-1)
+			} else {
+				// otherwise increment retry counter
+				status.IncrementStrategyRetryCount()
+			}
+		}
 		return false, err
 
 	case <-timeout:
@@ -313,6 +319,7 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 			// terminate failures are retryable
 			r.Info("failed to terminate targets", "reason", err.Error(), "scalinggroup", scalingGroupName, "targets", terminateTargets)
 		}
+		status.SetStrategyRetryCount(0)
 		return false, nil
 
 	case <-time.After(DefaultWaitGroupTimeout):
@@ -324,7 +331,8 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 
 func (r *RollingUpdateRequest) IsReadinessGateAllowed() (bool, error) {
 	var (
-		readinessGates = r.ReadinessGates
+		strategy       = r.InstanceGroup.GetUpgradeStrategy().GetRollingUpdateType()
+		readinessGates = strategy.GetReadinessGates()
 	)
 
 	for _, gate := range readinessGates {
