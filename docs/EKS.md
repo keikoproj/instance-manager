@@ -255,6 +255,8 @@ instance-manager currently supports two types of upgrade strategy, `rollingUpdat
 
 rollingUpdate is a basic implementation of a rolling instance replacement - you can define `maxUnavailable` to some number or percent that represents the desired capacity to be rotated at a time.
 
+Under `drainOptions` you can also define the drain timeout in seconds (defaults to 900), and whether to use force when draining (defaults to true).
+
 ```yaml
 apiVersion: instancemgr.keikoproj.io/v1alpha1
 kind: InstanceGroup
@@ -265,6 +267,9 @@ spec:
   strategy:
     type: rollingUpdate
     rollingUpdate:
+      drainOptions:
+        timeoutSeconds: 300
+        force: false
       maxUnavailable: 30%
 ```
 
