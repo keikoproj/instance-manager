@@ -17,7 +17,6 @@ package eks
 
 import (
 	"bytes"
-	"fmt"
 	"reflect"
 	"sort"
 	"strings"
@@ -190,6 +189,7 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 	var (
 		scalingGroupName = aws.StringValue(r.ScalingGroup.AutoScalingGroupName)
 		instanceCount    = len(r.AllInstances)
+		namespacedName   = r.InstanceGroup.NamespacedName()
 		strategy         = r.InstanceGroup.GetUpgradeStrategy().GetRollingUpdateType()
 		drainConfig      = strategy.GetDrainOptions()
 		status           = r.InstanceGroup.GetStatus()
@@ -252,11 +252,10 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 	// Only create new threads if waitgroup is empty
 	if reflect.DeepEqual(r.DrainManager.DrainGroup, &sync.WaitGroup{}) {
 		for _, node := range targetNodes.Items {
-			buff := bytes.NewBufferString("")
 			nodeName := node.GetName()
 			r.Info("creating drainer goroutine for node", "node", nodeName)
+			buff := bytes.NewBufferString("")
 			timeoutSeconds := time.Duration(drainConfig.GetTimeoutSeconds()) * time.Second
-			fmt.Println(timeoutSeconds)
 			drainOpts := &drain.Helper{
 				DeleteLocalData:     true,
 				Force:               drainConfig.GetForce(),
@@ -299,17 +298,7 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 
 	select {
 	case err := <-r.DrainManager.DrainErrors:
-		r.Info("failed to cordon/drain targets", "error", err, "scalinggroup", scalingGroupName, "targets", terminateTargets)
-		maxRetries := *strategy.MaxRetries
-		if maxRetries > status.GetStrategyRetryCount() {
-			if maxRetries == -1 {
-				// if maxRetries is set to -1, retry forever
-				status.SetStrategyRetryCount(-1)
-			} else {
-				// otherwise increment retry counter
-				status.IncrementStrategyRetryCount()
-			}
-		}
+		r.Info("failed to cordon/drain targets", "error", err, "instancegroup", namespacedName, "targets", terminateTargets)
 		return false, err
 
 	case <-timeout:

@@ -113,8 +113,7 @@ var (
 	NamespaceReadinessGateType = "namespace"
 	AllowedReadinessGateTypes  = []string{NamespaceReadinessGateType}
 
-	DefaultRollingUpgradeStrategyMaxRetries = 3
-	DefaultCRDStrategyMaxRetries            = 3
+	DefaultCRDStrategyMaxRetries = 3
 
 	AllowedFileSystemTypes              = []string{FileSystemTypeXFS, FileSystemTypeEXT4}
 	AllowedMixedPolicyStrategies        = []string{LaunchTemplateStrategyCapacityOptimized, LaunchTemplateStrategyLowestPrice}
@@ -162,7 +161,6 @@ type AwsUpgradeStrategy struct {
 
 type RollingUpdateStrategy struct {
 	MaxUnavailable *intstr.IntOrString           `json:"maxUnavailable,omitempty"`
-	MaxRetries     *int                          `json:"maxRetries,omitempty"`
 	DrainOptions   RollingUpgradeDrainOptions    `json:"drainOptions,omitempty"`
 	ReadinessGates []RollingUpgradeReadinessGate `json:"readinessGates,omitempty"`
 }
@@ -891,10 +889,6 @@ func (r *RollingUpdateStrategy) Validate() error {
 
 	if r.MaxUnavailable == nil {
 		r.MaxUnavailable = DefaultRollingUpdateStrategy.MaxUnavailable
-	}
-
-	if r.MaxRetries == nil {
-		r.MaxRetries = &DefaultRollingUpgradeStrategyMaxRetries
 	}
 
 	if r.DrainOptions.TimeoutSeconds == nil {

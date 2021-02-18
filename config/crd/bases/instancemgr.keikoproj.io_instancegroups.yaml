@@ -387,8 +387,6 @@ spec:
                             format: int64
                             type: integer
                         type: object
-                      maxRetries:
-                        type: integer
                       maxUnavailable:
                         anyOf:
                         - type: integer
