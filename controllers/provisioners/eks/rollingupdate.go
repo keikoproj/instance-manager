@@ -188,11 +188,10 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 
 	var (
 		scalingGroupName = aws.StringValue(r.ScalingGroup.AutoScalingGroupName)
-		instanceCount    = len(r.AllInstances)
+		desiredCount     = aws.Int64Value(r.ScalingGroup.DesiredCapacity)
 		namespacedName   = r.InstanceGroup.NamespacedName()
 		strategy         = r.InstanceGroup.GetUpgradeStrategy().GetRollingUpdateType()
 		drainConfig      = strategy.GetDrainOptions()
-		status           = r.InstanceGroup.GetStatus()
 	)
 
 	ok := awsprovider.IsDesiredInService(r.ScalingGroup)
@@ -201,7 +200,7 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 		return false, nil
 	}
 
-	ok, err := kubeprovider.IsMinNodesReady(r.ClusterNodes, r.AllInstances, instanceCount)
+	ok, err := kubeprovider.IsMinNodesReady(r.ClusterNodes, r.AllInstances, int(desiredCount))
 	if err != nil {
 		return false, err
 	}
@@ -211,16 +210,6 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 	}
 
 	r.Info("starting rolling update", "scalinggroup", scalingGroupName, "targets", r.UpdateTargets, "maxunavailable", r.MaxUnavailable)
-
-	ok, err = r.IsReadinessGateAllowed()
-	if err != nil {
-		return false, err
-	}
-	if !ok {
-		r.Info("readiness gates are not passing", "scalinggroup", scalingGroupName)
-		return false, nil
-	}
-
 	if len(r.UpdateTargets) == 0 {
 		r.Info("no updatable instances", "scalinggroup", scalingGroupName)
 		return true, nil
@@ -249,24 +238,24 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 
 	r.Info("starting rotation on target nodes", "targets", targetNames)
 
+	buff := bytes.NewBufferString("")
+	timeoutSeconds := time.Duration(drainConfig.GetTimeoutSeconds()) * time.Second
+	drainOpts := &drain.Helper{
+		DeleteLocalData:     true,
+		Force:               drainConfig.GetForce(),
+		IgnoreAllDaemonSets: true,
+		Timeout:             timeoutSeconds,
+		GracePeriodSeconds:  -1,
+		Client:              r.KubernetesClient.Kubernetes,
+		Out:                 buff,
+		ErrOut:              buff,
+	}
+
 	// Only create new threads if waitgroup is empty
 	if reflect.DeepEqual(r.DrainManager.DrainGroup, &sync.WaitGroup{}) {
 		for _, node := range targetNodes.Items {
 			nodeName := node.GetName()
 			r.Info("creating drainer goroutine for node", "node", nodeName)
-			buff := bytes.NewBufferString("")
-			timeoutSeconds := time.Duration(drainConfig.GetTimeoutSeconds()) * time.Second
-			drainOpts := &drain.Helper{
-				DeleteLocalData:     true,
-				Force:               drainConfig.GetForce(),
-				IgnoreAllDaemonSets: true,
-				Timeout:             timeoutSeconds,
-				GracePeriodSeconds:  -1,
-				Client:              r.KubernetesClient.Kubernetes,
-				Out:                 buff,
-				ErrOut:              buff,
-			}
-
 			r.DrainManager.DrainGroup.Add(1)
 			n := node
 
@@ -282,7 +271,6 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 				err = drain.RunNodeDrain(drainOpts, nodeName)
 				if err != nil {
 					// If drain has failed, try to uncordon
-					drain.RunCordonOrUncordon(drainOpts, &n, false)
 					werr := errors.Errorf("drain node failed: %v, %v", err.Error(), buff.String())
 					r.DrainManager.DrainErrors <- werr
 				}
@@ -299,6 +287,15 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 	select {
 	case err := <-r.DrainManager.DrainErrors:
 		r.Info("failed to cordon/drain targets", "error", err, "instancegroup", namespacedName, "targets", terminateTargets)
+
+		// try uncordon all targets
+		for _, node := range targetNodes.Items {
+			n := node
+			cErr := drain.RunCordonOrUncordon(drainOpts, &n, false)
+			if cErr != nil {
+				r.Info("failed to uncordon node", "error", cErr.Error())
+			}
+		}
 		return false, err
 
 	case <-timeout:
@@ -308,7 +305,6 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 			// terminate failures are retryable
 			r.Info("failed to terminate targets", "reason", err.Error(), "scalinggroup", scalingGroupName, "targets", terminateTargets)
 		}
-		status.SetStrategyRetryCount(0)
 		return false, nil
 
 	case <-time.After(DefaultWaitGroupTimeout):
@@ -316,17 +312,4 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 		r.Info("targets still draining", "scalinggroup", scalingGroupName, "targets", terminateTargets)
 		return false, nil
 	}
-}
-
-func (r *RollingUpdateRequest) IsReadinessGateAllowed() (bool, error) {
-	var (
-		strategy       = r.InstanceGroup.GetUpgradeStrategy().GetRollingUpdateType()
-		readinessGates = strategy.GetReadinessGates()
-	)
-
-	for _, gate := range readinessGates {
-		_ = gate
-	}
-
-	return true, nil
 }

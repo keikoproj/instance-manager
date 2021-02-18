@@ -110,9 +110,6 @@ var (
 		},
 	}
 
-	NamespaceReadinessGateType = "namespace"
-	AllowedReadinessGateTypes  = []string{NamespaceReadinessGateType}
-
 	DefaultCRDStrategyMaxRetries = 3
 
 	AllowedFileSystemTypes              = []string{FileSystemTypeXFS, FileSystemTypeEXT4}
@@ -160,13 +157,8 @@ type AwsUpgradeStrategy struct {
 }
 
 type RollingUpdateStrategy struct {
-	MaxUnavailable *intstr.IntOrString           `json:"maxUnavailable,omitempty"`
-	DrainOptions   RollingUpgradeDrainOptions    `json:"drainOptions,omitempty"`
-	ReadinessGates []RollingUpgradeReadinessGate `json:"readinessGates,omitempty"`
-}
-
-func (s *RollingUpdateStrategy) GetReadinessGates() []RollingUpgradeReadinessGate {
-	return s.ReadinessGates
+	MaxUnavailable *intstr.IntOrString        `json:"maxUnavailable,omitempty"`
+	DrainOptions   RollingUpgradeDrainOptions `json:"drainOptions,omitempty"`
 }
 
 func (s *RollingUpdateStrategy) GetDrainOptions() RollingUpgradeDrainOptions {
@@ -179,11 +171,6 @@ func (s *RollingUpdateStrategy) GetMaxUnavailable() *intstr.IntOrString {
 
 func (s *RollingUpdateStrategy) SetMaxUnavailable(value *intstr.IntOrString) {
 	s.MaxUnavailable = value
-}
-
-type RollingUpgradeReadinessGate struct {
-	Type  string `json:"type"`
-	Value string `json:"value"`
 }
 
 type RollingUpgradeDrainOptions struct {
@@ -897,15 +884,6 @@ func (r *RollingUpdateStrategy) Validate() error {
 
 	if r.DrainOptions.Force == nil {
 		r.DrainOptions.Force = DefaultRollingUpdateStrategy.DrainOptions.Force
-	}
-
-	for _, gate := range r.ReadinessGates {
-		if !common.ContainsEqualFold(AllowedReadinessGateTypes, gate.Type) {
-			return errors.Errorf("readiness gate type '%v' is unsupported, supported types are '%v'", gate.Type, AllowedReadinessGateTypes)
-		}
-		if common.StringEmpty(gate.Value) {
-			return errors.New("readiness gate value cannot be empty")
-		}
 	}
 
 	return nil
