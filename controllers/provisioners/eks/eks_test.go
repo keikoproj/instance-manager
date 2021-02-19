@@ -392,6 +392,7 @@ func MockScalingInstances(nonUpdatable, updatable int) []*autoscaling.Instance {
 	instances := []*autoscaling.Instance{}
 	for i := 0; i < nonUpdatable; i++ {
 		instances = append(instances, &autoscaling.Instance{
+			LifecycleState:          aws.String(autoscaling.LifecycleStateInService),
 			LaunchConfigurationName: aws.String("some-launch-config"),
 			LaunchTemplate: &autoscaling.LaunchTemplateSpecification{
 				LaunchTemplateName: aws.String("some-launch-template"),

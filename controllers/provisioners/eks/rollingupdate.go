@@ -287,7 +287,6 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 	select {
 	case err := <-r.DrainManager.DrainErrors:
 		r.Info("failed to cordon/drain targets", "error", err, "instancegroup", namespacedName, "targets", terminateTargets)
-
 		// try uncordon all targets
 		for _, node := range targetNodes.Items {
 			n := node
