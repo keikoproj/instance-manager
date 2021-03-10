@@ -1,12 +1,12 @@
-# Installation Reference Walkthrough
+# Installation Reference Walk-through
 
 This guide will walk you through all the steps needed from the creation of the EKS Cluster to the creation of cluster-native worker nodes using instance-manager.
 
-The cluster setup part of the walkthrough is meant to be an example and is not recommended to use in production to set up EKS clusters.
+The cluster setup part of the walk-through is meant to be an example and is not recommended to use in production to set up EKS clusters.
 
 ## Prerequisites
 
-There are several prerquisites for installing instance-manager, this document will only refer to installation on EKS.
+There are several prerequisites for installing instance-manager, this document will only refer to installation on EKS.
 
 You will need a functional EKS cluster, with at least one bootstrapped node (that can run the instance-manager controller pod).
 
@@ -43,7 +43,10 @@ No resources found.
 
 ### Bootstrap node group
 
-In order to run the controller you need atleast one node that is created manually, in addition, the instance-manager controller requires IAM permissions in order to create the required resources in your account.
+In order to run the controller you need:
+
+* at least one node that is created manually
+* the instance-manager controller requires IAM permissions in order to create the required resources in your account.
 
 The below are the minimum required policies needed to run the basic operations of provisioners.
 
@@ -87,7 +90,7 @@ eks:UpdateNodegroupConfig
 eks:DescribeCluster
 ```
 
-The following are also required if you want the controller to be creating IAM roles for your instance groups, otherwise you can omit this and provide an existing role in the custom resource.
+The following IAM permissions are required if you want the controller to be creating IAM roles for your instance groups, otherwise you can omit this and provide an existing role in the custom resource.
 
 ```text
 iam:CreateInstanceProfile
@@ -121,7 +124,7 @@ In this scenario, node groups which were manually bootstrapped (as above), and i
 
 Create the following resources
 
-- Namespace (or use kube-system)
+- Namespace (or use `kube-system`)
 
 - [Custom Resource Definition](https://github.com/keikoproj/instance-manager/blob/master/config/crd/bases/instancemgr.keikoproj.io_instancegroups.yaml) for InstanceGroups API
 
@@ -141,13 +144,15 @@ deployment.extensions/instance-manager created
 
 ### Create an InstanceGroup object
 
-Time to submit our first instancegroup.
+Time to create our first `InstanceGroup`.
 
 There are several components to the custom resource:
 
-- Provisioner - this defines the provisioner which will create the node group, use `eks` to provision a scaling group of worker nodes, or the `eks-managed` provisioner to provision a managed node group.
+- Provisioner - this defines the provisioner which will create the node group. Possible options:
+  * `eks` to provision an AWS autoscaling group of worker nodes
+  * `eks-managed` provisioner to provision a managed node group.
 
-- Strategy - this defines the upgrade strategy of the instancegroup, `rollingUpdate` is a basic form of rolling update of nodes managed by the controller, other supported types include `crd` which allows you to submit an arbitrary custom resource which implements some custom behaviour.
+- Strategy - this defines the upgrade strategy of the `InstanceGroup`, `rollingUpdate` is a basic form of rolling update of nodes managed by the controller, other supported types include `crd` which allows you to submit an arbitrary custom resource which implements some custom behaviour.
 
 - Provisioner Configuration - defines the configuration of the actual node group with respect to the selected provisioner.
 
