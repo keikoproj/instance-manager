@@ -255,10 +255,10 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 	if reflect.DeepEqual(r.DrainManager.DrainGroup, &sync.WaitGroup{}) {
 		for _, node := range targetNodes.Items {
 			nodeName := node.GetName()
+			instanceID := kubeprovider.GetNodeInstanceID(node)
 			r.Info("creating drainer goroutine for node", "node", nodeName)
 			r.DrainManager.DrainGroup.Add(1)
 			n := node
-
 			go func() {
 				defer r.DrainManager.DrainGroup.Done()
 				r.Info("cordoning node", "node", nodeName)
@@ -271,41 +271,32 @@ func (r *RollingUpdateRequest) ProcessRollingUpgradeStrategy() (bool, error) {
 				err = drain.RunNodeDrain(drainOpts, nodeName)
 				if err != nil {
 					// If drain has failed, try to uncordon
+					drain.RunCordonOrUncordon(drainOpts, &n, false)
 					werr := errors.Errorf("drain node failed: %v, %v", err.Error(), buff.String())
 					r.DrainManager.DrainErrors <- werr
+				}
+				if err := r.AwsWorker.TerminateScalingInstances([]string{instanceID}); err != nil {
+					// terminate failures are retryable
+					r.Info("failed to terminate targets", "reason", err.Error(), "scalinggroup", scalingGroupName, "targets", terminateTargets)
 				}
 			}()
 		}
 	}
 
-	timeout := make(chan struct{})
+	done := make(chan struct{})
 	go func() {
-		defer close(timeout)
+		defer close(done)
 		r.DrainManager.DrainGroup.Wait()
 	}()
 
 	select {
 	case err := <-r.DrainManager.DrainErrors:
 		r.Info("failed to cordon/drain targets", "error", err, "instancegroup", namespacedName, "targets", terminateTargets)
-		// try uncordon all targets
-		for _, node := range targetNodes.Items {
-			n := node
-			cErr := drain.RunCordonOrUncordon(drainOpts, &n, false)
-			if cErr != nil {
-				r.Info("failed to uncordon node", "error", cErr.Error())
-			}
-		}
 		return false, err
-
-	case <-timeout:
+	case <-done:
 		// goroutines completed, terminate and requeue
-		r.Info("targets drained successfully, terminating", "scalinggroup", scalingGroupName, "targets", terminateTargets)
-		if err := r.AwsWorker.TerminateScalingInstances(terminateTargets); err != nil {
-			// terminate failures are retryable
-			r.Info("failed to terminate targets", "reason", err.Error(), "scalinggroup", scalingGroupName, "targets", terminateTargets)
-		}
+		r.Info("targets drained successfully", "scalinggroup", scalingGroupName, "targets", terminateTargets)
 		return false, nil
-
 	case <-time.After(DefaultWaitGroupTimeout):
 		// goroutines timed out - requeue
 		r.Info("targets still draining", "scalinggroup", scalingGroupName, "targets", terminateTargets)

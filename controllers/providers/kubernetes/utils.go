@@ -128,6 +128,10 @@ func GetNodesByInstance(instanceIds []string, nodes *corev1.NodeList) *corev1.No
 	return nodeList
 }
 
+func GetNodeInstanceID(node corev1.Node) string {
+	return common.GetLastElementBy(node.Spec.ProviderID, "/")
+}
+
 func IsNodeReady(n corev1.Node) bool {
 	for _, condition := range n.Status.Conditions {
 		if condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue {
