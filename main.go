@@ -114,7 +114,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	cacheCfg := cache.NewConfig(aws.CacheDefaultTTL, aws.CacheMaxItems, aws.CacheItemsToPrune)
+	cacheCfg := cache.NewConfig(aws.CacheDefaultTTL, aws.CacheBackgroundPruningInterval, aws.CacheMaxItems, aws.CacheItemsToPrune)
 
 	awsWorker := aws.AwsWorker{
 		Ec2Client: aws.GetAwsEc2Client(awsRegion, cacheCfg, maxAPIRetries),
