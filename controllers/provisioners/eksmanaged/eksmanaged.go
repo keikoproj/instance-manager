@@ -129,7 +129,7 @@ func (ctx *EksManagedInstanceGroupContext) Create() error {
 	if err != nil {
 		return err
 	}
-	ctx.Log.Info("created managed node group", "instancegroup", instanceGroup.GetName())
+	ctx.Log.Info("created managed node group", "instancegroup", instanceGroup.NamespacedName())
 	instanceGroup.SetState(v1alpha1.ReconcileModifying)
 	return nil
 }
@@ -176,7 +176,7 @@ func (ctx *EksManagedInstanceGroupContext) Update() error {
 		if err != nil {
 			return err
 		}
-		ctx.Log.Info("updated managed node group", "instancegroup", instanceGroup.GetName())
+		ctx.Log.Info("updated managed node group", "instancegroup", instanceGroup.NamespacedName())
 		instanceGroup.SetState(v1alpha1.ReconcileModifying)
 	} else {
 		instanceGroup.SetState(v1alpha1.ReconcileModified)
@@ -193,7 +193,7 @@ func (ctx *EksManagedInstanceGroupContext) Delete() error {
 	if err != nil {
 		return err
 	}
-	ctx.Log.Info("deleted managed node group", "instancegroup", instanceGroup.GetName())
+	ctx.Log.Info("deleted managed node group", "instancegroup", instanceGroup.NamespacedName())
 	instanceGroup.SetState(v1alpha1.ReconcileDeleting)
 	return nil
 }

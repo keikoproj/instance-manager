@@ -79,8 +79,8 @@ func (ctx *EksInstanceGroupContext) DeleteScalingGroup() error {
 	if err != nil {
 		return err
 	}
-	ctx.Log.Info("deleted scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
-	state.Publisher.Publish(kubeprovider.InstanceGroupDeletedEvent, "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
+	ctx.Log.Info("deleted scaling group", "instancegroup", instanceGroup.NamespacedName(), "scalinggroup", asgName)
+	state.Publisher.Publish(kubeprovider.InstanceGroupDeletedEvent, "instancegroup", instanceGroup.NamespacedName(), "scalinggroup", asgName)
 	return nil
 }
 
@@ -104,6 +104,6 @@ func (ctx *EksInstanceGroupContext) DeleteManagedRole() error {
 	if err != nil {
 		return err
 	}
-	ctx.Log.Info("deleted scaling group role", "instancegroup", instanceGroup.GetName(), "iamrole", roleName)
+	ctx.Log.Info("deleted scaling group role", "instancegroup", instanceGroup.NamespacedName(), "iamrole", roleName)
 	return nil
 }
