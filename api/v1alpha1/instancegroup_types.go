@@ -1065,7 +1065,7 @@ func (ig *InstanceGroup) GetState() ReconcileState {
 
 func (ig *InstanceGroup) SetState(s ReconcileState) {
 	log.Info("state transition occured",
-		"instancegroup", ig.GetName(),
+		"instancegroup", ig.NamespacedName(),
 		"state", s,
 		"previousState", ig.Status.CurrentState,
 	)

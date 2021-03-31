@@ -135,7 +135,7 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup(name string) error {
 		return err
 	}
 
-	ctx.Log.Info("created scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
+	ctx.Log.Info("created scaling group", "instancegroup", instanceGroup.NamespacedName(), "scalinggroup", asgName)
 
 	if err := ctx.UpdateScalingProcesses(asgName); err != nil {
 		return err
@@ -149,7 +149,7 @@ func (ctx *EksInstanceGroupContext) CreateScalingGroup(name string) error {
 		return err
 	}
 
-	state.Publisher.Publish(kubeprovider.InstanceGroupCreatedEvent, "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
+	state.Publisher.Publish(kubeprovider.InstanceGroupCreatedEvent, "instancegroup", instanceGroup.NamespacedName(), "scalinggroup", asgName)
 	return nil
 }
 
@@ -181,7 +181,7 @@ func (ctx *EksInstanceGroupContext) CreateManagedRole() error {
 		return errors.Wrap(err, "failed to update managed policies")
 	}
 
-	ctx.Log.Info("reconciled managed role", "instancegroup", instanceGroup.GetName(), "iamrole", roleName)
+	ctx.Log.Info("reconciled managed role", "instancegroup", instanceGroup.NamespacedName(), "iamrole", roleName)
 
 	state.SetRole(role)
 	state.SetInstanceProfile(profile)

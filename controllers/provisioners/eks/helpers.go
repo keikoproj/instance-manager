@@ -351,14 +351,14 @@ func (ctx *EksInstanceGroupContext) UpdateScalingProcesses(asgName string) error
 		if err := ctx.AwsWorker.SetSuspendProcesses(asgName, suspend); err != nil {
 			return err
 		}
-		ctx.Log.Info("suspended scaling processes", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName, "processes", suspend)
+		ctx.Log.Info("suspended scaling processes", "instancegroup", instanceGroup.NamespacedName(), "scalinggroup", asgName, "processes", suspend)
 	}
 
 	if resume := common.Difference(groupSuspendProcesses, specSuspendProcesses); len(resume) > 0 {
 		if err := ctx.AwsWorker.SetResumeProcesses(asgName, resume); err != nil {
 			return err
 		}
-		ctx.Log.Info("resumed scaling processes", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName, "processes", resume)
+		ctx.Log.Info("resumed scaling processes", "instancegroup", instanceGroup.NamespacedName(), "scalinggroup", asgName, "processes", resume)
 	}
 
 	return nil
@@ -421,7 +421,7 @@ func (ctx *EksInstanceGroupContext) GetComputedLabels() map[string]string {
 		clusterVersion := ctx.DiscoveredState.GetClusterVersion()
 		ver, err := semver.NewVersion(clusterVersion)
 		if err != nil {
-			ctx.Log.Error(err, "Failed parsing the cluster's kubernetes version", "instancegroup", instanceGroup.GetName())
+			ctx.Log.Error(err, "Failed parsing the cluster's kubernetes version", "instancegroup", instanceGroup.NamespacedName())
 			labelMap[fmt.Sprintf(RoleOldLabel, instanceGroup.GetName())] = ""
 		} else {
 			c, _ := semver.NewConstraint("< 1.16-0")
@@ -545,7 +545,7 @@ func (ctx *EksInstanceGroupContext) discoverSpotPrice() error {
 	if reflect.DeepEqual(recommendation, kubeprovider.SpotRecommendation{}) {
 		// if it was not using a recommendation before and spec has a spot price it means it was manually configured
 		if !status.GetUsingSpotRecommendation() && configuration.GetSpotPrice() != "" {
-			ctx.Log.Info("using manually configured spot price", "instancegroup", instanceGroup.GetName(), "spotPrice", configuration.GetSpotPrice())
+			ctx.Log.Info("using manually configured spot price", "instancegroup", instanceGroup.NamespacedName(), "spotPrice", configuration.GetSpotPrice())
 		} else {
 			// if recommendation was used, set flag to false
 			status.SetUsingSpotRecommendation(false)
@@ -557,10 +557,10 @@ func (ctx *EksInstanceGroupContext) discoverSpotPrice() error {
 	status.SetUsingSpotRecommendation(true)
 
 	if recommendation.UseSpot {
-		ctx.Log.Info("spot enabled with spot price recommendation", "instancegroup", instanceGroup.GetName(), "spotPrice", recommendation.SpotPrice)
+		ctx.Log.Info("spot enabled with spot price recommendation", "instancegroup", instanceGroup.NamespacedName(), "spotPrice", recommendation.SpotPrice)
 		configuration.SetSpotPrice(recommendation.SpotPrice)
 	} else {
-		ctx.Log.Info("spot disabled due to recommendation", "instancegroup", instanceGroup.GetName())
+		ctx.Log.Info("spot disabled due to recommendation", "instancegroup", instanceGroup.NamespacedName())
 		configuration.SetSpotPrice("")
 	}
 	return nil
@@ -632,7 +632,7 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 		return false
 	}
 
-	ctx.Log.Info("waiting for node readiness conditions", "instancegroup", instanceGroup.GetName())
+	ctx.Log.Info("waiting for node readiness conditions", "instancegroup", instanceGroup.NamespacedName())
 	if len(scalingGroup.Instances) != desiredCount {
 		// if instances don't match desired, a scaling activity is in progress
 		return false
@@ -648,14 +648,14 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 	var conditions []v1alpha1.InstanceGroupCondition
 	ok, err := kubeprovider.IsDesiredNodesReady(nodes, instanceIds, desiredCount)
 	if err != nil {
-		ctx.Log.Error(err, "could not update node conditions", "instancegroup", instanceGroup.GetName())
+		ctx.Log.Error(err, "could not update node conditions", "instancegroup", instanceGroup.NamespacedName())
 		return false
 	}
 	if ok {
 		if !state.IsNodesReady() {
-			state.Publisher.Publish(kubeprovider.NodesReadyEvent, "instancegroup", instanceGroup.GetName(), "instances", instances)
+			state.Publisher.Publish(kubeprovider.NodesReadyEvent, "instancegroup", instanceGroup.NamespacedName(), "instances", instances)
 		}
-		ctx.Log.Info("desired nodes are ready", "instancegroup", instanceGroup.GetName(), "instances", instances)
+		ctx.Log.Info("desired nodes are ready", "instancegroup", instanceGroup.NamespacedName(), "instances", instances)
 		state.SetNodesReady(true)
 		conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionTrue))
 		status.SetConditions(conditions)
@@ -663,9 +663,9 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 	}
 
 	if state.IsNodesReady() {
-		state.Publisher.Publish(kubeprovider.NodesNotReadyEvent, "instancegroup", instanceGroup.GetName(), "instances", instances)
+		state.Publisher.Publish(kubeprovider.NodesNotReadyEvent, "instancegroup", instanceGroup.NamespacedName(), "instances", instances)
 	}
-	ctx.Log.Info("desired nodes are not ready", "instancegroup", instanceGroup.GetName(), "instances", instances)
+	ctx.Log.Info("desired nodes are not ready", "instancegroup", instanceGroup.NamespacedName(), "instances", instances)
 	state.SetNodesReady(false)
 	conditions = append(conditions, v1alpha1.NewInstanceGroupCondition(v1alpha1.NodesReady, corev1.ConditionFalse))
 	status.SetConditions(conditions)
@@ -753,14 +753,14 @@ func (ctx *EksInstanceGroupContext) UpdateMetricsCollection(asgName string) erro
 		if err := ctx.AwsWorker.DisableMetrics(asgName, metrics); err != nil {
 			return errors.Wrapf(err, "failed to disable metrics %v", metrics)
 		}
-		ctx.Log.Info("disabled metrics collection", "instancegroup", instanceGroup.GetName(), "metrics", metrics)
+		ctx.Log.Info("disabled metrics collection", "instancegroup", instanceGroup.NamespacedName(), "metrics", metrics)
 	}
 
 	if metrics, ok := ctx.GetEnabledMetrics(); ok {
 		if err := ctx.AwsWorker.EnableMetrics(asgName, metrics); err != nil {
 			return errors.Wrapf(err, "failed to enable metrics %v", metrics)
 		}
-		ctx.Log.Info("enabled metrics collection", "instancegroup", instanceGroup.GetName(), "metrics", metrics)
+		ctx.Log.Info("enabled metrics collection", "instancegroup", instanceGroup.NamespacedName(), "metrics", metrics)
 	}
 	return nil
 }
@@ -847,7 +847,7 @@ func (ctx *EksInstanceGroupContext) UpdateLifecycleHooks(asgName string) error {
 			if err := ctx.AwsWorker.DeleteLifecycleHook(asgName, hook); err != nil {
 				return errors.Wrapf(err, "failed to remove lifecycle hook %v", hook)
 			}
-			ctx.Log.Info("deleting lifecycle hook", "instancegroup", instanceGroup.GetName(), "hook", hook)
+			ctx.Log.Info("deleting lifecycle hook", "instancegroup", instanceGroup.NamespacedName(), "hook", hook)
 		}
 	}
 
@@ -876,7 +876,7 @@ func (ctx *EksInstanceGroupContext) UpdateLifecycleHooks(asgName string) error {
 			if err := ctx.AwsWorker.CreateLifecycleHook(input); err != nil {
 				return errors.Wrapf(err, "failed to add lifecycle hook %v", hook)
 			}
-			ctx.Log.Info("creating lifecycle hook", "instancegroup", instanceGroup.GetName(), "hook", hook)
+			ctx.Log.Info("creating lifecycle hook", "instancegroup", instanceGroup.NamespacedName(), "hook", hook)
 		}
 	}
 	return nil
@@ -929,7 +929,7 @@ func (ctx *EksInstanceGroupContext) RemoveAuthRole(arn string) error {
 	if len(sharedGroups) > 1 {
 		ctx.Log.Info(
 			"skipping removal of auth role, is used by another instancegroup",
-			"instancegroup", instanceGroup.GetName(),
+			"instancegroup", instanceGroup.NamespacedName(),
 			"arn", arn,
 			"conflict", strings.Join(sharedGroups, ","),
 		)
