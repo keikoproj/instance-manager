@@ -90,12 +90,12 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	if scalingConfig.RotationNeeded(&scaling.DiscoverConfigurationInput{
 		ScalingGroup: state.ScalingGroup,
 	}) {
-		ctx.Log.Info("node rotation required", "instancegroup", instanceGroup.GetName(), "scalingconfig", config.Name)
+		ctx.Log.Info("node rotation required", "instancegroup", instanceGroup.NamespacedName(), "scalingconfig", config.Name)
 		rotationNeeded = true
 	}
 
 	if kubeprovider.IsResourceActive(ctx.KubernetesClient.KubeDynamic, instanceGroup) {
-		ctx.Log.Info("upgrade resource is still active", "instancegroup", instanceGroup.GetName(), "scalingconfig", config.Name)
+		ctx.Log.Info("upgrade resource is still active", "instancegroup", instanceGroup.NamespacedName(), "scalingconfig", config.Name)
 		rotationNeeded = true
 	}
 
@@ -104,7 +104,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			if aerr.Code() == autoscaling.ErrCodeScalingActivityInProgressFault {
-				ctx.Log.Info("cannot update scaling group due to autoscaling activity in progress", "instancegroup", instanceGroup.GetName())
+				ctx.Log.Info("cannot update scaling group due to autoscaling activity in progress", "instancegroup", instanceGroup.NamespacedName())
 				return nil
 			}
 		}
@@ -119,7 +119,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	// we should try to bootstrap the role before we wait for nodes to be ready
 	// to avoid getting locked if someone made a manual change to aws-auth
 	if err = ctx.BootstrapNodes(); err != nil {
-		ctx.Log.Info("failed to bootstrap role, will retry", "error", err, "instancegroup", instanceGroup.GetName())
+		ctx.Log.Info("failed to bootstrap role, will retry", "error", err, "instancegroup", instanceGroup.NamespacedName())
 	}
 
 	// update readiness conditions
@@ -192,7 +192,7 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string, scalin
 			return asgUpdated, err
 		}
 		asgUpdated = true
-		ctx.Log.Info("updated scaling group", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
+		ctx.Log.Info("updated scaling group", "instancegroup", instanceGroup.NamespacedName(), "scalinggroup", asgName)
 	}
 
 	status.SetCurrentMin(int(spec.GetMinSize()))
@@ -203,7 +203,7 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string, scalin
 		if err != nil {
 			return asgUpdated, err
 		}
-		ctx.Log.Info("updated scaling group tags", "instancegroup", instanceGroup.GetName(), "scalinggroup", asgName)
+		ctx.Log.Info("updated scaling group tags", "instancegroup", instanceGroup.NamespacedName(), "scalinggroup", asgName)
 	}
 
 	if err := ctx.UpdateScalingProcesses(asgName); err != nil {
@@ -356,6 +356,6 @@ func (ctx *EksInstanceGroupContext) UpdateManagedPolicies(roleName string) error
 		return err
 	}
 
-	ctx.Log.Info("updated managed policies", "instancegroup", instanceGroup.GetName(), "iamrole", roleName)
+	ctx.Log.Info("updated managed policies", "instancegroup", instanceGroup.NamespacedName(), "iamrole", roleName)
 	return nil
 }
