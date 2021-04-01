@@ -74,8 +74,6 @@ func New(p provisioners.ProvisionerInput) *FargateInstanceGroupContext {
 	instanceGroup := ctx.GetInstanceGroup()
 
 	instanceGroup.SetState(v1alpha1.ReconcileInit)
-	ctx.processParameters()
-
 	return ctx
 }
 func (ctx *FargateInstanceGroupContext) generateUniqueName() string {
@@ -207,6 +205,8 @@ func (ctx *FargateInstanceGroupContext) Create() error {
 	return nil
 }
 func (ctx *FargateInstanceGroupContext) CloudDiscovery() error {
+	ctx.processParameters()
+
 	profile, err := ctx.AwsWorker.DescribeFargateProfile()
 	if err != nil {
 		profile = &eks.FargateProfile{
