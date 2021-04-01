@@ -34,6 +34,7 @@ const (
 )
 
 func (ctx *EksManagedInstanceGroupContext) CloudDiscovery() error {
+	ctx.processParameters()
 	var (
 		provisioned     = ctx.AwsWorker.IsNodeGroupExist()
 		discoveredState = ctx.GetDiscoveredState()
@@ -229,8 +230,6 @@ func New(p provisioners.ProvisionerInput) *EksManagedInstanceGroupContext {
 	instanceGroup := ctx.GetInstanceGroup()
 
 	instanceGroup.SetState(v1alpha1.ReconcileInit)
-	ctx.processParameters()
-
 	return ctx
 }
 

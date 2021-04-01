@@ -616,6 +616,21 @@ func (ig *InstanceGroup) Validate() error {
 		return errors.Errorf("validation failed, provisioner '%v' is invalid", s.Provisioner)
 	}
 
+	switch s.Provisioner {
+	case EKSProvisionerName:
+		if ig.GetEKSSpec() == nil {
+			return errors.Errorf("validation failed, provisioner '%v' not provided in spec", s.Provisioner)
+		}
+	case EKSManagedProvisionerName:
+		if ig.GetEKSManagedSpec() == nil {
+			return errors.Errorf("validation failed, provisioner '%v' not provided in spec", s.Provisioner)
+		}
+	case EKSFargateProvisionerName:
+		if ig.GetEKSFargateSpec() == nil {
+			return errors.Errorf("validation failed, provisioner '%v' not provided in spec", s.Provisioner)
+		}
+	}
+
 	if strings.EqualFold(s.Provisioner, EKSFargateProvisionerName) {
 		if err := s.EKSFargateSpec.Validate(); err != nil {
 			return err

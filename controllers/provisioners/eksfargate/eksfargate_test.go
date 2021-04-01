@@ -280,7 +280,7 @@ func (u *EksFargateUnitTest) BuildProvisioner(t *testing.T) *FargateInstanceGrou
 		Log:           ctrl.Log.WithName("unit-test").WithName("InstanceGroup"),
 	}
 	provisioner := New(p)
-
+	provisioner.processParameters()
 	u.Provisioner = provisioner
 	return provisioner
 }
