@@ -145,7 +145,7 @@ mkdir /mnt/foo
 mount /dev/xvda /mnt/foo
 mount
 set -o xtrace
-/etc/eks/bootstrap.sh foo --use-max-pods false --kubelet-extra-args '--node-labels=foo=bar,node.kubernetes.io/role=instance-group-1 --register-with-taints=foo=bar:NoSchedule --eviction-hard=memory.available<300Mi,nodefs.available<5% --system-reserved=memory=2.5Gi --v=2 --max-pods=4'
+/etc/eks/bootstrap.sh foo --use-max-pods false --kubelet-extra-args '--node-labels=foo=bar,instancemgr.keikoproj.io/image=ami-123456789012,node.kubernetes.io/role=instance-group-1 --register-with-taints=foo=bar:NoSchedule --eviction-hard=memory.available<300Mi,nodefs.available<5% --system-reserved=memory=2.5Gi --v=2 --max-pods=4'
 set +o xtrace
 bar`
 	userData := ctx.GetBasicUserData("foo", args, kubeletArgs, userDataPayload, mounts)
@@ -447,13 +447,14 @@ func TestGetLabelList(t *testing.T) {
 		eksMock                    = NewEksMocker()
 		ec2Mock                    = NewEc2Mocker()
 		defaultLifecycleLabel      = "instancemgr.keikoproj.io/lifecycle=normal"
-		expectedLabels115          = []string{defaultLifecycleLabel, "node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
-		expectedLabels116          = []string{defaultLifecycleLabel, "node.kubernetes.io/role=instance-group-1"}
-		expectedLabelsWithCustom   = []string{defaultLifecycleLabel, "custom.kubernetes.io=customlabel", "node.kubernetes.io/role=instance-group-1"}
-		expectedLabelsWithOverride = []string{defaultLifecycleLabel, "custom.kubernetes.io=customlabel", "override.kubernetes.io=instance-group-1", "override2.kubernetes.io=instance-group-1"}
+		defaultImageLabel          = fmt.Sprintf("instancemgr.keikoproj.io/image=%v", configuration.GetImage())
+		expectedLabels115          = []string{defaultImageLabel, defaultLifecycleLabel, "node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
+		expectedLabels116          = []string{defaultImageLabel, defaultLifecycleLabel, "node.kubernetes.io/role=instance-group-1"}
+		expectedLabelsWithCustom   = []string{defaultImageLabel, defaultLifecycleLabel, "custom.kubernetes.io=customlabel", "node.kubernetes.io/role=instance-group-1"}
+		expectedLabelsWithOverride = []string{defaultImageLabel, defaultLifecycleLabel, "custom.kubernetes.io=customlabel", "override.kubernetes.io=instance-group-1", "override2.kubernetes.io=instance-group-1"}
 		overrideAnnotation         = map[string]string{OverrideDefaultLabelsAnnotationKey: "override.kubernetes.io=instance-group-1,override2.kubernetes.io=instance-group-1"}
-		expectedSpotLabel          = []string{"instancemgr.keikoproj.io/lifecycle=spot", "node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
-		expectedMixedLabel         = []string{"instancemgr.keikoproj.io/lifecycle=mixed", "node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
+		expectedSpotLabel          = []string{defaultImageLabel, "instancemgr.keikoproj.io/lifecycle=spot", "node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
+		expectedMixedLabel         = []string{defaultImageLabel, "instancemgr.keikoproj.io/lifecycle=mixed", "node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
 	)
 
 	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)

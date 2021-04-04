@@ -49,7 +49,7 @@ var (
 	RoleOldLabel              = "node-role.kubernetes.io/%s"
 	RoleOldLabelFmt           = "node-role.kubernetes.io/%s=\"\""
 	InstanceMgrLifecycleLabel = "instancemgr.keikoproj.io/lifecycle"
-	InstanceMgrLabelFmt       = "instancemgr.keikoproj.io/%s=%s"
+	InstanceMgrImageLabel     = "instancemgr.keikoproj.io/image"
 
 	DefaultManagedPolicies = []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}
 )

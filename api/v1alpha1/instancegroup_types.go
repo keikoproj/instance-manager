@@ -700,6 +700,9 @@ func (h LifecycleHookSpec) ExistInSlice(hooks []LifecycleHookSpec) bool {
 	}
 	return false
 }
+func (c *EKSConfiguration) GetImage() string {
+	return c.Image
+}
 func (c *EKSConfiguration) GetInstanceProfileName() string {
 	return c.ExistingInstanceProfileName
 }
