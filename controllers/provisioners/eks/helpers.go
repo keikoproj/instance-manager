@@ -400,7 +400,7 @@ func (ctx *EksInstanceGroupContext) GetComputedLabels() map[string]string {
 	}
 
 	// allow override default labels
-	if val, ok := annotations[OverrideDefaultLabelsAnnotationKey]; ok {
+	if val, ok := annotations[OverrideDefaultLabelsAnnotation]; ok {
 		isOverride = true
 		overrideLabels := strings.Split(val, ",")
 		for _, label := range overrideLabels {
@@ -885,6 +885,11 @@ func (ctx *EksInstanceGroupContext) UpdateLifecycleHooks(asgName string) error {
 }
 
 func (ctx *EksInstanceGroupContext) GetManagedPoliciesList(additionalPolicies []string) []string {
+	var (
+		instanceGroup = ctx.GetInstanceGroup()
+		annotations   = instanceGroup.GetAnnotations()
+	)
+
 	managedPolicies := make([]string, 0)
 	for _, name := range additionalPolicies {
 		switch {
@@ -897,8 +902,19 @@ func (ctx *EksInstanceGroupContext) GetManagedPoliciesList(additionalPolicies []
 		}
 	}
 
+	var irsaEnabled bool
+	if val, ok := annotations[IRSAEnabledAnnotation]; ok {
+		if strings.EqualFold(val, "true") {
+			irsaEnabled = true
+		}
+	}
+
 	for _, name := range DefaultManagedPolicies {
 		managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, name))
+	}
+
+	if !irsaEnabled {
+		managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, CNIManagedPolicy))
 	}
 
 	return managedPolicies
