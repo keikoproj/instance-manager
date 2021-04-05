@@ -32,7 +32,8 @@ import (
 const (
 	ProvisionerName                     = "eks"
 	defaultLaunchConfigurationRetention = 2
-	OverrideDefaultLabelsAnnotationKey  = "instancemgr.keikoproj.io/default-labels"
+	OverrideDefaultLabelsAnnotation     = "instancemgr.keikoproj.io/default-labels"
+	IRSAEnabledAnnotation               = "instancemgr.keikoproj.io/irsa-enabled"
 	OsFamilyAnnotation                  = "instancemgr.keikoproj.io/os-family"
 	ClusterAutoscalerEnabledAnnotation  = "instancemgr.keikoproj.io/cluster-autoscaler-enabled"
 	CustomNetworkingEnabledAnnotation   = "instancemgr.keikoproj.io/custom-networking-enabled"
@@ -51,7 +52,8 @@ var (
 	InstanceMgrLifecycleLabel = "instancemgr.keikoproj.io/lifecycle"
 	InstanceMgrLabelFmt       = "instancemgr.keikoproj.io/%s=%s"
 
-	DefaultManagedPolicies = []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}
+	DefaultManagedPolicies = []string{"AmazonEKSWorkerNodePolicy", "AmazonEC2ContainerRegistryReadOnly"}
+	CNIManagedPolicy       = "AmazonEKS_CNI_Policy"
 )
 
 // New constructs a new instance group provisioner of EKS type

@@ -451,7 +451,7 @@ func TestGetLabelList(t *testing.T) {
 		expectedLabels116          = []string{defaultLifecycleLabel, "node.kubernetes.io/role=instance-group-1"}
 		expectedLabelsWithCustom   = []string{defaultLifecycleLabel, "custom.kubernetes.io=customlabel", "node.kubernetes.io/role=instance-group-1"}
 		expectedLabelsWithOverride = []string{defaultLifecycleLabel, "custom.kubernetes.io=customlabel", "override.kubernetes.io=instance-group-1", "override2.kubernetes.io=instance-group-1"}
-		overrideAnnotation         = map[string]string{OverrideDefaultLabelsAnnotationKey: "override.kubernetes.io=instance-group-1,override2.kubernetes.io=instance-group-1"}
+		overrideAnnotation         = map[string]string{OverrideDefaultLabelsAnnotation: "override.kubernetes.io=instance-group-1,override2.kubernetes.io=instance-group-1"}
 		expectedSpotLabel          = []string{"instancemgr.keikoproj.io/lifecycle=spot", "node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
 		expectedMixedLabel         = []string{"instancemgr.keikoproj.io/lifecycle=mixed", "node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
 	)
