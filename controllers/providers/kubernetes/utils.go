@@ -19,10 +19,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"html/template"
-	"os"
-	"os/user"
 	"reflect"
 	"strings"
 	"sync"
@@ -220,11 +217,7 @@ func GetKubernetesConfig() (*rest.Config, error) {
 	var config *rest.Config
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		config, err = GetKubernetesLocalConfig()
-		if err != nil {
-			return nil, err
-		}
-		return config, nil
+		return GetKubernetesLocalConfig()
 	}
 	return config, nil
 }
@@ -243,27 +236,9 @@ func RenderCustomResource(tpl string, params interface{}) (string, error) {
 }
 
 func GetKubernetesLocalConfig() (*rest.Config, error) {
-	var kubePath string
-	if os.Getenv("KUBECONFIG") != "" {
-		kubePath = os.Getenv("KUBECONFIG")
-	} else {
-		usr, err := user.Current()
-		if err != nil {
-			return nil, err
-		}
-		kubePath = usr.HomeDir + "/.kube/config"
-	}
-
-	if kubePath == "" {
-		err := fmt.Errorf("failed to get kubeconfig path")
-		return nil, err
-	}
-
-	config, err := clientcmd.BuildConfigFromFlags("", kubePath)
-	if err != nil {
-		return nil, err
-	}
-	return config, nil
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	clientCfg := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, &clientcmd.ConfigOverrides{})
+	return clientCfg.ClientConfig()
 }
 
 func CRDExists(kubeClient dynamic.Interface, name string) bool {

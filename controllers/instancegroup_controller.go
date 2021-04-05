@@ -118,7 +118,7 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 			r.Log.Info("instancegroup not found", "instancegroup", req.NamespacedName)
 			return ctrl.Result{}, nil
 		}
-		r.Log.Error(err, "reconcile failed")
+		r.Log.Error(err, "reconcile failed", "instancegroup", req.NamespacedName)
 		return ctrl.Result{}, err
 	}
 	statusPatch := kubeprovider.MergePatch(*instanceGroup)

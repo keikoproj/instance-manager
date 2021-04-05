@@ -74,8 +74,6 @@ func New(p provisioners.ProvisionerInput) *FargateInstanceGroupContext {
 	instanceGroup := ctx.GetInstanceGroup()
 
 	instanceGroup.SetState(v1alpha1.ReconcileInit)
-	ctx.processParameters()
-
 	return ctx
 }
 func (ctx *FargateInstanceGroupContext) generateUniqueName() string {
@@ -139,14 +137,14 @@ func (ctx *FargateInstanceGroupContext) Create() error {
 		if err == nil {
 			ctx.Log.Info("Created default role",
 				"instancegroup",
-				instanceGroup.GetName())
+				instanceGroup.NamespacedName())
 			return nil
 		}
 		if !becauseErrorContains(err, iam.ErrCodeEntityAlreadyExistsException) {
 			ctx.Log.Error(err,
 				"Creation of the default role failed.",
 				"instancegroup",
-				instanceGroup.GetName())
+				instanceGroup.NamespacedName())
 			return err
 		}
 
@@ -155,7 +153,7 @@ func (ctx *FargateInstanceGroupContext) Create() error {
 			ctx.Log.Error(err,
 				"Failed to find the default role",
 				"instancegroup",
-				instanceGroup.GetName())
+				instanceGroup.NamespacedName())
 			return err
 		}
 		arn = *role.Arn
@@ -165,12 +163,12 @@ func (ctx *FargateInstanceGroupContext) Create() error {
 			ctx.Log.Error(err,
 				"Failed to attach the default policy to role",
 				"instancegroup",
-				instanceGroup.GetName())
+				instanceGroup.NamespacedName())
 			return err
 		}
 		ctx.Log.Info("Attached default policy to role",
 			"instancegroup",
-			instanceGroup.GetName())
+			instanceGroup.NamespacedName())
 
 	} else {
 		arn = spec.GetPodExecutionRoleArn()
@@ -182,7 +180,7 @@ func (ctx *FargateInstanceGroupContext) Create() error {
 		if becauseErrorContains(err, eks.ErrCodeResourceInUseException) {
 			ctx.Log.Info("creation of the fargate profile delayed.",
 				"instancegroup",
-				instanceGroup.GetName(),
+				instanceGroup.NamespacedName(),
 				"cluster",
 				spec.GetClusterName(),
 				"profile",
@@ -196,7 +194,7 @@ func (ctx *FargateInstanceGroupContext) Create() error {
 
 	ctx.Log.Info("Fargate profile creation started.",
 		"instancegroup",
-		instanceGroup.GetName(),
+		instanceGroup.NamespacedName(),
 		"cluster",
 		spec.GetClusterName(),
 		"profile",
@@ -207,6 +205,8 @@ func (ctx *FargateInstanceGroupContext) Create() error {
 	return nil
 }
 func (ctx *FargateInstanceGroupContext) CloudDiscovery() error {
+	ctx.processParameters()
+
 	profile, err := ctx.AwsWorker.DescribeFargateProfile()
 	if err != nil {
 		profile = &eks.FargateProfile{
@@ -233,14 +233,14 @@ func (ctx *FargateInstanceGroupContext) Delete() error {
 			// Role was detached, return and get requeued.
 			ctx.Log.Info("Detached default policy.",
 				"instancegroup",
-				instanceGroup.GetName())
+				instanceGroup.NamespacedName())
 			return nil
 		}
 		if !becauseErrorContains(err, iam.ErrCodeNoSuchEntityException) {
 			ctx.Log.Error(err,
 				"Detaching the default policy failed.",
 				"instancegroup",
-				instanceGroup.GetName())
+				instanceGroup.NamespacedName())
 			return err
 		}
 
@@ -248,14 +248,14 @@ func (ctx *FargateInstanceGroupContext) Delete() error {
 		if err == nil {
 			ctx.Log.Info("Deleted the default role.",
 				"instancegroup",
-				instanceGroup.GetName())
+				instanceGroup.NamespacedName())
 			return nil
 		}
 		if !becauseErrorContains(err, iam.ErrCodeNoSuchEntityException) {
 			ctx.Log.Error(err,
 				"Deleting the default role failed.",
 				"instancegroup",
-				instanceGroup.GetName())
+				instanceGroup.NamespacedName())
 			return err
 		}
 	}
@@ -266,7 +266,7 @@ func (ctx *FargateInstanceGroupContext) Delete() error {
 		if becauseErrorContains(err, eks.ErrCodeResourceInUseException) {
 			ctx.Log.Info("Deletion of the fargate profile delayed",
 				"instancegroup",
-				instanceGroup.GetName(),
+				instanceGroup.NamespacedName(),
 				"cluster",
 				spec.GetClusterName(),
 				"profile",
@@ -277,7 +277,7 @@ func (ctx *FargateInstanceGroupContext) Delete() error {
 
 		ctx.Log.Error(err, "Deletion of the fargate profile failed.",
 			"instancegroup",
-			instanceGroup.GetName(),
+			instanceGroup.NamespacedName(),
 			"cluster",
 			spec.GetClusterName(),
 			"profile",
@@ -287,7 +287,7 @@ func (ctx *FargateInstanceGroupContext) Delete() error {
 
 	ctx.Log.Info("Deletion of the fargate profile started",
 		"instancegroup",
-		instanceGroup.GetName(),
+		instanceGroup.NamespacedName(),
 		"cluster",
 		spec.GetClusterName(),
 		"profile",

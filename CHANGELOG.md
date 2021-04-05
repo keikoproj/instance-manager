@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [v0.10.1-alpha2] - 2020-4-01
+
+### Fixed
+
+- Documentation fixes (#257, #260)
+- All logging entries should reference namespaced name (#266)
+- Allow kubeconfig chaining in local-mode (#268)
+- Add validation for provisioner spec (#267)
+- Fix memory leak on caching pagination (#265)
+
 ## [v0.10.0-alpha2] - 2020-2-10
 
 ### Added

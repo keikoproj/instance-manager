@@ -42,7 +42,7 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 	case kubeprovider.CRDStrategyName:
 		ok, err := kubeprovider.ProcessCRDStrategy(ctx.KubernetesClient.KubeDynamic, instanceGroup, scalingConfigName)
 		if err != nil {
-			state.Publisher.Publish(kubeprovider.InstanceGroupUpgradeFailedEvent, "instancegroup", instanceGroup.GetName(), "type", kubeprovider.CRDStrategyName, "error", err.Error())
+			state.Publisher.Publish(kubeprovider.InstanceGroupUpgradeFailedEvent, "instancegroup", instanceGroup.NamespacedName(), "type", kubeprovider.CRDStrategyName, "error", err.Error())
 			instanceGroup.SetState(v1alpha1.ReconcileErr)
 			return errors.Wrap(err, "failed to process CRD strategy")
 		}
@@ -54,7 +54,7 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 		req := ctx.NewRollingUpdateRequest()
 		ok, err := req.ProcessRollingUpgradeStrategy()
 		if err != nil {
-			state.Publisher.Publish(kubeprovider.InstanceGroupUpgradeFailedEvent, "instancegroup", instanceGroup.GetName(), "type", RollingUpdateStrategyName, "error", err.Error())
+			state.Publisher.Publish(kubeprovider.InstanceGroupUpgradeFailedEvent, "instancegroup", instanceGroup.NamespacedName(), "type", kubeprovider.RollingUpdateStrategyName, "error", err)
 			instanceGroup.SetState(v1alpha1.ReconcileErr)
 			return errors.Wrap(err, "failed to process rolling-update strategy")
 		}
@@ -65,7 +65,7 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 	default:
 		return errors.Errorf("'%v' is not an implemented upgrade type, will not process upgrade", strategy.GetType())
 	}
-	ctx.Log.Info("strategy processing completed", "instancegroup", instanceGroup.GetName(), "strategy", strategy.GetType())
+	ctx.Log.Info("strategy processing completed", "instancegroup", instanceGroup.NamespacedName(), "strategy", strategy.GetType())
 
 	if ctx.UpdateNodeReadyCondition() {
 		instanceGroup.SetState(v1alpha1.ReconcileModified)
@@ -82,7 +82,7 @@ func (ctx *EksInstanceGroupContext) BootstrapNodes() error {
 		role          = state.GetRole()
 		roleARN       = aws.StringValue(role.Arn)
 	)
-	ctx.Log.Info("bootstrapping arn to aws-auth", "instancegroup", instanceGroup.GetName(), "arn", roleARN)
+	ctx.Log.Info("bootstrapping arn to aws-auth", "instancegroup", instanceGroup.NamespacedName(), "arn", roleARN)
 
 	// lock to guarantee Upsert and Remove cannot conflict when roles are shared between instancegroups
 	ctx.Lock()

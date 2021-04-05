@@ -10,7 +10,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v0.3.0
 	github.com/keikoproj/aws-auth v0.0.0-20210105225553-36322b72224f
-	github.com/keikoproj/aws-sdk-go-cache v0.0.0-20201118182730-f6f418a4e2df
+	github.com/keikoproj/aws-sdk-go-cache v0.0.0-20210331172911-bd35edbab948
 	github.com/onsi/gomega v1.10.2
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.6.0

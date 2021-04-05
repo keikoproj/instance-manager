@@ -60,8 +60,10 @@ const (
 	DescribeLaunchTemplateVersionsTTL time.Duration = 60 * time.Second
 	DescribeInstanceTypesTTL          time.Duration = 24 * time.Hour
 	DescribeInstanceTypeOfferingTTL   time.Duration = 1 * time.Hour
-	CacheMaxItems                     int64         = 5000
-	CacheItemsToPrune                 uint32        = 500
+
+	CacheBackgroundPruningInterval time.Duration = 1 * time.Hour
+	CacheMaxItems                  int64         = 250
+	CacheItemsToPrune              uint32        = 25
 )
 
 type AwsWorker struct {
