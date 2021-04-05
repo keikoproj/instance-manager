@@ -623,6 +623,9 @@ func TestUpdateManagedPolicies(t *testing.T) {
 		ec2Mock       = NewEc2Mocker()
 	)
 
+	defaultPolicies := []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}
+	defaultPoliciesIrsa := []string{"AmazonEKSWorkerNodePolicy", "AmazonEC2ContainerRegistryReadOnly"}
+
 	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
 
@@ -631,24 +634,37 @@ func TestUpdateManagedPolicies(t *testing.T) {
 		additionalPolicies []string
 		expectedAttached   int
 		expectedDetached   int
+		irsaEnabled        bool
 	}{
 		// default policies attached, no changes needed
-		{attachedPolicies: MockAttachedPolicies(DefaultManagedPolicies...), additionalPolicies: []string{}, expectedAttached: 0, expectedDetached: 0},
+		{attachedPolicies: MockAttachedPolicies(defaultPolicies...), additionalPolicies: []string{}, expectedAttached: 0, expectedDetached: 0},
+		// when IRSA is enabled, cni policy needs to be detached
+		{attachedPolicies: MockAttachedPolicies(defaultPolicies...), additionalPolicies: []string{}, irsaEnabled: true, expectedAttached: 0, expectedDetached: 1},
+		// when IRSA is disabled, cni policy needs to be attached
+		{attachedPolicies: MockAttachedPolicies(defaultPoliciesIrsa...), additionalPolicies: []string{}, irsaEnabled: false, expectedAttached: 1, expectedDetached: 0},
 		// default policies not attached
 		{attachedPolicies: MockAttachedPolicies(), additionalPolicies: []string{}, expectedAttached: 3, expectedDetached: 0},
 		// additional policies need to be attached
-		{attachedPolicies: MockAttachedPolicies(DefaultManagedPolicies...), additionalPolicies: []string{"policy-1", "policy-2"}, expectedAttached: 2, expectedDetached: 0},
+		{attachedPolicies: MockAttachedPolicies(defaultPolicies...), additionalPolicies: []string{"policy-1", "policy-2"}, expectedAttached: 2, expectedDetached: 0},
 		// additional policies with ARN
-		{attachedPolicies: MockAttachedPolicies(DefaultManagedPolicies...), additionalPolicies: []string{"arn:aws:iam::aws:policy/policy-1", "arn:aws:iam::12345679012:policy/policy-2"}, expectedAttached: 2, expectedDetached: 0},
+		{attachedPolicies: MockAttachedPolicies(defaultPolicies...), additionalPolicies: []string{"arn:aws:iam::aws:policy/policy-1", "arn:aws:iam::12345679012:policy/policy-2"}, expectedAttached: 2, expectedDetached: 0},
 		// additional policies need to be detached
 		{attachedPolicies: MockAttachedPolicies("AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly", "policy-1"), additionalPolicies: []string{}, expectedAttached: 0, expectedDetached: 1},
 		// additional policies need to be attached & detached
 		{attachedPolicies: MockAttachedPolicies("AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly", "policy-1"), additionalPolicies: []string{"policy-2"}, expectedAttached: 1, expectedDetached: 1},
 	}
 
-	for _, tc := range tests {
+	for i, tc := range tests {
+		t.Logf("test #%v", i)
 		iamMock.AttachRolePolicyCallCount = 0
 		iamMock.DetachRolePolicyCallCount = 0
+
+		if tc.irsaEnabled {
+			ig.Annotations[IRSAEnabledAnnotation] = "true"
+		} else {
+			ig.Annotations[IRSAEnabledAnnotation] = "false"
+		}
+
 		ctx.SetDiscoveredState(&DiscoveredState{
 			Publisher: kubeprovider.EventPublisher{
 				Client: k.Kubernetes,
