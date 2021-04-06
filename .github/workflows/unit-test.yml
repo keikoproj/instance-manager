@@ -13,11 +13,13 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
 
-    - name: setup
+    - name: python
       uses: actions/setup-python@v2
       with:
         python-version: '3.6'
         architecture: 'x64'
+        
+    - name: setup
       run: |
         sudo apt update
         sudo apt install python-pip
