@@ -12,7 +12,12 @@ jobs:
     name: unit-test
     runs-on: ubuntu-18.04
     steps:
+
     - name: setup
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.6'
+        architecture: 'x64'
       run: |
         sudo apt update
         sudo apt install python-pip
