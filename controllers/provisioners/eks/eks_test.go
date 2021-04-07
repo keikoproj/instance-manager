@@ -133,6 +133,7 @@ func MockInstanceGroup() *v1alpha1.InstanceGroup {
 				MaxSize: 3,
 				MinSize: 1,
 				EKSConfiguration: &v1alpha1.EKSConfiguration{
+					Image:          "ami-123456789012",
 					EksClusterName: "my-cluster",
 					InstanceType:   "m5.large",
 					SuspendedProcesses: []string{

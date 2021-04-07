@@ -440,6 +440,8 @@ func (ctx *EksInstanceGroupContext) GetComputedLabels() map[string]string {
 		labelMap[InstanceMgrLifecycleLabel] = v1alpha1.LifecycleStateMixed
 	}
 
+	labelMap[InstanceMgrImageLabel] = configuration.GetImage()
+
 	return labelMap
 }
 
