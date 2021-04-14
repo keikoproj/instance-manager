@@ -34,6 +34,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -115,7 +116,7 @@ func main() {
 	}
 
 	cacheCfg := cache.NewConfig(aws.CacheDefaultTTL, aws.CacheBackgroundPruningInterval, aws.CacheMaxItems, aws.CacheItemsToPrune)
-
+	cacheCollector := cacheCfg.NewCacheCollector("instance_manager")
 	awsWorker := aws.AwsWorker{
 		Ec2Client: aws.GetAwsEc2Client(awsRegion, cacheCfg, maxAPIRetries),
 		IamClient: aws.GetAwsIamClient(awsRegion, cacheCfg, maxAPIRetries),
@@ -123,6 +124,7 @@ func main() {
 		EksClient: aws.GetAwsEksClient(awsRegion, cacheCfg, maxAPIRetries),
 	}
 
+	metrics.Registry.MustRegister(cacheCollector)
 	kube := kubeprovider.KubernetesClientSet{
 		Kubernetes:  client,
 		KubeDynamic: dynClient,

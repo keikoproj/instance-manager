@@ -6,10 +6,13 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/request"
+	"github.com/prometheus/client_golang/prometheus"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
 type RetryLogger struct {
 	client.DefaultRetryer
+	throttleCollector prometheus.Counter
 }
 
 var _ request.Retryer = &RetryLogger{}
@@ -21,11 +24,19 @@ var DefaultRetryer = client.DefaultRetryer{
 	MaxRetryDelay:    time.Second * 5,
 }
 
-func NewRetryLogger(maxRetries int) *RetryLogger {
+func NewRetryLogger(maxRetries int, service string) *RetryLogger {
 	retryer := DefaultRetryer
 	retryer.NumMaxRetries = maxRetries
+	throttles := prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: fmt.Sprintf("aws_api_%v_throttle_total", service),
+			Help: "number of aws API calls throttles",
+		},
+	)
+	metrics.Registry.MustRegister(throttles)
 	return &RetryLogger{
-		retryer,
+		DefaultRetryer:    retryer,
+		throttleCollector: throttles,
 	}
 }
 
@@ -41,6 +52,10 @@ func (l RetryLogger) RetryRules(r *request.Request) time.Duration {
 		name = r.Operation.Name
 	}
 	method := fmt.Sprintf("%v/%v", service, name)
+
+	if r.IsErrorThrottle() {
+		l.throttleCollector.Add(1)
+	}
 
 	if r.Error != nil {
 		err = fmt.Sprintf("%v", r.Error)

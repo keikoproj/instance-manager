@@ -1038,7 +1038,7 @@ func GetRegion() (string, error) {
 // GetAwsAsgClient returns an ASG client
 func GetAwsAsgClient(region string, cacheCfg *cache.Config, maxRetries int) autoscalingiface.AutoScalingAPI {
 	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
-	config = request.WithRetryer(config, NewRetryLogger(maxRetries))
+	config = request.WithRetryer(config, NewRetryLogger(maxRetries, "autoscaling"))
 	sess, err := session.NewSession(config)
 	if err != nil {
 		panic(err)
@@ -1062,7 +1062,7 @@ func GetAwsAsgClient(region string, cacheCfg *cache.Config, maxRetries int) auto
 // GetAwsEc2Client returns an EC2 client
 func GetAwsEc2Client(region string, cacheCfg *cache.Config, maxRetries int) ec2iface.EC2API {
 	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
-	config = request.WithRetryer(config, NewRetryLogger(maxRetries))
+	config = request.WithRetryer(config, NewRetryLogger(maxRetries, "ec2"))
 	sess, err := session.NewSession(config)
 	if err != nil {
 		panic(err)
@@ -1091,7 +1091,7 @@ func GetAwsEc2Client(region string, cacheCfg *cache.Config, maxRetries int) ec2i
 // GetAwsEksClient returns an EKS client
 func GetAwsEksClient(region string, cacheCfg *cache.Config, maxRetries int) eksiface.EKSAPI {
 	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
-	config = request.WithRetryer(config, NewRetryLogger(maxRetries))
+	config = request.WithRetryer(config, NewRetryLogger(maxRetries, "eks"))
 	sess, err := session.NewSession(config)
 	if err != nil {
 		panic(err)
@@ -1137,7 +1137,7 @@ var UnrecoverableDeleteError = CloudResourceReconcileState{UnrecoverableDeleteEr
 // GetAwsIAMClient returns an IAM client
 func GetAwsIamClient(region string, cacheCfg *cache.Config, maxRetries int) iamiface.IAMAPI {
 	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
-	config = request.WithRetryer(config, NewRetryLogger(maxRetries))
+	config = request.WithRetryer(config, NewRetryLogger(maxRetries, "iam"))
 	sess, err := session.NewSession(config)
 	if err != nil {
 		panic(err)
