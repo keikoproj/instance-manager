@@ -55,8 +55,8 @@ func NewMetricsCollector() *MetricsCollector {
 		lastUpgradeGauge: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
-				Name:      "instance_group_last_upgrade_seconds",
-				Help:      "number of seconds since last upgrade completed",
+				Name:      "instance_group_last_upgrade_epoch",
+				Help:      "the timestamp in unix time of the last upgrade completion",
 			},
 			[]string{"instancegroup"},
 		),
@@ -79,8 +79,8 @@ func (c MetricsCollector) Describe(ch chan<- *prometheus.Desc) {
 	c.lastUpgradeGauge.Describe(ch)
 }
 
-func (c *MetricsCollector) SetLastUpgradeSeconds(instanceGroup string, t float64) {
-	c.lastUpgradeGauge.With(prometheus.Labels{"instancegroup": instanceGroup}).Set(t)
+func (c *MetricsCollector) SetLastUpgradeSeconds(instanceGroup string, t int64) {
+	c.lastUpgradeGauge.With(prometheus.Labels{"instancegroup": instanceGroup}).Set(float64(t))
 }
 
 func (c *MetricsCollector) SetInstanceGroup(instanceGroup, state string) {

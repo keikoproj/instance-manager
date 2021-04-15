@@ -19,8 +19,6 @@ import (
 	"strings"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
@@ -74,9 +72,9 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 	ctx.Log.Info("strategy processing completed", "instancegroup", instanceGroup.NamespacedName(), "strategy", strategy.GetType())
 
 	if ctx.UpdateNodeReadyCondition() {
-		status.SetUpgradeTime(metav1.NewTime(time.Now().UTC()))
 		ctx.SetState(v1alpha1.ReconcileModified)
 	}
+	status.SetUpgradeTime(time.Now().UTC().Unix())
 
 	return nil
 }
