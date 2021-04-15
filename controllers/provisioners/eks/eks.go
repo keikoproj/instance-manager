@@ -76,7 +76,7 @@ func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 		Metrics:          p.Metrics,
 	}
 
-	instanceGroup.SetState(v1alpha1.ReconcileInit)
+	ctx.SetState(v1alpha1.ReconcileInit)
 	status.SetProvisioner(ProvisionerName)
 	status.SetStrategy(strategy.Type)
 
@@ -151,6 +151,11 @@ func (ctx *EksInstanceGroupContext) GetState() v1alpha1.ReconcileState {
 	return ctx.InstanceGroup.GetState()
 }
 func (ctx *EksInstanceGroupContext) SetState(state v1alpha1.ReconcileState) {
+	var (
+		name     = ctx.GetInstanceGroup().NamespacedName()
+		stateStr = string(state)
+	)
+	ctx.Metrics.SetInstanceGroup(name, stateStr)
 	ctx.InstanceGroup.SetState(state)
 }
 func (ctx *EksInstanceGroupContext) GetDiscoveredState() *DiscoveredState {

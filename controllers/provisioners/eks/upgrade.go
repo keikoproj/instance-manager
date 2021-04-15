@@ -17,6 +17,9 @@ package eks
 
 import (
 	"strings"
+	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
@@ -34,6 +37,7 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 		instanceGroup     = ctx.GetInstanceGroup()
 		strategy          = ctx.GetUpgradeStrategy()
 		state             = ctx.GetDiscoveredState()
+		status            = instanceGroup.GetStatus()
 		scalingGroup      = state.GetScalingGroup()
 		scalingConfigName = awsprovider.GetScalingConfigName(scalingGroup)
 		strategyType      = strings.ToLower(strategy.GetType())
@@ -45,7 +49,7 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 		ok, err := kubeprovider.ProcessCRDStrategy(ctx.KubernetesClient.KubeDynamic, instanceGroup, scalingConfigName)
 		if err != nil {
 			state.Publisher.Publish(kubeprovider.InstanceGroupUpgradeFailedEvent, "instancegroup", instanceGroup.NamespacedName(), "type", kubeprovider.CRDStrategyName, "error", err.Error())
-			instanceGroup.SetState(v1alpha1.ReconcileErr)
+			ctx.SetState(v1alpha1.ReconcileErr)
 			return errors.Wrap(err, "failed to process CRD strategy")
 		}
 		if ok {
@@ -57,7 +61,7 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 		ok, err := kubeprovider.ProcessRollingUpgradeStrategy(req)
 		if err != nil {
 			state.Publisher.Publish(kubeprovider.InstanceGroupUpgradeFailedEvent, "instancegroup", instanceGroup.NamespacedName(), "type", kubeprovider.RollingUpdateStrategyName, "error", err)
-			instanceGroup.SetState(v1alpha1.ReconcileErr)
+			ctx.SetState(v1alpha1.ReconcileErr)
 			return errors.Wrap(err, "failed to process rolling-update strategy")
 		}
 		if ok {
@@ -70,7 +74,8 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 	ctx.Log.Info("strategy processing completed", "instancegroup", instanceGroup.NamespacedName(), "strategy", strategy.GetType())
 
 	if ctx.UpdateNodeReadyCondition() {
-		instanceGroup.SetState(v1alpha1.ReconcileModified)
+		status.SetUpgradeTime(metav1.NewTime(time.Now().UTC()))
+		ctx.SetState(v1alpha1.ReconcileModified)
 	}
 
 	return nil

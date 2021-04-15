@@ -120,8 +120,8 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 	err := r.Get(ctxt, req.NamespacedName, instanceGroup)
 	if err != nil {
 		if kerrors.IsNotFound(err) {
-			r.Metrics.UnsetInstanceGroup(instanceGroup.NamespacedName(), "")
 			r.Log.Info("instancegroup not found", "instancegroup", req.NamespacedName)
+			r.Metrics.UnsetInstanceGroup()
 			r.Metrics.IncSuccess(req.NamespacedName.String())
 			return ctrl.Result{}, nil
 		}
@@ -133,9 +133,9 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 
 	// set/unset finalizer
 	r.SetFinalizer(instanceGroup)
-	startState := string(instanceGroup.GetState())
-	defer r.Metrics.SetInstanceGroup(instanceGroup.NamespacedName(), startState, string(instanceGroup.GetState()))
 
+	timeSinceUpgraded := common.GetSecondsSince(instanceGroup.GetStatus().GetUpgradeTime().Time)
+	r.Metrics.SetLastUpgradeSeconds(instanceGroup.NamespacedName(), timeSinceUpgraded)
 	input := provisioners.ProvisionerInput{
 		AwsWorker:       r.Auth.Aws,
 		Kubernetes:      r.Auth.Kubernetes,

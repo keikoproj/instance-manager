@@ -86,6 +86,13 @@ func ContainsEqualFold(slice []string, s string) bool {
 	return false
 }
 
+func GetSecondsSince(t time.Time) float64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.Sub(time.Now().UTC()).Seconds()
+}
+
 func StringMD5(s string) string {
 	h := md5.New()
 	h.Write([]byte(s))

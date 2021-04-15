@@ -1,8 +1,6 @@
 package common
 
 import (
-	"fmt"
-
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -13,10 +11,11 @@ const (
 type MetricsCollector struct {
 	prometheus.Collector
 
-	successCounter  *prometheus.CounterVec
-	failureCounter  *prometheus.CounterVec
-	throttleCounter *prometheus.CounterVec
-	statusGauge     *prometheus.GaugeVec
+	successCounter   *prometheus.CounterVec
+	failureCounter   *prometheus.CounterVec
+	throttleCounter  *prometheus.CounterVec
+	statusGauge      *prometheus.GaugeVec
+	lastUpgradeGauge *prometheus.GaugeVec
 }
 
 func NewMetricsCollector() *MetricsCollector {
@@ -53,6 +52,14 @@ func NewMetricsCollector() *MetricsCollector {
 			},
 			[]string{"instancegroup", "status"},
 		),
+		lastUpgradeGauge: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "instance_group_last_upgrade_seconds",
+				Help:      "number of seconds since last upgrade completed",
+			},
+			[]string{"instancegroup"},
+		),
 	}
 }
 
@@ -61,6 +68,7 @@ func (c MetricsCollector) Collect(ch chan<- prometheus.Metric) {
 	c.failureCounter.Collect(ch)
 	c.throttleCounter.Collect(ch)
 	c.statusGauge.Collect(ch)
+	c.lastUpgradeGauge.Collect(ch)
 }
 
 func (c MetricsCollector) Describe(ch chan<- *prometheus.Desc) {
@@ -68,16 +76,30 @@ func (c MetricsCollector) Describe(ch chan<- *prometheus.Desc) {
 	c.failureCounter.Describe(ch)
 	c.throttleCounter.Describe(ch)
 	c.statusGauge.Describe(ch)
+	c.lastUpgradeGauge.Describe(ch)
 }
 
-func (c *MetricsCollector) SetInstanceGroup(instanceGroup, oldState, newState string) {
-	fmt.Printf("%v -> %v\n", oldState, newState)
-	c.statusGauge.Delete(prometheus.Labels{"instancegroup": instanceGroup, "status": oldState})
-	c.statusGauge.With(prometheus.Labels{"instancegroup": instanceGroup, "status": newState}).Set(1)
+func (c *MetricsCollector) SetLastUpgradeSeconds(instanceGroup string, t float64) {
+	c.lastUpgradeGauge.With(prometheus.Labels{"instancegroup": instanceGroup}).Set(t)
 }
 
-func (c *MetricsCollector) UnsetInstanceGroup(instanceGroup, status string) {
-	c.statusGauge.With(prometheus.Labels{"instancegroup": instanceGroup, "status": status}).Set(0)
+func (c *MetricsCollector) SetInstanceGroup(instanceGroup, state string) {
+	externalStates := []string{"ReconcileModifying", "InitUpgrade", "Deleting", "Ready", "Error"}
+	if !ContainsEqualFold(externalStates, state) {
+		return
+	}
+	for _, s := range externalStates {
+		c.statusGauge.With(prometheus.Labels{"instancegroup": instanceGroup, "status": s}).Set(0)
+	}
+	c.statusGauge.With(prometheus.Labels{"instancegroup": instanceGroup, "status": state}).Set(1)
+}
+
+func (c *MetricsCollector) UnsetInstanceGroup() {
+	c.successCounter.Reset()
+	c.failureCounter.Reset()
+	c.throttleCounter.Reset()
+	c.lastUpgradeGauge.Reset()
+	c.statusGauge.Reset()
 }
 
 func (c *MetricsCollector) IncSuccess(instanceGroup string) {

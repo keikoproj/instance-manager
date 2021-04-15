@@ -27,14 +27,13 @@ import (
 
 func (ctx *EksInstanceGroupContext) Delete() error {
 	var (
-		instanceGroup = ctx.GetInstanceGroup()
 		state         = ctx.GetDiscoveredState()
 		role          = state.GetRole()
 		roleARN       = aws.StringValue(role.Arn)
 		scalingConfig = state.GetScalingConfiguration()
 	)
 
-	instanceGroup.SetState(v1alpha1.ReconcileDeleting)
+	ctx.SetState(v1alpha1.ReconcileDeleting)
 	// delete scaling group
 	err := ctx.DeleteScalingGroup()
 	if err != nil {
