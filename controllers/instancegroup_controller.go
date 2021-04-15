@@ -122,7 +122,6 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 		if kerrors.IsNotFound(err) {
 			r.Log.Info("instancegroup not found", "instancegroup", req.NamespacedName)
 			r.Metrics.UnsetInstanceGroup()
-			r.Metrics.IncSuccess(req.NamespacedName.String())
 			return ctrl.Result{}, nil
 		}
 		r.Log.Error(err, "reconcile failed", "instancegroup", req.NamespacedName)
