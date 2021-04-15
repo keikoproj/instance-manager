@@ -104,6 +104,15 @@ func TestSetDefaultsRestricted(t *testing.T) {
     - spec.eks.configuration.instanceType
     - spec.strategy`
 
+	mockConditionals := `
+- annotation: "instancemgr.keikoproj.io/os-family=windows"
+  defaults:
+    spec:
+      eks:
+        configuration:
+          image: ami-22222222222
+`
+
 	mockDefaults := `
 spec:
   strategy:
@@ -124,7 +133,7 @@ spec:
         value: taint-value
         effect: NoSchedule`
 
-	cm := MockConfigMap(MockConfigData("boundaries", mockBoundaries, "defaults", mockDefaults))
+	cm := MockConfigMap(MockConfigData("boundaries", mockBoundaries, "defaults", mockDefaults, "conditionals", mockConditionals))
 	cr := MockResource()
 	cr.Spec.EKSSpec.EKSConfiguration.EksClusterName = "someCluster"
 	cr.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups = []string{"sg-000000000000"}
@@ -158,6 +167,333 @@ spec:
 
 	// Fields with defaults are used when CR does not provide it
 	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.KeyPairName).To(gomega.Equal("TestKeyPair"))
+}
+
+func TestSetDefaultsWithRestrictedConditional(t *testing.T) {
+	var (
+		g = gomega.NewGomegaWithT(t)
+	)
+
+	// Restricted fields are always replaced with default values
+
+	mockBoundaries := `
+    restricted:
+    - spec.eks.configuration.keyPairName
+    - spec.eks.configuration.taints
+    - spec.eks.configuration.labels
+    - spec.eks.configuration.securityGroups
+    - spec.eks.configuration.instanceType
+    - spec.eks.configuration.image
+    - spec.strategy`
+
+	mockConditionals := `
+- annotation: "instancemgr.keikoproj.io/os-family=windows"
+  defaults:
+    spec:
+      eks:
+        configuration:
+          image: ami-22222222222
+- annotation: "instancemgr.keikoproj.io/arch=arm64"
+  defaults:
+    spec:
+      eks:
+        configuration:
+          image: ami-33333333333
+`
+
+	mockDefaults := `
+spec:
+  strategy:
+    type: rollingUpdate
+    rollingUpdate:
+      maxUnavailable: 30%
+  eks:
+    configuration:
+      keyPairName: TestKeyPair
+      image: ami-025bf02d663404bbc
+      securityGroups:
+      - sg-123456789012
+      instanceType: m5.large
+      labels:
+        label-key: label-value
+      taints:
+      - key: taint-key
+        value: taint-value
+        effect: NoSchedule`
+
+	cm := MockConfigMap(MockConfigData("boundaries", mockBoundaries, "defaults", mockDefaults, "conditionals", mockConditionals))
+	cr := MockResource()
+	cr.Annotations = make(map[string]string)
+	cr.Annotations["instancemgr.keikoproj.io/os-family"] = "windows"
+	cr.Annotations["instancemgr.keikoproj.io/arch"] = "arm64"
+	cr.Spec.EKSSpec.EKSConfiguration.EksClusterName = "someCluster"
+	cr.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups = []string{"sg-000000000000"}
+	cr.Spec.EKSSpec.EKSConfiguration.InstanceType = "m5.xlarge"
+	cr.Spec.EKSSpec.EKSConfiguration.Labels = MockLabels("other-label-key", "other-label-value")
+	cr.Spec.EKSSpec.EKSConfiguration.Taints = []corev1.Taint{MockTaint("other-taint-key", "other-taint-value", "NoExecute")}
+	cr.Spec.AwsUpgradeStrategy = v1alpha1.AwsUpgradeStrategy{Type: "crd"}
+	c, err := NewProvisionerConfiguration(cm, cr)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	err = c.SetDefaults()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	// All restricted fields must be overwritten with default value even if the user sets them
+	g.Expect(c.InstanceGroup.Spec.AwsUpgradeStrategy).To(gomega.Equal(v1alpha1.AwsUpgradeStrategy{
+		Type: "rollingUpdate",
+		RollingUpdateType: &v1alpha1.RollingUpdateStrategy{
+			MaxUnavailable: &intstr.IntOrString{Type: intstr.String, StrVal: "30%"},
+		},
+	}))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups).To(gomega.Equal([]string{"sg-123456789012"}))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.InstanceType).To(gomega.Equal("m5.large"))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Labels).To(gomega.Equal(MockLabels("label-key", "label-value")))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Taints).To(gomega.Equal([]corev1.Taint{MockTaint("taint-key", "taint-value", "NoSchedule")}))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Image).To(gomega.Equal("ami-33333333333"))
+
+	// Fields without defaults should stay as provided
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.EksClusterName).To(gomega.Equal("someCluster"))
+
+	// Fields with defaults are used when CR does not provide it
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.KeyPairName).To(gomega.Equal("TestKeyPair"))
+}
+
+func TestSetDefaultsWithSharedConditionalReplace(t *testing.T) {
+	var (
+		g = gomega.NewGomegaWithT(t)
+	)
+
+	// Restricted fields are always replaced with default values
+
+	mockBoundaries := `
+    shared:
+      replace: 
+      - spec.eks.configuration.tags`
+
+	mockConditionals := `
+- annotation: "instancemgr.keikoproj.io/os-family=windows"
+  defaults:
+    spec:
+      eks:
+        configuration:
+          securityGroups:
+          - sg-923456789012
+          tags:
+          - key: tag-A
+            value: value-A
+          - key: tag-B
+            value: value-B`
+
+	mockDefaults := `
+spec:
+  strategy:
+    type: rollingUpdate
+    rollingUpdate:
+      maxUnavailable: 30%
+  eks:
+    configuration:
+      keyPairName: TestKeyPair
+      image: ami-025bf02d663404bbc
+      instanceType: m5.large
+      labels:
+        label-key: label-value
+      taints:
+      - key: taint-key
+        value: taint-value
+        effect: NoSchedule
+`
+
+	cm := MockConfigMap(MockConfigData("boundaries", mockBoundaries, "defaults", mockDefaults, "conditionals", mockConditionals))
+	cr := MockResource()
+	cr.Annotations = make(map[string]string)
+	cr.Annotations["instancemgr.keikoproj.io/os-family"] = "windows"
+	cr.Annotations["instancemgr.keikoproj.io/arch"] = "arm64"
+	cr.Spec.EKSSpec.EKSConfiguration.EksClusterName = "someCluster"
+	cr.Spec.EKSSpec.EKSConfiguration.Tags = []map[string]string{
+		MockTag("tag-A", "value-D"),
+		MockTag("tag-C", "value-C"),
+	}
+	cr.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups = []string{"sg-000000000000"}
+	cr.Spec.AwsUpgradeStrategy = v1alpha1.AwsUpgradeStrategy{Type: "crd"}
+	c, err := NewProvisionerConfiguration(cm, cr)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	err = c.SetDefaults()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	//Should not replace
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups).To(gomega.Equal([]string{"sg-000000000000"}))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Tags).To(gomega.Equal([]map[string]string{
+		MockTag("tag-A", "value-D"),
+		MockTag("tag-C", "value-C"),
+	}))
+}
+
+func TestSetDefaultsWithSharedConditionalMergeOverride(t *testing.T) {
+	var (
+		g = gomega.NewGomegaWithT(t)
+	)
+
+	// Restricted fields are always replaced with default values
+
+	mockBoundaries := `
+    shared:
+      mergeOverride: 
+      - spec.eks.configuration.tags`
+
+	mockConditionals := `
+- annotation: "instancemgr.keikoproj.io/os-family=windows"
+  defaults:
+    spec:
+      eks:
+        configuration:
+          tags:
+          - key: tag-A
+            value: value-A
+          - key: tag-B
+            value: value-B`
+	mockDefaults := `
+spec:
+  strategy:
+    type: rollingUpdate
+    rollingUpdate:
+      maxUnavailable: 30%
+  eks:
+    configuration:
+      keyPairName: TestKeyPair
+      image: ami-025bf02d663404bbc
+      instanceType: m5.large
+      labels:
+        label-key: label-value
+      taints:
+      - key: taint-key
+        value: taint-value
+        effect: NoSchedule
+`
+
+	cm := MockConfigMap(MockConfigData("boundaries", mockBoundaries, "defaults", mockDefaults, "conditionals", mockConditionals))
+	cr := MockResource()
+	cr.Annotations = make(map[string]string)
+	cr.Annotations["instancemgr.keikoproj.io/os-family"] = "windows"
+	cr.Annotations["instancemgr.keikoproj.io/arch"] = "arm64"
+	cr.Spec.EKSSpec.EKSConfiguration.EksClusterName = "someCluster"
+	cr.Spec.EKSSpec.EKSConfiguration.Tags = []map[string]string{
+		MockTag("tag-A", "value-D"),
+		MockTag("tag-C", "value-C"),
+	}
+	cr.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups = []string{"sg-000000000000"}
+	cr.Spec.AwsUpgradeStrategy = v1alpha1.AwsUpgradeStrategy{Type: "crd"}
+	c, err := NewProvisionerConfiguration(cm, cr)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	err = c.SetDefaults()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	//Should not replace
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups).To(gomega.Equal([]string{"sg-000000000000"}))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Tags).To(gomega.Equal([]map[string]string{
+		MockTag("tag-A", "value-D"),
+		MockTag("tag-B", "value-B"),
+		MockTag("tag-C", "value-C"),
+	}))
+}
+
+func TestSetDefaultsWithInvalidConditionalYAML(t *testing.T) {
+	var (
+		g = gomega.NewGomegaWithT(t)
+	)
+
+	// Restricted fields are always replaced with default values
+
+	mockBoundaries := `
+    shared:
+      mergeOverride: 
+      - spec.eks.configuration.tags`
+
+	mockConditionals := `
+- annotation: "instancemgr.keikoproj.io/os-family=windows"
+  defaults:
+    spec:
+      eks:
+        # invalid TAB character on following line
+		configuration:
+          tags:
+          - key: tag-A
+            value: value-A
+          - key: tag-B
+            value: value-B`
+	mockDefaults := `
+spec:
+  strategy:
+    type: rollingUpdate
+    rollingUpdate:
+      maxUnavailable: 30%
+  eks:
+    configuration:
+      keyPairName: TestKeyPair
+      image: ami-025bf02d663404bbc
+      instanceType: m5.large
+      labels:
+        label-key: label-value
+      taints:
+      - key: taint-key
+        value: taint-value
+        effect: NoSchedule
+`
+
+	cm := MockConfigMap(MockConfigData("boundaries", mockBoundaries, "defaults", mockDefaults, "conditionals", mockConditionals))
+	cr := MockResource()
+	_, err := NewProvisionerConfiguration(cm, cr)
+	g.Expect(err).To(gomega.HaveOccurred())
+}
+
+func TestSetDefaultsWithSharedConditionalMerge(t *testing.T) {
+	var (
+		g = gomega.NewGomegaWithT(t)
+	)
+
+	mockBoundaries := `
+    shared:
+      merge:
+      - spec.eks.configuration.securityGroups`
+
+	mockConditionals := `
+- annotation: "instancemgr.keikoproj.io/os-family=windows"
+  defaults:
+    spec:
+      eks:
+        configuration:
+          securityGroups:
+          - sg-923456789012`
+
+	mockDefaults := `
+spec:
+  strategy:
+    type: rollingUpdate
+    rollingUpdate:
+      maxUnavailable: 30%
+  eks:
+    configuration:
+      securityGroups:
+      - sg-1234`
+
+	cm := MockConfigMap(MockConfigData("boundaries", mockBoundaries, "defaults", mockDefaults, "conditionals", mockConditionals))
+	cr := MockResource()
+	cr.Annotations = make(map[string]string)
+	cr.Annotations["instancemgr.keikoproj.io/os-family"] = "windows"
+	cr.Annotations["instancemgr.keikoproj.io/arch"] = "arm64"
+	cr.Spec.EKSSpec.EKSConfiguration.EksClusterName = "someCluster"
+	cr.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups = []string{"sg-000000000000"}
+	cr.Spec.AwsUpgradeStrategy = v1alpha1.AwsUpgradeStrategy{Type: "crd"}
+	c, err := NewProvisionerConfiguration(cm, cr)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	err = c.SetDefaults()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	//Should not replace
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups).To(gomega.Equal([]string{
+		"sg-1234",
+		"sg-923456789012",
+		"sg-000000000000",
+	}))
 }
 
 func TestSetDefaultsSharedMergeOverride(t *testing.T) {

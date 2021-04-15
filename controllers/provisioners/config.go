@@ -20,13 +20,12 @@ import (
 	"strings"
 
 	"github.com/ghodss/yaml"
-	"github.com/pkg/errors"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	runtime "k8s.io/apimachinery/pkg/runtime"
-
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
 var (
@@ -46,6 +45,7 @@ var (
 type ProvisionerConfiguration struct {
 	Boundaries    ResourceFieldBoundary
 	Defaults      map[string]interface{}
+	Conditionals  []Conditional
 	InstanceGroup *v1alpha1.InstanceGroup
 }
 
@@ -70,10 +70,16 @@ type ResourceFieldBoundary struct {
 	Shared     SharedBoundaries `yaml:"shared,omitempty"`
 }
 
+type Conditional struct {
+	Annotation string                 `yaml:"annotation,omitempty"`
+	Defaults   map[string]interface{} `yaml:"defaults,omitempty"`
+}
+
 func (c *ProvisionerConfiguration) Unmarshal(cm *corev1.ConfigMap) error {
 	var (
-		boundariesPath = common.FieldPath("data.boundaries")
-		defaultsPath   = common.FieldPath("data.defaults")
+		boundariesPath   = common.FieldPath("data.boundaries")
+		defaultsPath     = common.FieldPath("data.defaults")
+		conditionalsPath = common.FieldPath("data.conditionals")
 	)
 
 	config, err := runtime.DefaultUnstructuredConverter.ToUnstructured(cm)
@@ -103,6 +109,14 @@ func (c *ProvisionerConfiguration) Unmarshal(cm *corev1.ConfigMap) error {
 		}
 	}
 
+	if conditionals, ok, _ := unstructured.NestedString(config, conditionalsPath...); ok {
+		var conditionalConfig = make([]Conditional, 0)
+		err := yaml.Unmarshal([]byte(conditionals), &conditionalConfig)
+		if err != nil {
+			return errors.Wrap(err, "failed to convert conditionals to unstructured")
+		}
+		c.Conditionals = conditionalConfig
+	}
 	return nil
 }
 
@@ -130,9 +144,23 @@ func (c *ProvisionerConfiguration) SetDefaults() error {
 
 func (c *ProvisionerConfiguration) setRestrictedFields(unstructuredInstanceGroup map[string]interface{}) error {
 	// apply restricted paths to instance group
+	var applicableConditionals = getMatchingConditionals(c.InstanceGroup, c.Conditionals)
 	for _, pathStr := range c.Boundaries.Restricted {
 		path := common.FieldPath(pathStr)
 		// if a default value exists for the path, set it on the instance group
+		var setField = false
+		var field interface{}
+		for _, conditional := range applicableConditionals {
+			if field, setField, _ = unstructured.NestedFieldCopy(conditional.Defaults, path...); setField {
+				err := unstructured.SetNestedField(unstructuredInstanceGroup, field, path...)
+				if err != nil {
+					errors.Wrap(err, "failed to set nested field")
+				}
+			}
+		}
+		if setField {
+			continue
+		}
 		if field, ok, _ := unstructured.NestedFieldCopy(c.Defaults, path...); ok {
 			// default value exists for restricted path
 			err := unstructured.SetNestedField(unstructuredInstanceGroup, field, path...)
@@ -151,14 +179,31 @@ func isConflict(defaultVal, resourceVal interface{}) bool {
 	return false
 }
 
-func (c *ProvisionerConfiguration) setSharedFields(obj map[string]interface{}) error {
+func getMatchingConditionals(ig *v1alpha1.InstanceGroup, conditionals []Conditional) []Conditional {
+	var applicableConditionals = make([]Conditional, 0)
+	for _, conditional := range conditionals {
+		annotationKeyValue := strings.Split(conditional.Annotation, "=")
+		if ig.Annotations[annotationKeyValue[0]] == annotationKeyValue[1] {
+			applicableConditionals = append(applicableConditionals, conditional)
+		}
+	}
+	return applicableConditionals
+}
 
+func (c *ProvisionerConfiguration) setSharedFields(obj map[string]interface{}) error {
+	var applicableConditionals = getMatchingConditionals(c.InstanceGroup, c.Conditionals)
 	for _, pathStr := range c.Boundaries.Shared.Replace {
 		var (
 			defaultVal  = common.FieldValue(pathStr, c.Defaults)
 			resourceVal = common.FieldValue(pathStr, obj)
 		)
 
+		for _, conditional := range applicableConditionals {
+			conditionalValue := common.FieldValue(pathStr, conditional.Defaults)
+			if conditionalValue != nil {
+				defaultVal = conditionalValue
+			}
+		}
 		if defaultVal == nil {
 			continue
 		}
@@ -179,6 +224,20 @@ func (c *ProvisionerConfiguration) setSharedFields(obj map[string]interface{}) e
 			defaultVal  = common.FieldValue(pathStr, c.Defaults)
 			resourceVal = common.FieldValue(pathStr, obj)
 		)
+
+		for _, conditional := range applicableConditionals {
+			conditionalValue := common.FieldValue(pathStr, conditional.Defaults)
+			if conditionalValue != nil {
+				if isConflict(conditionalValue, resourceVal) {
+					merge := Merge(conditionalValue, resourceVal, pathStr, false)
+					if err := common.SetFieldValue(pathStr, obj, merge); err != nil {
+						return errors.Wrap(err, "failed to merge field")
+					}
+					resourceVal = merge
+					continue
+				}
+			}
+		}
 
 		if defaultVal == nil {
 			continue
@@ -201,6 +260,13 @@ func (c *ProvisionerConfiguration) setSharedFields(obj map[string]interface{}) e
 			defaultVal  = common.FieldValue(pathStr, c.Defaults)
 			resourceVal = common.FieldValue(pathStr, obj)
 		)
+
+		for _, conditional := range applicableConditionals {
+			conditionalValue := common.FieldValue(pathStr, conditional.Defaults)
+			if conditionalValue != nil {
+				defaultVal = conditionalValue
+			}
+		}
 
 		if defaultVal == nil {
 			continue
