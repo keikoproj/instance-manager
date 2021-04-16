@@ -34,7 +34,6 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 		instanceGroup     = ctx.GetInstanceGroup()
 		strategy          = ctx.GetUpgradeStrategy()
 		state             = ctx.GetDiscoveredState()
-		status            = instanceGroup.GetStatus()
 		scalingGroup      = state.GetScalingGroup()
 		scalingConfigName = awsprovider.GetScalingConfigName(scalingGroup)
 		strategyType      = strings.ToLower(strategy.GetType())
