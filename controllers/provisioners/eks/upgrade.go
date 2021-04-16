@@ -17,7 +17,6 @@ package eks
 
 import (
 	"strings"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
@@ -74,8 +73,6 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 	if ctx.UpdateNodeReadyCondition() {
 		ctx.SetState(v1alpha1.ReconcileModified)
 	}
-	status.SetUpgradeTime(time.Now().UTC().Unix())
-
 	return nil
 }
 
