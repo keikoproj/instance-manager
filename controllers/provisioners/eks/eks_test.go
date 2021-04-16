@@ -30,6 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
@@ -106,6 +107,7 @@ func MockContext(instanceGroup *v1alpha1.InstanceGroup, kube kubeprovider.Kubern
 		Kubernetes:    kube,
 		InstanceGroup: instanceGroup,
 		Log:           ctrl.Log.WithName("unit-test").WithName("InstanceGroup"),
+		Metrics:       common.NewMetricsCollector(),
 	}
 	context := New(input)
 
