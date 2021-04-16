@@ -132,7 +132,6 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 
 	// set/unset finalizer
 	r.SetFinalizer(instanceGroup)
-	r.Metrics.SetLastUpgradeSeconds(instanceGroup.NamespacedName(), instanceGroup.GetStatus().GetUpgradeTime())
 
 	input := provisioners.ProvisionerInput{
 		AwsWorker:       r.Auth.Aws,

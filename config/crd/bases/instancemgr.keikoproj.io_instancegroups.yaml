@@ -416,9 +416,6 @@ spec:
                 type: integer
               currentState:
                 type: string
-              lastUpgradeTime:
-                format: int64
-                type: integer
               latestTemplateVersion:
                 type: string
               lifecycle:

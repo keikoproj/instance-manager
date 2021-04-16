@@ -337,7 +337,6 @@ type InstanceGroupStatus struct {
 	Conditions                    []InstanceGroupCondition `json:"conditions,omitempty"`
 	Provisioner                   string                   `json:"provisioner,omitempty"`
 	Strategy                      string                   `json:"strategy,omitempty"`
-	LastUpgradeTime               int64                    `json:"lastUpgradeTime,omitempty"`
 }
 
 type InstanceGroupConditionType string
@@ -975,14 +974,6 @@ func (status *InstanceGroupStatus) GetConfigHash() string {
 
 func (status *InstanceGroupStatus) SetConfigHash(hash string) {
 	status.ConfigHash = hash
-}
-
-func (status *InstanceGroupStatus) SetUpgradeTime(t int64) {
-	status.LastUpgradeTime = t
-}
-
-func (status *InstanceGroupStatus) GetUpgradeTime() int64 {
-	return status.LastUpgradeTime
 }
 
 func (status *InstanceGroupStatus) GetNodesReadyCondition() corev1.ConditionStatus {

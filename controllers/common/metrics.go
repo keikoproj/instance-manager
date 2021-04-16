@@ -52,14 +52,6 @@ func NewMetricsCollector() *MetricsCollector {
 			},
 			[]string{"instancegroup", "status"},
 		),
-		lastUpgradeGauge: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Name:      "instance_group_last_upgrade_epoch",
-				Help:      "the timestamp in unix time of the last upgrade completion",
-			},
-			[]string{"instancegroup"},
-		),
 	}
 }
 
@@ -68,7 +60,6 @@ func (c MetricsCollector) Collect(ch chan<- prometheus.Metric) {
 	c.failureCounter.Collect(ch)
 	c.throttleCounter.Collect(ch)
 	c.statusGauge.Collect(ch)
-	c.lastUpgradeGauge.Collect(ch)
 }
 
 func (c MetricsCollector) Describe(ch chan<- *prometheus.Desc) {
@@ -76,11 +67,6 @@ func (c MetricsCollector) Describe(ch chan<- *prometheus.Desc) {
 	c.failureCounter.Describe(ch)
 	c.throttleCounter.Describe(ch)
 	c.statusGauge.Describe(ch)
-	c.lastUpgradeGauge.Describe(ch)
-}
-
-func (c *MetricsCollector) SetLastUpgradeSeconds(instanceGroup string, t int64) {
-	c.lastUpgradeGauge.With(prometheus.Labels{"instancegroup": instanceGroup}).Set(float64(t))
 }
 
 func (c *MetricsCollector) SetInstanceGroup(instanceGroup, state string) {
@@ -98,7 +84,6 @@ func (c *MetricsCollector) UnsetInstanceGroup() {
 	c.successCounter.Reset()
 	c.failureCounter.Reset()
 	c.throttleCounter.Reset()
-	c.lastUpgradeGauge.Reset()
 	c.statusGauge.Reset()
 }
 
