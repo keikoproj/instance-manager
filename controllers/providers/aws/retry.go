@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/keikoproj/instance-manager/controllers/common"
+
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/request"
 )
 
 type RetryLogger struct {
 	client.DefaultRetryer
+	metricsCollector *common.MetricsCollector
 }
 
 var _ request.Retryer = &RetryLogger{}
@@ -21,11 +24,12 @@ var DefaultRetryer = client.DefaultRetryer{
 	MaxRetryDelay:    time.Second * 5,
 }
 
-func NewRetryLogger(maxRetries int) *RetryLogger {
+func NewRetryLogger(maxRetries int, metrics *common.MetricsCollector) *RetryLogger {
 	retryer := DefaultRetryer
 	retryer.NumMaxRetries = maxRetries
 	return &RetryLogger{
-		retryer,
+		DefaultRetryer:   retryer,
+		metricsCollector: metrics,
 	}
 }
 
@@ -41,6 +45,10 @@ func (l RetryLogger) RetryRules(r *request.Request) time.Duration {
 		name = r.Operation.Name
 	}
 	method := fmt.Sprintf("%v/%v", service, name)
+
+	if r.IsErrorThrottle() {
+		l.metricsCollector.IncThrottle(service, name)
+	}
 
 	if r.Error != nil {
 		err = fmt.Sprintf("%v", r.Error)

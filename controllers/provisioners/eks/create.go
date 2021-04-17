@@ -46,7 +46,7 @@ func (ctx *EksInstanceGroupContext) Create() error {
 		placement       = configuration.GetPlacement()
 	)
 
-	instanceGroup.SetState(v1alpha1.ReconcileModifying)
+	ctx.SetState(v1alpha1.ReconcileModifying)
 
 	// no need to create a role if one is already provided
 	err := ctx.CreateManagedRole()
@@ -85,7 +85,7 @@ func (ctx *EksInstanceGroupContext) Create() error {
 		return errors.Wrap(err, "failed to create scaling group")
 	}
 
-	instanceGroup.SetState(v1alpha1.ReconcileModified)
+	ctx.SetState(v1alpha1.ReconcileModified)
 	return nil
 }
 

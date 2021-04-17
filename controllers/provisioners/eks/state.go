@@ -47,23 +47,23 @@ func (ctx *EksInstanceGroupContext) StateDiscovery() {
 			// scaling group still provisioned
 			if aws.StringValue(group.Status) == ScalingGroupDeletionStatus {
 				// scaling group is being deleted
-				instanceGroup.SetState(v1alpha1.ReconcileDeleting)
+				ctx.SetState(v1alpha1.ReconcileDeleting)
 			} else {
 				// scaling group still exists
-				instanceGroup.SetState(v1alpha1.ReconcileInitDelete)
+				ctx.SetState(v1alpha1.ReconcileInitDelete)
 			}
 		} else {
 			// scaling group does not exist
-			instanceGroup.SetState(v1alpha1.ReconcileDeleted)
+			ctx.SetState(v1alpha1.ReconcileDeleted)
 		}
 	} else {
 		// resource is not being deleted
 		if provisioned {
 			// scaling group exists
-			instanceGroup.SetState(v1alpha1.ReconcileInitUpdate)
+			ctx.SetState(v1alpha1.ReconcileInitUpdate)
 		} else {
 			// scaling group does not exist
-			instanceGroup.SetState(v1alpha1.ReconcileInitCreate)
+			ctx.SetState(v1alpha1.ReconcileInitCreate)
 		}
 	}
 

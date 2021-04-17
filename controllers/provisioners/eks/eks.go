@@ -24,6 +24,7 @@ import (
 	"github.com/go-logr/logr"
 
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
@@ -72,9 +73,10 @@ func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 		Log:              p.Log.WithName("eks"),
 		ResourcePrefix:   fmt.Sprintf("%v-%v-%v", configuration.GetClusterName(), instanceGroup.GetNamespace(), instanceGroup.GetName()),
 		ConfigRetention:  p.ConfigRetention,
+		Metrics:          p.Metrics,
 	}
 
-	instanceGroup.SetState(v1alpha1.ReconcileInit)
+	ctx.SetState(v1alpha1.ReconcileInit)
 	status.SetProvisioner(ProvisionerName)
 	status.SetStrategy(strategy.Type)
 
@@ -91,6 +93,7 @@ type EksInstanceGroupContext struct {
 	Configuration    *provisioners.ProvisionerConfiguration
 	ConfigRetention  int
 	ResourcePrefix   string
+	Metrics          *common.MetricsCollector
 }
 
 type UserDataPayload struct {
@@ -148,6 +151,11 @@ func (ctx *EksInstanceGroupContext) GetState() v1alpha1.ReconcileState {
 	return ctx.InstanceGroup.GetState()
 }
 func (ctx *EksInstanceGroupContext) SetState(state v1alpha1.ReconcileState) {
+	var (
+		name     = ctx.GetInstanceGroup().NamespacedName()
+		stateStr = string(state)
+	)
+	ctx.Metrics.SetInstanceGroup(name, stateStr)
 	ctx.InstanceGroup.SetState(state)
 }
 func (ctx *EksInstanceGroupContext) GetDiscoveredState() *DiscoveredState {

@@ -25,6 +25,7 @@ import (
 	"github.com/keikoproj/aws-sdk-go-cache/cache"
 	instancemgrv1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers"
+	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	corev1 "k8s.io/api/core/v1"
@@ -34,6 +35,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -115,14 +117,16 @@ func main() {
 	}
 
 	cacheCfg := cache.NewConfig(aws.CacheDefaultTTL, aws.CacheBackgroundPruningInterval, aws.CacheMaxItems, aws.CacheItemsToPrune)
-
+	cacheCollector := cacheCfg.NewCacheCollector("instance_manager")
+	controllerCollector := common.NewMetricsCollector()
 	awsWorker := aws.AwsWorker{
-		Ec2Client: aws.GetAwsEc2Client(awsRegion, cacheCfg, maxAPIRetries),
-		IamClient: aws.GetAwsIamClient(awsRegion, cacheCfg, maxAPIRetries),
-		AsgClient: aws.GetAwsAsgClient(awsRegion, cacheCfg, maxAPIRetries),
-		EksClient: aws.GetAwsEksClient(awsRegion, cacheCfg, maxAPIRetries),
+		Ec2Client: aws.GetAwsEc2Client(awsRegion, cacheCfg, maxAPIRetries, controllerCollector),
+		IamClient: aws.GetAwsIamClient(awsRegion, cacheCfg, maxAPIRetries, controllerCollector),
+		AsgClient: aws.GetAwsAsgClient(awsRegion, cacheCfg, maxAPIRetries, controllerCollector),
+		EksClient: aws.GetAwsEksClient(awsRegion, cacheCfg, maxAPIRetries, controllerCollector),
 	}
 
+	metrics.Registry.MustRegister(cacheCollector, controllerCollector)
 	kube := kubeprovider.KubernetesClientSet{
 		Kubernetes:  client,
 		KubeDynamic: dynClient,
@@ -140,6 +144,7 @@ func main() {
 	}
 
 	err = (&controllers.InstanceGroupReconciler{
+		Metrics:                controllerCollector,
 		ConfigMap:              cm,
 		ConfigRetention:        configRetention,
 		SpotRecommendationTime: spotRecommendationTime,

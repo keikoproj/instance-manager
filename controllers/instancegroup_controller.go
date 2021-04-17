@@ -53,6 +53,7 @@ type InstanceGroupReconciler struct {
 	Namespaces             map[string]corev1.Namespace
 	NamespacesLock         *sync.Mutex
 	ConfigRetention        int
+	Metrics                *common.MetricsCollector
 }
 
 type InstanceGroupAuthenticator struct {
@@ -62,6 +63,12 @@ type InstanceGroupAuthenticator struct {
 
 const (
 	FinalizerStr = "finalizer.instancegroups.keikoproj.io"
+
+	ErrorReasonGetFailed               = "GetRequest"
+	ErrorReasonDefaultsUnmarshalFailed = "UnmarshalDefaults"
+	ErrorReasonDefaultsApplyFailed     = "ApplyDefaults"
+	ErrorReasonValidationFailed        = "ResourceValidation"
+	ErrorReasonReconcileFailed         = "HandleReconcile"
 )
 
 func (r *InstanceGroupReconciler) Finalize(instanceGroup *v1alpha1.InstanceGroup) {
@@ -114,9 +121,11 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 	if err != nil {
 		if kerrors.IsNotFound(err) {
 			r.Log.Info("instancegroup not found", "instancegroup", req.NamespacedName)
+			r.Metrics.UnsetInstanceGroup()
 			return ctrl.Result{}, nil
 		}
 		r.Log.Error(err, "reconcile failed", "instancegroup", req.NamespacedName)
+		r.Metrics.IncFail(req.NamespacedName.String(), ErrorReasonGetFailed)
 		return ctrl.Result{}, err
 	}
 	statusPatch := kubeprovider.MergePatch(*instanceGroup)
@@ -131,6 +140,7 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 		InstanceGroup:   instanceGroup,
 		Log:             r.Log,
 		ConfigRetention: r.ConfigRetention,
+		Metrics:         r.Metrics,
 	}
 
 	var (
@@ -146,11 +156,13 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 			// namespace is not excluded - proceed with applying defaults/boundaries
 			var defaultConfig *provisioners.ProvisionerConfiguration
 			if defaultConfig, err = provisioners.NewProvisionerConfiguration(r.ConfigMap, instanceGroup); err != nil {
+				r.Metrics.IncFail(instanceGroup.NamespacedName(), ErrorReasonDefaultsUnmarshalFailed)
 				return ctrl.Result{}, err
 			}
 
 			if err = defaultConfig.SetDefaults(); err != nil {
 				r.Log.Error(err, "failed to set configuration defaults", "instancegroup", instanceGroup.NamespacedName())
+				r.Metrics.IncFail(instanceGroup.NamespacedName(), ErrorReasonDefaultsApplyFailed)
 				return ctrl.Result{}, err
 			}
 
@@ -165,6 +177,7 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 	provisionerKind := strings.ToLower(input.InstanceGroup.Spec.Provisioner)
 
 	if !common.ContainsEqualFold(v1alpha1.Provisioners, provisionerKind) {
+		r.Metrics.IncFail(instanceGroup.NamespacedName(), ErrorReasonValidationFailed)
 		return ctrl.Result{}, errors.Errorf("provisioner '%v' does not exist", provisionerKind)
 	}
 
@@ -182,24 +195,28 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 	if err = input.InstanceGroup.Validate(); err != nil {
 		ctx.SetState(v1alpha1.ReconcileErr)
 		r.PatchStatus(input.InstanceGroup, statusPatch)
+		r.Metrics.IncFail(instanceGroup.NamespacedName(), ErrorReasonValidationFailed)
 		return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 	}
 
 	if err = HandleReconcileRequest(ctx); err != nil {
 		ctx.SetState(v1alpha1.ReconcileErr)
 		r.PatchStatus(input.InstanceGroup, statusPatch)
+		r.Metrics.IncFail(instanceGroup.NamespacedName(), ErrorReasonReconcileFailed)
 		return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 	}
 
 	if provisioners.IsRetryable(input.InstanceGroup) {
 		r.Log.Info("reconcile event ended with requeue", "instancegroup", req.NamespacedName, "provisioner", provisionerKind)
 		r.PatchStatus(input.InstanceGroup, statusPatch)
+		r.Metrics.IncSuccess(instanceGroup.NamespacedName())
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
 	r.Log.Info("reconcile event ended", "instancegroup", req.NamespacedName, "provisioner", provisionerKind)
 	r.PatchStatus(input.InstanceGroup, statusPatch)
 	r.Finalize(instanceGroup)
+	r.Metrics.IncSuccess(instanceGroup.NamespacedName())
 	return ctrl.Result{}, nil
 }
 
