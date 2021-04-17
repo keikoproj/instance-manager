@@ -52,7 +52,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		placement       = configuration.GetPlacement()
 	)
 
-	instanceGroup.SetState(v1alpha1.ReconcileModifying)
+	ctx.SetState(v1alpha1.ReconcileModifying)
 
 	// make sure our managed role exists if instance group has not provided one
 	err := ctx.CreateManagedRole()
@@ -125,10 +125,10 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	// update readiness conditions
 	nodesReady := ctx.UpdateNodeReadyCondition()
 	if nodesReady {
-		instanceGroup.SetState(v1alpha1.ReconcileModified)
+		ctx.SetState(v1alpha1.ReconcileModified)
 	}
 	if rotationNeeded {
-		instanceGroup.SetState(v1alpha1.ReconcileInitUpgrade)
+		ctx.SetState(v1alpha1.ReconcileInitUpgrade)
 	} else {
 		status.SetStrategyRetryCount(0)
 	}
