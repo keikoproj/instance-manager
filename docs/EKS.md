@@ -397,7 +397,7 @@ spec:
       # you can also reference "All" to suspend all processes
 ```
 
-## GitOps/Platform support, boundaries and default values
+## GitOps/Platform support, boundaries, default and conditional values
 
 In order to support use-cases around GitOps or platform management, the controller allows operators to define 'boundaries' of configurations into `restricted` and `shared` configurations, along with the default values to enforce.
 
@@ -545,6 +545,51 @@ This also makes upgrades easier across a managed cluster, an operator can now si
 
 Individual namespaces can opt-out by adding the annotation `instancemgr.keikoproj.io/config-excluded=true`, this is useful for system namespaces which may need to override a global restrictive configuration, e.g. subnet, while keeping the boundary as is for other namespaces - adding this annotation to a namespace will opt-out all instancegroups under the namespace from using the cluster configuration.
 
+
+### Conditional defaults
+For more complex setups, such as clusters that have InstanceGroups that have different architectures, operating systems, etc - it might be 
+desirable to conditionally apply default values. Conditional default values can be added, as seen in the example below:
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: instance-manager
+  namespace: instance-manager
+data:
+  boundaries: |
+    shared:
+      merge:
+      - spec.eks.configuration.labels
+      mergeOverride:
+      - spec.eks.configuration.tags
+      replace:
+      - spec.eks.strategy
+    restricted:
+    - spec.eks.configuration.image
+  defaults: |
+    spec:
+      provisioner: eks
+      eks:
+        configuration:
+          image: ami-x86linux
+  conditionals: |
+    - annotation: 'instancemgr.keikoproj.io/os-family = windows'
+      defaults:
+       spec:
+         eks:
+           configuration:
+             image: ami-windows
+    - annotation: 'instancemgr.keikoproj.io/arch = arm64,instancemgr.keikoproj.io/os-family = bottlerocket'
+      defaults:
+       spec:
+         eks:
+           configuration:
+             image: ami-bottlerocketArm
+```
+
+The `annotation` field accepts a selector string, which follows the semantics of the Kubernetes [field selector](https://kubernetes.io/docs/concepts/overview/working-with-objects/field-selectors/). 
+This selector is applied against the annotations of InstanceGroup objects. When a selector matches an InstanceGroup, the `defaults` associated with it are applied to the IG, taking precedence over the non-conditional 
+default values. Conditional rules are applied in-order from the beginning of the list to the end - meaning that the last applicable rule will apply in case of conflicts. 
 ## Annotations
 
 | Annotation Key | Object | Annotation Value | Purpose |

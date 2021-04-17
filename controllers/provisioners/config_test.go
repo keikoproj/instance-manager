@@ -341,7 +341,7 @@ func TestSetDefaultsWithSharedConditionalMergeOverride(t *testing.T) {
       - spec.eks.configuration.tags`
 
 	mockConditionals := `
-- annotation: "instancemgr.keikoproj.io/os-family=windows"
+- annotation: "instancemgr.keikoproj.io/arch in (arm64),instancemgr.keikoproj.io/os-family in (windows)"
   defaults:
     spec:
       eks:

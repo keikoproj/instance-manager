@@ -17,6 +17,7 @@ package provisioners
 
 import (
 	"fmt"
+	"k8s.io/apimachinery/pkg/labels"
 	"strings"
 
 	"github.com/ghodss/yaml"
@@ -47,6 +48,21 @@ type ProvisionerConfiguration struct {
 	Defaults      map[string]interface{}
 	Conditionals  []Conditional
 	InstanceGroup *v1alpha1.InstanceGroup
+}
+
+type SelectableAnnotations struct {
+	Annotations map[string]string
+}
+func (a *SelectableAnnotations) Has(label string) (exists bool) {
+	if _, ok := a.Annotations[label]; ok {
+		return true
+	}
+	return false
+}
+
+// Get returns the value for the provided label.
+func (a *SelectableAnnotations) Get(label string) (value string) {
+	return a.Annotations[label]
 }
 
 func NewProvisionerConfiguration(config *corev1.ConfigMap, instanceGroup *v1alpha1.InstanceGroup) (*ProvisionerConfiguration, error) {
@@ -144,7 +160,10 @@ func (c *ProvisionerConfiguration) SetDefaults() error {
 
 func (c *ProvisionerConfiguration) setRestrictedFields(unstructuredInstanceGroup map[string]interface{}) error {
 	// apply restricted paths to instance group
-	var applicableConditionals = getMatchingConditionals(c.InstanceGroup, c.Conditionals)
+	var applicableConditionals, err = getMatchingConditionals(c.InstanceGroup, c.Conditionals)
+	if err != nil {
+		return err
+	}
 	for _, pathStr := range c.Boundaries.Restricted {
 		path := common.FieldPath(pathStr)
 		// if a default value exists for the path, set it on the instance group
@@ -179,19 +198,26 @@ func isConflict(defaultVal, resourceVal interface{}) bool {
 	return false
 }
 
-func getMatchingConditionals(ig *v1alpha1.InstanceGroup, conditionals []Conditional) []Conditional {
+func getMatchingConditionals(ig *v1alpha1.InstanceGroup, conditionals []Conditional) ([]Conditional,error) {
 	var applicableConditionals = make([]Conditional, 0)
+	var annotationLabels = &SelectableAnnotations{Annotations: ig.Annotations}
 	for _, conditional := range conditionals {
-		annotationKeyValue := strings.Split(conditional.Annotation, "=")
-		if ig.Annotations[annotationKeyValue[0]] == annotationKeyValue[1] {
+		selector, err := labels.Parse(conditional.Annotation)
+		if err != nil {
+			return nil, err;
+		}
+		if selector.Matches(annotationLabels){
 			applicableConditionals = append(applicableConditionals, conditional)
 		}
 	}
-	return applicableConditionals
+	return applicableConditionals, nil
 }
 
 func (c *ProvisionerConfiguration) setSharedFields(obj map[string]interface{}) error {
-	var applicableConditionals = getMatchingConditionals(c.InstanceGroup, c.Conditionals)
+	var applicableConditionals, err = getMatchingConditionals(c.InstanceGroup, c.Conditionals)
+	if err != nil {
+		return err
+	}
 	for _, pathStr := range c.Boundaries.Shared.Replace {
 		var (
 			defaultVal  = common.FieldValue(pathStr, c.Defaults)
