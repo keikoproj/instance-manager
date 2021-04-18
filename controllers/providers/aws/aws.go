@@ -759,13 +759,14 @@ func (w *AwsWorker) DeleteManagedNodeGroup() error {
 	return nil
 }
 
-func (w *AwsWorker) GetLabelsUpdatePayload(existing, new map[string]string) *eks.UpdateLabelsPayload {
+func (w *AwsWorker) GetLabelsUpdatePayload(existing, new map[string]string) (*eks.UpdateLabelsPayload, bool) {
 
 	var (
 		removeLabels    = make([]string, 0)
 		addUpdateLabels = make(map[string]string)
 	)
 
+	payload := &eks.UpdateLabelsPayload{}
 	for k, v := range new {
 		// handle new labels
 		if _, ok := existing[k]; !ok {
@@ -785,23 +786,36 @@ func (w *AwsWorker) GetLabelsUpdatePayload(existing, new map[string]string) *eks
 		}
 	}
 
-	return &eks.UpdateLabelsPayload{
-		AddOrUpdateLabels: aws.StringMap(addUpdateLabels),
-		RemoveLabels:      aws.StringSlice(removeLabels),
+	if len(addUpdateLabels) > 0 {
+		payload.AddOrUpdateLabels = aws.StringMap(addUpdateLabels)
 	}
+
+	if len(removeLabels) > 0 {
+		payload.RemoveLabels = aws.StringSlice(removeLabels)
+	}
+
+	if payload.RemoveLabels == nil && payload.AddOrUpdateLabels == nil {
+		return payload, false
+	}
+
+	return payload, true
 }
 
-func (w *AwsWorker) UpdateManagedNodeGroup(currentDesired int64, labelsPayload *eks.UpdateLabelsPayload) error {
-	input := &eks.UpdateNodegroupConfigInput{
-		ClusterName:   aws.String(w.Parameters["ClusterName"].(string)),
-		NodegroupName: aws.String(w.Parameters["NodegroupName"].(string)),
-		ScalingConfig: &eks.NodegroupScalingConfig{
-			MaxSize:     aws.Int64(w.Parameters["MaxSize"].(int64)),
-			MinSize:     aws.Int64(w.Parameters["MinSize"].(int64)),
-			DesiredSize: aws.Int64(currentDesired),
-		},
-		Labels: labelsPayload,
+func (w *AwsWorker) UpdateManagedNodeGroup(nodeGroup *eks.Nodegroup, desired int64, nodeLabels map[string]string) error {
+	input := &eks.UpdateNodegroupConfigInput{}
+
+	if labels, ok := w.GetLabelsUpdatePayload(aws.StringValueMap(nodeGroup.Labels), nodeLabels); ok {
+		input.Labels = labels
 	}
+
+	input.ClusterName = aws.String(w.Parameters["ClusterName"].(string))
+	input.NodegroupName = aws.String(w.Parameters["NodegroupName"].(string))
+	input.ScalingConfig = &eks.NodegroupScalingConfig{
+		MaxSize:     aws.Int64(w.Parameters["MaxSize"].(int64)),
+		MinSize:     aws.Int64(w.Parameters["MinSize"].(int64)),
+		DesiredSize: aws.Int64(desired),
+	}
+
 	_, err := w.EksClient.UpdateNodegroupConfig(input)
 	if err != nil {
 		return err
