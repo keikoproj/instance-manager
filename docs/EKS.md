@@ -573,7 +573,7 @@ data:
         configuration:
           image: ami-x86linux
   conditionals: |
-    - annotation: 'instancemgr.keikoproj.io/os-family = windows'
+    - annotationSelector: 'instancemgr.keikoproj.io/os-family = windows'
       defaults:
        spec:
          eks:
@@ -603,6 +603,7 @@ The following operators are supported:
 <values>                  ::= VALUE | VALUE "," <values>
 <exact-match-restriction> ::= ["="|"=="|"!="] VALUE
 ```
+
 ## Annotations
 
 | Annotation Key | Object | Annotation Value | Purpose |
