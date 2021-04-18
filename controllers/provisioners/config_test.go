@@ -105,7 +105,7 @@ func TestSetDefaultsRestricted(t *testing.T) {
     - spec.strategy`
 
 	mockConditionals := `
-- annotation: "instancemgr.keikoproj.io/os-family=windows"
+- annotationSelector: "instancemgr.keikoproj.io/os-family=windows"
   defaults:
     spec:
       eks:
@@ -187,13 +187,13 @@ func TestSetDefaultsWithRestrictedConditional(t *testing.T) {
     - spec.strategy`
 
 	mockConditionals := `
-- annotation: "instancemgr.keikoproj.io/os-family=windows"
+- annotationSelector: "instancemgr.keikoproj.io/os-family=windows"
   defaults:
     spec:
       eks:
         configuration:
           image: ami-22222222222
-- annotation: "instancemgr.keikoproj.io/arch=arm64"
+- annotationSelector: "instancemgr.keikoproj.io/arch=arm64"
   defaults:
     spec:
       eks:
@@ -271,7 +271,7 @@ func TestSetDefaultsWithSharedConditionalReplace(t *testing.T) {
       - spec.eks.configuration.tags`
 
 	mockConditionals := `
-- annotation: "instancemgr.keikoproj.io/os-family=windows"
+- annotationSelector: "instancemgr.keikoproj.io/os-family=windows"
   defaults:
     spec:
       eks:
@@ -341,7 +341,7 @@ func TestSetDefaultsWithSharedConditionalMergeOverride(t *testing.T) {
       - spec.eks.configuration.tags`
 
 	mockConditionals := `
-- annotation: "instancemgr.keikoproj.io/arch in (arm64),instancemgr.keikoproj.io/os-family in (windows)"
+- annotationSelector: "instancemgr.keikoproj.io/arch in (arm64),instancemgr.keikoproj.io/os-family in (windows)"
   defaults:
     spec:
       eks:
@@ -409,7 +409,7 @@ func TestSetDefaultsWithInvalidConditionalYAML(t *testing.T) {
       - spec.eks.configuration.tags`
 
 	mockConditionals := `
-- annotation: "instancemgr.keikoproj.io/os-family=windows"
+- annotationSelector: "instancemgr.keikoproj.io/os-family=windows"
   defaults:
     spec:
       eks:
@@ -456,7 +456,7 @@ func TestSetDefaultsWithSharedConditionalMerge(t *testing.T) {
       - spec.eks.configuration.securityGroups`
 
 	mockConditionals := `
-- annotation: "instancemgr.keikoproj.io/os-family=windows"
+- annotationSelector: "instancemgr.keikoproj.io/os-family=windows"
   defaults:
     spec:
       eks:

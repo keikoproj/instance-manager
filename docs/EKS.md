@@ -579,7 +579,7 @@ data:
          eks:
            configuration:
              image: ami-windows
-    - annotation: 'instancemgr.keikoproj.io/arch = arm64,instancemgr.keikoproj.io/os-family = bottlerocket'
+    - annotationSelector: 'instancemgr.keikoproj.io/arch = arm64,instancemgr.keikoproj.io/os-family = bottlerocket'
       defaults:
        spec:
          eks:
@@ -587,9 +587,22 @@ data:
              image: ami-bottlerocketArm
 ```
 
-The `annotation` field accepts a selector string, which follows the semantics of the Kubernetes [field selector](https://kubernetes.io/docs/concepts/overview/working-with-objects/field-selectors/). 
-This selector is applied against the annotations of InstanceGroup objects. When a selector matches an InstanceGroup, the `defaults` associated with it are applied to the IG, taking precedence over the non-conditional 
+The `annotationSelector` field accepts a selector string, which follows the semantics of the Kubernetes [field selector](https://kubernetes.io/docs/concepts/overview/working-with-objects/field-selectors/). 
+This selector is applied against the annotations of InstanceGroup objects. When a selector matches an InstanceGroup, the `defaults` associated with it are applied to the InstangeGroup, taking precedence over the non-conditional 
 default values. Conditional rules are applied in-order from the beginning of the list to the end - meaning that the last applicable rule will apply in case of conflicts. 
+
+The following operators are supported:
+```
+<selector-syntax>         ::= <requirement> | <requirement> "," <selector-syntax>
+<requirement>             ::= [!] KEY [ <set-based-restriction> | <exact-match-restriction> ]
+<set-based-restriction>   ::= "" | <inclusion-exclusion> <value-set>
+<inclusion-exclusion>     ::= <inclusion> | <exclusion>
+<exclusion>               ::= "notin"
+<inclusion>               ::= "in"
+<value-set>               ::= "(" <values> ")"
+<values>                  ::= VALUE | VALUE "," <values>
+<exact-match-restriction> ::= ["="|"=="|"!="] VALUE
+```
 ## Annotations
 
 | Annotation Key | Object | Annotation Value | Purpose |

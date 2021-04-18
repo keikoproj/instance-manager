@@ -87,7 +87,7 @@ type ResourceFieldBoundary struct {
 }
 
 type Conditional struct {
-	Annotation string                 `yaml:"annotation,omitempty"`
+	AnnotationSelector string                 `yaml:"annotationSelector,omitempty"`
 	Defaults   map[string]interface{} `yaml:"defaults,omitempty"`
 }
 
@@ -202,7 +202,7 @@ func getMatchingConditionals(ig *v1alpha1.InstanceGroup, conditionals []Conditio
 	var applicableConditionals = make([]Conditional, 0)
 	var annotationLabels = &SelectableAnnotations{Annotations: ig.Annotations}
 	for _, conditional := range conditionals {
-		selector, err := labels.Parse(conditional.Annotation)
+		selector, err := labels.Parse(conditional.AnnotationSelector)
 		if err != nil {
 			return nil, err;
 		}
