@@ -445,6 +445,55 @@ spec:
 	g.Expect(err).To(gomega.HaveOccurred())
 }
 
+func TestSetDefaultsWithInvalidConditionalSelector(t *testing.T) {
+	var (
+		g = gomega.NewGomegaWithT(t)
+	)
+
+	// Restricted fields are always replaced with default values
+
+	mockBoundaries := `
+    shared:
+      mergeOverride: 
+      - spec.eks.configuration.tags`
+
+	mockConditionals := `
+- annotationSelector: "instancemgr.keikoproj.io/os-family==f==windows"
+  defaults:
+    spec:
+      eks:
+        configuration:
+          tags:
+          - key: tag-A
+            value: value-A
+          - key: tag-B
+            value: value-B`
+	mockDefaults := `
+spec:
+  strategy:
+    type: rollingUpdate
+    rollingUpdate:
+      maxUnavailable: 30%
+  eks:
+    configuration:
+      keyPairName: TestKeyPair
+      image: ami-025bf02d663404bbc
+      instanceType: m5.large
+      labels:
+        label-key: label-value
+      taints:
+      - key: taint-key
+        value: taint-value
+        effect: NoSchedule
+`
+
+	cm := MockConfigMap(MockConfigData("boundaries", mockBoundaries, "defaults", mockDefaults, "conditionals", mockConditionals))
+	cr := MockResource()
+	c, _ := NewProvisionerConfiguration(cm, cr)
+	err := c.SetDefaults()
+	g.Expect(err).To(gomega.HaveOccurred())
+}
+
 func TestSetDefaultsWithSharedConditionalMerge(t *testing.T) {
 	var (
 		g = gomega.NewGomegaWithT(t)
