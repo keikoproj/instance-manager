@@ -159,21 +159,19 @@ func (ctx *EksManagedInstanceGroupContext) isUpdateNeeded() bool {
 
 func (ctx *EksManagedInstanceGroupContext) Update() error {
 	var (
-		instanceGroup  = ctx.GetInstanceGroup()
-		nodeLabels     = instanceGroup.Spec.EKSManagedSpec.EKSManagedConfiguration.NodeLabels
-		selfNodeGroup  = ctx.DiscoveredState.GetSelfNodeGroup()
-		currentDesired = aws.Int64Value(selfNodeGroup.ScalingConfig.DesiredSize)
-		requestedMin   = instanceGroup.Spec.EKSManagedSpec.MinSize
+		instanceGroup = ctx.GetInstanceGroup()
+		nodeLabels    = instanceGroup.Spec.EKSManagedSpec.EKSManagedConfiguration.NodeLabels
+		nodeGroup     = ctx.DiscoveredState.GetSelfNodeGroup()
+		requestedMin  = instanceGroup.Spec.EKSManagedSpec.MinSize
+		desired       = aws.Int64Value(nodeGroup.ScalingConfig.DesiredSize)
 	)
 
-	if currentDesired < requestedMin {
-		currentDesired = requestedMin
+	if desired < requestedMin {
+		desired = requestedMin
 	}
 
-	labels := ctx.AwsWorker.GetLabelsUpdatePayload(aws.StringValueMap(selfNodeGroup.Labels), nodeLabels)
-
 	if ctx.isUpdateNeeded() {
-		err := ctx.AwsWorker.UpdateManagedNodeGroup(currentDesired, labels)
+		err := ctx.AwsWorker.UpdateManagedNodeGroup(nodeGroup, desired, nodeLabels)
 		if err != nil {
 			return err
 		}
