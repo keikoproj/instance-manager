@@ -39,6 +39,11 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 		strategyType      = strings.ToLower(strategy.GetType())
 	)
 
+	err := ctx.rotateWarmPool()
+	if err != nil {
+		return err
+	}
+
 	// process the upgrade strategy
 	switch strategyType {
 	case kubeprovider.CRDStrategyName:
@@ -90,6 +95,37 @@ func (ctx *EksInstanceGroupContext) BootstrapNodes() error {
 	defer ctx.Unlock()
 
 	return common.UpsertAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{roleARN}, []string{osFamily})
+}
+
+func (ctx *EksInstanceGroupContext) rotateWarmPool() error {
+	var (
+		instanceGroup     = ctx.GetInstanceGroup()
+		spec              = instanceGroup.GetEKSSpec()
+		state             = ctx.GetDiscoveredState()
+		scalingGroup      = state.GetScalingGroup()
+		warmPoolConfig    = scalingGroup.WarmPoolConfiguration
+		scalingGroupName  = aws.StringValue(scalingGroup.AutoScalingGroupName)
+		scalingConfigName = awsprovider.GetScalingConfigName(scalingGroup)
+	)
+
+	// if spec does not configure a warm pool, or asg doesnt have a warm pool, skip this
+	if !spec.HasWarmPool() || warmPoolConfig == nil {
+		return nil
+	}
+
+	if len(getMistachedInstances()) == 0 {
+		return nil
+	}
+
+	if err := ctx.AwsWorker.DeleteWarmPool(scalingGroupName); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func getMistachedInstances() []string {
+
 }
 
 func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *kubeprovider.RollingUpdateRequest {

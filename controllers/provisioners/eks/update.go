@@ -209,11 +209,13 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string, scalin
 	if err := ctx.UpdateScalingProcesses(asgName); err != nil {
 		return asgUpdated, err
 	}
-
 	if err := ctx.UpdateMetricsCollection(asgName); err != nil {
 		return asgUpdated, err
 	}
 	if err := ctx.UpdateLifecycleHooks(asgName); err != nil {
+		return asgUpdated, err
+	}
+	if err := ctx.UpdateWarmPool(asgName); err != nil {
 		return asgUpdated, err
 	}
 
@@ -316,6 +318,7 @@ func (ctx *EksInstanceGroupContext) UpdateManagedPolicies(roleName string) error
 	var (
 		instanceGroup      = ctx.GetInstanceGroup()
 		state              = ctx.GetDiscoveredState()
+		spec               = instanceGroup.GetEKSSpec()
 		configuration      = instanceGroup.GetEKSConfiguration()
 		additionalPolicies = configuration.GetManagedPolicies()
 		needsAttach        = make([]string, 0)
@@ -324,6 +327,10 @@ func (ctx *EksInstanceGroupContext) UpdateManagedPolicies(roleName string) error
 
 	managedPolicies := ctx.GetManagedPoliciesList(additionalPolicies)
 	attachedPolicies := state.GetAttachedPolicies()
+
+	if spec.HasWarmPool() {
+		managedPolicies = append(managedPolicies, "arn:aws:iam::aws:policy/AutoScalingReadOnlyAccess")
+	}
 
 	attachedArns := make([]string, 0)
 	for _, p := range attachedPolicies {

@@ -120,6 +120,7 @@ type EKSUserData struct {
 	PostBootstrap    []string
 	MountOptions     []MountOpts
 	MaxPods          int64
+	HasWarmPool      bool
 }
 
 func (ctx *EksInstanceGroupContext) GetInstanceGroup() *v1alpha1.InstanceGroup {
