@@ -190,9 +190,15 @@ type BootstrapOptions struct {
 	MaxPods int64 `json:"maxPods,omitempty"`
 }
 
+type WarmPoolSpec struct {
+	MaxSize int64 `json:"maxSize,omitempty"`
+	MinSize int64 `json:"minSize,omitempty"`
+}
+
 type EKSSpec struct {
 	MaxSize          int64                    `json:"maxSize,omitempty"`
 	MinSize          int64                    `json:"minSize,omitempty"`
+	WarmPool         *WarmPoolSpec            `json:"warmPool,omitempty"`
 	Type             ScalingConfigurationType `json:"type,omitempty"`
 	EKSConfiguration *EKSConfiguration        `json:"configuration"`
 }
@@ -408,6 +414,13 @@ func (s *EKSSpec) IsLaunchTemplate() bool {
 
 func (s *EKSSpec) IsLaunchConfiguration() bool {
 	if s.Type == LaunchConfiguration {
+		return true
+	}
+	return false
+}
+
+func (s *EKSSpec) HasWarmPool() bool {
+	if s.WarmPool != nil {
 		return true
 	}
 	return false
@@ -802,6 +815,12 @@ func (spec *EKSSpec) GetMaxSize() int64 {
 	return spec.MaxSize
 }
 func (spec *EKSSpec) GetMinSize() int64 {
+	return spec.MinSize
+}
+func (spec *WarmPoolSpec) GetMaxSize() int64 {
+	return spec.MaxSize
+}
+func (spec *WarmPoolSpec) GetMinSize() int64 {
 	return spec.MinSize
 }
 func (spec *EKSSpec) GetType() ScalingConfigurationType {

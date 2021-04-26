@@ -4,7 +4,7 @@ go 1.15
 
 require (
 	github.com/Masterminds/semver v1.5.0
-	github.com/aws/aws-sdk-go v1.35.22
+	github.com/aws/aws-sdk-go v1.38.24
 	github.com/cucumber/godog v0.8.1
 	github.com/evanphx/json-patch v4.9.0+incompatible
 	github.com/ghodss/yaml v1.0.0
@@ -13,7 +13,7 @@ require (
 	github.com/keikoproj/aws-sdk-go-cache v0.0.0-20210331172911-bd35edbab948
 	github.com/onsi/gomega v1.10.2
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.10.0 // indirect
+	github.com/prometheus/client_golang v1.10.0
 	github.com/sirupsen/logrus v1.6.0
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d // indirect
 	golang.org/x/tools v0.0.0-20200616195046-dc31b401abb5 // indirect
@@ -21,5 +21,4 @@ require (
 	k8s.io/apimachinery v0.19.6
 	k8s.io/client-go v0.19.6
 	sigs.k8s.io/controller-runtime v0.7.0
-	sigs.k8s.io/controller-tools v0.4.1 // indirect
 )

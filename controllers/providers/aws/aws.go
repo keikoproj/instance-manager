@@ -229,6 +229,29 @@ func (w *AwsWorker) CreateLifecycleHook(input *autoscaling.PutLifecycleHookInput
 	return nil
 }
 
+func (w *AwsWorker) UpdateWarmPool(asgName string, min, max int64) error {
+	_, err := w.AsgClient.PutWarmPool(&autoscaling.PutWarmPoolInput{
+		AutoScalingGroupName:     aws.String(asgName),
+		MaxGroupPreparedCapacity: aws.Int64(max),
+		MinSize:                  aws.Int64(min),
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) DeleteWarmPool(asgName string) error {
+	_, err := w.AsgClient.DeleteWarmPool(&autoscaling.DeleteWarmPoolInput{
+		AutoScalingGroupName: aws.String(asgName),
+		ForceDelete:          aws.Bool(true),
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (w *AwsWorker) DeleteLifecycleHook(asgName, hookName string) error {
 	_, err := w.AsgClient.DeleteLifecycleHook(&autoscaling.DeleteLifecycleHookInput{
 		AutoScalingGroupName: aws.String(asgName),
