@@ -99,6 +99,14 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		rotationNeeded = true
 	}
 
+	// Wait until warm pool gets deleted completely before proceeding
+	warmPoolConfig := state.ScalingGroup.WarmPoolConfiguration
+	if warmPoolConfig != nil {
+		if *warmPoolConfig.PoolState == autoscaling.WarmPoolStatusPendingDelete {
+			return nil
+		}
+	}
+
 	// update scaling group
 	updated, err := ctx.UpdateScalingGroup(config.Name, &scalingConfig)
 	if err != nil {

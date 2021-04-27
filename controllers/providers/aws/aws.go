@@ -46,6 +46,7 @@ var (
 
 const (
 	CacheDefaultTTL                   time.Duration = 0 * time.Second
+	DescribeWarmPoolTTL               time.Duration = 60 * time.Second
 	DescribeAutoScalingGroupsTTL      time.Duration = 60 * time.Second
 	DescribeLaunchConfigurationsTTL   time.Duration = 60 * time.Second
 	ListAttachedRolePoliciesTTL       time.Duration = 60 * time.Second
@@ -227,6 +228,16 @@ func (w *AwsWorker) CreateLifecycleHook(input *autoscaling.PutLifecycleHookInput
 		return err
 	}
 	return nil
+}
+
+func (w *AwsWorker) DescribeWarmPool(asgName string) (*autoscaling.DescribeWarmPoolOutput, error) {
+	describeWarmPoolOutput, err := w.AsgClient.DescribeWarmPool(&autoscaling.DescribeWarmPoolInput{
+		AutoScalingGroupName: aws.String(asgName),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return describeWarmPoolOutput, nil
 }
 
 func (w *AwsWorker) UpdateWarmPool(asgName string, min, max int64) error {
@@ -1083,6 +1094,7 @@ func GetAwsAsgClient(region string, cacheCfg *cache.Config, maxRetries int, coll
 
 	cache.AddCaching(sess, cacheCfg)
 	cacheCfg.SetCacheTTL("autoscaling", "DescribeAutoScalingGroups", DescribeAutoScalingGroupsTTL)
+	cacheCfg.SetCacheTTL("autoscaling", "DescribeWarmPool", DescribeWarmPoolTTL)
 	cacheCfg.SetCacheTTL("autoscaling", "DescribeLaunchConfigurations", DescribeLaunchConfigurationsTTL)
 	cacheCfg.SetCacheTTL("autoscaling", "DescribeLifecycleHooks", DescribeLifecycleHooksTTL)
 	sess.Handlers.Complete.PushFront(func(r *request.Request) {

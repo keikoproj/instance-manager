@@ -103,7 +103,6 @@ func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, k
 		instanceGroup    = ctx.GetInstanceGroup()
 		configuration    = instanceGroup.GetEKSConfiguration()
 		state            = ctx.GetDiscoveredState()
-		spec             = instanceGroup.GetEKSSpec()
 		apiEndpoint      = state.GetClusterEndpoint()
 		clusterCa        = state.GetClusterCA()
 		osFamily         = ctx.GetOsFamily()
