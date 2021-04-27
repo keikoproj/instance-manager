@@ -233,6 +233,8 @@ func (r *InstanceGroupReconciler) PatchStatus(instanceGroup *v1alpha1.InstanceGr
 }
 
 func (r *InstanceGroupReconciler) IsNamespaceAnnotated(namespace, key, value string) bool {
+	r.NamespacesLock.Lock()
+	defer r.NamespacesLock.Unlock()
 	if ns, ok := r.Namespaces[namespace]; ok {
 		nsObject, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&ns)
 		if err != nil {
