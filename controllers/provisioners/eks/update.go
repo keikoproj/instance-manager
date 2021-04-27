@@ -28,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
+	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/eks/scaling"
 )
@@ -39,6 +40,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		state           = ctx.GetDiscoveredState()
 		status          = instanceGroup.GetStatus()
 		scalingConfig   = state.GetScalingConfiguration()
+		scalingGroup    = state.GetScalingGroup()
 		configuration   = instanceGroup.GetEKSConfiguration()
 		spec            = instanceGroup.GetEKSSpec()
 		args            = ctx.GetBootstrapArgs()
@@ -99,10 +101,9 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		rotationNeeded = true
 	}
 
-	// Wait until warm pool gets deleted completely before proceeding
-	warmPoolConfig := state.ScalingGroup.WarmPoolConfiguration
-	if warmPoolConfig != nil {
-		if *warmPoolConfig.PoolState == autoscaling.WarmPoolStatusPendingDelete {
+	if awsprovider.IsUsingWarmPool(scalingGroup) {
+		warmPoolStatus := aws.StringValue(scalingGroup.WarmPoolConfiguration.Status)
+		if strings.EqualFold(warmPoolStatus, autoscaling.WarmPoolStatusPendingDelete) {
 			return nil
 		}
 	}

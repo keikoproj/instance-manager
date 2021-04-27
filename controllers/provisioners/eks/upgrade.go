@@ -41,11 +41,11 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 
 	rotated, err := ctx.rotateWarmPool()
 	if err != nil {
-		ctx.Log.Info("Failed to rotate warm pool", "error", err)
+		ctx.Log.Info("failed to rotate warm pool", "error", err)
 		return nil
 	}
 
-	// If Warm Pool has been just deleted, we skip the rolling upgrade submission and wait for rotation to complete
+	// if warm pool has been just deleted, we skip the rolling upgrade submission and wait for rotation to complete
 	if rotated {
 		return nil
 	}
@@ -129,11 +129,11 @@ func (ctx *EksInstanceGroupContext) rotateWarmPool() (bool, error) {
 		return false, nil
 	}
 
-	// Now that we know there are mismatched instances, we can delete the warm pool
-	ctx.Log.Info("Found mismatched instances to be", "mismatchedInstances", mismatchedInstances)
+	// now that we know there are mismatched instances, we can delete the warm pool
+	ctx.Log.Info("found mismatched instances to be", "mismatchedInstances", mismatchedInstances)
 
 	if err := ctx.AwsWorker.DeleteWarmPool(scalingGroupName); err != nil {
-		ctx.Log.Info("Failed to delete warm pool", "error", err)
+		ctx.Log.Info("failed to delete warm pool", "error", err)
 		return true, err
 	}
 
@@ -144,7 +144,6 @@ func (ctx *EksInstanceGroupContext) rotateWarmPool() (bool, error) {
 func (ctx *EksInstanceGroupContext) getMismatchedInstances(instances []*autoscaling.Instance) []string {
 	var (
 		needsUpdate     []string
-		allInstances    []string
 		state           = ctx.GetDiscoveredState()
 		scalingConfig   = state.GetScalingConfiguration()
 		scalingResource = scalingConfig.Resource()
@@ -155,8 +154,6 @@ func (ctx *EksInstanceGroupContext) getMismatchedInstances(instances []*autoscal
 		var (
 			instanceId = aws.StringValue(instance.InstanceId)
 		)
-
-		allInstances = append(allInstances, aws.StringValue(instance.InstanceId))
 
 		if awsprovider.IsUsingLaunchConfiguration(scalingGroup) {
 			if instance.LaunchConfigurationName == nil {
@@ -233,6 +230,14 @@ func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *kubeprovider.Roll
 
 	// Get all Autoscaling Instances that needs update
 	needsUpdate = ctx.getMismatchedInstances(scalingGroup.Instances)
+
+	for _, instance := range scalingGroup.Instances {
+		var (
+			instanceId = aws.StringValue(instance.InstanceId)
+		)
+
+		allInstances = append(allInstances, instanceId)
+	}
 
 	allCount := len(allInstances)
 
