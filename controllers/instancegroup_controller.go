@@ -51,7 +51,7 @@ type InstanceGroupReconciler struct {
 	Auth                   *InstanceGroupAuthenticator
 	ConfigMap              *corev1.ConfigMap
 	Namespaces             map[string]corev1.Namespace
-	NamespacesLock         *sync.Mutex
+	NamespacesLock         *sync.RWMutex
 	ConfigRetention        int
 	Metrics                *common.MetricsCollector
 }
@@ -233,6 +233,8 @@ func (r *InstanceGroupReconciler) PatchStatus(instanceGroup *v1alpha1.InstanceGr
 }
 
 func (r *InstanceGroupReconciler) IsNamespaceAnnotated(namespace, key, value string) bool {
+	r.NamespacesLock.RLock()
+	defer r.NamespacesLock.RUnlock()
 	if ns, ok := r.Namespaces[namespace]; ok {
 		nsObject, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&ns)
 		if err != nil {

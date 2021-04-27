@@ -53,6 +53,7 @@ type ProvisionerConfiguration struct {
 type SelectableAnnotations struct {
 	Annotations map[string]string
 }
+
 func (a *SelectableAnnotations) Has(label string) (exists bool) {
 	if _, ok := a.Annotations[label]; ok {
 		return true
@@ -88,7 +89,7 @@ type ResourceFieldBoundary struct {
 
 type Conditional struct {
 	AnnotationSelector string                 `yaml:"annotationSelector,omitempty"`
-	Defaults   map[string]interface{} `yaml:"defaults,omitempty"`
+	Defaults           map[string]interface{} `yaml:"defaults,omitempty"`
 }
 
 func (c *ProvisionerConfiguration) Unmarshal(cm *corev1.ConfigMap) error {
@@ -198,15 +199,15 @@ func isConflict(defaultVal, resourceVal interface{}) bool {
 	return false
 }
 
-func getMatchingConditionals(ig *v1alpha1.InstanceGroup, conditionals []Conditional) ([]Conditional,error) {
+func getMatchingConditionals(ig *v1alpha1.InstanceGroup, conditionals []Conditional) ([]Conditional, error) {
 	var applicableConditionals = make([]Conditional, 0)
 	var annotationLabels = &SelectableAnnotations{Annotations: ig.Annotations}
 	for _, conditional := range conditionals {
 		selector, err := labels.Parse(conditional.AnnotationSelector)
 		if err != nil {
-			return nil, err;
+			return nil, err
 		}
-		if selector.Matches(annotationLabels){
+		if selector.Matches(annotationLabels) {
 			applicableConditionals = append(applicableConditionals, conditional)
 		}
 	}
