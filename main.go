@@ -150,7 +150,7 @@ func main() {
 		SpotRecommendationTime: spotRecommendationTime,
 		ConfigNamespace:        configNamespace,
 		Namespaces:             make(map[string]corev1.Namespace),
-		NamespacesLock:         &sync.Mutex{},
+		NamespacesLock:         &sync.RWMutex{},
 		NodeRelabel:            nodeRelabel,
 		Client:                 mgr.GetClient(),
 		Log:                    ctrl.Log.WithName("controllers").WithName("instancegroup"),
