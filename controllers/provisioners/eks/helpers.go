@@ -160,18 +160,15 @@ mount
 echo "{{ .Device}}    {{ .Mount }}    {{ .FileSystem | ToLower }}    defaults    0    2" >> /etc/fstab
 {{- end}}
 {{- end}}
-{{- if .HasWarmPool}}
 if [[ $(type -P $(which aws)) ]] && [[ $(type -P $(which jq)) ]] ; then
 	INSTANCE_ID=$(curl http://169.254.169.254/latest/meta-data/instance-id)
 	REGION=$(curl http://169.254.169.254/latest/meta-data/placement/region)
-	LIFECYCLE=$(aws autoscaling describe-auto-scaling-instances --region $REGION --instance-id $INSTANCE_ID | jq ".AutoScalingInstances[].LifecycleState")
-	echo $INSTANCE_ID, $REGION, in state: $LIFECYCLE
+	LIFECYCLE=$(aws autoscaling describe-auto-scaling-instances --region $REGION --instance-id $INSTANCE_ID | jq ".AutoScalingInstances[].LifecycleState" || true)
 	if [[ $LIFECYCLE == *"Warmed"* ]]; then
 		rm /var/lib/cloud/instances/$INSTANCE_ID/sem/config_scripts_user
 		exit 0
 	fi
 fi
-{{- end}}
 set -o xtrace
 /etc/eks/bootstrap.sh {{ .ClusterName }} {{ .Arguments }}
 set +o xtrace
@@ -190,7 +187,6 @@ set +o xtrace
 		PreBootstrap:     payload.PreBootstrap,
 		PostBootstrap:    payload.PostBootstrap,
 		MountOptions:     mounts,
-		HasWarmPool:      spec.HasWarmPool(),
 	}
 	out := &bytes.Buffer{}
 	tmpl := template.New("userData").Funcs(template.FuncMap{
