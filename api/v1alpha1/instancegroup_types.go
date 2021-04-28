@@ -426,7 +426,7 @@ func (s *EKSSpec) HasWarmPool() bool {
 	return false
 }
 
-func (c *EKSConfiguration) Validate(scalingConfigurationType ScalingConfigurationType) error {
+func (c *EKSConfiguration) Validate(scalingConfigurationType ScalingConfigurationType, hasWarmPool bool) error {
 	if common.StringEmpty(c.EksClusterName) {
 		return errors.Errorf("validation failed, 'clusterName' is a required parameter")
 	}
@@ -536,8 +536,17 @@ func (c *EKSConfiguration) Validate(scalingConfigurationType ScalingConfiguratio
 	}
 
 	if c.MixedInstancesPolicy != nil {
+		if hasWarmPool {
+			return errors.Errorf("validation failed, cannot use warmPool with MixedInstancesPolicy")
+		}
 		if err := c.MixedInstancesPolicy.Validate(); err != nil {
 			return err
+		}
+	}
+
+	if !common.StringEmpty(c.SpotPrice) {
+		if hasWarmPool {
+			return errors.Errorf("validation failed, cannot use warmPool with SpotPrice")
 		}
 	}
 
@@ -661,7 +670,7 @@ func (ig *InstanceGroup) Validate() error {
 			return err
 		}
 
-		if err := config.Validate(spec.Type); err != nil {
+		if err := config.Validate(spec.Type, spec.HasWarmPool()); err != nil {
 			return err
 		}
 	}
