@@ -168,17 +168,17 @@ func (c *ProvisionerConfiguration) setRestrictedFields(unstructuredInstanceGroup
 	for _, pathStr := range c.Boundaries.Restricted {
 		path := common.FieldPath(pathStr)
 		// if a default value exists for the path, set it on the instance group
-		var setField = false
-		var field interface{}
+		var setFieldInAnyConditional = false
 		for _, conditional := range applicableConditionals {
-			if field, setField, _ = unstructured.NestedFieldCopy(conditional.Defaults, path...); setField {
+			if field, setField, _ := unstructured.NestedFieldCopy(conditional.Defaults, path...); setField {
+				setFieldInAnyConditional = true
 				err := unstructured.SetNestedField(unstructuredInstanceGroup, field, path...)
 				if err != nil {
 					errors.Wrap(err, "failed to set nested field")
 				}
 			}
 		}
-		if setField {
+		if setFieldInAnyConditional {
 			continue
 		}
 		if field, ok, _ := unstructured.NestedFieldCopy(c.Defaults, path...); ok {
