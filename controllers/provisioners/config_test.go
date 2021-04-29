@@ -193,12 +193,18 @@ func TestSetDefaultsWithRestrictedConditional(t *testing.T) {
       eks:
         configuration:
           image: ami-22222222222
-- annotationSelector: "instancemgr.keikoproj.io/arch=arm64"
+- annotationSelector: "instancemgr.keikoproj.io/arch in (arm64), instancemgr.keikoproj.io/os-family in (windows)"
   defaults:
     spec:
       eks:
         configuration:
           image: ami-33333333333
+- annotationSelector: "instancemgr.keikoproj.io/arch in (arm64), instancemgr.keikoproj.io/os-family in (windows)"
+  defaults:
+    spec:
+      eks:
+        configuration:
+          foo: bar
 `
 
 	mockDefaults := `
