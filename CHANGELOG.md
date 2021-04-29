@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
+## [v0.11.1-alpha2] - 2020-4-29
+
+### Fixed
+
+- Only set restricted field to default value if none of the conditionals set it (#284)
 
 ## [v0.11.0-alpha2] - 2020-4-28
 
