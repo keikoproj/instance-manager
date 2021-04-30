@@ -144,6 +144,15 @@ mkfs.xfs /dev/xvda
 mkdir /mnt/foo
 mount /dev/xvda /mnt/foo
 mount
+if [[ $(type -P $(which aws)) ]] && [[ $(type -P $(which jq)) ]] ; then
+	INSTANCE_ID=$(curl http://169.254.169.254/latest/meta-data/instance-id)
+	REGION=$(curl http://169.254.169.254/latest/meta-data/placement/region)
+	LIFECYCLE=$(aws autoscaling describe-auto-scaling-instances --region $REGION --instance-id $INSTANCE_ID | jq ".AutoScalingInstances[].LifecycleState" || true)
+	if [[ $LIFECYCLE == *"Warmed"* ]]; then
+		rm /var/lib/cloud/instances/$INSTANCE_ID/sem/config_scripts_user
+		exit 0
+	fi
+fi
 set -o xtrace
 /etc/eks/bootstrap.sh foo --use-max-pods false --kubelet-extra-args '--node-labels=foo=bar,instancemgr.keikoproj.io/image=ami-123456789012,node.kubernetes.io/role=instance-group-1 --register-with-taints=foo=bar:NoSchedule --eviction-hard=memory.available<300Mi,nodefs.available<5% --system-reserved=memory=2.5Gi --v=2 --max-pods=4'
 set +o xtrace
