@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
+## [v0.11.1-alpha2] - 2020-4-29
+
+### Fixed
+
+- Only set restricted field to default value if none of the conditionals set it (#284)
+
+## [v0.11.0-alpha2] - 2020-4-28
+
+### Fixed
+
+- Functional-test fixes (#272, #276)
+- Add build stage to Github Actions (#281)
+- Add locking to Namespaces map access (#279)
+
+### Added
+
+- annotation for IRSA enabled nodes (#271)
+- add image default label to nodes (#270) 
+- prometheus metrics integration (#274)
+- conditional default values (#273)
 
 ## [v0.10.1-alpha2] - 2020-4-01
 
