@@ -506,10 +506,12 @@ type MockAutoScalingClient struct {
 	DeleteLifecycleHookCallCount           int
 	PutWarmPoolCallCount                   int
 	DeleteWarmPoolCallCount                int
+	DescribeWarmPoolCallCount              int
 	LaunchConfiguration                    *autoscaling.LaunchConfiguration
 	LaunchConfigurations                   []*autoscaling.LaunchConfiguration
 	AutoScalingGroup                       *autoscaling.Group
 	AutoScalingGroups                      []*autoscaling.Group
+	WarmPoolInstances                      []*autoscaling.Instance
 	LifecycleHooks                         []*autoscaling.LifecycleHook
 }
 
@@ -603,7 +605,8 @@ func (a *MockAutoScalingClient) PutLifecycleHook(input *autoscaling.PutLifecycle
 }
 
 func (a *MockAutoScalingClient) DescribeWarmPool(input *autoscaling.DescribeWarmPoolInput) (*autoscaling.DescribeWarmPoolOutput, error) {
-	return &autoscaling.DescribeWarmPoolOutput{}, a.DescribeWarmPoolErr
+	a.DescribeWarmPoolCallCount++
+	return &autoscaling.DescribeWarmPoolOutput{Instances: a.WarmPoolInstances}, a.DescribeWarmPoolErr
 }
 
 func (a *MockAutoScalingClient) DeleteWarmPool(input *autoscaling.DeleteWarmPoolInput) (*autoscaling.DeleteWarmPoolOutput, error) {

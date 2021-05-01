@@ -103,7 +103,7 @@ func (ctx *EksInstanceGroupContext) BootstrapNodes() error {
 	return common.UpsertAuthConfigMap(ctx.KubernetesClient.Kubernetes, []string{roleARN}, []string{osFamily})
 }
 
-// rotateWarmPool checks for mismatched instances and if there are any, it deletes the warm pool
+// rotateWarmPool checks for drifted instances and if there are any, it deletes the warm pool
 func (ctx *EksInstanceGroupContext) rotateWarmPool() (bool, error) {
 	var (
 		instanceGroup    = ctx.GetInstanceGroup()
@@ -124,13 +124,13 @@ func (ctx *EksInstanceGroupContext) rotateWarmPool() (bool, error) {
 		return true, err
 	}
 
-	mismatchedInstances := ctx.getMismatchedInstances(warmPoolOutput.Instances)
-	if len(mismatchedInstances) == 0 {
+	driftedInstances := ctx.getDriftedInstances(warmPoolOutput.Instances)
+	if len(driftedInstances) == 0 {
 		return false, nil
 	}
 
-	// now that we know there are mismatched instances, we can delete the warm pool
-	ctx.Log.Info("found mismatched instances to be", "mismatchedInstances", mismatchedInstances)
+	// now that we know there are drifted instances, we can delete the warm pool
+	ctx.Log.Info("found drifted instances to be", "driftedInstances", driftedInstances)
 
 	if err := ctx.AwsWorker.DeleteWarmPool(scalingGroupName); err != nil {
 		ctx.Log.Info("failed to delete warm pool", "error", err)
@@ -140,8 +140,8 @@ func (ctx *EksInstanceGroupContext) rotateWarmPool() (bool, error) {
 	return true, nil
 }
 
-// getMismatchedInstances gets all Instances that need update by checking if either LaunchConfig/ Launch Template have changed
-func (ctx *EksInstanceGroupContext) getMismatchedInstances(instances []*autoscaling.Instance) []string {
+// getDriftedInstances gets all Instances that need update by checking if either LaunchConfig/ Launch Template have changed
+func (ctx *EksInstanceGroupContext) getDriftedInstances(instances []*autoscaling.Instance) []string {
 	var (
 		needsUpdate     []string
 		state           = ctx.GetDiscoveredState()
@@ -229,7 +229,7 @@ func (ctx *EksInstanceGroupContext) NewRollingUpdateRequest() *kubeprovider.Roll
 	)
 
 	// Get all Autoscaling Instances that needs update
-	needsUpdate = ctx.getMismatchedInstances(scalingGroup.Instances)
+	needsUpdate = ctx.getDriftedInstances(scalingGroup.Instances)
 
 	for _, instance := range scalingGroup.Instances {
 		var (

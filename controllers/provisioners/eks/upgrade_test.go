@@ -331,3 +331,75 @@ func TestUpgradeRollingUpdateStrategyPositive(t *testing.T) {
 		g.Expect(ctx.GetState()).To(gomega.Equal(tc.expectedState))
 	}
 }
+
+func TestRotateWarmPool(t *testing.T) {
+	var (
+		g       = gomega.NewGomegaWithT(t)
+		k       = MockKubernetesClientSet()
+		ig      = MockInstanceGroup()
+		asgMock = NewAutoScalingMocker()
+		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	ctx := MockContext(ig, k, w)
+
+	tests := []struct {
+		isDrifted      bool
+		warmPoolSpec   *v1alpha1.WarmPoolSpec
+		warmPoolConfig *autoscaling.WarmPoolConfiguration
+		shouldRequeue  bool
+		shouldDelete   bool
+	}{
+		// if warmPoolSpec is not configured, rotation should be skipped
+		{warmPoolSpec: nil, shouldRequeue: false},
+		// if warmPoolConfig is not configured, rotation should be skipped
+		{warmPoolConfig: nil, shouldRequeue: false},
+		// if warm pool instances are not drifted, rotation should be skipped
+		{warmPoolSpec: MockWarmPoolSpec(-1, 0), warmPoolConfig: MockWarmPool(-1, 0, ""), isDrifted: false, shouldRequeue: false},
+		// if warm pool instances are drifted, we should rotate
+		{warmPoolSpec: MockWarmPoolSpec(-1, 0), warmPoolConfig: MockWarmPool(-1, 0, ""), isDrifted: true, shouldRequeue: true},
+	}
+
+	for i, tc := range tests {
+		t.Logf("test #%v", i)
+		ig.Spec.EKSSpec.WarmPool = tc.warmPoolSpec
+		asgMock.DeleteWarmPoolCallCount = 0
+		asgMock.PutWarmPoolCallCount = 0
+		asgMock.DescribeWarmPoolCallCount = 0
+
+		if tc.isDrifted {
+			asgMock.WarmPoolInstances = MockScalingInstances(2, 2)
+		} else {
+			asgMock.WarmPoolInstances = MockScalingInstances(4, 0)
+		}
+
+		mockScalingGroup := MockScalingGroup("my-asg", false)
+		mockScalingGroup.LaunchConfigurationName = aws.String("some-launch-config")
+		mockScalingGroup.WarmPoolConfiguration = tc.warmPoolConfig
+
+		scalingConfig, err := scaling.NewLaunchConfiguration("", w, &scaling.DiscoverConfigurationInput{ScalingGroup: mockScalingGroup})
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+
+		ctx.SetDiscoveredState(&DiscoveredState{
+			Publisher: kubeprovider.EventPublisher{
+				Client: k.Kubernetes,
+			},
+			ScalingGroup:         mockScalingGroup,
+			ScalingConfiguration: scalingConfig,
+		})
+
+		ok, err := ctx.rotateWarmPool()
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+
+		if tc.shouldDelete {
+			g.Expect(asgMock.DeleteWarmPoolCallCount).To(gomega.Equal(1))
+			g.Expect(asgMock.DescribeWarmPoolCallCount).To(gomega.Equal(1))
+		}
+		if tc.shouldRequeue {
+			g.Expect(ok).To(gomega.BeTrue())
+		}
+	}
+}
