@@ -94,6 +94,21 @@ func MockEksCluster(version string) *eks.Cluster {
 	}
 }
 
+func MockWarmPoolSpec(maxSize, minSize int64) *v1alpha1.WarmPoolSpec {
+	return &v1alpha1.WarmPoolSpec{
+		MaxSize: maxSize,
+		MinSize: minSize,
+	}
+}
+
+func MockWarmPool(maxSize, minSize int64, status string) *autoscaling.WarmPoolConfiguration {
+	return &autoscaling.WarmPoolConfiguration{
+		MaxGroupPreparedCapacity: aws.Int64(maxSize),
+		MinSize:                  aws.Int64(minSize),
+		Status:                   aws.String(status),
+	}
+}
+
 func MockKubernetesClientSet() kubeprovider.KubernetesClientSet {
 	return kubeprovider.KubernetesClientSet{
 		Kubernetes:  fake.NewSimpleClientset(),
@@ -483,9 +498,14 @@ type MockAutoScalingClient struct {
 	DescribeLifecycleHooksErr              error
 	PutLifecycleHookErr                    error
 	DeleteLifecycleHookErr                 error
+	DescribeWarmPoolErr                    error
+	DeleteWarmPoolErr                      error
+	PutWarmPoolErr                         error
 	DeleteLaunchConfigurationCallCount     int
 	PutLifecycleHookCallCount              int
 	DeleteLifecycleHookCallCount           int
+	PutWarmPoolCallCount                   int
+	DeleteWarmPoolCallCount                int
 	LaunchConfiguration                    *autoscaling.LaunchConfiguration
 	LaunchConfigurations                   []*autoscaling.LaunchConfiguration
 	AutoScalingGroup                       *autoscaling.Group
@@ -580,6 +600,20 @@ func (a *MockAutoScalingClient) DeleteLifecycleHook(input *autoscaling.DeleteLif
 func (a *MockAutoScalingClient) PutLifecycleHook(input *autoscaling.PutLifecycleHookInput) (*autoscaling.PutLifecycleHookOutput, error) {
 	a.PutLifecycleHookCallCount++
 	return &autoscaling.PutLifecycleHookOutput{}, a.PutLifecycleHookErr
+}
+
+func (a *MockAutoScalingClient) DescribeWarmPool(input *autoscaling.DescribeWarmPoolInput) (*autoscaling.DescribeWarmPoolOutput, error) {
+	return &autoscaling.DescribeWarmPoolOutput{}, a.DescribeWarmPoolErr
+}
+
+func (a *MockAutoScalingClient) DeleteWarmPool(input *autoscaling.DeleteWarmPoolInput) (*autoscaling.DeleteWarmPoolOutput, error) {
+	a.DeleteWarmPoolCallCount++
+	return &autoscaling.DeleteWarmPoolOutput{}, a.DeleteWarmPoolErr
+}
+
+func (a *MockAutoScalingClient) PutWarmPool(input *autoscaling.PutWarmPoolInput) (*autoscaling.PutWarmPoolOutput, error) {
+	a.PutWarmPoolCallCount++
+	return &autoscaling.PutWarmPoolOutput{}, a.PutWarmPoolErr
 }
 
 type MockEc2Client struct {

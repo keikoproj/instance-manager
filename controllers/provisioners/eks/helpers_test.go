@@ -863,3 +863,70 @@ func TestUpdateLifecycleHooks(t *testing.T) {
 		g.Expect(len(tc.expectedAdded)).To(gomega.Equal(asgMock.PutLifecycleHookCallCount))
 	}
 }
+
+func TestUpdateWarmPool(t *testing.T) {
+	var (
+		g       = gomega.NewGomegaWithT(t)
+		k       = MockKubernetesClientSet()
+		ig      = MockInstanceGroup()
+		asgMock = NewAutoScalingMocker()
+		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	ctx := MockContext(ig, k, w)
+
+	tests := []struct {
+		warmPoolSpec          *v1alpha1.WarmPoolSpec
+		warmPoolConfiguration *autoscaling.WarmPoolConfiguration
+		shouldDelete          bool
+		shouldUpdate          bool
+		shouldRequeue         bool
+	}{
+		// no update/delete needed
+		{warmPoolConfiguration: nil, warmPoolSpec: nil},
+		// enable warm pool - update
+		{warmPoolConfiguration: nil, warmPoolSpec: MockWarmPoolSpec(-1, 0), shouldUpdate: true},
+		// disable warm pool - delete
+		{warmPoolConfiguration: MockWarmPool(-1, 0, ""), warmPoolSpec: nil, shouldDelete: true},
+		// scale change (min)
+		{warmPoolConfiguration: MockWarmPool(-1, 1, ""), warmPoolSpec: MockWarmPoolSpec(-1, 0), shouldUpdate: true},
+		{warmPoolConfiguration: MockWarmPool(-1, 0, ""), warmPoolSpec: MockWarmPoolSpec(-1, 1), shouldUpdate: true},
+		// scale change (max)
+		{warmPoolConfiguration: MockWarmPool(3, 0, ""), warmPoolSpec: MockWarmPoolSpec(-1, 0), shouldUpdate: true},
+		{warmPoolConfiguration: MockWarmPool(-1, 0, ""), warmPoolSpec: MockWarmPoolSpec(3, 0), shouldUpdate: true},
+		// deleting - should requeue
+		{warmPoolConfiguration: MockWarmPool(-1, 0, autoscaling.WarmPoolStatusPendingDelete), warmPoolSpec: MockWarmPoolSpec(-1, 0), shouldRequeue: true},
+	}
+
+	for i, tc := range tests {
+		t.Logf("test #%v", i)
+		asgMock.DeleteWarmPoolCallCount = 0
+		asgMock.PutWarmPoolCallCount = 0
+		ig.Spec.EKSSpec.WarmPool = tc.warmPoolSpec
+		scalingGroup := MockScalingGroup("my-asg", false)
+		scalingGroup.WarmPoolConfiguration = tc.warmPoolConfiguration
+
+		ctx.SetDiscoveredState(&DiscoveredState{
+			Publisher: kubeprovider.EventPublisher{
+				Client: k.Kubernetes,
+			},
+			ScalingGroup: scalingGroup,
+		})
+
+		err := ctx.UpdateWarmPool("my-asg")
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		if tc.shouldDelete {
+			g.Expect(asgMock.DeleteWarmPoolCallCount).To(gomega.Equal(1))
+		}
+		if tc.shouldUpdate {
+			g.Expect(asgMock.PutWarmPoolCallCount).To(gomega.Equal(1))
+		}
+		if tc.shouldRequeue {
+			g.Expect(asgMock.DeleteWarmPoolCallCount).To(gomega.Equal(0))
+			g.Expect(asgMock.PutWarmPoolCallCount).To(gomega.Equal(0))
+		}
+	}
+}
