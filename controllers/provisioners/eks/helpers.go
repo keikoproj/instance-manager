@@ -954,6 +954,7 @@ func (ctx *EksInstanceGroupContext) UpdateLifecycleHooks(asgName string) error {
 func (ctx *EksInstanceGroupContext) GetManagedPoliciesList(additionalPolicies []string) []string {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
+		spec          = instanceGroup.GetEKSSpec()
 		annotations   = instanceGroup.GetAnnotations()
 	)
 
@@ -982,6 +983,10 @@ func (ctx *EksInstanceGroupContext) GetManagedPoliciesList(additionalPolicies []
 
 	if !irsaEnabled {
 		managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, CNIManagedPolicy))
+	}
+
+	if spec.HasWarmPool() {
+		managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, AutoscalingReadOnlyPolicy))
 	}
 
 	return managedPolicies
