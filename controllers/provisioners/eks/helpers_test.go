@@ -898,7 +898,7 @@ func TestUpdateWarmPool(t *testing.T) {
 		{warmPoolConfiguration: MockWarmPool(3, 0, ""), warmPoolSpec: MockWarmPoolSpec(-1, 0), shouldUpdate: true},
 		{warmPoolConfiguration: MockWarmPool(-1, 0, ""), warmPoolSpec: MockWarmPoolSpec(3, 0), shouldUpdate: true},
 		// deleting - should requeue
-		{warmPoolConfiguration: MockWarmPool(-1, 0, autoscaling.WarmPoolStatusPendingDelete), warmPoolSpec: MockWarmPoolSpec(-1, 0), shouldRequeue: true},
+		{warmPoolConfiguration: MockWarmPool(-1, 0, autoscaling.WarmPoolStatusPendingDelete), warmPoolSpec: nil, shouldRequeue: true},
 	}
 
 	for i, tc := range tests {
