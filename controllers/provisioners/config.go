@@ -34,12 +34,14 @@ var (
 	EKSTagsPath           = fmt.Sprintf("%v.tags", EKSConfigurationPath)
 	EKSVolumesPath        = fmt.Sprintf("%v.volumes", EKSConfigurationPath)
 	EKSLifecycleHooksPath = fmt.Sprintf("%v.lifecycleHooks", EKSConfigurationPath)
+	EKSUserDataPath       = fmt.Sprintf("%v.userData", EKSConfigurationPath)
 
 	// MergeSchema defines the key to merge by
 	MergeSchema = map[string]string{
 		EKSTagsPath:           "key",
 		EKSVolumesPath:        "name",
 		EKSLifecycleHooksPath: "name",
+		EKSUserDataPath:       "name",
 	}
 )
 
@@ -255,13 +257,15 @@ func (c *ProvisionerConfiguration) setSharedFields(obj map[string]interface{}) e
 		for _, conditional := range applicableConditionals {
 			conditionalValue := common.FieldValue(pathStr, conditional.Defaults)
 			if conditionalValue != nil {
-				if isConflict(conditionalValue, resourceVal) {
-					merge := Merge(conditionalValue, resourceVal, pathStr, false)
+				if isConflict(conditionalValue, defaultVal) {
+					merge := Merge(conditionalValue, defaultVal, pathStr, false)
 					if err := common.SetFieldValue(pathStr, obj, merge); err != nil {
 						return errors.Wrap(err, "failed to merge field")
 					}
-					resourceVal = merge
+					defaultVal = merge
 					continue
+				} else {
+					defaultVal = conditionalValue
 				}
 			}
 		}
@@ -291,7 +295,17 @@ func (c *ProvisionerConfiguration) setSharedFields(obj map[string]interface{}) e
 		for _, conditional := range applicableConditionals {
 			conditionalValue := common.FieldValue(pathStr, conditional.Defaults)
 			if conditionalValue != nil {
-				defaultVal = conditionalValue
+				if isConflict(conditionalValue, defaultVal) {
+					//Merge conditional into default, with conditional overriding any conflicting values.
+					merge := Merge(conditionalValue,defaultVal, pathStr, false)
+					if err := common.SetFieldValue(pathStr, obj, merge); err != nil {
+						return errors.Wrap(err, "failed to merge field")
+					}
+					defaultVal = merge
+					continue
+				} else {
+					defaultVal = conditionalValue
+				}
 			}
 		}
 
