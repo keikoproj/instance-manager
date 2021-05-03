@@ -53,6 +53,7 @@ var (
 	InstanceMgrLifecycleLabel = "instancemgr.keikoproj.io/lifecycle"
 	InstanceMgrImageLabel     = "instancemgr.keikoproj.io/image"
 
+	AllowedOsFamilies         = []string{OsFamilyWindows, OsFamilyBottleRocket, OsFamilyAmazonLinux2}
 	DefaultManagedPolicies    = []string{"AmazonEKSWorkerNodePolicy", "AmazonEC2ContainerRegistryReadOnly"}
 	CNIManagedPolicy          = "AmazonEKS_CNI_Policy"
 	AutoscalingReadOnlyPolicy = "AutoScalingReadOnlyAccess"
@@ -135,8 +136,12 @@ func (ctx *EksInstanceGroupContext) GetOsFamily() string {
 		instanceGroup = ctx.GetInstanceGroup()
 		annotations   = instanceGroup.GetAnnotations()
 	)
-	if _, exists := annotations[OsFamilyAnnotation]; exists {
-		return annotations[OsFamilyAnnotation]
+
+	if v, exists := annotations[OsFamilyAnnotation]; exists {
+		if common.ContainsEqualFold(AllowedOsFamilies, v) {
+			return annotations[OsFamilyAnnotation]
+		}
+		ctx.Log.Info("used unsupported annotation value '%v=%v', will default to 'amazonlinux2', allowed values: %+v", OsFamilyAnnotation, v, AllowedOsFamilies)
 	}
 
 	return OsFamilyAmazonLinux2
