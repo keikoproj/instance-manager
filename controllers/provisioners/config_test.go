@@ -344,19 +344,35 @@ func TestSetDefaultsWithSharedConditionalMergeOverride(t *testing.T) {
 	mockBoundaries := `
     shared:
       mergeOverride: 
+      - spec.eks.configuration.userData
       - spec.eks.configuration.tags`
-
 	mockConditionals := `
 - annotationSelector: "instancemgr.keikoproj.io/arch in (arm64),instancemgr.keikoproj.io/os-family in (windows)"
   defaults:
     spec:
       eks:
         configuration:
+          userData: 
+          - data: |
+              [settings.bootstrap-containers.warm]
+              source = "docker:image"
+              mode = "always"
+              essential = "true"
+            name: warm
+            stage: PostBootstrap
           tags:
           - key: tag-A
             value: value-A
           - key: tag-B
-            value: value-B`
+            value: value-B
+- annotationSelector: "instancemgr.keikoproj.io/arch in (arm64),instancemgr.keikoproj.io/os-family in (windows)"
+  defaults:
+    spec:
+      eks:
+        configuration:
+          tags:
+          - key: tag-X
+            value: value-X`
 	mockDefaults := `
 spec:
   strategy:
@@ -396,10 +412,12 @@ spec:
 	//Should not replace
 	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups).To(gomega.Equal([]string{"sg-000000000000"}))
 	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Tags).To(gomega.Equal([]map[string]string{
+		MockTag("tag-X", "value-X"),
 		MockTag("tag-A", "value-D"),
 		MockTag("tag-B", "value-B"),
 		MockTag("tag-C", "value-C"),
 	}))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.UserData).To(gomega.HaveLen(1))
 }
 
 func TestSetDefaultsWithInvalidConditionalYAML(t *testing.T) {
@@ -545,8 +563,8 @@ spec:
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	//Should not replace
 	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups).To(gomega.Equal([]string{
-		"sg-1234",
 		"sg-923456789012",
+		"sg-1234",
 		"sg-000000000000",
 	}))
 }
