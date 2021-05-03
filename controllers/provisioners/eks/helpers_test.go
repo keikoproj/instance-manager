@@ -860,8 +860,8 @@ func TestUpdateLifecycleHooks(t *testing.T) {
 		g.Expect(added).To(gomega.Equal(tc.expectedAdded))
 
 		ctx.UpdateLifecycleHooks("my-asg")
-		g.Expect(len(tc.expectedRemoved)).To(gomega.Equal(asgMock.DeleteLifecycleHookCallCount))
-		g.Expect(len(tc.expectedAdded)).To(gomega.Equal(asgMock.PutLifecycleHookCallCount))
+		g.Expect(uint(len(tc.expectedRemoved))).To(gomega.Equal(asgMock.DeleteLifecycleHookCallCount))
+		g.Expect(uint(len(tc.expectedAdded))).To(gomega.Equal(asgMock.PutLifecycleHookCallCount))
 	}
 }
 
@@ -920,14 +920,14 @@ func TestUpdateWarmPool(t *testing.T) {
 		err := ctx.UpdateWarmPool("my-asg")
 		g.Expect(err).NotTo(gomega.HaveOccurred())
 		if tc.shouldDelete {
-			g.Expect(asgMock.DeleteWarmPoolCallCount).To(gomega.Equal(1))
+			g.Expect(asgMock.DeleteWarmPoolCallCount).To(gomega.Equal(uint(1)))
 		}
 		if tc.shouldUpdate {
-			g.Expect(asgMock.PutWarmPoolCallCount).To(gomega.Equal(1))
+			g.Expect(asgMock.PutWarmPoolCallCount).To(gomega.Equal(uint(1)))
 		}
 		if tc.shouldRequeue {
-			g.Expect(asgMock.DeleteWarmPoolCallCount).To(gomega.Equal(0))
-			g.Expect(asgMock.PutWarmPoolCallCount).To(gomega.Equal(0))
+			g.Expect(asgMock.DeleteWarmPoolCallCount).To(gomega.Equal(uint(0)))
+			g.Expect(asgMock.PutWarmPoolCallCount).To(gomega.Equal(uint(0)))
 		}
 	}
 }

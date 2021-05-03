@@ -132,7 +132,7 @@ func TestCreateLaunchTemplatePositive(t *testing.T) {
 
 	g.Expect(ig.GetStatus().GetActiveLaunchTemplateName()).To(gomega.HavePrefix(prefix))
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModified))
-	g.Expect(ec2Mock.CreateLaunchTemplateCallCount).To(gomega.Equal(1))
+	g.Expect(ec2Mock.CreateLaunchTemplateCallCount).To(gomega.Equal(uint(1)))
 }
 
 func TestCreateScalingGroupPositive(t *testing.T) {

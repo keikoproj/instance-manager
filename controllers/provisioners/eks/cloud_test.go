@@ -477,5 +477,5 @@ func TestLaunchConfigDeletion(t *testing.T) {
 
 	err := ctx.CloudDiscovery()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
-	g.Expect(asgMock.DeleteLaunchConfigurationCallCount).To(gomega.Equal(2))
+	g.Expect(asgMock.DeleteLaunchConfigurationCallCount).To(gomega.Equal(uint(2)))
 }

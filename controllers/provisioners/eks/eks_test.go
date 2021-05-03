@@ -501,12 +501,12 @@ type MockAutoScalingClient struct {
 	DescribeWarmPoolErr                    error
 	DeleteWarmPoolErr                      error
 	PutWarmPoolErr                         error
-	DeleteLaunchConfigurationCallCount     int
-	PutLifecycleHookCallCount              int
-	DeleteLifecycleHookCallCount           int
-	PutWarmPoolCallCount                   int
-	DeleteWarmPoolCallCount                int
-	DescribeWarmPoolCallCount              int
+	DeleteLaunchConfigurationCallCount     uint
+	PutLifecycleHookCallCount              uint
+	DeleteLifecycleHookCallCount           uint
+	PutWarmPoolCallCount                   uint
+	DeleteWarmPoolCallCount                uint
+	DescribeWarmPoolCallCount              uint
 	LaunchConfiguration                    *autoscaling.LaunchConfiguration
 	LaunchConfigurations                   []*autoscaling.LaunchConfiguration
 	AutoScalingGroup                       *autoscaling.Group
@@ -623,10 +623,10 @@ type MockEc2Client struct {
 	ec2iface.EC2API
 	DescribeSubnetsErr                   error
 	DescribeSecurityGroupsErr            error
-	CreateLaunchTemplateCallCount        int
-	CreateLaunchTemplateVersionCallCount int
-	ModifyLaunchTemplateCallCount        int
-	DeleteLaunchTemplateCallCount        int
+	CreateLaunchTemplateCallCount        uint
+	CreateLaunchTemplateVersionCallCount uint
+	ModifyLaunchTemplateCallCount        uint
+	DeleteLaunchTemplateCallCount        uint
 	Subnets                              []*ec2.Subnet
 	SecurityGroups                       []*ec2.SecurityGroup
 	LaunchTemplates                      []*ec2.LaunchTemplate
@@ -755,9 +755,9 @@ type MockIamClient struct {
 	AddRoleToInstanceProfileErr       error
 	RemoveRoleFromInstanceProfileErr  error
 	AttachRolePolicyErr               error
-	AttachRolePolicyCallCount         int
+	AttachRolePolicyCallCount         uint
 	DetachRolePolicyErr               error
-	DetachRolePolicyCallCount         int
+	DetachRolePolicyCallCount         uint
 	WaitUntilInstanceProfileExistsErr error
 	ListAttachedRolePoliciesErr       error
 	Role                              *iam.Role

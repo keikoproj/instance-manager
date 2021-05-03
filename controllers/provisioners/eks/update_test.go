@@ -212,8 +212,8 @@ func TestUpdateWithLaunchTemplate(t *testing.T) {
 
 	err = ctx.Update()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
-	g.Expect(ec2Mock.CreateLaunchTemplateVersionCallCount).To(gomega.Equal(1))
-	g.Expect(ec2Mock.ModifyLaunchTemplateCallCount).To(gomega.Equal(1))
+	g.Expect(ec2Mock.CreateLaunchTemplateVersionCallCount).To(gomega.Equal(uint(1)))
+	g.Expect(ec2Mock.ModifyLaunchTemplateCallCount).To(gomega.Equal(uint(1)))
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
 
 	state := ctx.GetDiscoveredState()
@@ -262,8 +262,8 @@ func TestUpdateWithLaunchTemplate(t *testing.T) {
 
 	err = ctx.Update()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
-	g.Expect(ec2Mock.CreateLaunchTemplateVersionCallCount).To(gomega.Equal(1))
-	g.Expect(ec2Mock.ModifyLaunchTemplateCallCount).To(gomega.Equal(1))
+	g.Expect(ec2Mock.CreateLaunchTemplateVersionCallCount).To(gomega.Equal(uint(1)))
+	g.Expect(ec2Mock.ModifyLaunchTemplateCallCount).To(gomega.Equal(uint(1)))
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
 
 	ec2Mock.CreateLaunchTemplateVersionCallCount = 0
@@ -290,8 +290,8 @@ func TestUpdateWithLaunchTemplate(t *testing.T) {
 
 	err = ctx.Update()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
-	g.Expect(ec2Mock.CreateLaunchTemplateVersionCallCount).To(gomega.Equal(1))
-	g.Expect(ec2Mock.ModifyLaunchTemplateCallCount).To(gomega.Equal(1))
+	g.Expect(ec2Mock.CreateLaunchTemplateVersionCallCount).To(gomega.Equal(uint(1)))
+	g.Expect(ec2Mock.ModifyLaunchTemplateCallCount).To(gomega.Equal(uint(1)))
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
 }
 
@@ -633,8 +633,8 @@ func TestUpdateManagedPolicies(t *testing.T) {
 	tests := []struct {
 		attachedPolicies   []*iam.AttachedPolicy
 		additionalPolicies []string
-		expectedAttached   int
-		expectedDetached   int
+		expectedAttached   uint
+		expectedDetached   uint
 		irsaEnabled        bool
 		hasWarmPool        bool
 	}{
