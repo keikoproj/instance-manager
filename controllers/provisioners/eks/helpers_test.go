@@ -144,6 +144,16 @@ mkfs.xfs /dev/xvda
 mkdir /mnt/foo
 mount /dev/xvda /mnt/foo
 mount
+if [[ $(type -P $(which aws)) ]] && [[ $(type -P $(which jq)) ]] ; then
+	TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+	INSTANCE_ID=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
+	REGION=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
+	LIFECYCLE=$(aws autoscaling describe-auto-scaling-instances --region $REGION --instance-id $INSTANCE_ID | jq ".AutoScalingInstances[].LifecycleState" || true)
+	if [[ $LIFECYCLE == *"Warmed"* ]]; then
+		rm /var/lib/cloud/instances/$INSTANCE_ID/sem/config_scripts_user
+		exit 0
+	fi
+fi
 set -o xtrace
 /etc/eks/bootstrap.sh foo --use-max-pods false --kubelet-extra-args '--node-labels=foo=bar,instancemgr.keikoproj.io/image=ami-123456789012,node.kubernetes.io/role=instance-group-1 --register-with-taints=foo=bar:NoSchedule --eviction-hard=memory.available<300Mi,nodefs.available<5% --system-reserved=memory=2.5Gi --v=2 --max-pods=4'
 set +o xtrace
@@ -850,7 +860,74 @@ func TestUpdateLifecycleHooks(t *testing.T) {
 		g.Expect(added).To(gomega.Equal(tc.expectedAdded))
 
 		ctx.UpdateLifecycleHooks("my-asg")
-		g.Expect(len(tc.expectedRemoved)).To(gomega.Equal(asgMock.DeleteLifecycleHookCallCount))
-		g.Expect(len(tc.expectedAdded)).To(gomega.Equal(asgMock.PutLifecycleHookCallCount))
+		g.Expect(uint(len(tc.expectedRemoved))).To(gomega.Equal(asgMock.DeleteLifecycleHookCallCount))
+		g.Expect(uint(len(tc.expectedAdded))).To(gomega.Equal(asgMock.PutLifecycleHookCallCount))
+	}
+}
+
+func TestUpdateWarmPool(t *testing.T) {
+	var (
+		g       = gomega.NewGomegaWithT(t)
+		k       = MockKubernetesClientSet()
+		ig      = MockInstanceGroup()
+		asgMock = NewAutoScalingMocker()
+		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	ctx := MockContext(ig, k, w)
+
+	tests := []struct {
+		warmPoolSpec          *v1alpha1.WarmPoolSpec
+		warmPoolConfiguration *autoscaling.WarmPoolConfiguration
+		shouldDelete          bool
+		shouldUpdate          bool
+		shouldRequeue         bool
+	}{
+		// no update/delete needed
+		{warmPoolConfiguration: nil, warmPoolSpec: nil},
+		// enable warm pool - update
+		{warmPoolConfiguration: nil, warmPoolSpec: MockWarmPoolSpec(-1, 0), shouldUpdate: true},
+		// disable warm pool - delete
+		{warmPoolConfiguration: MockWarmPool(-1, 0, ""), warmPoolSpec: nil, shouldDelete: true},
+		// scale change (min)
+		{warmPoolConfiguration: MockWarmPool(-1, 1, ""), warmPoolSpec: MockWarmPoolSpec(-1, 0), shouldUpdate: true},
+		{warmPoolConfiguration: MockWarmPool(-1, 0, ""), warmPoolSpec: MockWarmPoolSpec(-1, 1), shouldUpdate: true},
+		// scale change (max)
+		{warmPoolConfiguration: MockWarmPool(3, 0, ""), warmPoolSpec: MockWarmPoolSpec(-1, 0), shouldUpdate: true},
+		{warmPoolConfiguration: MockWarmPool(-1, 0, ""), warmPoolSpec: MockWarmPoolSpec(3, 0), shouldUpdate: true},
+		// deleting - should requeue
+		{warmPoolConfiguration: MockWarmPool(-1, 0, autoscaling.WarmPoolStatusPendingDelete), warmPoolSpec: nil, shouldRequeue: true},
+	}
+
+	for i, tc := range tests {
+		t.Logf("test #%v", i)
+		asgMock.DeleteWarmPoolCallCount = 0
+		asgMock.PutWarmPoolCallCount = 0
+		ig.Spec.EKSSpec.WarmPool = tc.warmPoolSpec
+		scalingGroup := MockScalingGroup("my-asg", false)
+		scalingGroup.WarmPoolConfiguration = tc.warmPoolConfiguration
+
+		ctx.SetDiscoveredState(&DiscoveredState{
+			Publisher: kubeprovider.EventPublisher{
+				Client: k.Kubernetes,
+			},
+			ScalingGroup: scalingGroup,
+		})
+
+		err := ctx.UpdateWarmPool("my-asg")
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		if tc.shouldDelete {
+			g.Expect(asgMock.DeleteWarmPoolCallCount).To(gomega.Equal(uint(1)))
+		}
+		if tc.shouldUpdate {
+			g.Expect(asgMock.PutWarmPoolCallCount).To(gomega.Equal(uint(1)))
+		}
+		if tc.shouldRequeue {
+			g.Expect(asgMock.DeleteWarmPoolCallCount).To(gomega.Equal(uint(0)))
+			g.Expect(asgMock.PutWarmPoolCallCount).To(gomega.Equal(uint(0)))
+		}
 	}
 }

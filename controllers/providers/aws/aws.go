@@ -46,6 +46,7 @@ var (
 
 const (
 	CacheDefaultTTL                   time.Duration = 0 * time.Second
+	DescribeWarmPoolTTL               time.Duration = 60 * time.Second
 	DescribeAutoScalingGroupsTTL      time.Duration = 60 * time.Second
 	DescribeLaunchConfigurationsTTL   time.Duration = 60 * time.Second
 	ListAttachedRolePoliciesTTL       time.Duration = 60 * time.Second
@@ -223,6 +224,39 @@ func (w *AwsWorker) DeleteLaunchTemplateVersions(name string, versions []string)
 
 func (w *AwsWorker) CreateLifecycleHook(input *autoscaling.PutLifecycleHookInput) error {
 	_, err := w.AsgClient.PutLifecycleHook(input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) DescribeWarmPool(asgName string) (*autoscaling.DescribeWarmPoolOutput, error) {
+	describeWarmPoolOutput, err := w.AsgClient.DescribeWarmPool(&autoscaling.DescribeWarmPoolInput{
+		AutoScalingGroupName: aws.String(asgName),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return describeWarmPoolOutput, nil
+}
+
+func (w *AwsWorker) UpdateWarmPool(asgName string, min, max int64) error {
+	_, err := w.AsgClient.PutWarmPool(&autoscaling.PutWarmPoolInput{
+		AutoScalingGroupName:     aws.String(asgName),
+		MaxGroupPreparedCapacity: aws.Int64(max),
+		MinSize:                  aws.Int64(min),
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *AwsWorker) DeleteWarmPool(asgName string) error {
+	_, err := w.AsgClient.DeleteWarmPool(&autoscaling.DeleteWarmPoolInput{
+		AutoScalingGroupName: aws.String(asgName),
+		ForceDelete:          aws.Bool(true),
+	})
 	if err != nil {
 		return err
 	}
@@ -1060,6 +1094,7 @@ func GetAwsAsgClient(region string, cacheCfg *cache.Config, maxRetries int, coll
 
 	cache.AddCaching(sess, cacheCfg)
 	cacheCfg.SetCacheTTL("autoscaling", "DescribeAutoScalingGroups", DescribeAutoScalingGroupsTTL)
+	cacheCfg.SetCacheTTL("autoscaling", "DescribeWarmPool", DescribeWarmPoolTTL)
 	cacheCfg.SetCacheTTL("autoscaling", "DescribeLaunchConfigurations", DescribeLaunchConfigurationsTTL)
 	cacheCfg.SetCacheTTL("autoscaling", "DescribeLifecycleHooks", DescribeLifecycleHooksTTL)
 	sess.Handlers.Complete.PushFront(func(r *request.Request) {

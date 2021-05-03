@@ -212,8 +212,8 @@ func TestUpdateWithLaunchTemplate(t *testing.T) {
 
 	err = ctx.Update()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
-	g.Expect(ec2Mock.CreateLaunchTemplateVersionCallCount).To(gomega.Equal(1))
-	g.Expect(ec2Mock.ModifyLaunchTemplateCallCount).To(gomega.Equal(1))
+	g.Expect(ec2Mock.CreateLaunchTemplateVersionCallCount).To(gomega.Equal(uint(1)))
+	g.Expect(ec2Mock.ModifyLaunchTemplateCallCount).To(gomega.Equal(uint(1)))
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
 
 	state := ctx.GetDiscoveredState()
@@ -262,8 +262,8 @@ func TestUpdateWithLaunchTemplate(t *testing.T) {
 
 	err = ctx.Update()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
-	g.Expect(ec2Mock.CreateLaunchTemplateVersionCallCount).To(gomega.Equal(1))
-	g.Expect(ec2Mock.ModifyLaunchTemplateCallCount).To(gomega.Equal(1))
+	g.Expect(ec2Mock.CreateLaunchTemplateVersionCallCount).To(gomega.Equal(uint(1)))
+	g.Expect(ec2Mock.ModifyLaunchTemplateCallCount).To(gomega.Equal(uint(1)))
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
 
 	ec2Mock.CreateLaunchTemplateVersionCallCount = 0
@@ -290,8 +290,8 @@ func TestUpdateWithLaunchTemplate(t *testing.T) {
 
 	err = ctx.Update()
 	g.Expect(err).NotTo(gomega.HaveOccurred())
-	g.Expect(ec2Mock.CreateLaunchTemplateVersionCallCount).To(gomega.Equal(1))
-	g.Expect(ec2Mock.ModifyLaunchTemplateCallCount).To(gomega.Equal(1))
+	g.Expect(ec2Mock.CreateLaunchTemplateVersionCallCount).To(gomega.Equal(uint(1)))
+	g.Expect(ec2Mock.ModifyLaunchTemplateCallCount).To(gomega.Equal(uint(1)))
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
 }
 
@@ -625,6 +625,7 @@ func TestUpdateManagedPolicies(t *testing.T) {
 
 	defaultPolicies := []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}
 	defaultPoliciesIrsa := []string{"AmazonEKSWorkerNodePolicy", "AmazonEC2ContainerRegistryReadOnly"}
+	defaultPoliciesWarmPool := []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly", "AutoScalingReadOnlyAccess"}
 
 	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
 	ctx := MockContext(ig, k, w)
@@ -632,9 +633,10 @@ func TestUpdateManagedPolicies(t *testing.T) {
 	tests := []struct {
 		attachedPolicies   []*iam.AttachedPolicy
 		additionalPolicies []string
-		expectedAttached   int
-		expectedDetached   int
+		expectedAttached   uint
+		expectedDetached   uint
 		irsaEnabled        bool
+		hasWarmPool        bool
 	}{
 		// default policies attached, no changes needed
 		{attachedPolicies: MockAttachedPolicies(defaultPolicies...), additionalPolicies: []string{}, expectedAttached: 0, expectedDetached: 0},
@@ -642,6 +644,10 @@ func TestUpdateManagedPolicies(t *testing.T) {
 		{attachedPolicies: MockAttachedPolicies(defaultPolicies...), additionalPolicies: []string{}, irsaEnabled: true, expectedAttached: 0, expectedDetached: 1},
 		// when IRSA is disabled, cni policy needs to be attached
 		{attachedPolicies: MockAttachedPolicies(defaultPoliciesIrsa...), additionalPolicies: []string{}, irsaEnabled: false, expectedAttached: 1, expectedDetached: 0},
+		// when warm pool is enabled, managed role is added
+		{attachedPolicies: MockAttachedPolicies(defaultPolicies...), additionalPolicies: []string{}, hasWarmPool: true, expectedAttached: 1, expectedDetached: 0},
+		// when warm pool is disabled, managed role is removed
+		{attachedPolicies: MockAttachedPolicies(defaultPoliciesWarmPool...), additionalPolicies: []string{}, hasWarmPool: false, expectedAttached: 0, expectedDetached: 1},
 		// default policies not attached
 		{attachedPolicies: MockAttachedPolicies(), additionalPolicies: []string{}, expectedAttached: 3, expectedDetached: 0},
 		// additional policies need to be attached
@@ -663,6 +669,15 @@ func TestUpdateManagedPolicies(t *testing.T) {
 			ig.Annotations[IRSAEnabledAnnotation] = "true"
 		} else {
 			ig.Annotations[IRSAEnabledAnnotation] = "false"
+		}
+
+		if tc.hasWarmPool {
+			ig.Spec.EKSSpec.WarmPool = &v1alpha1.WarmPoolSpec{
+				MaxSize: int64(-1),
+				MinSize: int64(0),
+			}
+		} else {
+			ig.Spec.EKSSpec.WarmPool = nil
 		}
 
 		ctx.SetDiscoveredState(&DiscoveredState{

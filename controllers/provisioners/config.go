@@ -297,7 +297,7 @@ func (c *ProvisionerConfiguration) setSharedFields(obj map[string]interface{}) e
 			if conditionalValue != nil {
 				if isConflict(conditionalValue, defaultVal) {
 					//Merge conditional into default, with conditional overriding any conflicting values.
-					merge := Merge(conditionalValue,defaultVal, pathStr, false)
+					merge := Merge(conditionalValue, defaultVal, pathStr, false)
 					if err := common.SetFieldValue(pathStr, obj, merge); err != nil {
 						return errors.Wrap(err, "failed to merge field")
 					}

@@ -190,9 +190,15 @@ type BootstrapOptions struct {
 	MaxPods int64 `json:"maxPods,omitempty"`
 }
 
+type WarmPoolSpec struct {
+	MaxSize int64 `json:"maxSize,omitempty"`
+	MinSize int64 `json:"minSize,omitempty"`
+}
+
 type EKSSpec struct {
 	MaxSize          int64                    `json:"maxSize,omitempty"`
 	MinSize          int64                    `json:"minSize,omitempty"`
+	WarmPool         *WarmPoolSpec            `json:"warmPool,omitempty"`
 	Type             ScalingConfigurationType `json:"type,omitempty"`
 	EKSConfiguration *EKSConfiguration        `json:"configuration"`
 }
@@ -374,7 +380,11 @@ func (ig *InstanceGroup) SetUpgradeStrategy(strategy AwsUpgradeStrategy) {
 }
 
 func (s *EKSSpec) Validate() error {
-	if s.EKSConfiguration == nil {
+	var (
+		configuration = s.EKSConfiguration
+		configType    = s.Type
+	)
+	if configuration == nil {
 		return errors.Errorf("validation failed, 'configuration' is a required field")
 	}
 
@@ -396,6 +406,29 @@ func (s *EKSSpec) Validate() error {
 		}
 	}
 
+	for _, v := range configuration.Volumes {
+		if configType == LaunchConfiguration {
+			if !common.ContainsEqualFold(awsprovider.ConfigurationAllowedVolumeTypes, v.Type) {
+				return errors.Errorf("validation failed, volume type '%v' is unsupported", v.Type)
+			}
+		}
+
+		if configType == LaunchTemplate {
+			if !common.ContainsEqualFold(awsprovider.TemplateAllowedVolumeTypes, v.Type) {
+				return errors.Errorf("validation failed, volume type '%v' is unsupported", v.Type)
+			}
+		}
+	}
+
+	if s.HasWarmPool() {
+		if configuration.MixedInstancesPolicy != nil {
+			return errors.Errorf("validation failed, cannot use warmPool with MixedInstancesPolicy")
+		}
+		if !common.StringEmpty(configuration.SpotPrice) {
+			return errors.Errorf("validation failed, cannot use warmPool with SpotPrice")
+		}
+	}
+
 	return nil
 }
 
@@ -413,7 +446,14 @@ func (s *EKSSpec) IsLaunchConfiguration() bool {
 	return false
 }
 
-func (c *EKSConfiguration) Validate(scalingConfigurationType ScalingConfigurationType) error {
+func (s *EKSSpec) HasWarmPool() bool {
+	if s.WarmPool != nil {
+		return true
+	}
+	return false
+}
+
+func (c *EKSConfiguration) Validate() error {
 	if common.StringEmpty(c.EksClusterName) {
 		return errors.Errorf("validation failed, 'clusterName' is a required parameter")
 	}
@@ -490,13 +530,6 @@ func (c *EKSConfiguration) Validate(scalingConfigurationType ScalingConfiguratio
 	}
 
 	for _, v := range c.Volumes {
-		if scalingConfigurationType == LaunchConfiguration && !common.ContainsEqualFold(awsprovider.ConfigurationAllowedVolumeTypes, v.Type) {
-			return errors.Errorf("validation failed, volume type '%v' is unsupported", v.Type)
-		}
-
-		if scalingConfigurationType == LaunchTemplate && !common.ContainsEqualFold(awsprovider.TemplateAllowedVolumeTypes, v.Type) {
-			return errors.Errorf("validation failed, volume type '%v' is unsupported", v.Type)
-		}
 
 		if v.Iops != 0 && !common.ContainsEqualFold(awsprovider.AllowedVolumeTypesWithProvisionedIOPS, v.Type) {
 			log.Info("cannot apply IOPS configuration for volumeType, only types ['io1','io2','gp3'] supported", "volumeType", v.Type)
@@ -648,7 +681,7 @@ func (ig *InstanceGroup) Validate() error {
 			return err
 		}
 
-		if err := config.Validate(spec.Type); err != nil {
+		if err := config.Validate(); err != nil {
 			return err
 		}
 	}
@@ -802,6 +835,12 @@ func (spec *EKSSpec) GetMaxSize() int64 {
 	return spec.MaxSize
 }
 func (spec *EKSSpec) GetMinSize() int64 {
+	return spec.MinSize
+}
+func (spec *WarmPoolSpec) GetMaxSize() int64 {
+	return spec.MaxSize
+}
+func (spec *WarmPoolSpec) GetMinSize() int64 {
 	return spec.MinSize
 }
 func (spec *EKSSpec) GetType() ScalingConfigurationType {

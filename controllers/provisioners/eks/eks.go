@@ -53,8 +53,9 @@ var (
 	InstanceMgrLifecycleLabel = "instancemgr.keikoproj.io/lifecycle"
 	InstanceMgrImageLabel     = "instancemgr.keikoproj.io/image"
 
-	DefaultManagedPolicies = []string{"AmazonEKSWorkerNodePolicy", "AmazonEC2ContainerRegistryReadOnly"}
-	CNIManagedPolicy       = "AmazonEKS_CNI_Policy"
+	DefaultManagedPolicies    = []string{"AmazonEKSWorkerNodePolicy", "AmazonEC2ContainerRegistryReadOnly"}
+	CNIManagedPolicy          = "AmazonEKS_CNI_Policy"
+	AutoscalingReadOnlyPolicy = "AutoScalingReadOnlyAccess"
 )
 
 // New constructs a new instance group provisioner of EKS type

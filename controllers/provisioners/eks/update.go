@@ -28,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
+	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/eks/scaling"
 )
@@ -39,6 +40,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		state           = ctx.GetDiscoveredState()
 		status          = instanceGroup.GetStatus()
 		scalingConfig   = state.GetScalingConfiguration()
+		scalingGroup    = state.GetScalingGroup()
 		configuration   = instanceGroup.GetEKSConfiguration()
 		spec            = instanceGroup.GetEKSSpec()
 		args            = ctx.GetBootstrapArgs()
@@ -97,6 +99,13 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	if kubeprovider.IsResourceActive(ctx.KubernetesClient.KubeDynamic, instanceGroup) {
 		ctx.Log.Info("upgrade resource is still active", "instancegroup", instanceGroup.NamespacedName(), "scalingconfig", config.Name)
 		rotationNeeded = true
+	}
+
+	if awsprovider.IsUsingWarmPool(scalingGroup) {
+		warmPoolStatus := aws.StringValue(scalingGroup.WarmPoolConfiguration.Status)
+		if strings.EqualFold(warmPoolStatus, autoscaling.WarmPoolStatusPendingDelete) {
+			return nil
+		}
 	}
 
 	// update scaling group
@@ -209,11 +218,13 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string, scalin
 	if err := ctx.UpdateScalingProcesses(asgName); err != nil {
 		return asgUpdated, err
 	}
-
 	if err := ctx.UpdateMetricsCollection(asgName); err != nil {
 		return asgUpdated, err
 	}
 	if err := ctx.UpdateLifecycleHooks(asgName); err != nil {
+		return asgUpdated, err
+	}
+	if err := ctx.UpdateWarmPool(asgName); err != nil {
 		return asgUpdated, err
 	}
 

@@ -98,3 +98,10 @@ func IsUsingMixedInstances(group *autoscaling.Group) bool {
 	}
 	return false
 }
+
+func IsUsingWarmPool(group *autoscaling.Group) bool {
+	if group.WarmPoolConfiguration != nil {
+		return true
+	}
+	return false
+}

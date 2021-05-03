@@ -3,24 +3,36 @@ kind: InstanceGroup
 metadata:
   labels:
     controller-tools.k8s.io: "1.0"
-  name: bdd-test-launchtemplate
+  name: bdd-test-crd-wp
   namespace: instance-manager-bdd
 spec:
   provisioner: eks
   strategy:
-    type: rollingUpdate
-    rollingUpdate:
-      maxUnavailable: 1
+    type: crd
+    crd:
+      crdName: rollingupgrades
+      statusJSONPath: .status.currentStatus
+      statusSuccessString: completed
+      statusFailureString: error
+      spec: |
+        apiVersion: upgrademgr.keikoproj.io/v1alpha1
+        kind: RollingUpgrade
+        metadata:
+          name: rollup-nodes
+          namespace: instance-manager
+        spec:
+          postDrainDelaySeconds: 10
+          nodeIntervalSeconds: 30
+          asgName: {{`{{ .InstanceGroup.Status.ActiveScalingGroupName }}`}}
   eks:
     maxSize: 4
     minSize: 2
-    type: LaunchTemplate
     warmPool:
       maxSize: -1
       minSize: 0
     configuration:
       labels:
-        test: bdd-test-launchtemplate
+        test: bdd-test-crd-wp
       taints:
       - key: node-role.kubernetes.io/bdd-test
         value: bdd-test
@@ -33,12 +45,9 @@ spec:
       image: {{ .AmiID }}
       instanceType: t2.small
       volumes:
-      - name: /dev/xvdb
+      - name: /dev/xvda
         type: gp2
         size: 30
-        mountOptions:
-          fileSystem: xfs
-          mount: /data
       securityGroups: {{range $element := .NodeSecurityGroups}}
         - {{$element}}
       {{ end }}

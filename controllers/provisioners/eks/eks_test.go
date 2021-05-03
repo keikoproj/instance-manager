@@ -94,6 +94,21 @@ func MockEksCluster(version string) *eks.Cluster {
 	}
 }
 
+func MockWarmPoolSpec(maxSize, minSize int64) *v1alpha1.WarmPoolSpec {
+	return &v1alpha1.WarmPoolSpec{
+		MaxSize: maxSize,
+		MinSize: minSize,
+	}
+}
+
+func MockWarmPool(maxSize, minSize int64, status string) *autoscaling.WarmPoolConfiguration {
+	return &autoscaling.WarmPoolConfiguration{
+		MaxGroupPreparedCapacity: aws.Int64(maxSize),
+		MinSize:                  aws.Int64(minSize),
+		Status:                   aws.String(status),
+	}
+}
+
 func MockKubernetesClientSet() kubeprovider.KubernetesClientSet {
 	return kubeprovider.KubernetesClientSet{
 		Kubernetes:  fake.NewSimpleClientset(),
@@ -483,13 +498,20 @@ type MockAutoScalingClient struct {
 	DescribeLifecycleHooksErr              error
 	PutLifecycleHookErr                    error
 	DeleteLifecycleHookErr                 error
-	DeleteLaunchConfigurationCallCount     int
-	PutLifecycleHookCallCount              int
-	DeleteLifecycleHookCallCount           int
+	DescribeWarmPoolErr                    error
+	DeleteWarmPoolErr                      error
+	PutWarmPoolErr                         error
+	DeleteLaunchConfigurationCallCount     uint
+	PutLifecycleHookCallCount              uint
+	DeleteLifecycleHookCallCount           uint
+	PutWarmPoolCallCount                   uint
+	DeleteWarmPoolCallCount                uint
+	DescribeWarmPoolCallCount              uint
 	LaunchConfiguration                    *autoscaling.LaunchConfiguration
 	LaunchConfigurations                   []*autoscaling.LaunchConfiguration
 	AutoScalingGroup                       *autoscaling.Group
 	AutoScalingGroups                      []*autoscaling.Group
+	WarmPoolInstances                      []*autoscaling.Instance
 	LifecycleHooks                         []*autoscaling.LifecycleHook
 }
 
@@ -582,14 +604,29 @@ func (a *MockAutoScalingClient) PutLifecycleHook(input *autoscaling.PutLifecycle
 	return &autoscaling.PutLifecycleHookOutput{}, a.PutLifecycleHookErr
 }
 
+func (a *MockAutoScalingClient) DescribeWarmPool(input *autoscaling.DescribeWarmPoolInput) (*autoscaling.DescribeWarmPoolOutput, error) {
+	a.DescribeWarmPoolCallCount++
+	return &autoscaling.DescribeWarmPoolOutput{Instances: a.WarmPoolInstances}, a.DescribeWarmPoolErr
+}
+
+func (a *MockAutoScalingClient) DeleteWarmPool(input *autoscaling.DeleteWarmPoolInput) (*autoscaling.DeleteWarmPoolOutput, error) {
+	a.DeleteWarmPoolCallCount++
+	return &autoscaling.DeleteWarmPoolOutput{}, a.DeleteWarmPoolErr
+}
+
+func (a *MockAutoScalingClient) PutWarmPool(input *autoscaling.PutWarmPoolInput) (*autoscaling.PutWarmPoolOutput, error) {
+	a.PutWarmPoolCallCount++
+	return &autoscaling.PutWarmPoolOutput{}, a.PutWarmPoolErr
+}
+
 type MockEc2Client struct {
 	ec2iface.EC2API
 	DescribeSubnetsErr                   error
 	DescribeSecurityGroupsErr            error
-	CreateLaunchTemplateCallCount        int
-	CreateLaunchTemplateVersionCallCount int
-	ModifyLaunchTemplateCallCount        int
-	DeleteLaunchTemplateCallCount        int
+	CreateLaunchTemplateCallCount        uint
+	CreateLaunchTemplateVersionCallCount uint
+	ModifyLaunchTemplateCallCount        uint
+	DeleteLaunchTemplateCallCount        uint
 	Subnets                              []*ec2.Subnet
 	SecurityGroups                       []*ec2.SecurityGroup
 	LaunchTemplates                      []*ec2.LaunchTemplate
@@ -718,9 +755,9 @@ type MockIamClient struct {
 	AddRoleToInstanceProfileErr       error
 	RemoveRoleFromInstanceProfileErr  error
 	AttachRolePolicyErr               error
-	AttachRolePolicyCallCount         int
+	AttachRolePolicyCallCount         uint
 	DetachRolePolicyErr               error
-	DetachRolePolicyCallCount         int
+	DetachRolePolicyCallCount         uint
 	WaitUntilInstanceProfileExistsErr error
 	ListAttachedRolePoliciesErr       error
 	Role                              *iam.Role

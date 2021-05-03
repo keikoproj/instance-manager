@@ -12,6 +12,16 @@ spec:
     minSize: <int64> : defines the auto scaling group's min instances (default 0)
     configuration: <EKSConfiguration> : the scaling group configuration
     type: <ScalingConfigurationType> : defines the type of scaling group, either LaunchTemplate or LaunchConfiguration (default)
+    warmPool: <WarmPoolSpec> : defines the spec of the auto scaling group's warm pool
+```
+### WarmPoolSpec
+```yaml
+spec:
+  provisioner: eks
+  eks:
+    warmPool:
+      maxSize: <int64> : defines the maximum size of the warm pool, use -1 to match to autoscaling group's max (default 0)
+      minSize: <int64> : defines the minimum size of the warm pool (default 0)
 ```
 
 ### EKSConfiguration
@@ -396,6 +406,31 @@ spec:
       - AZRebalance
       # you can also reference "All" to suspend all processes
 ```
+
+## Warm Pools for Auto Scaling
+
+You can configure your scaling group to use [AWS Warm Pools for Auto Scaling](https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-warm-pools.html), which allows you to keep a capacity separate pool of stopped instances have already run any pre-bootstrap userdata - using warm pools can reduce the time it takes for nodes to join the cluster.
+
+Warm Pools is not officially supported with EKS, hence the following requirements exist in order to use it with EKS:
+- Your AMI must have `awscli` & `jq`, you can also install it in pre-bootstrap userdata.
+- If you use your own IAM role for the instance group, you must make sure it has access to `DescribeAutoScalingInstances`, this is required in order to figure out the current lifecycle state within userdata. If you are provisioning your IAM role through the controller, simply be aware that the controller will add the managed policy `AutoScalingReadOnlyAccess` to the role it creates.
+- This is currently only supported for AmazonLinux2 based AMIs.
+
+We hope to get rid of these requirements in the future once AWS offers native support for Warm Pools in EKS, these are currently required in order to avoid warming instances to join the cluster briefly while they are provisioned, we are able to avoid this problem by checking if the instances is in the Warmed* lifecycle, and skipping bootstrapping in that case. Skipping on these requirements and using warm pools might mean having nodes join the cluster when the are being warmed, and cause unneeded scheduling of pods on nodes that are about to shutdown.
+
+You can enable warm pools with the following spec:
+```yaml
+spec:
+  provisioner: eks
+  eks:
+    maxSize: 6
+    minSize: 3
+      warmPool:
+        maxSize: -1
+        minSize: 0    
+```
+
+Using `-1` means "Equal to the Auto Scaling group's maximum capacity", so effectively it will change according to scaling group's `maxSize`.
 
 ## GitOps/Platform support, boundaries, default and conditional values
 

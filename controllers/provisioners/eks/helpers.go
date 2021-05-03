@@ -159,6 +159,16 @@ mount
 echo "{{ .Device}}    {{ .Mount }}    {{ .FileSystem | ToLower }}    defaults    0    2" >> /etc/fstab
 {{- end}}
 {{- end}}
+if [[ $(type -P $(which aws)) ]] && [[ $(type -P $(which jq)) ]] ; then
+	TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+	INSTANCE_ID=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
+	REGION=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
+	LIFECYCLE=$(aws autoscaling describe-auto-scaling-instances --region $REGION --instance-id $INSTANCE_ID | jq ".AutoScalingInstances[].LifecycleState" || true)
+	if [[ $LIFECYCLE == *"Warmed"* ]]; then
+		rm /var/lib/cloud/instances/$INSTANCE_ID/sem/config_scripts_user
+		exit 0
+	fi
+fi
 set -o xtrace
 /etc/eks/bootstrap.sh {{ .ClusterName }} {{ .Arguments }}
 set +o xtrace
@@ -839,6 +849,64 @@ func (ctx *EksInstanceGroupContext) GetAddedHooks() ([]v1alpha1.LifecycleHookSpe
 	return addHooks, true
 }
 
+func (ctx *EksInstanceGroupContext) UpdateWarmPool(asgName string) error {
+	var (
+		instanceGroup  = ctx.GetInstanceGroup()
+		spec           = instanceGroup.GetEKSSpec()
+		state          = ctx.GetDiscoveredState()
+		scalingGroup   = state.GetScalingGroup()
+		warmPoolConfig = scalingGroup.WarmPoolConfiguration
+	)
+
+	var warmPoolConfigured bool
+
+	if warmPoolConfig != nil {
+		warmPoolConfigured = true
+	}
+
+	// spec has no warm pool
+	if !spec.HasWarmPool() {
+		// scaling group has warm pool
+		if warmPoolConfigured {
+			// it's already deleting
+			if aws.StringValue(warmPoolConfig.Status) == autoscaling.WarmPoolStatusPendingDelete {
+				return nil
+			}
+			// delete it
+			if err := ctx.AwsWorker.DeleteWarmPool(asgName); err != nil {
+				return errors.Wrapf(err, "failed to delete warm pool for scaling group %v", asgName)
+			}
+		}
+		return nil
+	} else { // warm pool exists in spec
+
+		// check if update/create is needed
+		var (
+			updateRequired bool
+			max            = spec.WarmPool.MaxSize
+			min            = spec.WarmPool.MinSize
+		)
+
+		if warmPoolConfigured {
+			if min != aws.Int64Value(warmPoolConfig.MinSize) {
+				updateRequired = true
+			}
+			if max != aws.Int64Value(warmPoolConfig.MaxGroupPreparedCapacity) {
+				updateRequired = true
+			}
+		}
+
+		// update or create warm pool
+		if updateRequired || !warmPoolConfigured {
+			if err := ctx.AwsWorker.UpdateWarmPool(asgName, min, max); err != nil {
+				return errors.Wrapf(err, "failed to delete warm pool for scaling group %v", asgName)
+			}
+		}
+	}
+
+	return nil
+}
+
 func (ctx *EksInstanceGroupContext) UpdateLifecycleHooks(asgName string) error {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
@@ -887,6 +955,7 @@ func (ctx *EksInstanceGroupContext) UpdateLifecycleHooks(asgName string) error {
 func (ctx *EksInstanceGroupContext) GetManagedPoliciesList(additionalPolicies []string) []string {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
+		spec          = instanceGroup.GetEKSSpec()
 		annotations   = instanceGroup.GetAnnotations()
 	)
 
@@ -915,6 +984,10 @@ func (ctx *EksInstanceGroupContext) GetManagedPoliciesList(additionalPolicies []
 
 	if !irsaEnabled {
 		managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, CNIManagedPolicy))
+	}
+
+	if spec.HasWarmPool() {
+		managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, AutoscalingReadOnlyPolicy))
 	}
 
 	return managedPolicies

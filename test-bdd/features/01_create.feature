@@ -9,6 +9,8 @@ Feature: CRUD Create
     And I create a resource namespace-gitops.yaml
     And I create a resource instance-group.yaml
     And I create a resource instance-group-crd.yaml
+    And I create a resource instance-group-wp.yaml
+    And I create a resource instance-group-crd-wp.yaml
     And I create a resource instance-group-managed.yaml
     And I create a resource instance-group-fargate.yaml
     And I create a resource instance-group-launch-template.yaml
@@ -30,6 +32,22 @@ Feature: CRUD Create
     When I create a resource instance-group-crd.yaml
     Then the resource should be created
     And the resource should converge to selector .status.lifecycle=spot
+    And the resource should converge to selector .status.currentState=ready
+    And the resource condition NodesReady should be true
+    And 2 nodes should be ready
+
+  Scenario: Create an instance-group with rollingUpdate strategy and warm pools configured
+    Given an EKS cluster
+    When I create a resource instance-group-wp.yaml
+    Then the resource should be created
+    And the resource should converge to selector .status.currentState=ready
+    And the resource condition NodesReady should be true
+    And 2 nodes should be ready
+
+  Scenario: Create an instance-group with CRD strategy and warm pools configured
+    Given an EKS cluster
+    When I create a resource instance-group-crd-wp.yaml
+    Then the resource should be created
     And the resource should converge to selector .status.currentState=ready
     And the resource condition NodesReady should be true
     And 2 nodes should be ready
