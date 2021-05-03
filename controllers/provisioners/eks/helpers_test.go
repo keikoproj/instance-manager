@@ -131,6 +131,10 @@ func TestGetBasicUserDataAmazonLinux2(t *testing.T) {
 			Data:  "bar",
 		},
 	}
+
+	// validate that wrong value still defaults to amazonlinux2
+	ig.Annotations[OsFamilyAnnotation] = "wrong"
+
 	var (
 		args            = ctx.GetBootstrapArgs()
 		kubeletArgs     = ctx.GetKubeletExtraArgs()
