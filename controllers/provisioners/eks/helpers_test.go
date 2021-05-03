@@ -145,8 +145,9 @@ mkdir /mnt/foo
 mount /dev/xvda /mnt/foo
 mount
 if [[ $(type -P $(which aws)) ]] && [[ $(type -P $(which jq)) ]] ; then
-	INSTANCE_ID=$(curl http://169.254.169.254/latest/meta-data/instance-id)
-	REGION=$(curl http://169.254.169.254/latest/meta-data/placement/region)
+	TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+	INSTANCE_ID=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
+	REGION=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
 	LIFECYCLE=$(aws autoscaling describe-auto-scaling-instances --region $REGION --instance-id $INSTANCE_ID | jq ".AutoScalingInstances[].LifecycleState" || true)
 	if [[ $LIFECYCLE == *"Warmed"* ]]; then
 		rm /var/lib/cloud/instances/$INSTANCE_ID/sem/config_scripts_user
