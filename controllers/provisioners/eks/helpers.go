@@ -124,9 +124,18 @@ func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, k
   [string]$EKSBinDir = "$env:ProgramFiles\Amazon\EKS"
   [string]$EKSBootstrapScriptName = 'Start-EKSBootstrap.ps1'
   [string]$EKSBootstrapScriptFile = "$EKSBinDir\$EKSBootstrapScriptName"
-  & $EKSBootstrapScriptFile -EKSClusterName {{ .ClusterName }} -KubeletExtraArgs '{{ .KubeletExtraArgs }}' 3>&1 4>&1 5>&1 6>&1
-  {{range $post := .PostBootstrap}}{{$post}}{{end}}
-</powershell>`
+  [string]$IMDSToken=(curl -UseBasicParsing -Method PUT "http://169.254.169.254/latest/api/token" -H @{ "X-aws-ec2-metadata-token-ttl-seconds" = "2
+1600"} | % { Echo $_.Content})
+  [string]$InstanceID=(curl -UseBasicParsing -Method GET "http://169.254.169.254/latest/meta-data/instance-id" -H @{ "X-aws-ec2-metadata-token" = "$IMDSToken"} | % { Echo $_.Content})
+  [string]$Lifecycle = Get-ASAutoScalingInstance $InstanceID | % { Echo $_.LifecycleState}
+  if ($Lifecycle -like "*Warmed*") {
+    Echo "Not starting Kubelet due to warmed state."
+  } else {
+    & $EKSBootstrapScriptFile -EKSClusterName {{ .ClusterName }} -KubeletExtraArgs '{{ .KubeletExtraArgs }}' 3>&1 4>&1 5>&1 6>&1
+    {{range $post := .PostBootstrap}}{{$post}}{{end}}
+  }
+</powershell>
+<persist>true</persist>`
 	case OsFamilyBottleRocket:
 		UserDataTemplate = `
 {{range $pre := .PreBootstrap}}{{$pre}}{{end}}
