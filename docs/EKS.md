@@ -412,9 +412,10 @@ spec:
 You can configure your scaling group to use [AWS Warm Pools for Auto Scaling](https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-warm-pools.html), which allows you to keep a capacity separate pool of stopped instances have already run any pre-bootstrap userdata - using warm pools can reduce the time it takes for nodes to join the cluster.
 
 Warm Pools is not officially supported with EKS, hence the following requirements exist in order to use it with EKS:
-- Your AMI must have `awscli` & `jq`, you can also install it in pre-bootstrap userdata.
+- For Amazon Linux 2 instances, your AMI must have `awscli` & `jq`, you can also install it in pre-bootstrap userdata.
+- For Windows instances, your AMI must have the `Get-ASAutoScalingInstance` cmdlet installed.
 - If you use your own IAM role for the instance group, you must make sure it has access to `DescribeAutoScalingInstances`, this is required in order to figure out the current lifecycle state within userdata. If you are provisioning your IAM role through the controller, simply be aware that the controller will add the managed policy `AutoScalingReadOnlyAccess` to the role it creates.
-- This is currently only supported for AmazonLinux2 based AMIs.
+- This is currently only supported for AmazonLinux2 and Windows based AMIs.
 
 We hope to get rid of these requirements in the future once AWS offers native support for Warm Pools in EKS, these are currently required in order to avoid warming instances to join the cluster briefly while they are provisioned, we are able to avoid this problem by checking if the instances is in the Warmed* lifecycle, and skipping bootstrapping in that case. Skipping on these requirements and using warm pools might mean having nodes join the cluster when the are being warmed, and cause unneeded scheduling of pods on nodes that are about to shutdown.
 
