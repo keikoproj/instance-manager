@@ -124,8 +124,7 @@ func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, k
   [string]$EKSBinDir = "$env:ProgramFiles\Amazon\EKS"
   [string]$EKSBootstrapScriptName = 'Start-EKSBootstrap.ps1'
   [string]$EKSBootstrapScriptFile = "$EKSBinDir\$EKSBootstrapScriptName"
-  [string]$IMDSToken=(curl -UseBasicParsing -Method PUT "http://169.254.169.254/latest/api/token" -H @{ "X-aws-ec2-metadata-token-ttl-seconds" = "2
-1600"} | % { Echo $_.Content})
+  [string]$IMDSToken=(curl -UseBasicParsing -Method PUT "http://169.254.169.254/latest/api/token" -H @{ "X-aws-ec2-metadata-token-ttl-seconds" = "21600"} | % { Echo $_.Content})
   [string]$InstanceID=(curl -UseBasicParsing -Method GET "http://169.254.169.254/latest/meta-data/instance-id" -H @{ "X-aws-ec2-metadata-token" = "$IMDSToken"} | % { Echo $_.Content})
   [string]$Lifecycle = Get-ASAutoScalingInstance $InstanceID | % { Echo $_.LifecycleState}
   if ($Lifecycle -like "*Warmed*") {
