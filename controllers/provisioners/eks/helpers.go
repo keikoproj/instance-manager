@@ -129,12 +129,12 @@ func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, k
   [string]$Lifecycle = Get-ASAutoScalingInstance $InstanceID | % { Echo $_.LifecycleState}
   if ($Lifecycle -like "*Warmed*") {
     Echo "Not starting Kubelet due to warmed state."
+    & C:\ProgramData\Amazon\EC2-Windows\Launch\Scripts\InitializeInstance.ps1 –Schedule
   } else {
     & $EKSBootstrapScriptFile -EKSClusterName {{ .ClusterName }} -KubeletExtraArgs '{{ .KubeletExtraArgs }}' 3>&1 4>&1 5>&1 6>&1
     {{range $post := .PostBootstrap}}{{$post}}{{end}}
   }
-</powershell>
-<persist>true</persist>`
+</powershell>`
 	case OsFamilyBottleRocket:
 		UserDataTemplate = `
 {{range $pre := .PreBootstrap}}{{$pre}}{{end}}
