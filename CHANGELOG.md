@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
+
+## [v0.12.0-alpha2] - 2020-5-7
+
+### Added
+
+- Warm Pool Support (#286, #290)
+
+### Fixed
+
+- Fixes for conditionals logic (#287)
+- OsFamily validation (#289)
+
 ## [v0.11.1-alpha2] - 2020-4-29
 
 ### Fixed
