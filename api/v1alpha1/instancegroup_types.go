@@ -379,7 +379,7 @@ func (ig *InstanceGroup) SetUpgradeStrategy(strategy AwsUpgradeStrategy) {
 	ig.Spec.AwsUpgradeStrategy = strategy
 }
 
-func (s *EKSSpec) Validate() error {
+func (s *EKSSpec) Validate(namespacedName string) error {
 	var (
 		configuration = s.EKSConfiguration
 		configType    = s.Type
@@ -394,7 +394,7 @@ func (s *EKSSpec) Validate() error {
 
 	if s.Type == LaunchConfiguration {
 		if s.EKSConfiguration.MixedInstancesPolicy != nil {
-			log.Info("cannot use mixedInstancesPolicy with LaunchConfiguration, will ignore provided mixedInstancePolicy")
+			log.Info("cannot use mixedInstancesPolicy with LaunchConfiguration, will ignore provided mixedInstancePolicy", "instancegroup", namespacedName)
 			s.EKSConfiguration.MixedInstancesPolicy = nil
 		}
 	}
@@ -460,7 +460,7 @@ func (s *EKSSpec) HasWarmPool() bool {
 	return false
 }
 
-func (c *EKSConfiguration) Validate() error {
+func (c *EKSConfiguration) Validate(namespacedName string) error {
 	if common.StringEmpty(c.EksClusterName) {
 		return errors.Errorf("validation failed, 'clusterName' is a required parameter")
 	}
@@ -539,7 +539,7 @@ func (c *EKSConfiguration) Validate() error {
 	for _, v := range c.Volumes {
 
 		if v.Iops != 0 && !common.ContainsEqualFold(awsprovider.AllowedVolumeTypesWithProvisionedIOPS, v.Type) {
-			log.Info("cannot apply IOPS configuration for volumeType, only types ['io1','io2','gp3'] supported", "volumeType", v.Type)
+			log.Info("cannot apply IOPS configuration for volumeType, only types ['io1','io2','gp3'] supported", "instancegroup", namespacedName, "volumeType", v.Type)
 		}
 
 		if v.SnapshotID != "" {
@@ -651,6 +651,7 @@ func (m *MixedInstancesPolicySpec) Validate() error {
 
 func (ig *InstanceGroup) Validate() error {
 	s := ig.Spec
+	namespacedName := ig.NamespacedName()
 
 	if !common.ContainsEqualFold(Provisioners, s.Provisioner) {
 		return errors.Errorf("validation failed, provisioner '%v' is invalid", s.Provisioner)
@@ -684,11 +685,11 @@ func (ig *InstanceGroup) Validate() error {
 		config := ig.GetEKSConfiguration()
 		spec := ig.GetEKSSpec()
 
-		if err := spec.Validate(); err != nil {
+		if err := spec.Validate(namespacedName); err != nil {
 			return err
 		}
 
-		if err := config.Validate(); err != nil {
+		if err := config.Validate(namespacedName); err != nil {
 			return err
 		}
 	}
