@@ -394,7 +394,7 @@ func (s *EKSSpec) Validate() error {
 
 	if s.Type == LaunchConfiguration {
 		if s.EKSConfiguration.MixedInstancesPolicy != nil {
-			log.Info("cannot use mixedInstancesPolicy with LaunchConfiguration, will ignore provided mixedInstancePolicy spec")
+			log.Info("cannot use mixedInstancesPolicy with LaunchConfiguration, will ignore provided mixedInstancePolicy")
 			s.EKSConfiguration.MixedInstancesPolicy = nil
 		}
 	}
