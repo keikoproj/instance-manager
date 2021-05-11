@@ -65,6 +65,7 @@ func (ctx *EksInstanceGroupContext) ResolveSubnets() []string {
 		}
 		resolved = append(resolved, aws.StringValue(sn.SubnetId))
 	}
+	sort.Strings(resolved)
 
 	return resolved
 }
@@ -94,6 +95,7 @@ func (ctx *EksInstanceGroupContext) ResolveSecurityGroups() []string {
 		}
 		resolved = append(resolved, aws.StringValue(sg.GroupId))
 	}
+	sort.Strings(resolved)
 
 	return resolved
 }
