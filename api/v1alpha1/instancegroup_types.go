@@ -537,7 +537,7 @@ func (c *EKSConfiguration) Validate() error {
 	for _, v := range c.Volumes {
 
 		if v.Iops != 0 && !common.ContainsEqualFold(awsprovider.AllowedVolumeTypesWithProvisionedIOPS, v.Type) {
-			return errors.Errorf("cannot apply IOPS configuration for volumeType, only types ['io1','io2','gp3'] supported", "volumeType", v.Type)
+			return errors.Errorf("cannot apply IOPS configuration for volumeType '%v', only types '%v' supported", v.Type, awsprovider.AllowedVolumeTypesWithProvisionedIOPS)
 		}
 
 		if v.SnapshotID != "" {
