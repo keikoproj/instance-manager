@@ -392,6 +392,13 @@ func (s *EKSSpec) Validate() error {
 		s.Type = LaunchConfiguration
 	}
 
+	if s.Type == LaunchConfiguration {
+		if s.EKSConfiguration.MixedInstancesPolicy != nil {
+			log.Info("cannot use mixedInstancesPolicy with LaunchConfiguration, will ignore provided mixedInstancePolicy spec")
+			s.EKSConfiguration.MixedInstancesPolicy = nil
+		}
+	}
+
 	if s.IsLaunchConfiguration() {
 		if !common.SliceEmpty(s.EKSConfiguration.LicenseSpecifications) {
 			return errors.Errorf("validation failed, field 'licenseSpecifications' is only valid for LaunchTemplates")
