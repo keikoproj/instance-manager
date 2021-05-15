@@ -61,6 +61,7 @@ type CreateConfigurationInput struct {
 	SpotPrice             string
 	LicenseSpecifications []string
 	Placement             *v1alpha1.PlacementSpec
+	MetadataOptions       *v1alpha1.MetadataOptions
 }
 
 func ConvertToLaunchTemplate(resource interface{}) *ec2.LaunchTemplate {

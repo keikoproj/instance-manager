@@ -102,6 +102,7 @@ func (lt *LaunchTemplate) Create(input *CreateConfigurationInput) error {
 		BlockDeviceMappings:   lt.blockDeviceListRequest(input.Volumes),
 		LicenseSpecifications: lt.LaunchTemplateLicenseConfigurationRequest(input.LicenseSpecifications),
 		Placement:             lt.launchTemplatePlacementRequest(input.Placement),
+		MetadataOptions:       lt.metadataOptionsRequest(input.MetadataOptions),
 	}
 
 	if !lt.Provisioned() {
@@ -270,6 +271,16 @@ func (lt *LaunchTemplate) Drifted(input *CreateConfigurationInput) bool {
 		drift = true
 	}
 
+	metadataOptions := lt.metadataOptions(input.MetadataOptions)
+
+	if !reflect.DeepEqual(metadataOptions, latestVersion.LaunchTemplateData.MetadataOptions) {
+		log.Info("detected drift", "reason", "metadata options have changed", "instancegroup", lt.OwnerName,
+			"previousValue", latestVersion.LaunchTemplateData.MetadataOptions,
+			"newValue", metadataOptions,
+		)
+		drift = true
+	}
+
 	if !drift {
 		log.Info("drift not detected", "instancegroup", lt.OwnerName)
 	}
@@ -343,6 +354,28 @@ func (lt *LaunchTemplate) launchTemplatePlacementRequest(input *v1alpha1.Placeme
 		return &ec2.LaunchTemplatePlacementRequest{}
 	}
 	return lt.LaunchTemplatePlacementRequest(input.AvailabilityZone, input.HostResourceGroupArn, input.Tenancy)
+}
+
+func (lt *LaunchTemplate) metadataOptions(input *v1alpha1.MetadataOptions) *ec2.LaunchTemplateInstanceMetadataOptions {
+	if input == nil {
+		return nil
+	}
+	return &ec2.LaunchTemplateInstanceMetadataOptions{
+		HttpEndpoint:            aws.String(input.HttpEndpoint),
+		HttpPutResponseHopLimit: aws.Int64(input.HttpPutHopLimit),
+		HttpTokens:              aws.String(input.HttpTokens),
+	}
+}
+
+func (lt *LaunchTemplate) metadataOptionsRequest(input *v1alpha1.MetadataOptions) *ec2.LaunchTemplateInstanceMetadataOptionsRequest {
+	if input == nil {
+		return nil
+	}
+	return &ec2.LaunchTemplateInstanceMetadataOptionsRequest{
+		HttpEndpoint:            aws.String(input.HttpEndpoint),
+		HttpPutResponseHopLimit: aws.Int64(input.HttpPutHopLimit),
+		HttpTokens:              aws.String(input.HttpTokens),
+	}
 }
 
 func (lt *LaunchTemplate) launchTemplatePlacement(input *v1alpha1.PlacementSpec) *ec2.LaunchTemplatePlacement {

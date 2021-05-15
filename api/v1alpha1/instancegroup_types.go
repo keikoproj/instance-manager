@@ -227,6 +227,7 @@ type EKSConfiguration struct {
 	MixedInstancesPolicy        *MixedInstancesPolicySpec `json:"mixedInstancesPolicy,omitempty"`
 	LicenseSpecifications       []string                  `json:"licenseSpecifications,omitempty"`
 	Placement                   *PlacementSpec            `json:"placement,omitempty"`
+	MetadataOptions             *MetadataOptions          `json:"metadataOptions,omitempty"`
 }
 
 const (
@@ -248,6 +249,12 @@ type PlacementSpec struct {
 	AvailabilityZone     string `json:"availabilityZone,omitempty"`
 	HostResourceGroupArn string `json:"hostResourceGroupArn,omitempty"`
 	Tenancy              string `json:"tenancy,omitempty"`
+}
+
+type MetadataOptions struct {
+	HttpEndpoint    string `json:"httpEndpoint,omitempty"`
+	HttpTokens      string `json:"httpTokens,omitempty"`
+	HttpPutHopLimit int64  `json:"httpPutHopLimit,omitempty"`
 }
 
 type InstanceTypeSpec struct {
@@ -720,6 +727,9 @@ func (c *EKSConfiguration) GetRoleName() string {
 }
 func (c *EKSConfiguration) GetMixedInstancesPolicy() *MixedInstancesPolicySpec {
 	return c.MixedInstancesPolicy
+}
+func (c *EKSConfiguration) GetMetadataOptions() *MetadataOptions {
+	return c.MetadataOptions
 }
 func (c *EKSConfiguration) GetPlacement() *PlacementSpec {
 	return c.Placement
