@@ -612,6 +612,16 @@ func TestLaunchTemplateDrifted(t *testing.T) {
 			},
 			shouldDrift: true,
 		},
+		{
+			launchTemplate: MockLaunchTemplate("my-launch-template"),
+			latestVersion:  MockLaunchTemplateVersion(),
+			input: &CreateConfigurationInput{
+				MetadataOptions: &v1alpha1.MetadataOptions{
+					HttpEndpoint: "Enabled",
+				},
+			},
+			shouldDrift: true,
+		},
 	}
 
 	for i, tc := range tests {
