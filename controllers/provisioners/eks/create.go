@@ -44,6 +44,7 @@ func (ctx *EksInstanceGroupContext) Create() error {
 		sgs             = ctx.ResolveSecurityGroups()
 		spotPrice       = configuration.GetSpotPrice()
 		placement       = configuration.GetPlacement()
+		metadataOptions = configuration.GetMetadataOptions()
 	)
 
 	ctx.SetState(v1alpha1.ReconcileModifying)
@@ -73,6 +74,7 @@ func (ctx *EksInstanceGroupContext) Create() error {
 		SpotPrice:             spotPrice,
 		LicenseSpecifications: configuration.LicenseSpecifications,
 		Placement:             placement,
+		MetadataOptions:       metadataOptions,
 	}
 
 	if err := scalingConfig.Create(config); err != nil {

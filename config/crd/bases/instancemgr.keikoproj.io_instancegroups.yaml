@@ -124,6 +124,16 @@ spec:
                         items:
                           type: string
                         type: array
+                      metadataOptions:
+                        properties:
+                          httpEndpoint:
+                            type: string
+                          httpPutHopLimit:
+                            format: int64
+                            type: integer
+                          httpTokens:
+                            type: string
+                        type: object
                       metricsCollection:
                         items:
                           type: string

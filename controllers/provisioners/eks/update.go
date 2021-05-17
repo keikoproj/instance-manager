@@ -52,6 +52,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		sgs             = ctx.ResolveSecurityGroups()
 		spotPrice       = configuration.GetSpotPrice()
 		placement       = configuration.GetPlacement()
+		metadataOptions = configuration.GetMetadataOptions()
 	)
 
 	ctx.SetState(v1alpha1.ReconcileModifying)
@@ -75,6 +76,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		SpotPrice:             spotPrice,
 		LicenseSpecifications: configuration.LicenseSpecifications,
 		Placement:             placement,
+		MetadataOptions:       metadataOptions,
 	}
 
 	// create new launchconfig if it has drifted
