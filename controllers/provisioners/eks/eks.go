@@ -21,6 +21,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
@@ -30,7 +31,8 @@ import (
 const (
 	ProvisionerName                     = "eks"
 	defaultLaunchConfigurationRetention = 2
-	OverrideDefaultLabelsAnnotationKey  = "instancemgr.keikoproj.io/default-labels"
+	OverrideDefaultLabelsAnnotation     = "instancemgr.keikoproj.io/default-labels"
+	IRSAEnabledAnnotation               = "instancemgr.keikoproj.io/irsa-enabled"
 	OsFamilyAnnotation                  = "instancemgr.keikoproj.io/os-family"
 	ClusterAutoscalerEnabledAnnotation  = "instancemgr.keikoproj.io/cluster-autoscaler-enabled"
 	CustomNetworkingEnabledAnnotation   = "instancemgr.keikoproj.io/custom-networking-enabled"
@@ -47,9 +49,12 @@ var (
 	RoleOldLabel              = "node-role.kubernetes.io/%s"
 	RoleOldLabelFmt           = "node-role.kubernetes.io/%s=\"\""
 	InstanceMgrLifecycleLabel = "instancemgr.keikoproj.io/lifecycle"
-	InstanceMgrLabelFmt       = "instancemgr.keikoproj.io/%s=%s"
+	InstanceMgrImageLabel     = "instancemgr.keikoproj.io/image"
 
-	DefaultManagedPolicies = []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}
+	AllowedOsFamilies         = []string{OsFamilyWindows, OsFamilyBottleRocket, OsFamilyAmazonLinux2}
+	DefaultManagedPolicies    = []string{"AmazonEKSWorkerNodePolicy", "AmazonEC2ContainerRegistryReadOnly"}
+	CNIManagedPolicy          = "AmazonEKS_CNI_Policy"
+	AutoscalingReadOnlyPolicy = "AutoScalingReadOnlyAccess"
 )
 
 // New constructs a new instance group provisioner of EKS type
@@ -69,9 +74,10 @@ func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 		Log:              p.Log.WithName("eks"),
 		ResourcePrefix:   fmt.Sprintf("%v-%v-%v", configuration.GetClusterName(), instanceGroup.GetNamespace(), instanceGroup.GetName()),
 		ConfigRetention:  p.ConfigRetention,
+		Metrics:          p.Metrics,
 	}
 
-	instanceGroup.SetState(v1alpha1.ReconcileInit)
+	ctx.SetState(v1alpha1.ReconcileInit)
 	status.SetProvisioner(ProvisionerName)
 	status.SetStrategy(strategy.Type)
 
@@ -89,6 +95,7 @@ type EksInstanceGroupContext struct {
 	Configuration    *provisioners.ProvisionerConfiguration
 	ConfigRetention  int
 	ResourcePrefix   string
+	Metrics          *common.MetricsCollector
 }
 
 type UserDataPayload struct {
@@ -129,8 +136,12 @@ func (ctx *EksInstanceGroupContext) GetOsFamily() string {
 		instanceGroup = ctx.GetInstanceGroup()
 		annotations   = instanceGroup.GetAnnotations()
 	)
-	if _, exists := annotations[OsFamilyAnnotation]; exists {
-		return annotations[OsFamilyAnnotation]
+
+	if v, exists := annotations[OsFamilyAnnotation]; exists {
+		if common.ContainsEqualFold(AllowedOsFamilies, v) {
+			return annotations[OsFamilyAnnotation]
+		}
+		ctx.Log.Info("used unsupported annotation value '%v=%v', will default to 'amazonlinux2', allowed values: %+v", OsFamilyAnnotation, v, AllowedOsFamilies)
 	}
 
 	return OsFamilyAmazonLinux2
@@ -146,6 +157,11 @@ func (ctx *EksInstanceGroupContext) GetState() v1alpha1.ReconcileState {
 	return ctx.InstanceGroup.GetState()
 }
 func (ctx *EksInstanceGroupContext) SetState(state v1alpha1.ReconcileState) {
+	var (
+		name     = ctx.GetInstanceGroup().NamespacedName()
+		stateStr = string(state)
+	)
+	ctx.Metrics.SetInstanceGroup(name, stateStr)
 	ctx.InstanceGroup.SetState(state)
 }
 func (ctx *EksInstanceGroupContext) GetDiscoveredState() *DiscoveredState {

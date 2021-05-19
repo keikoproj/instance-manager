@@ -475,6 +475,16 @@ func TestLaunchConfigurationDrifted(t *testing.T) {
 			},
 			shouldDrift: true,
 		},
+		{
+			launchConfig: &autoscaling.LaunchConfiguration{
+				LaunchConfigurationName: aws.String("my-launch-config"),
+			},
+			input: &CreateConfigurationInput{
+				SecurityGroups: []string{},
+				MetadataOptions: &v1alpha1.MetadataOptions{HttpEndpoint: "enabled"},
+			},
+			shouldDrift: true,
+		},
 	}
 
 	for i, tc := range tests {

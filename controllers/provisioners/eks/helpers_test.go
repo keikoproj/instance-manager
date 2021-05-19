@@ -131,6 +131,10 @@ func TestGetBasicUserDataAmazonLinux2(t *testing.T) {
 			Data:  "bar",
 		},
 	}
+
+	// validate that wrong value still defaults to amazonlinux2
+	ig.Annotations[OsFamilyAnnotation] = "wrong"
+
 	var (
 		args            = ctx.GetBootstrapArgs()
 		kubeletArgs     = ctx.GetKubeletExtraArgs()
@@ -144,8 +148,18 @@ mkfs.xfs /dev/xvda
 mkdir /mnt/foo
 mount /dev/xvda /mnt/foo
 mount
+if [[ $(type -P $(which aws)) ]] && [[ $(type -P $(which jq)) ]] ; then
+	TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+	INSTANCE_ID=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
+	REGION=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
+	LIFECYCLE=$(aws autoscaling describe-auto-scaling-instances --region $REGION --instance-id $INSTANCE_ID | jq ".AutoScalingInstances[].LifecycleState" || true)
+	if [[ $LIFECYCLE == *"Warmed"* ]]; then
+		rm /var/lib/cloud/instances/$INSTANCE_ID/sem/config_scripts_user
+		exit 0
+	fi
+fi
 set -o xtrace
-/etc/eks/bootstrap.sh foo --use-max-pods false --kubelet-extra-args '--node-labels=foo=bar,node.kubernetes.io/role=instance-group-1 --register-with-taints=foo=bar:NoSchedule --eviction-hard=memory.available<300Mi,nodefs.available<5% --system-reserved=memory=2.5Gi --v=2 --max-pods=4'
+/etc/eks/bootstrap.sh foo --use-max-pods false --kubelet-extra-args '--node-labels=foo=bar,instancemgr.keikoproj.io/image=ami-123456789012,node.kubernetes.io/role=instance-group-1 --register-with-taints=foo=bar:NoSchedule --eviction-hard=memory.available<300Mi,nodefs.available<5% --system-reserved=memory=2.5Gi --v=2 --max-pods=4'
 set +o xtrace
 bar`
 	userData := ctx.GetBasicUserData("foo", args, kubeletArgs, userDataPayload, mounts)
@@ -272,6 +286,7 @@ func TestResolveSecurityGroups(t *testing.T) {
 		{requested: []string{"sg-111", "sg-222"}, groups: []*ec2.SecurityGroup{MockSecurityGroup("sg-111", false, ""), MockSecurityGroup("sg-222", false, "")}, result: []string{"sg-111", "sg-222"}, withErr: false},
 		{requested: []string{"my-sg-1", "sg-222"}, groups: []*ec2.SecurityGroup{MockSecurityGroup("sg-111", true, "my-sg-1"), MockSecurityGroup("sg-222", false, "")}, result: []string{"sg-111", "sg-222"}, withErr: false},
 		{requested: []string{"my-sg-1", "my-sg-2"}, groups: []*ec2.SecurityGroup{MockSecurityGroup("sg-111", true, "my-sg-1"), MockSecurityGroup("sg-222", true, "my-sg-2")}, result: []string{"sg-111", "sg-222"}, withErr: false},
+		{requested: []string{"my-sg-2", "my-sg-1"}, groups: []*ec2.SecurityGroup{MockSecurityGroup("sg-111", true, "my-sg-1"), MockSecurityGroup("sg-222", true, "my-sg-2")}, result: []string{"sg-111", "sg-222"}, withErr: false},
 		{requested: []string{"my-sg-1"}, groups: []*ec2.SecurityGroup{MockSecurityGroup("sg-111", true, "my-sg-1")}, result: []string{}, withErr: true},
 		{requested: []string{"my-sg-1", "my-sg-2"}, groups: []*ec2.SecurityGroup{MockSecurityGroup("sg-111", true, "my-sg-2")}, result: []string{"sg-111"}, withErr: false},
 	}
@@ -313,6 +328,7 @@ func TestResolveSubnets(t *testing.T) {
 		{requested: []string{"subnet-111", "subnet-222"}, subnets: []*ec2.Subnet{MockSubnet("subnet-111", false, ""), MockSubnet("subnet-222", false, "")}, result: []string{"subnet-111", "subnet-222"}, withErr: false},
 		{requested: []string{"my-subnet-1", "subnet-222"}, subnets: []*ec2.Subnet{MockSubnet("subnet-111", true, "my-subnet-1"), MockSubnet("subnet-222", false, "")}, result: []string{"subnet-111", "subnet-222"}, withErr: false},
 		{requested: []string{"my-subnet-1", "my-subnet-2"}, subnets: []*ec2.Subnet{MockSubnet("subnet-111", true, "my-subnet-1"), MockSubnet("subnet-222", true, "my-subnet-2")}, result: []string{"subnet-111", "subnet-222"}, withErr: false},
+		{requested: []string{"my-subnet-2", "my-subnet-1"}, subnets: []*ec2.Subnet{MockSubnet("subnet-111", true, "my-subnet-1"), MockSubnet("subnet-222", true, "my-subnet-2")}, result: []string{"subnet-111", "subnet-222"}, withErr: false},
 		{requested: []string{"my-subnet-1"}, subnets: []*ec2.Subnet{MockSubnet("subnet-111", true, "my-subnet-1")}, result: []string{}, withErr: true},
 		{requested: []string{"my-subnet-1", "my-subnet-2"}, subnets: []*ec2.Subnet{MockSubnet("subnet-111", true, "my-subnet-2")}, result: []string{"subnet-111"}, withErr: false},
 	}
@@ -447,13 +463,14 @@ func TestGetLabelList(t *testing.T) {
 		eksMock                    = NewEksMocker()
 		ec2Mock                    = NewEc2Mocker()
 		defaultLifecycleLabel      = "instancemgr.keikoproj.io/lifecycle=normal"
-		expectedLabels115          = []string{defaultLifecycleLabel, "node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
-		expectedLabels116          = []string{defaultLifecycleLabel, "node.kubernetes.io/role=instance-group-1"}
-		expectedLabelsWithCustom   = []string{defaultLifecycleLabel, "custom.kubernetes.io=customlabel", "node.kubernetes.io/role=instance-group-1"}
-		expectedLabelsWithOverride = []string{defaultLifecycleLabel, "custom.kubernetes.io=customlabel", "override.kubernetes.io=instance-group-1", "override2.kubernetes.io=instance-group-1"}
-		overrideAnnotation         = map[string]string{OverrideDefaultLabelsAnnotationKey: "override.kubernetes.io=instance-group-1,override2.kubernetes.io=instance-group-1"}
-		expectedSpotLabel          = []string{"instancemgr.keikoproj.io/lifecycle=spot", "node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
-		expectedMixedLabel         = []string{"instancemgr.keikoproj.io/lifecycle=mixed", "node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
+		defaultImageLabel          = fmt.Sprintf("instancemgr.keikoproj.io/image=%v", configuration.GetImage())
+		expectedLabels115          = []string{defaultImageLabel, defaultLifecycleLabel, "node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
+		expectedLabels116          = []string{defaultImageLabel, defaultLifecycleLabel, "node.kubernetes.io/role=instance-group-1"}
+		expectedLabelsWithCustom   = []string{defaultImageLabel, defaultLifecycleLabel, "custom.kubernetes.io=customlabel", "node.kubernetes.io/role=instance-group-1"}
+		expectedLabelsWithOverride = []string{defaultImageLabel, defaultLifecycleLabel, "custom.kubernetes.io=customlabel", "override.kubernetes.io=instance-group-1", "override2.kubernetes.io=instance-group-1"}
+		overrideAnnotation         = map[string]string{OverrideDefaultLabelsAnnotation: "override.kubernetes.io=instance-group-1,override2.kubernetes.io=instance-group-1"}
+		expectedSpotLabel          = []string{defaultImageLabel, "instancemgr.keikoproj.io/lifecycle=spot", "node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
+		expectedMixedLabel         = []string{defaultImageLabel, "instancemgr.keikoproj.io/lifecycle=mixed", "node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
 	)
 
 	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
@@ -849,7 +866,74 @@ func TestUpdateLifecycleHooks(t *testing.T) {
 		g.Expect(added).To(gomega.Equal(tc.expectedAdded))
 
 		ctx.UpdateLifecycleHooks("my-asg")
-		g.Expect(len(tc.expectedRemoved)).To(gomega.Equal(asgMock.DeleteLifecycleHookCallCount))
-		g.Expect(len(tc.expectedAdded)).To(gomega.Equal(asgMock.PutLifecycleHookCallCount))
+		g.Expect(uint(len(tc.expectedRemoved))).To(gomega.Equal(asgMock.DeleteLifecycleHookCallCount))
+		g.Expect(uint(len(tc.expectedAdded))).To(gomega.Equal(asgMock.PutLifecycleHookCallCount))
+	}
+}
+
+func TestUpdateWarmPool(t *testing.T) {
+	var (
+		g       = gomega.NewGomegaWithT(t)
+		k       = MockKubernetesClientSet()
+		ig      = MockInstanceGroup()
+		asgMock = NewAutoScalingMocker()
+		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	ctx := MockContext(ig, k, w)
+
+	tests := []struct {
+		warmPoolSpec          *v1alpha1.WarmPoolSpec
+		warmPoolConfiguration *autoscaling.WarmPoolConfiguration
+		shouldDelete          bool
+		shouldUpdate          bool
+		shouldRequeue         bool
+	}{
+		// no update/delete needed
+		{warmPoolConfiguration: nil, warmPoolSpec: nil},
+		// enable warm pool - update
+		{warmPoolConfiguration: nil, warmPoolSpec: MockWarmPoolSpec(-1, 0), shouldUpdate: true},
+		// disable warm pool - delete
+		{warmPoolConfiguration: MockWarmPool(-1, 0, ""), warmPoolSpec: nil, shouldDelete: true},
+		// scale change (min)
+		{warmPoolConfiguration: MockWarmPool(-1, 1, ""), warmPoolSpec: MockWarmPoolSpec(-1, 0), shouldUpdate: true},
+		{warmPoolConfiguration: MockWarmPool(-1, 0, ""), warmPoolSpec: MockWarmPoolSpec(-1, 1), shouldUpdate: true},
+		// scale change (max)
+		{warmPoolConfiguration: MockWarmPool(3, 0, ""), warmPoolSpec: MockWarmPoolSpec(-1, 0), shouldUpdate: true},
+		{warmPoolConfiguration: MockWarmPool(-1, 0, ""), warmPoolSpec: MockWarmPoolSpec(3, 0), shouldUpdate: true},
+		// deleting - should requeue
+		{warmPoolConfiguration: MockWarmPool(-1, 0, autoscaling.WarmPoolStatusPendingDelete), warmPoolSpec: nil, shouldRequeue: true},
+	}
+
+	for i, tc := range tests {
+		t.Logf("test #%v", i)
+		asgMock.DeleteWarmPoolCallCount = 0
+		asgMock.PutWarmPoolCallCount = 0
+		ig.Spec.EKSSpec.WarmPool = tc.warmPoolSpec
+		scalingGroup := MockScalingGroup("my-asg", false)
+		scalingGroup.WarmPoolConfiguration = tc.warmPoolConfiguration
+
+		ctx.SetDiscoveredState(&DiscoveredState{
+			Publisher: kubeprovider.EventPublisher{
+				Client: k.Kubernetes,
+			},
+			ScalingGroup: scalingGroup,
+		})
+
+		err := ctx.UpdateWarmPool("my-asg")
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		if tc.shouldDelete {
+			g.Expect(asgMock.DeleteWarmPoolCallCount).To(gomega.Equal(uint(1)))
+		}
+		if tc.shouldUpdate {
+			g.Expect(asgMock.PutWarmPoolCallCount).To(gomega.Equal(uint(1)))
+		}
+		if tc.shouldRequeue {
+			g.Expect(asgMock.DeleteWarmPoolCallCount).To(gomega.Equal(uint(0)))
+			g.Expect(asgMock.PutWarmPoolCallCount).To(gomega.Equal(uint(0)))
+		}
 	}
 }

@@ -3,7 +3,7 @@ kind: InstanceGroup
 metadata:
   labels:
     controller-tools.k8s.io: "1.0"
-  name: bdd-test-launchtemplate
+  name: bdd-test-rolling-wp
   namespace: instance-manager-bdd
 spec:
   provisioner: eks
@@ -14,13 +14,12 @@ spec:
   eks:
     maxSize: 4
     minSize: 2
-    type: LaunchTemplate
     warmPool:
       maxSize: -1
       minSize: 0
     configuration:
       labels:
-        test: bdd-test-launchtemplate
+        test: bdd-test-rolling-wp
       taints:
       - key: node-role.kubernetes.io/bdd-test
         value: bdd-test

@@ -65,6 +65,7 @@ func (ctx *EksInstanceGroupContext) ResolveSubnets() []string {
 		}
 		resolved = append(resolved, aws.StringValue(sn.SubnetId))
 	}
+	sort.Strings(resolved)
 
 	return resolved
 }
@@ -94,6 +95,7 @@ func (ctx *EksInstanceGroupContext) ResolveSecurityGroups() []string {
 		}
 		resolved = append(resolved, aws.StringValue(sg.GroupId))
 	}
+	sort.Strings(resolved)
 
 	return resolved
 }
@@ -124,8 +126,16 @@ func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, k
   [string]$EKSBinDir = "$env:ProgramFiles\Amazon\EKS"
   [string]$EKSBootstrapScriptName = 'Start-EKSBootstrap.ps1'
   [string]$EKSBootstrapScriptFile = "$EKSBinDir\$EKSBootstrapScriptName"
-  & $EKSBootstrapScriptFile -EKSClusterName {{ .ClusterName }} -KubeletExtraArgs '{{ .KubeletExtraArgs }}' 3>&1 4>&1 5>&1 6>&1
-  {{range $post := .PostBootstrap}}{{$post}}{{end}}
+  [string]$IMDSToken=(curl -UseBasicParsing -Method PUT "http://169.254.169.254/latest/api/token" -H @{ "X-aws-ec2-metadata-token-ttl-seconds" = "21600"} | % { Echo $_.Content})
+  [string]$InstanceID=(curl -UseBasicParsing -Method GET "http://169.254.169.254/latest/meta-data/instance-id" -H @{ "X-aws-ec2-metadata-token" = "$IMDSToken"} | % { Echo $_.Content})
+  [string]$Lifecycle = Get-ASAutoScalingInstance $InstanceID | % { Echo $_.LifecycleState}
+  if ($Lifecycle -like "*Warmed*") {
+    Echo "Not starting Kubelet due to warmed state."
+    & C:\ProgramData\Amazon\EC2-Windows\Launch\Scripts\InitializeInstance.ps1 –Schedule
+  } else {
+    & $EKSBootstrapScriptFile -EKSClusterName {{ .ClusterName }} -KubeletExtraArgs '{{ .KubeletExtraArgs }}' 3>&1 4>&1 5>&1 6>&1
+    {{range $post := .PostBootstrap}}{{$post}}{{end}}
+  }
 </powershell>`
 	case OsFamilyBottleRocket:
 		UserDataTemplate = `
@@ -159,6 +169,16 @@ mount
 echo "{{ .Device}}    {{ .Mount }}    {{ .FileSystem | ToLower }}    defaults    0    2" >> /etc/fstab
 {{- end}}
 {{- end}}
+if [[ $(type -P $(which aws)) ]] && [[ $(type -P $(which jq)) ]] ; then
+	TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+	INSTANCE_ID=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
+	REGION=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
+	LIFECYCLE=$(aws autoscaling describe-auto-scaling-instances --region $REGION --instance-id $INSTANCE_ID | jq ".AutoScalingInstances[].LifecycleState" || true)
+	if [[ $LIFECYCLE == *"Warmed"* ]]; then
+		rm /var/lib/cloud/instances/$INSTANCE_ID/sem/config_scripts_user
+		exit 0
+	fi
+fi
 set -o xtrace
 /etc/eks/bootstrap.sh {{ .ClusterName }} {{ .Arguments }}
 set +o xtrace
@@ -400,7 +420,7 @@ func (ctx *EksInstanceGroupContext) GetComputedLabels() map[string]string {
 	}
 
 	// allow override default labels
-	if val, ok := annotations[OverrideDefaultLabelsAnnotationKey]; ok {
+	if val, ok := annotations[OverrideDefaultLabelsAnnotation]; ok {
 		isOverride = true
 		overrideLabels := strings.Split(val, ",")
 		for _, label := range overrideLabels {
@@ -439,6 +459,8 @@ func (ctx *EksInstanceGroupContext) GetComputedLabels() map[string]string {
 	case v1alpha1.LifecycleStateMixed:
 		labelMap[InstanceMgrLifecycleLabel] = v1alpha1.LifecycleStateMixed
 	}
+
+	labelMap[InstanceMgrImageLabel] = configuration.GetImage()
 
 	return labelMap
 }
@@ -837,6 +859,64 @@ func (ctx *EksInstanceGroupContext) GetAddedHooks() ([]v1alpha1.LifecycleHookSpe
 	return addHooks, true
 }
 
+func (ctx *EksInstanceGroupContext) UpdateWarmPool(asgName string) error {
+	var (
+		instanceGroup  = ctx.GetInstanceGroup()
+		spec           = instanceGroup.GetEKSSpec()
+		state          = ctx.GetDiscoveredState()
+		scalingGroup   = state.GetScalingGroup()
+		warmPoolConfig = scalingGroup.WarmPoolConfiguration
+	)
+
+	var warmPoolConfigured bool
+
+	if warmPoolConfig != nil {
+		warmPoolConfigured = true
+	}
+
+	// spec has no warm pool
+	if !spec.HasWarmPool() {
+		// scaling group has warm pool
+		if warmPoolConfigured {
+			// it's already deleting
+			if aws.StringValue(warmPoolConfig.Status) == autoscaling.WarmPoolStatusPendingDelete {
+				return nil
+			}
+			// delete it
+			if err := ctx.AwsWorker.DeleteWarmPool(asgName); err != nil {
+				return errors.Wrapf(err, "failed to delete warm pool for scaling group %v", asgName)
+			}
+		}
+		return nil
+	} else { // warm pool exists in spec
+
+		// check if update/create is needed
+		var (
+			updateRequired bool
+			max            = spec.WarmPool.MaxSize
+			min            = spec.WarmPool.MinSize
+		)
+
+		if warmPoolConfigured {
+			if min != aws.Int64Value(warmPoolConfig.MinSize) {
+				updateRequired = true
+			}
+			if max != aws.Int64Value(warmPoolConfig.MaxGroupPreparedCapacity) {
+				updateRequired = true
+			}
+		}
+
+		// update or create warm pool
+		if updateRequired || !warmPoolConfigured {
+			if err := ctx.AwsWorker.UpdateWarmPool(asgName, min, max); err != nil {
+				return errors.Wrapf(err, "failed to delete warm pool for scaling group %v", asgName)
+			}
+		}
+	}
+
+	return nil
+}
+
 func (ctx *EksInstanceGroupContext) UpdateLifecycleHooks(asgName string) error {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
@@ -883,6 +963,12 @@ func (ctx *EksInstanceGroupContext) UpdateLifecycleHooks(asgName string) error {
 }
 
 func (ctx *EksInstanceGroupContext) GetManagedPoliciesList(additionalPolicies []string) []string {
+	var (
+		instanceGroup = ctx.GetInstanceGroup()
+		spec          = instanceGroup.GetEKSSpec()
+		annotations   = instanceGroup.GetAnnotations()
+	)
+
 	managedPolicies := make([]string, 0)
 	for _, name := range additionalPolicies {
 		switch {
@@ -895,8 +981,23 @@ func (ctx *EksInstanceGroupContext) GetManagedPoliciesList(additionalPolicies []
 		}
 	}
 
+	var irsaEnabled bool
+	if val, ok := annotations[IRSAEnabledAnnotation]; ok {
+		if strings.EqualFold(val, "true") {
+			irsaEnabled = true
+		}
+	}
+
 	for _, name := range DefaultManagedPolicies {
 		managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, name))
+	}
+
+	if !irsaEnabled {
+		managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, CNIManagedPolicy))
+	}
+
+	if spec.HasWarmPool() {
+		managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, AutoscalingReadOnlyPolicy))
 	}
 
 	return managedPolicies

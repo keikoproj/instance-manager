@@ -39,6 +39,18 @@ func IsUsingLaunchTemplate(group *autoscaling.Group) bool {
 	return false
 }
 
+type ManagedNodeGroupReconcileState struct {
+	OngoingState             bool
+	FiniteState              bool
+	UnrecoverableError       bool
+	UnrecoverableDeleteError bool
+}
+
+var ManagedNodeGroupOngoingState = ManagedNodeGroupReconcileState{OngoingState: true}
+var ManagedNodeGroupFiniteState = ManagedNodeGroupReconcileState{FiniteState: true}
+var ManagedNodeGroupUnrecoverableError = ManagedNodeGroupReconcileState{UnrecoverableError: true}
+var ManagedNodeGroupUnrecoverableDeleteError = ManagedNodeGroupReconcileState{UnrecoverableDeleteError: true}
+
 func IsNodeGroupInConditionState(key string, condition string) bool {
 	conditionStates := map[string]ManagedNodeGroupReconcileState{
 		"CREATING":      ManagedNodeGroupOngoingState,
@@ -64,6 +76,22 @@ func IsNodeGroupInConditionState(key string, condition string) bool {
 		return false
 	}
 }
+
+type CloudResourceReconcileState struct {
+	OngoingState             bool
+	FiniteState              bool
+	FiniteDeleted            bool
+	UpdateRecoverableError   bool
+	UnrecoverableError       bool
+	UnrecoverableDeleteError bool
+}
+
+var OngoingState = CloudResourceReconcileState{OngoingState: true}
+var FiniteState = CloudResourceReconcileState{FiniteState: true}
+var FiniteDeleted = CloudResourceReconcileState{FiniteDeleted: true}
+var UpdateRecoverableError = CloudResourceReconcileState{UpdateRecoverableError: true}
+var UnrecoverableError = CloudResourceReconcileState{UnrecoverableError: true}
+var UnrecoverableDeleteError = CloudResourceReconcileState{UnrecoverableDeleteError: true}
 
 func IsProfileInConditionState(key string, condition string) bool {
 
@@ -115,4 +143,10 @@ func IsDesiredInService(scalingGroup *autoscaling.Group) bool {
 	}
 
 	return desired == inServiceCount
+
+func IsUsingWarmPool(group *autoscaling.Group) bool {
+	if group.WarmPoolConfiguration != nil {
+		return true
+	}
+	return false
 }

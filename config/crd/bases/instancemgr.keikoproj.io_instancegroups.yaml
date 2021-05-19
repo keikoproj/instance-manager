@@ -124,6 +124,16 @@ spec:
                         items:
                           type: string
                         type: array
+                      metadataOptions:
+                        properties:
+                          httpEndpoint:
+                            type: string
+                          httpPutHopLimit:
+                            format: int64
+                            type: integer
+                          httpTokens:
+                            type: string
+                        type: object
                       metricsCollection:
                         items:
                           type: string
@@ -268,6 +278,15 @@ spec:
                     type: integer
                   type:
                     type: string
+                  warmPool:
+                    properties:
+                      maxSize:
+                        format: int64
+                        type: integer
+                      minSize:
+                        format: int64
+                        type: integer
+                    type: object
                 required:
                 - configuration
                 type: object

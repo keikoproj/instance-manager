@@ -12,6 +12,16 @@ spec:
     minSize: <int64> : defines the auto scaling group's min instances (default 0)
     configuration: <EKSConfiguration> : the scaling group configuration
     type: <ScalingConfigurationType> : defines the type of scaling group, either LaunchTemplate or LaunchConfiguration (default)
+    warmPool: <WarmPoolSpec> : defines the spec of the auto scaling group's warm pool
+```
+### WarmPoolSpec
+```yaml
+spec:
+  provisioner: eks
+  eks:
+    warmPool:
+      maxSize: <int64> : defines the maximum size of the warm pool, use -1 to match to autoscaling group's max (default 0)
+      minSize: <int64> : defines the minimum size of the warm pool (default 0)
 ```
 
 ### EKSConfiguration
@@ -402,7 +412,33 @@ spec:
       # you can also reference "All" to suspend all processes
 ```
 
-## GitOps/Platform support, boundaries and default values
+## Warm Pools for Auto Scaling
+
+You can configure your scaling group to use [AWS Warm Pools for Auto Scaling](https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-warm-pools.html), which allows you to keep a capacity separate pool of stopped instances have already run any pre-bootstrap userdata - using warm pools can reduce the time it takes for nodes to join the cluster.
+
+Warm Pools is not officially supported with EKS, hence the following requirements exist in order to use it with EKS:
+- For Amazon Linux 2 instances, your AMI must have `awscli` & `jq`, you can also install it in pre-bootstrap userdata.
+- For Windows instances, your AMI must have the `Get-ASAutoScalingInstance` cmdlet installed.
+- If you use your own IAM role for the instance group, you must make sure it has access to `DescribeAutoScalingInstances`, this is required in order to figure out the current lifecycle state within userdata. If you are provisioning your IAM role through the controller, simply be aware that the controller will add the managed policy `AutoScalingReadOnlyAccess` to the role it creates.
+- This is currently only supported for AmazonLinux2 and Windows based AMIs.
+
+We hope to get rid of these requirements in the future once AWS offers native support for Warm Pools in EKS, these are currently required in order to avoid warming instances to join the cluster briefly while they are provisioned, we are able to avoid this problem by checking if the instances is in the Warmed* lifecycle, and skipping bootstrapping in that case. Skipping on these requirements and using warm pools might mean having nodes join the cluster when the are being warmed, and cause unneeded scheduling of pods on nodes that are about to shutdown.
+
+You can enable warm pools with the following spec:
+```yaml
+spec:
+  provisioner: eks
+  eks:
+    maxSize: 6
+    minSize: 3
+      warmPool:
+        maxSize: -1
+        minSize: 0    
+```
+
+Using `-1` means "Equal to the Auto Scaling group's maximum capacity", so effectively it will change according to scaling group's `maxSize`.
+
+## GitOps/Platform support, boundaries, default and conditional values
 
 In order to support use-cases around GitOps or platform management, the controller allows operators to define 'boundaries' of configurations into `restricted` and `shared` configurations, along with the default values to enforce.
 
@@ -550,12 +586,72 @@ This also makes upgrades easier across a managed cluster, an operator can now si
 
 Individual namespaces can opt-out by adding the annotation `instancemgr.keikoproj.io/config-excluded=true`, this is useful for system namespaces which may need to override a global restrictive configuration, e.g. subnet, while keeping the boundary as is for other namespaces - adding this annotation to a namespace will opt-out all instancegroups under the namespace from using the cluster configuration.
 
+
+### Conditional defaults
+For more complex setups, such as clusters that have InstanceGroups that have different architectures, operating systems, etc - it might be 
+desirable to conditionally apply default values. Conditional default values can be added, as seen in the example below:
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: instance-manager
+  namespace: instance-manager
+data:
+  boundaries: |
+    shared:
+      merge:
+      - spec.eks.configuration.labels
+      mergeOverride:
+      - spec.eks.configuration.tags
+      replace:
+      - spec.eks.strategy
+    restricted:
+    - spec.eks.configuration.image
+  defaults: |
+    spec:
+      provisioner: eks
+      eks:
+        configuration:
+          image: ami-x86linux
+  conditionals: |
+    - annotationSelector: 'instancemgr.keikoproj.io/os-family = windows'
+      defaults:
+       spec:
+         eks:
+           configuration:
+             image: ami-windows
+    - annotationSelector: 'instancemgr.keikoproj.io/arch = arm64,instancemgr.keikoproj.io/os-family = bottlerocket'
+      defaults:
+       spec:
+         eks:
+           configuration:
+             image: ami-bottlerocketArm
+```
+
+The `annotationSelector` field accepts a selector string, which follows the semantics of the Kubernetes [field selector](https://kubernetes.io/docs/concepts/overview/working-with-objects/field-selectors/). 
+This selector is applied against the annotations of InstanceGroup objects. When a selector matches an InstanceGroup, the `defaults` associated with it are applied to the InstangeGroup, taking precedence over the non-conditional 
+default values. Conditional rules are applied in-order from the beginning of the list to the end - meaning that the last applicable rule will apply in case of conflicts. 
+
+The following operators are supported:
+```
+<selector-syntax>         ::= <requirement> | <requirement> "," <selector-syntax>
+<requirement>             ::= [!] KEY [ <set-based-restriction> | <exact-match-restriction> ]
+<set-based-restriction>   ::= "" | <inclusion-exclusion> <value-set>
+<inclusion-exclusion>     ::= <inclusion> | <exclusion>
+<exclusion>               ::= "notin"
+<inclusion>               ::= "in"
+<value-set>               ::= "(" <values> ")"
+<values>                  ::= VALUE | VALUE "," <values>
+<exact-match-restriction> ::= ["="|"=="|"!="] VALUE
+```
+
 ## Annotations
 
 | Annotation Key | Object | Annotation Value | Purpose |
 |:--------------:|:------:|:----------------:|:-------:|
 |instancemgr.keikoproj.io/config-excluded|Namespace|"true"|settings this annotation on a namespace will allow opt-out from a configuration configmap, all instancegroups under such namespace will not use configmap boundaries and default values|
 |instancemgr.keikoproj.io/cluster-autoscaler-enabled|InstanceGroup|"true"|setting this annotation to true will add the relevant cluster-autoscaler EC2 tags according to cluster name, taints, and labels|
+|instancemgr.keikoproj.io/irsa-enabled|InstanceGroup|"true"|setting this annotation to true will remove the AmazonEKS_CNI_Policy from the default managed policies attached to the node role, this should only be used when nodes are using IAM Roles for Service Accounts (IRSA) and the aws-node daemonset is using an IRSA role which contains this policy|
 |instancemgr.keikoproj.io/os-family|InstanceGroup|either "windows", "bottlerocket", or "amazonlinux2" (default)|this is required if you are running a windows or bottlerocket based AMI, by default the controller will try to bootstrap an amazonlinux2 AMI|
 |instancemgr.keikoproj.io/default-labels|InstanceGroup|comma-seprarated key-value string e.g. "label1=value1,label2=value2"|allows overriding the default node labels added by the controller, by default the role label is added depending on the cluster version|
 |instancemgr.keikoproj.io/custom-networking-enabled|InstanceGroup|"true"|setting this annotation to true will automatically calculate the correct setting for max pods and pass it to the kubelet|

@@ -231,6 +231,35 @@ func TestInstanceGroupSpecValidate(t *testing.T) {
 			},
 			want: "",
 		},
+		{
+			name: "eks with metadataoptions validates",
+			args: args{
+				instancegroup: MockInstanceGroup("eks", "rollingUpdate", &EKSSpec{
+					MaxSize: 1,
+					MinSize: 1,
+					Type:    "LaunchTemplate",
+					EKSConfiguration: &EKSConfiguration{
+						EksClusterName:     "my-eks-cluster",
+						NodeSecurityGroups: []string{"sg-123456789"},
+						Image:              "ami-12345",
+						InstanceType:       "m5.large",
+						KeyPairName:        "thisShouldBeOptional",
+						Subnets:            []string{"subnet-1111111", "subnet-222222"},
+						Placement: &PlacementSpec{
+							AvailabilityZone:     "us-west-2a",
+							HostResourceGroupArn: "arn:aws:resource-groups:us-west-2:1122334455:group/resourceName",
+							Tenancy:              "host",
+						},
+						MetadataOptions: &MetadataOptions{
+							HttpEndpoint:    "enabled",
+							HttpTokens:      "required",
+							HttpPutHopLimit: 1,
+						},
+					},
+				}, nil, nil),
+			},
+			want: "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

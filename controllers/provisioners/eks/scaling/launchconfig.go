@@ -89,6 +89,7 @@ func (lc *LaunchConfiguration) Create(input *CreateConfigurationInput) error {
 		SecurityGroups:          aws.StringSlice(input.SecurityGroups),
 		UserData:                aws.String(input.UserData),
 		BlockDeviceMappings:     devices,
+		MetadataOptions:         lc.metadataOptions(input.MetadataOptions),
 	}
 
 	if !common.StringEmpty(input.SpotPrice) {
@@ -231,6 +232,16 @@ func (lc *LaunchConfiguration) Drifted(input *CreateConfigurationInput) bool {
 		drift = true
 	}
 
+	metadataOptions := lc.metadataOptions(input.MetadataOptions)
+
+	if !reflect.DeepEqual(metadataOptions, existingConfig.MetadataOptions) {
+		log.Info("detected drift", "reason", "metadata options have changed", "instancegroup", lc.OwnerName,
+			"previousValue", existingConfig.MetadataOptions,
+			"newValue", metadataOptions,
+		)
+		drift = true
+	}
+
 	if !drift {
 		log.Info("drift not detected", "instancegroup", lc.OwnerName)
 	}
@@ -280,6 +291,17 @@ func (lc *LaunchConfiguration) blockDeviceList(volumes []v1alpha1.NodeVolume) []
 		devices = append(devices, lc.GetAutoScalingBasicBlockDevice(v.Name, v.Type, v.SnapshotID, v.Size, v.Iops, v.DeleteOnTermination, v.Encrypted))
 	}
 	return sortConfigDevices(devices)
+}
+
+func (lc *LaunchConfiguration) metadataOptions(input *v1alpha1.MetadataOptions) *autoscaling.InstanceMetadataOptions {
+	if input == nil {
+		return nil
+	}
+	return &autoscaling.InstanceMetadataOptions{
+		HttpEndpoint:            aws.String(input.HttpEndpoint),
+		HttpPutResponseHopLimit: aws.Int64(input.HttpPutHopLimit),
+		HttpTokens:              aws.String(input.HttpTokens),
+	}
 }
 
 func getPrefixedConfigurations(configs []*autoscaling.LaunchConfiguration, prefix string) []*autoscaling.LaunchConfiguration {
