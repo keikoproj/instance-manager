@@ -86,7 +86,7 @@ func MockAwsWorker(asgClient *MockAutoScalingClient, iamClient *MockIamClient, e
 func MockEksCluster(version string) *eks.Cluster {
 	return &eks.Cluster{
 		CertificateAuthority: &eks.Certificate{
-			Data: aws.String(""),
+			Data: aws.String("dGVzdA=="),
 		},
 		Endpoint:           aws.String("foo.amazonaws.com"),
 		ResourcesVpcConfig: &eks.VpcConfigResponse{},
