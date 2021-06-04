@@ -5,7 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## [v0.12.0-alpha2] - 2020-5-7
+## [v0.12.1-alpha2] - 2021-6-4
+- fix: Set InstanceTypes before provisioned early exit (#312) 
+- refactor: awsprovider file restructure (#296)
+- feat: add support for instance metadata options (#305)
+- fix: Ignore mixedInstancePolicy if type is LaunchConfig (#303)
+- fix: add sorting when resolving securitygroups/subnets (#302)
+
+## [v0.12.0-alpha2] - 2021-5-7
 
 ### Added
 
@@ -16,13 +23,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Fixes for conditionals logic (#287)
 - OsFamily validation (#289)
 
-## [v0.11.1-alpha2] - 2020-4-29
+## [v0.11.1-alpha2] - 2021-4-29
 
 ### Fixed
 
 - Only set restricted field to default value if none of the conditionals set it (#284)
 
-## [v0.11.0-alpha2] - 2020-4-28
+## [v0.11.0-alpha2] - 2021-4-28
 
 ### Fixed
 
@@ -37,7 +44,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - prometheus metrics integration (#274)
 - conditional default values (#273)
 
-## [v0.10.1-alpha2] - 2020-4-01
+## [v0.10.1-alpha2] - 2021-4-01
 
 ### Fixed
 
@@ -47,7 +54,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Add validation for provisioner spec (#267)
 - Fix memory leak on caching pagination (#265)
 
-## [v0.10.0-alpha2] - 2020-2-10
+## [v0.10.0-alpha2] - 2021-2-10
 
 ### Added
 
