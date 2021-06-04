@@ -171,6 +171,12 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	vpcID := aws.StringValue(cluster.ResourcesVpcConfig.VpcId)
 	state.SetVPCId(vpcID)
 
+	instanceTypes, err := ctx.AwsWorker.DescribeInstanceTypes()
+	if err != nil {
+		return errors.Wrap(err, "failed to discover instance types")
+	}
+	state.SetInstanceTypeInfo(instanceTypes)
+
 	// find all owned scaling groups
 	ownedScalingGroups := ctx.findOwnedScalingGroups(scalingGroups)
 	state.SetOwnedScalingGroups(ownedScalingGroups)
@@ -205,12 +211,6 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	status.SetActiveScalingGroupName(asgName)
 	status.SetCurrentMin(int(aws.Int64Value(targetScalingGroup.MinSize)))
 	status.SetCurrentMax(int(aws.Int64Value(targetScalingGroup.MaxSize)))
-
-	instanceTypes, err := ctx.AwsWorker.DescribeInstanceTypes()
-	if err != nil {
-		return errors.Wrap(err, "failed to discover instance types")
-	}
-	state.SetInstanceTypeInfo(instanceTypes)
 
 	if spec.IsLaunchConfiguration() {
 
