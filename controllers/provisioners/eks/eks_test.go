@@ -90,7 +90,10 @@ func MockEksCluster(version string) *eks.Cluster {
 		},
 		Endpoint:           aws.String("foo.amazonaws.com"),
 		ResourcesVpcConfig: &eks.VpcConfigResponse{},
-		Version:            &version,
+		KubernetesNetworkConfig: &eks.KubernetesNetworkConfigResponse{
+			ServiceIpv4Cidr: aws.String("172.20.0.0/16"),
+		},
+		Version: &version,
 	}
 }
 

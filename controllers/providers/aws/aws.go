@@ -23,7 +23,6 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -69,6 +68,9 @@ const (
 	ARNPrefix                               = "arn:aws:"
 	LaunchConfigurationNotFoundErrorMessage = "Launch configuration name not found"
 	defaultPolicyArn                        = "arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy"
+
+	MetadataMACAddressPath       = "latest/meta-data/mac"
+	MetadataInterfaceCidrPathFmt = "latest/meta-data/network/interfaces/macs/%v/vpc-ipv4-cidr-blocks"
 )
 
 var (
@@ -112,11 +114,12 @@ var (
 )
 
 type AwsWorker struct {
-	AsgClient  autoscalingiface.AutoScalingAPI
-	EksClient  eksiface.EKSAPI
-	IamClient  iamiface.IAMAPI
-	Ec2Client  ec2iface.EC2API
-	Parameters map[string]interface{}
+	AsgClient   autoscalingiface.AutoScalingAPI
+	EksClient   eksiface.EKSAPI
+	IamClient   iamiface.IAMAPI
+	Ec2Client   ec2iface.EC2API
+	Ec2Metadata *ec2metadata.EC2Metadata
+	Parameters  map[string]interface{}
 }
 
 func (w *AwsWorker) WithRetries(f func() bool) error {
@@ -164,18 +167,12 @@ func GetTagValueByKey(tags []*autoscaling.TagDescription, key string) string {
 	return ""
 }
 
-func GetRegion() (string, error) {
+func GetRegion(metadata *ec2metadata.EC2Metadata) (string, error) {
 	if os.Getenv("AWS_REGION") != "" {
 		return os.Getenv("AWS_REGION"), nil
 	}
-	// Try Derive
-	var config aws.Config
-	sess := session.Must(session.NewSessionWithOptions(session.Options{
-		SharedConfigState: session.SharedConfigEnable,
-		Config:            config,
-	}))
-	c := ec2metadata.New(sess)
-	region, err := c.Region()
+
+	region, err := metadata.Region()
 	if err != nil {
 		return "", err
 	}

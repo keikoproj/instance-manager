@@ -515,9 +515,10 @@ func (ctx *EksInstanceGroupContext) GetBootstrapArgs() string {
 		bootstrapOptions = ctx.GetComputedBootstrapOptions()
 		state            = ctx.GetDiscoveredState()
 		osFamily         = ctx.GetOsFamily()
+		cluster          = state.GetCluster()
+		clusterIP        = ctx.AwsWorker.GetDNSClusterIP(cluster)
 	)
 	var sb strings.Builder
-
 	switch strings.ToLower(osFamily) {
 	case OsFamilyWindows:
 		if state.Cluster != nil {
@@ -532,6 +533,9 @@ func (ctx *EksInstanceGroupContext) GetBootstrapArgs() string {
 		if state.Cluster != nil {
 			sb.WriteString(fmt.Sprintf("--b64-cluster-ca %v ", aws.StringValue(state.Cluster.CertificateAuthority.Data)))
 			sb.WriteString(fmt.Sprintf("--apiserver-endpoint %v ", aws.StringValue(state.Cluster.Endpoint)))
+			if !common.StringEmpty(clusterIP) {
+				sb.WriteString(fmt.Sprintf("--dns-cluster-ip %v ", clusterIP))
+			}
 		}
 
 		sb.WriteString(fmt.Sprintf("--kubelet-extra-args '%v'", ctx.GetKubeletExtraArgs()))
