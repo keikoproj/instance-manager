@@ -16,7 +16,6 @@ limitations under the License.
 package aws
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -215,28 +214,10 @@ func (w *AwsWorker) DescribeFargateProfile() (*eks.FargateProfile, error) {
 }
 
 func (w *AwsWorker) GetDNSClusterIP(cluster *eks.Cluster) string {
-	if cluster != nil {
-		serviceCidr := aws.StringValue(cluster.KubernetesNetworkConfig.ServiceIpv4Cidr)
-		// addresses assigned from either the 10.100.0.0/16 or 172.20.0.0/16 CIDR blocks
-		return strings.ReplaceAll(serviceCidr, "0/16", "10")
-	} else {
-		// if cluster information is not available get instance's ipv4 cidr from metadata
-		macAddress, err := w.Ec2Metadata.GetMetadata(MetadataMACAddressPath)
-		if err != nil {
-			return ""
-		}
-
-		cidrMetadataPath := fmt.Sprintf(MetadataInterfaceCidrPathFmt, macAddress)
-		ipv4Cidr, err := w.Ec2Metadata.GetMetadata(cidrMetadataPath)
-		if err != nil {
-			return ""
-		}
-
-		// if instance ipv4 cidr starts with 10. service IP is 172.20.0.10, otherwise its 10.100.0.10
-		if strings.HasPrefix(ipv4Cidr, "10.") {
-			return "172.20.0.10"
-		}
-
-		return "10.100.0.10"
+	if cluster == nil {
+		return ""
 	}
+	serviceCidr := aws.StringValue(cluster.KubernetesNetworkConfig.ServiceIpv4Cidr)
+	// addresses assigned from either the 10.100.0.0/16 or 172.20.0.0/16 CIDR blocks
+	return strings.ReplaceAll(serviceCidr, "0/16", "10")
 }

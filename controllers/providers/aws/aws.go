@@ -68,9 +68,6 @@ const (
 	ARNPrefix                               = "arn:aws:"
 	LaunchConfigurationNotFoundErrorMessage = "Launch configuration name not found"
 	defaultPolicyArn                        = "arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy"
-
-	MetadataMACAddressPath       = "latest/meta-data/mac"
-	MetadataInterfaceCidrPathFmt = "latest/meta-data/network/interfaces/macs/%v/vpc-ipv4-cidr-blocks"
 )
 
 var (
