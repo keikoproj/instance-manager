@@ -16,6 +16,8 @@ limitations under the License.
 package aws
 
 import (
+	"strings"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/request"
@@ -209,4 +211,13 @@ func (w *AwsWorker) DescribeFargateProfile() (*eks.FargateProfile, error) {
 		return nil, err
 	}
 	return output.FargateProfile, nil
+}
+
+func (w *AwsWorker) GetDNSClusterIP(cluster *eks.Cluster) string {
+	if cluster == nil {
+		return ""
+	}
+	serviceCidr := aws.StringValue(cluster.KubernetesNetworkConfig.ServiceIpv4Cidr)
+	// addresses assigned from either the 10.100.0.0/16 or 172.20.0.0/16 CIDR blocks
+	return strings.ReplaceAll(serviceCidr, "0/16", "10")
 }

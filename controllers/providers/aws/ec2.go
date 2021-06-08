@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -54,6 +55,15 @@ func GetAwsEc2Client(region string, cacheCfg *cache.Config, maxRetries int, coll
 		)
 	})
 	return ec2.New(sess)
+}
+
+func GetAwsEc2MetadataClient() *ec2metadata.EC2Metadata {
+	var config aws.Config
+	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+		Config:            config,
+	}))
+	return ec2metadata.New(sess)
 }
 
 func (w *AwsWorker) DescribeInstanceOfferings() ([]*ec2.InstanceTypeOffering, error) {

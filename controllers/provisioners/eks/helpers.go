@@ -133,7 +133,7 @@ func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, k
     Echo "Not starting Kubelet due to warmed state."
     & C:\ProgramData\Amazon\EC2-Windows\Launch\Scripts\InitializeInstance.ps1 –Schedule
   } else {
-    & $EKSBootstrapScriptFile -EKSClusterName {{ .ClusterName }} -KubeletExtraArgs '{{ .KubeletExtraArgs }}' 3>&1 4>&1 5>&1 6>&1
+    & $EKSBootstrapScriptFile -EKSClusterName {{ .ClusterName }} {{ .Arguments }} 3>&1 4>&1 5>&1 6>&1
     {{range $post := .PostBootstrap}}{{$post}}{{end}}
   }
 </powershell>`
@@ -513,13 +513,34 @@ func (ctx *EksInstanceGroupContext) GetComputedBootstrapOptions() *v1alpha1.Boot
 func (ctx *EksInstanceGroupContext) GetBootstrapArgs() string {
 	var (
 		bootstrapOptions = ctx.GetComputedBootstrapOptions()
+		state            = ctx.GetDiscoveredState()
+		osFamily         = ctx.GetOsFamily()
+		cluster          = state.GetCluster()
+		clusterIP        = ctx.AwsWorker.GetDNSClusterIP(cluster)
 	)
 	var sb strings.Builder
+	switch strings.ToLower(osFamily) {
+	case OsFamilyWindows:
+		if state.Cluster != nil {
+			sb.WriteString(fmt.Sprintf("-Base64ClusterCA %v ", aws.StringValue(state.Cluster.CertificateAuthority.Data)))
+			sb.WriteString(fmt.Sprintf("-APIServerEndpoint %v ", aws.StringValue(state.Cluster.Endpoint)))
+		}
+		sb.WriteString(fmt.Sprintf("-KubeletExtraArgs '%v'", ctx.GetKubeletExtraArgs()))
+	case OsFamilyAmazonLinux2:
+		if bootstrapOptions != nil && bootstrapOptions.MaxPods > 0 {
+			sb.WriteString("--use-max-pods false ")
+		}
+		if state.Cluster != nil {
+			sb.WriteString(fmt.Sprintf("--b64-cluster-ca %v ", aws.StringValue(state.Cluster.CertificateAuthority.Data)))
+			sb.WriteString(fmt.Sprintf("--apiserver-endpoint %v ", aws.StringValue(state.Cluster.Endpoint)))
+			if !common.StringEmpty(clusterIP) {
+				sb.WriteString(fmt.Sprintf("--dns-cluster-ip %v ", clusterIP))
+			}
+		}
 
-	if bootstrapOptions != nil && bootstrapOptions.MaxPods > 0 {
-		sb.WriteString("--use-max-pods false ")
+		sb.WriteString(fmt.Sprintf("--kubelet-extra-args '%v'", ctx.GetKubeletExtraArgs()))
 	}
-	sb.WriteString(fmt.Sprintf("--kubelet-extra-args '%v'", ctx.GetKubeletExtraArgs()))
+
 	return sb.String()
 }
 

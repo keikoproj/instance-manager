@@ -98,7 +98,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	awsRegion, err := aws.GetRegion()
+	metadata := aws.GetAwsEc2MetadataClient()
+	awsRegion, err := aws.GetRegion(metadata)
 	if err != nil {
 		setupLog.Error(err, "unable to get AWS region")
 		os.Exit(1)
@@ -120,10 +121,11 @@ func main() {
 	cacheCollector := cacheCfg.NewCacheCollector("instance_manager")
 	controllerCollector := common.NewMetricsCollector()
 	awsWorker := aws.AwsWorker{
-		Ec2Client: aws.GetAwsEc2Client(awsRegion, cacheCfg, maxAPIRetries, controllerCollector),
-		IamClient: aws.GetAwsIamClient(awsRegion, cacheCfg, maxAPIRetries, controllerCollector),
-		AsgClient: aws.GetAwsAsgClient(awsRegion, cacheCfg, maxAPIRetries, controllerCollector),
-		EksClient: aws.GetAwsEksClient(awsRegion, cacheCfg, maxAPIRetries, controllerCollector),
+		Ec2Client:   aws.GetAwsEc2Client(awsRegion, cacheCfg, maxAPIRetries, controllerCollector),
+		IamClient:   aws.GetAwsIamClient(awsRegion, cacheCfg, maxAPIRetries, controllerCollector),
+		AsgClient:   aws.GetAwsAsgClient(awsRegion, cacheCfg, maxAPIRetries, controllerCollector),
+		EksClient:   aws.GetAwsEksClient(awsRegion, cacheCfg, maxAPIRetries, controllerCollector),
+		Ec2Metadata: metadata,
 	}
 
 	metrics.Registry.MustRegister(cacheCollector, controllerCollector)
