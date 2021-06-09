@@ -233,6 +233,66 @@ func TestInstanceGroupSpecValidate(t *testing.T) {
 			want: "",
 		},
 		{
+			name: "eks with gp2 volume with provisioned throughput fails",
+			args: args{
+				instancegroup: MockInstanceGroup("eks", "rollingUpdate", &EKSSpec{
+					MaxSize: 1,
+					MinSize: 1,
+					Type:    "LaunchTemplate",
+					EKSConfiguration: &EKSConfiguration{
+						EksClusterName:     "my-eks-cluster",
+						NodeSecurityGroups: []string{"sg-123456789"},
+						Image:              "ami-12345",
+						InstanceType:       "m5.large",
+						KeyPairName:        "thisShouldBeOptional",
+						Subnets:            []string{"subnet-1111111", "subnet-222222"},
+						Placement: &PlacementSpec{
+							AvailabilityZone:     "us-west-2a",
+							HostResourceGroupArn: "arn:aws:resource-groups:us-west-2:1122334455:group/resourceName",
+							Tenancy:              "host",
+						},
+						Volumes: []NodeVolume{
+							{
+								Type:       "gp2",
+								Throughput: 1000,
+							},
+						},
+					},
+				}, nil, nil),
+			},
+			want: "validation failed, volume type 'gp2' does not support provisioned throughput",
+		},
+		{
+			name: "eks with gp2 volume with provisioned iops fails",
+			args: args{
+				instancegroup: MockInstanceGroup("eks", "rollingUpdate", &EKSSpec{
+					MaxSize: 1,
+					MinSize: 1,
+					Type:    "LaunchTemplate",
+					EKSConfiguration: &EKSConfiguration{
+						EksClusterName:     "my-eks-cluster",
+						NodeSecurityGroups: []string{"sg-123456789"},
+						Image:              "ami-12345",
+						InstanceType:       "m5.large",
+						KeyPairName:        "thisShouldBeOptional",
+						Subnets:            []string{"subnet-1111111", "subnet-222222"},
+						Placement: &PlacementSpec{
+							AvailabilityZone:     "us-west-2a",
+							HostResourceGroupArn: "arn:aws:resource-groups:us-west-2:1122334455:group/resourceName",
+							Tenancy:              "host",
+						},
+						Volumes: []NodeVolume{
+							{
+								Type:       "gp2",
+								Iops: 1000,
+							},
+						},
+					},
+				}, nil, nil),
+			},
+			want: "validation failed, volume type 'gp2' does not support provisioned iops",
+		},
+		{
 			name: "eks with metadataoptions validates",
 			args: args{
 				instancegroup: MockInstanceGroup("eks", "rollingUpdate", &EKSSpec{

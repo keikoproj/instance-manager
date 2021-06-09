@@ -431,6 +431,14 @@ func (s *EKSSpec) Validate() error {
 				return errors.Errorf("validation failed, volume type '%v' is unsupported", v.Type)
 			}
 		}
+
+		if v.Iops != 0 && !common.ContainsEqualFold(awsprovider.AllowedVolumeTypesWithProvisionedIOPS, v.Type) {
+			return errors.Errorf("validation failed, volume type '%v' does not support provisioned iops", v.Type)
+		}
+
+		if v.Throughput != 0 && !common.ContainsEqualFold(awsprovider.AllowedVolumeTypesWithProvisionedThroughput, v.Type) {
+			return errors.Errorf("validation failed, volume type '%v' does not support provisioned throughput", v.Type)
+		}
 	}
 
 	if s.HasWarmPool() {
