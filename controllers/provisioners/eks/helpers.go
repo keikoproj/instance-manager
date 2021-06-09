@@ -288,6 +288,7 @@ func (ctx *EksInstanceGroupContext) GetAddedTags(asgName string) []*autoscaling.
 		taints        = configuration.GetTaints()
 		osFamily      = ctx.GetOsFamily()
 		state         = ctx.GetDiscoveredState()
+		instanceTypeInfo = state.GetInstanceTypeInfo()
 	)
 
 	tags = append(tags, ctx.AwsWorker.NewTag("Name", asgName, asgName))
@@ -305,7 +306,7 @@ func (ctx *EksInstanceGroupContext) GetAddedTags(asgName string) []*autoscaling.
 			tags = append(tags, ctx.AwsWorker.NewTag("k8s.io/cluster-autoscaler/node-template/label/kubernetes.io/os", "windows", asgName))
 			tags = append(tags, ctx.AwsWorker.NewTag("k8s.io/cluster-autoscaler/node-template/label/kubernetes.io/arch", "amd64", asgName))
 
-			instanceTypeNetworkInfo := awsprovider.GetInstanceTypeNetworkInfo(state.GetInstanceTypeInfo(), configuration.InstanceType)
+			instanceTypeNetworkInfo := awsprovider.GetInstanceTypeNetworkInfo(instanceTypeInfo, configuration.InstanceType)
 			numberOfIps := aws.Int64Value(instanceTypeNetworkInfo.Ipv4AddressesPerInterface) - 1
 			tags = append(tags, ctx.AwsWorker.NewTag("k8s.io/cluster-autoscaler/node-template/resources/vpc.amazonaws.com/PrivateIPv4Address", strconv.FormatInt(numberOfIps, 10), asgName))
 		default:
