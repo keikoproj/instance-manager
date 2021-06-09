@@ -234,12 +234,11 @@ func (ctx *EksInstanceGroupContext) UpdateScalingGroup(configName string, scalin
 
 func (ctx *EksInstanceGroupContext) TagsUpdateNeeded() bool {
 	var (
-		instanceGroup = ctx.GetInstanceGroup()
-		configuration = instanceGroup.GetEKSConfiguration()
-		state         = ctx.GetDiscoveredState()
-		scalingGroup  = state.GetScalingGroup()
-		asgName       = aws.StringValue(scalingGroup.AutoScalingGroupName)
-		rmTags        = ctx.GetRemovedTags(asgName)
+		state        = ctx.GetDiscoveredState()
+		scalingGroup = state.GetScalingGroup()
+		asgName      = aws.StringValue(scalingGroup.AutoScalingGroupName)
+		rmTags       = ctx.GetRemovedTags(asgName)
+		addedTags    = ctx.GetAddedTags(asgName)
 	)
 
 	if len(rmTags) > 0 {
@@ -255,7 +254,11 @@ func (ctx *EksInstanceGroupContext) TagsUpdateNeeded() bool {
 		existingTags = append(existingTags, tagSet)
 	}
 
-	for _, tag := range configuration.GetTags() {
+	for _, tag := range addedTags {
+		tag := map[string]string{
+			"key":   aws.StringValue(tag.Key),
+			"value": aws.StringValue(tag.Value),
+		}
 		if !common.StringMapSliceContains(existingTags, tag) {
 			return true
 		}

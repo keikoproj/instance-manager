@@ -480,7 +480,7 @@ func TestLaunchConfigurationDrifted(t *testing.T) {
 				LaunchConfigurationName: aws.String("my-launch-config"),
 			},
 			input: &CreateConfigurationInput{
-				SecurityGroups: []string{},
+				SecurityGroups:  []string{},
 				MetadataOptions: &v1alpha1.MetadataOptions{HttpEndpoint: "enabled"},
 			},
 			shouldDrift: true,

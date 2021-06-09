@@ -133,7 +133,7 @@ func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, k
     Echo "Not starting Kubelet due to warmed state."
     & C:\ProgramData\Amazon\EC2-Windows\Launch\Scripts\InitializeInstance.ps1 –Schedule
   } else {
-    & $EKSBootstrapScriptFile -EKSClusterName {{ .ClusterName }} -KubeletExtraArgs '{{ .KubeletExtraArgs }}' 3>&1 4>&1 5>&1 6>&1
+    & $EKSBootstrapScriptFile -EKSClusterName {{ .ClusterName }} {{ .Arguments }} 3>&1 4>&1 5>&1 6>&1
     {{range $post := .PostBootstrap}}{{$post}}{{end}}
   }
 </powershell>`
@@ -287,6 +287,8 @@ func (ctx *EksInstanceGroupContext) GetAddedTags(asgName string) []*autoscaling.
 		labels        = ctx.GetComputedLabels()
 		taints        = configuration.GetTaints()
 		osFamily      = ctx.GetOsFamily()
+		state         = ctx.GetDiscoveredState()
+		instanceTypeInfo = state.GetInstanceTypeInfo()
 	)
 
 	tags = append(tags, ctx.AwsWorker.NewTag("Name", asgName, asgName))
@@ -302,6 +304,13 @@ func (ctx *EksInstanceGroupContext) GetAddedTags(asgName string) []*autoscaling.
 		switch strings.ToLower(osFamily) {
 		case OsFamilyWindows:
 			tags = append(tags, ctx.AwsWorker.NewTag("k8s.io/cluster-autoscaler/node-template/label/kubernetes.io/os", "windows", asgName))
+			tags = append(tags, ctx.AwsWorker.NewTag("k8s.io/cluster-autoscaler/node-template/label/kubernetes.io/arch", "amd64", asgName))
+
+			instanceTypeNetworkInfo := awsprovider.GetInstanceTypeNetworkInfo(instanceTypeInfo, configuration.InstanceType)
+			if instanceTypeNetworkInfo != nil {
+				numberOfIps := aws.Int64Value(instanceTypeNetworkInfo.Ipv4AddressesPerInterface) - 1
+				tags = append(tags, ctx.AwsWorker.NewTag("k8s.io/cluster-autoscaler/node-template/resources/vpc.amazonaws.com/PrivateIPv4Address", strconv.FormatInt(numberOfIps, 10), asgName))
+			}
 		default:
 			tags = append(tags, ctx.AwsWorker.NewTag("k8s.io/cluster-autoscaler/node-template/label/kubernetes.io/os", "linux", asgName))
 		}
@@ -513,13 +522,34 @@ func (ctx *EksInstanceGroupContext) GetComputedBootstrapOptions() *v1alpha1.Boot
 func (ctx *EksInstanceGroupContext) GetBootstrapArgs() string {
 	var (
 		bootstrapOptions = ctx.GetComputedBootstrapOptions()
+		state            = ctx.GetDiscoveredState()
+		osFamily         = ctx.GetOsFamily()
+		cluster          = state.GetCluster()
+		clusterIP        = ctx.AwsWorker.GetDNSClusterIP(cluster)
 	)
 	var sb strings.Builder
+	switch strings.ToLower(osFamily) {
+	case OsFamilyWindows:
+		if state.Cluster != nil {
+			sb.WriteString(fmt.Sprintf("-Base64ClusterCA %v ", aws.StringValue(state.Cluster.CertificateAuthority.Data)))
+			sb.WriteString(fmt.Sprintf("-APIServerEndpoint %v ", aws.StringValue(state.Cluster.Endpoint)))
+		}
+		sb.WriteString(fmt.Sprintf("-KubeletExtraArgs '%v'", ctx.GetKubeletExtraArgs()))
+	case OsFamilyAmazonLinux2:
+		if bootstrapOptions != nil && bootstrapOptions.MaxPods > 0 {
+			sb.WriteString("--use-max-pods false ")
+		}
+		if state.Cluster != nil {
+			sb.WriteString(fmt.Sprintf("--b64-cluster-ca %v ", aws.StringValue(state.Cluster.CertificateAuthority.Data)))
+			sb.WriteString(fmt.Sprintf("--apiserver-endpoint %v ", aws.StringValue(state.Cluster.Endpoint)))
+			if !common.StringEmpty(clusterIP) {
+				sb.WriteString(fmt.Sprintf("--dns-cluster-ip %v ", clusterIP))
+			}
+		}
 
-	if bootstrapOptions != nil && bootstrapOptions.MaxPods > 0 {
-		sb.WriteString("--use-max-pods false ")
+		sb.WriteString(fmt.Sprintf("--kubelet-extra-args '%v'", ctx.GetKubeletExtraArgs()))
 	}
-	sb.WriteString(fmt.Sprintf("--kubelet-extra-args '%v'", ctx.GetKubeletExtraArgs()))
+
 	return sb.String()
 }
 

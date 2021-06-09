@@ -285,6 +285,10 @@ func (d *DiscoveredState) SetCluster(cluster *eks.Cluster) {
 	d.Cluster = cluster
 }
 
+func (d *DiscoveredState) GetCluster() *eks.Cluster {
+	return d.Cluster
+}
+
 func (d *DiscoveredState) SetVPCId(id string) {
 	d.VPCId = id
 }
