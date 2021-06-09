@@ -279,15 +279,15 @@ func (ctx *EksInstanceGroupContext) GetMountOpts() []MountOpts {
 
 func (ctx *EksInstanceGroupContext) GetAddedTags(asgName string) []*autoscaling.Tag {
 	var (
-		tags          []*autoscaling.Tag
-		instanceGroup = ctx.GetInstanceGroup()
-		configuration = instanceGroup.GetEKSConfiguration()
-		clusterName   = configuration.GetClusterName()
-		annotations   = instanceGroup.GetAnnotations()
-		labels        = ctx.GetComputedLabels()
-		taints        = configuration.GetTaints()
-		osFamily      = ctx.GetOsFamily()
-		state         = ctx.GetDiscoveredState()
+		tags             []*autoscaling.Tag
+		instanceGroup    = ctx.GetInstanceGroup()
+		configuration    = instanceGroup.GetEKSConfiguration()
+		clusterName      = configuration.GetClusterName()
+		annotations      = instanceGroup.GetAnnotations()
+		labels           = ctx.GetComputedLabels()
+		taints           = configuration.GetTaints()
+		osFamily         = ctx.GetOsFamily()
+		state            = ctx.GetDiscoveredState()
 		instanceTypeInfo = state.GetInstanceTypeInfo()
 	)
 

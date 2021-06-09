@@ -81,7 +81,7 @@ func (w *AwsWorker) GetLaunchTemplateBlockDeviceRequest(name, volType, snapshot 
 	return device
 }
 
-func (w *AwsWorker) GetLaunchTemplateBlockDevice(name, volType, snapshot string, volSize, iops int64, delete, encrypt *bool) *ec2.LaunchTemplateBlockDeviceMapping {
+func (w *AwsWorker) GetLaunchTemplateBlockDevice(name, volType, snapshot string, volSize, iops int64, throughput int64, delete, encrypt *bool) *ec2.LaunchTemplateBlockDeviceMapping {
 	device := &ec2.LaunchTemplateBlockDeviceMapping{
 		DeviceName: aws.String(name),
 		Ebs: &ec2.LaunchTemplateEbsBlockDevice{
@@ -96,8 +96,11 @@ func (w *AwsWorker) GetLaunchTemplateBlockDevice(name, volType, snapshot string,
 	if encrypt != nil {
 		device.Ebs.Encrypted = encrypt
 	}
-	if iops != 0 && strings.EqualFold(volType, "io1") {
+	if iops != 0 && common.ContainsEqualFold(AllowedVolumeTypesWithProvisionedIOPS, volType) {
 		device.Ebs.Iops = aws.Int64(iops)
+	}
+	if throughput != 0 && common.ContainsEqualFold(AllowedVolumeTypesWithProvisionedThroughput, volType) {
+		device.Ebs.Throughput = aws.Int64(throughput)
 	}
 	if volSize != 0 {
 		device.Ebs.VolumeSize = aws.Int64(volSize)
