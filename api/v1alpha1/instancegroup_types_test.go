@@ -222,8 +222,9 @@ func TestInstanceGroupSpecValidate(t *testing.T) {
 						},
 						Volumes: []NodeVolume{
 							{
-								Type: "gp3",
-								Iops: 230,
+								Type:       "gp3",
+								Iops:       230,
+								Throughput: 1000,
 							},
 						},
 					},

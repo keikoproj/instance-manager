@@ -343,7 +343,7 @@ func (lt *LaunchTemplate) blockDeviceListRequest(volumes []v1alpha1.NodeVolume) 
 func (lt *LaunchTemplate) blockDeviceList(volumes []v1alpha1.NodeVolume) []*ec2.LaunchTemplateBlockDeviceMapping {
 	var devices []*ec2.LaunchTemplateBlockDeviceMapping
 	for _, v := range volumes {
-		devices = append(devices, lt.GetLaunchTemplateBlockDevice(v.Name, v.Type, v.SnapshotID, v.Size, v.Iops, v.DeleteOnTermination, v.Encrypted))
+		devices = append(devices, lt.GetLaunchTemplateBlockDevice(v.Name, v.Type, v.SnapshotID, v.Size, v.Iops, v.Throughput, v.DeleteOnTermination, v.Encrypted))
 	}
 
 	return sortTemplateDevices(devices)

@@ -291,6 +291,7 @@ type NodeVolume struct {
 	Type                string                  `json:"type"`
 	Size                int64                   `json:"size"`
 	Iops                int64                   `json:"iops,omitempty"`
+	Throughput          int64                   `json:"throughput,omitempty"`
 	DeleteOnTermination *bool                   `json:"deleteOnTermination,omitempty"`
 	Encrypted           *bool                   `json:"encrypted,omitempty"`
 	SnapshotID          string                  `json:"snapshotId,omitempty"`
