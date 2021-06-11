@@ -103,11 +103,12 @@ var (
 		"GroupTotalCapacity",
 	}
 
-	ConfigurationAllowedVolumeTypes       = []string{"gp2", "io1", "sc1", "st1"}
-	TemplateAllowedVolumeTypes            = []string{"gp2", "gp3", "io1", "io2", "sc1", "st1"}
-	AllowedVolumeTypesWithProvisionedIOPS = []string{"io1", "io2", "gp3"}
-	LifecycleHookTransitionLaunch         = "autoscaling:EC2_INSTANCE_LAUNCHING"
-	LifecycleHookTransitionTerminate      = "autoscaling:EC2_INSTANCE_TERMINATING"
+	ConfigurationAllowedVolumeTypes             = []string{"gp2", "io1", "sc1", "st1"}
+	TemplateAllowedVolumeTypes                  = []string{"gp2", "gp3", "io1", "io2", "sc1", "st1"}
+	AllowedVolumeTypesWithProvisionedIOPS       = []string{"io1", "io2", "gp3"}
+	AllowedVolumeTypesWithProvisionedThroughput = []string{"gp3"}
+	LifecycleHookTransitionLaunch               = "autoscaling:EC2_INSTANCE_LAUNCHING"
+	LifecycleHookTransitionTerminate            = "autoscaling:EC2_INSTANCE_TERMINATING"
 )
 
 type AwsWorker struct {

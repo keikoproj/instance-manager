@@ -261,6 +261,9 @@ spec:
                               type: integer
                             snapshotId:
                               type: string
+                            throughput:
+                              format: int64
+                              type: integer
                             type:
                               type: string
                           required:
