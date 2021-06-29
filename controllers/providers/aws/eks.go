@@ -218,6 +218,10 @@ func (w *AwsWorker) GetDNSClusterIP(cluster *eks.Cluster) string {
 		return ""
 	}
 	serviceCidr := aws.StringValue(cluster.KubernetesNetworkConfig.ServiceIpv4Cidr)
-	// addresses assigned from either the 10.100.0.0/16 or 172.20.0.0/16 CIDR blocks
-	return strings.ReplaceAll(serviceCidr, "0/16", "10")
+	// addresses are by default assigned from either the 10.100.0.0/16 or 172.20.0.0/16 CIDR blocks.
+	// custom ranges could be blocks that are not /16 size.
+	ip := strings.Split(serviceCidr, "/")[0] // remove block size
+	blocks := strings.Split(ip, ".")
+	blocks[3] = "10" // replace last byte in IP address with "10" as is the convention
+	return strings.Join(blocks, ".")
 }
