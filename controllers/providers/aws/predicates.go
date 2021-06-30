@@ -16,6 +16,8 @@ limitations under the License.
 package aws
 
 import (
+	"strings"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/eks"
@@ -126,6 +128,21 @@ func IsUsingMixedInstances(group *autoscaling.Group) bool {
 	}
 	return false
 }
+
+func IsDesiredInService(scalingGroup *autoscaling.Group) bool {
+	var (
+		desired        = aws.Int64Value(scalingGroup.DesiredCapacity)
+		inServiceCount int64
+	)
+
+	for _, instance := range scalingGroup.Instances {
+		lifecycle := aws.StringValue(instance.LifecycleState)
+		if strings.EqualFold(lifecycle, autoscaling.LifecycleStateInService) {
+			inServiceCount++
+		}
+	}
+
+	return desired == inServiceCount
 
 func IsUsingWarmPool(group *autoscaling.Group) bool {
 	if group.WarmPoolConfiguration != nil {
