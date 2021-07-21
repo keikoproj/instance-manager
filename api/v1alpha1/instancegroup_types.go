@@ -109,6 +109,7 @@ var (
 	}
 	DefaultCRDStrategyMaxRetries = 3
 
+	AllowedContainerRuntimes            = []ContainerRuntime{ContainerDRuntime, DockerRuntime}
 	AllowedFileSystemTypes              = []string{FileSystemTypeXFS, FileSystemTypeEXT4}
 	AllowedMixedPolicyStrategies        = []string{LaunchTemplateStrategyCapacityOptimized, LaunchTemplateStrategyLowestPrice}
 	AllowedInstancePools                = []string{SubFamilyFlexibleInstancePool}
@@ -479,6 +480,15 @@ func (s *EKSSpec) HasWarmPool() bool {
 	return false
 }
 
+func contains(s []ContainerRuntime, e ContainerRuntime) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *EKSConfiguration) Validate() error {
 	if common.StringEmpty(c.EksClusterName) {
 		return errors.Errorf("validation failed, 'clusterName' is a required parameter")
@@ -509,6 +519,13 @@ func (c *EKSConfiguration) Validate() error {
 			processes = append(processes, m)
 		}
 		c.SuspendedProcesses = processes
+	}
+
+
+	if c.BootstrapOptions != nil {
+		if c.BootstrapOptions.ContainerRuntime != "" && !contains(AllowedContainerRuntimes, c.BootstrapOptions.ContainerRuntime) {
+			return errors.Errorf("validation failed, 'bootstrapOptions.containerRuntime' must be one of %+v", AllowedContainerRuntimes)
+		}
 	}
 
 	hooks := []LifecycleHookSpec{}

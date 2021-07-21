@@ -110,6 +110,26 @@ func TestInstanceGroupSpecValidate(t *testing.T) {
 			want: "validation failed, 'LicenseSpecifications[0]' must be a valid IAM role ARN",
 		},
 		{
+			name: "eks with invalid container runtime",
+			args: args{
+				instancegroup: MockInstanceGroup("eks", "rollingUpdate", &EKSSpec{
+					MaxSize: 1,
+					MinSize: 1,
+					Type:    "LaunchTemplate",
+					EKSConfiguration: &EKSConfiguration{
+						BootstrapOptions: &BootstrapOptions{ContainerRuntime: "foo"},
+						EksClusterName:        "my-eks-cluster",
+						NodeSecurityGroups:    []string{"sg-123456789"},
+						Image:                 "ami-12345",
+						InstanceType:          "m5.large",
+						KeyPairName:           "thisShouldBeOptional",
+						Subnets:               []string{"subnet-1111111", "subnet-222222"},
+					},
+				}, nil, nil),
+			},
+			want: "validation failed, 'bootstrapOptions.containerRuntime' must be one of [containerd dockerd]",
+		},
+		{
 			name: "eks with valid Placement",
 			args: args{
 				instancegroup: MockInstanceGroup("eks", "rollingUpdate", &EKSSpec{
