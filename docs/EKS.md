@@ -58,6 +58,11 @@ spec:
       # All (will suspend all above processes)
       suspendProcesses: <[]string> : must match scaling process names to suspend
 
+      bootstrapOptions:
+        containerRuntime: <string> : one of "dockerd" or "containerd". Specifies which container runtime to use. Currently only available on Amazon Linux 2
+        maxPods: <int> : maximum number of pods that can be run per-node in this IG.
+                 
+
       bootstrapArguments: <string> : additional flags to pass to boostrap.sh script
       spotPrice: <string> : must be a decimal number represnting a minimal spot price
 
