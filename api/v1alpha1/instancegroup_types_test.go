@@ -283,7 +283,7 @@ func TestInstanceGroupSpecValidate(t *testing.T) {
 						},
 						Volumes: []NodeVolume{
 							{
-								Type:       "gp2",
+								Type: "gp2",
 								Iops: 1000,
 							},
 						},

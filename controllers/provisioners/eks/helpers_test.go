@@ -96,7 +96,8 @@ func TestGetBasicUserDataAmazonLinux2(t *testing.T) {
 	ctx := MockContext(ig, k, w)
 
 	configuration.BootstrapOptions = &v1alpha1.BootstrapOptions{
-		MaxPods: 4,
+		MaxPods:          4,
+		ContainerRuntime: "containerd",
 	}
 	configuration.Labels = map[string]string{
 		"foo": "bar",
@@ -159,7 +160,7 @@ if [[ $(type -P $(which aws)) ]] && [[ $(type -P $(which jq)) ]] ; then
 	fi
 fi
 set -o xtrace
-/etc/eks/bootstrap.sh foo --use-max-pods false --b64-cluster-ca dGVzdA== --apiserver-endpoint foo.amazonaws.com --dns-cluster-ip 172.20.0.10 --kubelet-extra-args '--node-labels=foo=bar,instancemgr.keikoproj.io/image=ami-123456789012,node.kubernetes.io/role=instance-group-1 --register-with-taints=foo=bar:NoSchedule --eviction-hard=memory.available<300Mi,nodefs.available<5% --system-reserved=memory=2.5Gi --v=2 --max-pods=4'
+/etc/eks/bootstrap.sh foo --use-max-pods false --container-runtime containerd --b64-cluster-ca dGVzdA== --apiserver-endpoint foo.amazonaws.com --dns-cluster-ip 172.20.0.10 --kubelet-extra-args '--node-labels=foo=bar,instancemgr.keikoproj.io/image=ami-123456789012,node.kubernetes.io/role=instance-group-1 --register-with-taints=foo=bar:NoSchedule --eviction-hard=memory.available<300Mi,nodefs.available<5% --system-reserved=memory=2.5Gi --v=2 --max-pods=4'
 set +o xtrace
 bar`
 	userData := ctx.GetBasicUserData("foo", args, kubeletArgs, userDataPayload, mounts)

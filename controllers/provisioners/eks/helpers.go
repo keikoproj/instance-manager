@@ -539,6 +539,10 @@ func (ctx *EksInstanceGroupContext) GetBootstrapArgs() string {
 		if bootstrapOptions != nil && bootstrapOptions.MaxPods > 0 {
 			sb.WriteString("--use-max-pods false ")
 		}
+
+		if bootstrapOptions != nil && bootstrapOptions.ContainerRuntime != "" {
+			sb.WriteString(fmt.Sprintf("--container-runtime %v ", bootstrapOptions.ContainerRuntime))
+		}
 		if state.Cluster != nil {
 			sb.WriteString(fmt.Sprintf("--b64-cluster-ca %v ", aws.StringValue(state.Cluster.CertificateAuthority.Data)))
 			sb.WriteString(fmt.Sprintf("--apiserver-endpoint %v ", aws.StringValue(state.Cluster.Endpoint)))

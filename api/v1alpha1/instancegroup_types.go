@@ -78,11 +78,15 @@ const (
 	DedicatedPlacementTenancyType = "dedicated"
 )
 
+type ContainerRuntime string
 type ScalingConfigurationType string
 
 const (
 	LaunchConfiguration ScalingConfigurationType = "LaunchConfiguration"
 	LaunchTemplate      ScalingConfigurationType = "LaunchTemplate"
+
+	DockerRuntime     ContainerRuntime = "dockerd"
+	ContainerDRuntime ContainerRuntime = "containerd"
 )
 
 var (
@@ -187,7 +191,8 @@ type EKSManagedSpec struct {
 }
 
 type BootstrapOptions struct {
-	MaxPods int64 `json:"maxPods,omitempty"`
+	MaxPods          int64            `json:"maxPods,omitempty"`
+	ContainerRuntime ContainerRuntime `json:"containerRuntime,omitempty"`
 }
 
 type WarmPoolSpec struct {

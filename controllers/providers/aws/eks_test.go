@@ -8,7 +8,7 @@ import (
 
 func TestClusterDns(t *testing.T) {
 	var (
-		g       = gomega.NewGomegaWithT(t)
+		g = gomega.NewGomegaWithT(t)
 	)
 
 	awsWorker := AwsWorker{}
