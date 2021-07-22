@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [v0.13.0-alpha2] - 2021-7-21
+- feat: add support for specifying container runtime (#323)
+- fix: calculate cluster dns correctly for non /16 blocks (#319)
+- fix: add throughput parameter for volumes, allow iops to be set for any provisioned iops-supported volume (#316)
+- fix: add addl tags for scale to 0 support for windows nodes (#315)
+- fix: evaluate controller-added tags (#314)
+- feat: Pass API Endpoint & CA Cert directly to bootstrap
+
 ## [v0.12.1-alpha2] - 2021-6-4
 - fix: Set InstanceTypes before provisioned early exit (#312) 
 - refactor: awsprovider file restructure (#296)
