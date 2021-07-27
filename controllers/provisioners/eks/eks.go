@@ -33,9 +33,9 @@ import (
 const (
 	ProvisionerName                                   = "eks"
 	defaultLaunchConfigurationRetention               = 2
-	OverrideDefaultLabelsAnnotation					  = "instancemgr.keikoproj.io/default-labels"
-	IRSAEnabledAnnotation							  = "instancemgr.keikoproj.io/irsa-enabled"
-	OsFamilyAnnotation								  = "instancemgr.keikoproj.io/os-family"
+	OverrideDefaultLabelsAnnotation                   = "instancemgr.keikoproj.io/default-labels"
+	IRSAEnabledAnnotation                             = "instancemgr.keikoproj.io/irsa-enabled"
+	OsFamilyAnnotation                                = "instancemgr.keikoproj.io/os-family"
 	ClusterAutoscalerEnabledAnnotation				  = "instancemgr.keikoproj.io/cluster-autoscaler-enabled"
 	CustomNetworkingEnabledAnnotation				  = "instancemgr.keikoproj.io/custom-networking-enabled"
 	CustomNetworkingHostPodsAnnotation				  = "instancemgr.keikoproj.io/custom-networking-host-pods"
