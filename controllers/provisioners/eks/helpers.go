@@ -502,8 +502,17 @@ func (ctx *EksInstanceGroupContext) GetComputedBootstrapOptions() *v1alpha1.Boot
 		}
 
 		instanceTypeNetworkInfo := awsprovider.GetInstanceTypeNetworkInfo(state.GetInstanceTypeInfo(), configuration.InstanceType)
-		maxPods := (*instanceTypeNetworkInfo.MaximumNetworkInterfaces-1)*
-			(*instanceTypeNetworkInfo.Ipv4AddressesPerInterface-1) + hostNetworkPods
+		var prefixAssignmentEnabled = instanceGroup.GetAnnotations()[CustomNetworkingPrefixAssignmentEnabledAnnotation] == "true"
+		var maxPods int64 = 0
+
+		var enis = aws.Int64Value(instanceTypeNetworkInfo.MaximumNetworkInterfaces)-1 //Primary interface is not used for pod networking when custom networking is enabled
+		var ipsPerInterface int64 = 1
+		if prefixAssignmentEnabled {
+			ipsPerInterface = 16 //Number of ips in a /28 block
+		}
+
+		maxPods = enis * ((aws.Int64Value(instanceTypeNetworkInfo.Ipv4AddressesPerInterface)-1) * ipsPerInterface)+ hostNetworkPods
+
 		if configuration.BootstrapOptions == nil {
 			return &v1alpha1.BootstrapOptions{
 				MaxPods: maxPods,

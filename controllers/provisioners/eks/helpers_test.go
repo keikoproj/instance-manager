@@ -317,6 +317,16 @@ func TestCustomNetworkingMaxPods(t *testing.T) {
 		{
 			annotations: map[string]string{
 				ClusterAutoscalerEnabledAnnotation: "true",
+				CustomNetworkingPrefixAssignmentEnabledAnnotation: "true",
+				CustomNetworkingHostPodsAnnotation: "2",
+				CustomNetworkingEnabledAnnotation:  "true",
+			},
+			bootstrapOptions: nil,
+			expectedMaxPods:  "--max-pods=290",
+		},
+		{
+			annotations: map[string]string{
+				ClusterAutoscalerEnabledAnnotation: "true",
 				CustomNetworkingHostPodsAnnotation: "",
 				CustomNetworkingEnabledAnnotation:  "true",
 			},
