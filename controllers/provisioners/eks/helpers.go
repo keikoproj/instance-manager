@@ -511,7 +511,7 @@ func (ctx *EksInstanceGroupContext) GetComputedBootstrapOptions() *v1alpha1.Boot
 			ipsPerInterface = 16 //Number of ips in a /28 block
 		}
 
-		maxPods = enis * ((*instanceTypeNetworkInfo.Ipv4AddressesPerInterface-1) * ipsPerInterface)+ hostNetworkPods
+		maxPods = enis * ((aws.Int64Value(instanceTypeNetworkInfo.Ipv4AddressesPerInterface)-1) * ipsPerInterface)+ hostNetworkPods
 
 		if configuration.BootstrapOptions == nil {
 			return &v1alpha1.BootstrapOptions{
