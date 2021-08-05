@@ -16,6 +16,7 @@ type CloudDeployer interface {
 	GetState() v1alpha.ReconcileState // Gets the current state type of the instance group
 	SetState(v1alpha.ReconcileState)  // Sets the current state of the instance group
 	IsReady() bool                    // Returns true if state is Ready
+	Locked() bool                     // Returns true if instanceGroup is locked
 }
 
 func HandleReconcileRequest(d CloudDeployer) error {
@@ -54,6 +55,11 @@ func HandleReconcileRequest(d CloudDeployer) error {
 
 	// CRUD Nodes Upgrade Strategy
 	if d.GetState() == v1alpha.ReconcileInitUpgrade {
+		// Locked
+		if d.Locked() {
+			d.SetState(v1alpha.ReconcileLocked)
+			return nil
+		}
 		err = d.UpgradeNodes()
 		if err != nil {
 			return err
@@ -67,12 +73,18 @@ func HandleReconcileRequest(d CloudDeployer) error {
 
 	// Bootstrap Nodes
 	if d.IsReady() {
+
 		err = d.BootstrapNodes()
 		if err != nil {
 			return err
 		}
 
 		if d.GetState() == v1alpha.ReconcileInitUpgrade {
+			// Locked
+			if d.Locked() {
+				d.SetState(v1alpha.ReconcileLocked)
+				return nil
+			}
 			err = d.UpgradeNodes()
 			if err != nil {
 				return err

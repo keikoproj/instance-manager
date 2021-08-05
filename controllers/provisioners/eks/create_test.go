@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/onsi/gomega"
@@ -40,9 +41,10 @@ func TestCreateManagedRolePositive(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 	state := ctx.GetDiscoveredState()
 	state.SetCluster(MockEksCluster("1.15"))
@@ -80,9 +82,10 @@ func TestCreateLaunchConfigurationPositive(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
 	iamMock.Role = &iam.Role{
@@ -111,9 +114,10 @@ func TestCreateLaunchTemplatePositive(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
 	iamMock.Role = &iam.Role{
@@ -144,9 +148,10 @@ func TestCreateScalingGroupPositive(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
 	// skip role creation
@@ -187,9 +192,10 @@ func TestCreateNoOp(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 	// skip role creation
 	ig.GetEKSConfiguration().SetInstanceProfileName("some-profile")
@@ -231,9 +237,10 @@ func TestCreateManagedRoleNegative(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
 	// Mock role/profile do not exist so they are always created
@@ -280,9 +287,10 @@ func TestCreateLaunchConfigNegative(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
 	iamMock.Role = &iam.Role{
@@ -314,9 +322,10 @@ func TestCreateAutoScalingGroupNegative(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
 	iamMock.Role = &iam.Role{
@@ -331,4 +340,58 @@ func TestCreateAutoScalingGroupNegative(t *testing.T) {
 	err = ctx.Create()
 	g.Expect(err).To(gomega.HaveOccurred())
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
+}
+
+func TestCreateLatestAMI(t *testing.T) {
+	var (
+		g       = gomega.NewGomegaWithT(t)
+		k       = MockKubernetesClientSet()
+		ig      = MockInstanceGroup()
+		asgMock = NewAutoScalingMocker()
+		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
+	)
+
+	testLatestAmiID := "ami-12345678"
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
+	ctx := MockContext(ig, k, w)
+
+	// skip role creation
+	ig.GetEKSConfiguration().SetInstanceProfileName("some-profile")
+	ig.GetEKSConfiguration().SetRoleName("some-role")
+	iamMock.Role = &iam.Role{
+		Arn:      aws.String("some-arn"),
+		RoleName: aws.String("some-role"),
+	}
+
+	// Setup Latest AMI
+	ig.GetEKSConfiguration().Image = "latest"
+	ssmMock.latestAMI = testLatestAmiID
+
+	ec2Mock.InstanceTypes = []*ec2.InstanceTypeInfo{
+		&ec2.InstanceTypeInfo{
+			InstanceType: aws.String("m5.large"),
+			ProcessorInfo: &ec2.ProcessorInfo{
+				SupportedArchitectures: []*string{aws.String("x86_64")},
+			},
+		},
+	}
+
+	err := ctx.CloudDiscovery()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	// Must happen after ctx.CloudDiscover()
+	ctx.GetDiscoveredState().SetInstanceTypeInfo([]*ec2.InstanceTypeInfo{
+		{
+			InstanceType: aws.String("m5.large"),
+			ProcessorInfo: &ec2.ProcessorInfo{
+				SupportedArchitectures: []*string{aws.String("x86_64")},
+			},
+		},
+	})
+
+	err = ctx.Create()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	g.Expect(ctx.GetInstanceGroup().Spec.EKSSpec.EKSConfiguration.Image).To(gomega.Equal(testLatestAmiID))
 }

@@ -58,6 +58,7 @@ var (
 	DefaultManagedPolicies    = []string{"AmazonEKSWorkerNodePolicy", "AmazonEC2ContainerRegistryReadOnly"}
 	CNIManagedPolicy          = "AmazonEKS_CNI_Policy"
 	AutoscalingReadOnlyPolicy = "AutoScalingReadOnlyAccess"
+	SupportedArchitectures    = []string{"x86_64", "arm64"}
 )
 
 // New constructs a new instance group provisioner of EKS type
@@ -196,4 +197,8 @@ func (p *InstancePool) GetPool(key string) ([]InstanceSpec, bool) {
 		return val, true
 	}
 	return nil, false
+}
+
+func (ctx *EksInstanceGroupContext) Locked() bool {
+	return ctx.InstanceGroup.Locked()
 }

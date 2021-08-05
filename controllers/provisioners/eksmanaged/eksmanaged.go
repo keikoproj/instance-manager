@@ -215,6 +215,10 @@ func (ctx *EksManagedInstanceGroupContext) IsReady() bool {
 	return false
 }
 
+func (ctx *EksManagedInstanceGroupContext) Locked() bool {
+	return false
+}
+
 func New(p provisioners.ProvisionerInput) *EksManagedInstanceGroupContext {
 
 	ctx := &EksManagedInstanceGroupContext{

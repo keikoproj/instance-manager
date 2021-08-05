@@ -42,9 +42,10 @@ func TestAutoscalerTags(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 
 	ig.Annotations = map[string]string{
 		ClusterAutoscalerEnabledAnnotation: "true",
@@ -89,10 +90,11 @@ func TestGetBasicUserDataAmazonLinux2(t *testing.T) {
 		iamMock       = NewIamMocker()
 		eksMock       = NewEksMocker()
 		ec2Mock       = NewEc2Mocker()
+		ssmMock       = NewSsmMocker()
 		configuration = ig.GetEKSConfiguration()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
 	configuration.BootstrapOptions = &v1alpha1.BootstrapOptions{
@@ -179,10 +181,11 @@ func TestGetBasicUserDataWindows(t *testing.T) {
 		iamMock       = NewIamMocker()
 		eksMock       = NewEksMocker()
 		ec2Mock       = NewEc2Mocker()
+		ssmMock       = NewSsmMocker()
 		configuration = ig.GetEKSConfiguration()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
 	configuration.BootstrapOptions = &v1alpha1.BootstrapOptions{
@@ -254,9 +257,10 @@ func TestCustomNetworkingMaxPods(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 
 	ig.Annotations = map[string]string{
 		ClusterAutoscalerEnabledAnnotation: "true",
@@ -316,10 +320,10 @@ func TestCustomNetworkingMaxPods(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				ClusterAutoscalerEnabledAnnotation: "true",
+				ClusterAutoscalerEnabledAnnotation:                "true",
 				CustomNetworkingPrefixAssignmentEnabledAnnotation: "true",
-				CustomNetworkingHostPodsAnnotation: "2",
-				CustomNetworkingEnabledAnnotation:  "true",
+				CustomNetworkingHostPodsAnnotation:                "2",
+				CustomNetworkingEnabledAnnotation:                 "true",
 			},
 			bootstrapOptions: nil,
 			expectedMaxPods:  "--max-pods=290",
@@ -357,9 +361,10 @@ func TestResolveSecurityGroups(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
 	tests := []struct {
@@ -399,9 +404,10 @@ func TestResolveSubnets(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
 	tests := []struct {
@@ -440,9 +446,10 @@ func TestGetDisabledMetrics(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
 	// No disable required
@@ -500,9 +507,10 @@ func TestGetEnabledMetrics(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
 	// Enable all metrics
@@ -547,6 +555,7 @@ func TestGetLabelList(t *testing.T) {
 		iamMock                    = NewIamMocker()
 		eksMock                    = NewEksMocker()
 		ec2Mock                    = NewEc2Mocker()
+		ssmMock                    = NewSsmMocker()
 		defaultLifecycleLabel      = "instancemgr.keikoproj.io/lifecycle=normal"
 		defaultImageLabel          = fmt.Sprintf("instancemgr.keikoproj.io/image=%v", configuration.GetImage())
 		expectedLabels115          = []string{defaultImageLabel, defaultLifecycleLabel, "node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
@@ -558,7 +567,7 @@ func TestGetLabelList(t *testing.T) {
 		expectedMixedLabel         = []string{defaultImageLabel, "instancemgr.keikoproj.io/lifecycle=mixed", "node-role.kubernetes.io/instance-group-1=\"\"", "node.kubernetes.io/role=instance-group-1"}
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
 	tests := []struct {
@@ -615,9 +624,10 @@ func TestGetMountOpts(t *testing.T) {
 		iamMock       = NewIamMocker()
 		eksMock       = NewEksMocker()
 		ec2Mock       = NewEc2Mocker()
+		ssmMock       = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
 	volumeNoOpts := v1alpha1.NodeVolume{
@@ -728,9 +738,10 @@ func TestGetUserDataStages(t *testing.T) {
 		iamMock       = NewIamMocker()
 		eksMock       = NewEksMocker()
 		ec2Mock       = NewEc2Mocker()
+		ssmMock       = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
 	tests := []struct {
@@ -785,9 +796,10 @@ func TestMaxPodsSetCorrectly(t *testing.T) {
 		iamMock                   = NewIamMocker()
 		eksMock                   = NewEksMocker()
 		ec2Mock                   = NewEc2Mocker()
+		ssmMock                   = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 
 	bottleRocketIgWithMaxPods.Spec.EKSSpec.EKSConfiguration.BootstrapOptions = &v1alpha1.BootstrapOptions{
 		MaxPods: 15,
@@ -843,9 +855,10 @@ func TestBootstrapDataForOSFamily(t *testing.T) {
 		iamMock        = NewIamMocker()
 		eksMock        = NewEksMocker()
 		ec2Mock        = NewEc2Mocker()
+		ssmMock        = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 
 	tests := []struct {
 		ig                       *v1alpha1.InstanceGroup
@@ -888,9 +901,10 @@ func TestUpdateLifecycleHooks(t *testing.T) {
 		iamMock       = NewIamMocker()
 		eksMock       = NewEksMocker()
 		ec2Mock       = NewEc2Mocker()
+		ssmMock       = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
 	testScalingHooks := []*autoscaling.LifecycleHook{
@@ -965,9 +979,10 @@ func TestUpdateWarmPool(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
 	tests := []struct {
@@ -1020,5 +1035,104 @@ func TestUpdateWarmPool(t *testing.T) {
 			g.Expect(asgMock.DeleteWarmPoolCallCount).To(gomega.Equal(uint(0)))
 			g.Expect(asgMock.PutWarmPoolCallCount).To(gomega.Equal(uint(0)))
 		}
+	}
+}
+
+func TestFilterSupportedArch(t *testing.T) {
+	var (
+		g = gomega.NewGomegaWithT(t)
+	)
+
+	tests := []struct {
+		name          string
+		architectures []string
+		expected      string
+	}{
+		{
+			name:          "supported architecture x86",
+			architectures: []string{"x86_64"},
+			expected:      "x86_64",
+		},
+		{
+			name:          "supported architecture arm64",
+			architectures: []string{"arm64"},
+			expected:      "arm64",
+		},
+		{
+			name:          "no supported architecture",
+			architectures: []string{},
+			expected:      "",
+		},
+	}
+
+	for _, tc := range tests {
+		result := FilterSupportedArch(tc.architectures)
+		g.Expect(result).To(gomega.Equal(tc.expected))
+	}
+
+}
+
+func TestGetEksLatestAmi(t *testing.T) {
+	var (
+		k            = MockKubernetesClientSet()
+		ig           = MockInstanceGroup()
+		config       = ig.GetEKSConfiguration()
+		asgMock      = NewAutoScalingMocker()
+		iamMock      = NewIamMocker()
+		eksMock      = NewEksMocker()
+		ec2Mock      = NewEc2Mocker()
+		ssmMock      = NewSsmMocker()
+		instanceType = "m5.large"
+	)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
+
+	tests := []struct {
+		name          string
+		OSFamily      string
+		arch          string
+		expectedError error
+	}{
+		{
+			name:          "AmazonLinux2-x86_64",
+			OSFamily:      "amazonlinux2",
+			arch:          "x86_64",
+			expectedError: nil,
+		},
+		{
+			name:          "bottlerocket-x86_64",
+			OSFamily:      "bottlerocket",
+			arch:          "x86_64",
+			expectedError: nil,
+		},
+		{
+			name:          "AmazonLinux2-noarch",
+			OSFamily:      "amazonlinux2",
+			arch:          "noarch",
+			expectedError: fmt.Errorf("No supported CPU architecture found for instance type %s", instanceType),
+		},
+	}
+
+	for _, tc := range tests {
+		ig.SetAnnotations(map[string]string{
+			OsFamilyAnnotation: tc.OSFamily,
+		})
+		config.InstanceType = instanceType
+		ctx := MockContext(ig, k, w)
+		ctx.GetDiscoveredState().SetInstanceTypeInfo([]*ec2.InstanceTypeInfo{
+			{
+				InstanceType: aws.String(instanceType),
+				ProcessorInfo: &ec2.ProcessorInfo{
+					SupportedArchitectures: []*string{aws.String(tc.arch)},
+				},
+			},
+		})
+		_, err := ctx.GetEksLatestAmi()
+		if err == nil && tc.expectedError == nil {
+			continue
+		}
+		if err != nil && tc.expectedError != nil && err.Error() != tc.expectedError.Error() {
+			t.Fatalf("expected %v got %v, test %s", tc.expectedError, err, tc.name)
+		}
+
 	}
 }

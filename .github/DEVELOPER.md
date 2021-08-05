@@ -55,6 +55,13 @@ You can also run `make coverage` to generate a coverage report.
 
 ## Running BDD tests
 
+### Dependencies
+
+1. You will need an existing EKS cluster running with the connection details exported into a kube config file.
+2. [Keikoproj Minion-Manager](https://github.com/keikoproj/minion-manager) must also be running in the cluster
+3. Instance Manager needs to be started outside of the bdd test suite
+
+
 Export some variables and run `make bdd` to run a functional e2e test.
 
 ### Example
@@ -96,3 +103,5 @@ testing: warning: no tests to run
 PASS
 ok  	github.com/keikoproj/instance-manager/test-bdd	1362.336s [no tests to run]
 ```
+
+Note: If your test cluster uses `InstanceGroups` to run core components, annotating the namespace with `instancemgr.keikoproj.io/config-excluded="true"` can help prevent unexpected disruption.

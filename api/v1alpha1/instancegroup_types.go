@@ -47,8 +47,9 @@ const (
 	ReconcileModified  ReconcileState = "ReconcileModified"
 
 	// End States
-	ReconcileReady ReconcileState = "Ready"
-	ReconcileErr   ReconcileState = "Error"
+	ReconcileLocked ReconcileState = "Locked"
+	ReconcileReady  ReconcileState = "Ready"
+	ReconcileErr    ReconcileState = "Error"
 
 	// Userdata bootstrap stages
 	PreBootstrapStage  = "PreBootstrap"
@@ -76,6 +77,8 @@ const (
 	HostPlacementTenancyType      = "host"
 	DefaultPlacementTenancyType   = "default"
 	DedicatedPlacementTenancyType = "dedicated"
+
+	ImageLatestValue = "latest"
 )
 
 type ContainerRuntime string
@@ -87,6 +90,8 @@ const (
 
 	DockerRuntime     ContainerRuntime = "dockerd"
 	ContainerDRuntime ContainerRuntime = "containerd"
+
+	UpgradeLockedAnnotationKey = "instancemgr.keikoproj.io/lock-upgrades"
 )
 
 var (
@@ -392,6 +397,15 @@ func (ig *InstanceGroup) GetUpgradeStrategy() *AwsUpgradeStrategy {
 func (ig *InstanceGroup) SetUpgradeStrategy(strategy AwsUpgradeStrategy) {
 	ig.Spec.AwsUpgradeStrategy = strategy
 }
+func (ig *InstanceGroup) Locked() bool {
+	annotations := ig.GetAnnotations()
+	if val, ok := annotations[UpgradeLockedAnnotationKey]; ok {
+		if strings.EqualFold(val, "true") {
+			return true
+		}
+	}
+	return false
+}
 
 func (s *EKSSpec) Validate() error {
 	var (
@@ -520,7 +534,6 @@ func (c *EKSConfiguration) Validate() error {
 		}
 		c.SuspendedProcesses = processes
 	}
-
 
 	if c.BootstrapOptions != nil {
 		if c.BootstrapOptions.ContainerRuntime != "" && !contains(AllowedContainerRuntimes, c.BootstrapOptions.ContainerRuntime) {
