@@ -227,7 +227,7 @@ func GetInstanceArchitectures(typeInfo []*ec2.InstanceTypeInfo, instanceType str
 	}
 	var archs = []string{}
 	for _, s := range instanceTypeInfo.ProcessorInfo.SupportedArchitectures {
-		archs = append(archs, *s)
+		archs = append(archs, aws.StringValue(s))
 	}
 	sort.Strings(archs)
 	return archs

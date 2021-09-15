@@ -426,7 +426,6 @@ func subFamilyFlexiblePool(offerings []*ec2.InstanceTypeOffering, typeInfo []*ec
 		pool[offeringType] = make([]InstanceSpec, 0)
 		pool[offeringType] = append(pool[offeringType], spec)
 
-		TypeInfo:
 		for _, i := range typeInfo {
 			var (
 				instanceType = aws.StringValue(i.InstanceType)
@@ -445,10 +444,9 @@ func subFamilyFlexiblePool(offerings []*ec2.InstanceTypeOffering, typeInfo []*ec
 				continue
 			}
 
-			for i, _ := range desiredArchs {
-				if !strings.EqualFold(desiredArchs[i], supportedArchs[i]) {
-					continue TypeInfo
-				}
+
+			if !common.StringSliceContains(desiredArchs, supportedArchs){
+				continue
 			}
 
 			if !strings.EqualFold(family, desiredFamily) {
