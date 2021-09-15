@@ -412,6 +412,7 @@ func subFamilyFlexiblePool(offerings []*ec2.InstanceTypeOffering, typeInfo []*ec
 	for _, t := range offerings {
 		var (
 			offeringType      = aws.StringValue(t.InstanceType)
+			desiredArchs      = awsprovider.GetInstanceArchitectures(typeInfo, offeringType)
 			desiredFamily     = awsprovider.GetInstanceFamily(offeringType)
 			desiredGeneration = awsprovider.GetInstanceGeneration(offeringType)
 			cpu               = awsprovider.GetOfferingVCPU(typeInfo, offeringType)
@@ -425,6 +426,7 @@ func subFamilyFlexiblePool(offerings []*ec2.InstanceTypeOffering, typeInfo []*ec
 		pool[offeringType] = make([]InstanceSpec, 0)
 		pool[offeringType] = append(pool[offeringType], spec)
 
+		TypeInfo:
 		for _, i := range typeInfo {
 			var (
 				instanceType = aws.StringValue(i.InstanceType)
@@ -436,7 +438,18 @@ func subFamilyFlexiblePool(offerings []*ec2.InstanceTypeOffering, typeInfo []*ec
 					Type:   instanceType,
 					Weight: DefaultOfferingWeight,
 				}
+				supportedArchs = awsprovider.GetInstanceArchitectures(typeInfo, instanceType)
 			)
+
+			if len(desiredArchs) != len(supportedArchs) {
+				continue
+			}
+
+			for i, _ := range desiredArchs {
+				if !strings.EqualFold(desiredArchs[i], supportedArchs[i]) {
+					continue TypeInfo
+				}
+			}
 
 			if !strings.EqualFold(family, desiredFamily) {
 				continue
