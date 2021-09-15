@@ -367,6 +367,7 @@ type MockInstanceTypeInfo struct {
 	InstanceType string
 	VCpus        int64
 	MemoryMib    int64
+	Arch         string
 }
 
 func MockTypeInfo(types ...MockInstanceTypeInfo) []*ec2.InstanceTypeInfo {
@@ -376,6 +377,9 @@ func MockTypeInfo(types ...MockInstanceTypeInfo) []*ec2.InstanceTypeInfo {
 			InstanceType: aws.String(t.InstanceType),
 			VCpuInfo: &ec2.VCpuInfo{
 				DefaultVCpus: aws.Int64(t.VCpus),
+			},
+			ProcessorInfo: &ec2.ProcessorInfo{
+				SupportedArchitectures: []*string{aws.String(t.Arch)},
 			},
 			MemoryInfo: &ec2.MemoryInfo{
 				SizeInMiB: aws.Int64(t.MemoryMib),

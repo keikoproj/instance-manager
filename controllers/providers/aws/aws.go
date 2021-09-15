@@ -18,6 +18,7 @@ package aws
 import (
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -218,6 +219,20 @@ func GetInstanceFamily(instanceType string) string {
 	return ""
 }
 
+func GetInstanceArchitectures(typeInfo []*ec2.InstanceTypeInfo, instanceType string) []string {
+
+	instanceTypeInfo := GetInstanceTypeInfo(typeInfo, instanceType)
+	if instanceTypeInfo == nil || instanceTypeInfo.ProcessorInfo == nil {
+		return []string{}
+	}
+	var archs = []string{}
+	for _, s := range instanceTypeInfo.ProcessorInfo.SupportedArchitectures {
+		archs = append(archs, aws.StringValue(s))
+	}
+	sort.Strings(archs)
+	return archs
+}
+
 func GetScalingConfigName(group *autoscaling.Group) string {
 	var configName string
 	if IsUsingLaunchConfiguration(group) {
@@ -234,6 +249,15 @@ func GetInstanceTypeNetworkInfo(instanceTypes []*ec2.InstanceTypeInfo, instanceT
 	for _, instanceTypeInfo := range instanceTypes {
 		if aws.StringValue(instanceTypeInfo.InstanceType) == instanceType {
 			return instanceTypeInfo.NetworkInfo
+		}
+	}
+	return nil
+}
+
+func GetInstanceTypeInfo(instanceTypes []*ec2.InstanceTypeInfo, instanceType string) *ec2.InstanceTypeInfo {
+	for _, instanceTypeInfo := range instanceTypes {
+		if aws.StringValue(instanceTypeInfo.InstanceType) == instanceType {
+			return instanceTypeInfo
 		}
 	}
 	return nil
