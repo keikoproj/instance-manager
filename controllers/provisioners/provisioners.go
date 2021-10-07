@@ -23,6 +23,7 @@ const (
 	TagKubernetesCluster      = "KubernetesCluster"
 
 	ConfigurationExclusionAnnotationKey = "instancemgr.keikoproj.io/config-excluded"
+	UpgradeLockedAnnotationKey          = "instancemgr.keikoproj.io/lock-upgrades"
 )
 
 type ProvisionerInput struct {
@@ -36,7 +37,7 @@ type ProvisionerInput struct {
 }
 
 var (
-	NonRetryableStates = []v1alpha1.ReconcileState{v1alpha1.ReconcileErr, v1alpha1.ReconcileReady, v1alpha1.ReconcileDeleted}
+	NonRetryableStates = []v1alpha1.ReconcileState{v1alpha1.ReconcileErr, v1alpha1.ReconcileReady, v1alpha1.ReconcileDeleted, v1alpha1.ReconcileLocked}
 )
 
 func IsRetryable(instanceGroup *v1alpha1.InstanceGroup) bool {

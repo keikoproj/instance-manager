@@ -505,13 +505,13 @@ func (ctx *EksInstanceGroupContext) GetComputedBootstrapOptions() *v1alpha1.Boot
 		var prefixAssignmentEnabled = instanceGroup.GetAnnotations()[CustomNetworkingPrefixAssignmentEnabledAnnotation] == "true"
 		var maxPods int64 = 0
 
-		var enis = aws.Int64Value(instanceTypeNetworkInfo.MaximumNetworkInterfaces)-1 //Primary interface is not used for pod networking when custom networking is enabled
+		var enis = aws.Int64Value(instanceTypeNetworkInfo.MaximumNetworkInterfaces) - 1 //Primary interface is not used for pod networking when custom networking is enabled
 		var ipsPerInterface int64 = 1
 		if prefixAssignmentEnabled {
 			ipsPerInterface = 16 //Number of ips in a /28 block
 		}
 
-		maxPods = enis * ((aws.Int64Value(instanceTypeNetworkInfo.Ipv4AddressesPerInterface)-1) * ipsPerInterface)+ hostNetworkPods
+		maxPods = enis*((aws.Int64Value(instanceTypeNetworkInfo.Ipv4AddressesPerInterface)-1)*ipsPerInterface) + hostNetworkPods
 
 		if configuration.BootstrapOptions == nil {
 			return &v1alpha1.BootstrapOptions{
@@ -1172,4 +1172,41 @@ func (ctx *EksInstanceGroupContext) GetDesiredMixedInstancesPolicy(name string) 
 	}
 
 	return policy
+}
+
+func FilterSupportedArch(architectures []string) string {
+	for _, a := range architectures {
+		for _, supportedArch := range SupportedArchitectures {
+			result := a == supportedArch
+			if result {
+				return supportedArch
+			}
+		}
+	}
+	return ""
+}
+
+func (ctx *EksInstanceGroupContext) GetEksLatestAmi() (string, error) {
+	var (
+		instanceGroup = ctx.GetInstanceGroup()
+		state         = ctx.GetDiscoveredState()
+		configuration = instanceGroup.GetEKSConfiguration()
+	)
+	clusterVersion := state.GetClusterVersion()
+	annotations := instanceGroup.GetAnnotations()
+
+	var OSFamily string
+	if kubeprovider.HasAnnotation(annotations, OsFamilyAnnotation) {
+		OSFamily = annotations[OsFamilyAnnotation]
+	} else {
+		OSFamily = OsFamilyAmazonLinux2
+	}
+
+	supportedArchitectures := awsprovider.GetInstanceTypeArchitectures(state.GetInstanceTypeInfo(), configuration.InstanceType)
+	arch := FilterSupportedArch(supportedArchitectures)
+	if arch == "" {
+		return "", fmt.Errorf("No supported CPU architecture found for instance type %s", configuration.InstanceType)
+	}
+
+	return ctx.AwsWorker.GetEksLatestAmi(OSFamily, arch, clusterVersion)
 }

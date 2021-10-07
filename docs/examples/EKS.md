@@ -7,6 +7,7 @@
     - [Upgrade Strategies](#upgrade-strategies)
     - [EC2 Instance placement](#ec2-instance-placement)
     - [Bring your own role](#bring-your-own-role)
+    - [Auto-Updating AWS EKS Optimised AMI ID](#auto-updating-aws-eks-optimised-ami-id)
 
 ## EKS sample spec
 
@@ -177,3 +178,28 @@ spec:
 ```
 
 if you do not provide these fields, a role will be created for your instance-group by the controller (will require IAM access).
+
+
+### Auto-Updating AWS EKS Optimised AMI ID
+
+Amazon provides a EKS optimised AMIs for AmazonLinux2, Bottlerocket and Windows - https://docs.aws.amazon.com/eks/latest/userguide/eks-optimized-ami.html
+Instance-manager can periodically query the latest AMI ID from AWS SSM parameter store, and automatically update the image used in your instance groups, ensuring your nodes are always patched and kept up-to-date. This feature pairs well with customised upgrade strategies to ensure nodes are safely upgraded when and how you expect.
+
+note: The controller reconciles `InstanceGroups` every 10 hours by default, so changes may take up to 11 hours (sync period + SSM GetParameter cache TTL) to occur.
+Using the locking annotation `instancemgr.keikoproj.io/lock-upgrades` will allow more control of upgrades. Locking/Unlocking `InstanceGroups` will trigger a reconcile.
+
+```yaml
+apiVersion: instancemgr.keikoproj.io/v1alpha1
+kind: InstanceGroup
+metadata:
+  name: hello-world
+  namespace: instance-manager
+  annotations:
+    instancemgr.keikoproj.io/os-family: "amazonlinux2" #Default if not provided
+spec:
+  strategy: <...>
+  provisioner: eks
+  eks:
+    configuration:
+      image: latest
+```

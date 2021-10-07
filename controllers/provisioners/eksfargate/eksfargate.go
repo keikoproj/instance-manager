@@ -366,3 +366,6 @@ func (ctx *FargateInstanceGroupContext) SetState(state v1alpha1.ReconcileState) 
 func (ctx *FargateInstanceGroupContext) GetState() v1alpha1.ReconcileState {
 	return ctx.GetInstanceGroup().GetState()
 }
+func (ctx *FargateInstanceGroupContext) Locked() bool {
+	return false
+}

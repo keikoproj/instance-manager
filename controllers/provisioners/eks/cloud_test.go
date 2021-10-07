@@ -42,9 +42,10 @@ func TestCloudDiscoveryPositive(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 	state := ctx.GetDiscoveredState()
 	status := ig.GetStatus()
@@ -124,9 +125,10 @@ func TestCloudDiscoveryWithTemplatePositive(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 	state := ctx.GetDiscoveredState()
 	status := ig.GetStatus()
@@ -223,7 +225,6 @@ func TestDeriveSubFamilyFlexiblePool(t *testing.T) {
 		MockInstanceTypeInfo{"a5i.large", 1, 100, "amd64"},
 		MockInstanceTypeInfo{"a5g.large", 1, 100, "arm64"},
 		MockInstanceTypeInfo{"a5a.large", 1, 100, "amd64"},
-
 	)
 
 	expectedPool := make(map[string][]InstanceSpec, 0)
@@ -341,9 +342,10 @@ func TestCloudDiscoveryExistingRole(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 	configuration := ig.GetEKSConfiguration()
 	state := ctx.GetDiscoveredState()
@@ -375,9 +377,10 @@ func TestCloudDiscoverySpotPrice(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 	status := ig.GetStatus()
 	configuration := ig.GetEKSConfiguration()
@@ -453,9 +456,10 @@ func TestLaunchConfigDeletion(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 	configuration := ig.GetEKSConfiguration()
 

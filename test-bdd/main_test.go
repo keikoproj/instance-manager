@@ -114,6 +114,7 @@ func FeatureContext(s *godog.Suite) {
 		time.Sleep(time.Second * 5)
 	})
 
+	// Order matters
 	s.Step(`^an EKS cluster`, t.anEKSCluster)
 	s.Step(`^(\d+) nodes should be (found|ready)`, t.nodesShouldBe)
 	s.Step(`^(\d+) nodes should be (found|ready) with label ([^"]*) set to ([^"]*)$`, t.nodesShouldBeWithLabel)
@@ -121,6 +122,7 @@ func FeatureContext(s *godog.Suite) {
 	s.Step(`^the resource should converge to selector ([^"]*)$`, t.theResourceShouldConvergeToSelector)
 	s.Step(`^the resource condition ([^"]*) should be (true|false)$`, t.theResourceConditionShouldBe)
 	s.Step(`^I (create|delete) a resource ([^"]*)$`, t.iOperateOnResource)
+	s.Step(`^I update a resource ([^"]*) with annotation ([^"]*) set to ([^"]*)$`, t.iUpdateResourceWithAnnotation)
 	s.Step(`^I update a resource ([^"]*) with ([^"]*) set to ([^"]*)$`, t.iUpdateResourceWithField)
 }
 
@@ -203,6 +205,34 @@ func (t *FunctionalTest) iOperateOnResource(operation, fileName string) error {
 		}
 	}
 	return nil
+}
+
+func (t *FunctionalTest) iUpdateResourceWithAnnotation(fileName, annotation string, value string) error {
+	resourcePath := filepath.Join("templates", fileName)
+	args := testutil.NewTemplateArguments()
+
+	gvr, resource, err := testutil.GetResourceFromYaml(resourcePath, t.RESTConfig, args)
+	if err != nil {
+		return err
+	}
+
+	t.ResourceName = resource.GetName()
+	t.ResourceNamespace = resource.GetNamespace()
+
+	updateTarget, err := t.DynamicClient.Resource(gvr.Resource).Namespace(t.ResourceNamespace).Get(context.Background(), t.ResourceName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+
+	unstructured.SetNestedField(updateTarget.UnstructuredContent(), value, []string{"metadata", "annotations", annotation}...)
+
+	_, err = t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Update(context.Background(), updateTarget, metav1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
+	time.Sleep(3 * time.Second)
+	return nil
+
 }
 
 func (t *FunctionalTest) iUpdateResourceWithField(fileName, key string, value string) error {

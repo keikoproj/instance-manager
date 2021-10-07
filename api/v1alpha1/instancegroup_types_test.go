@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type EksUnitTest struct {
@@ -117,13 +118,13 @@ func TestInstanceGroupSpecValidate(t *testing.T) {
 					MinSize: 1,
 					Type:    "LaunchTemplate",
 					EKSConfiguration: &EKSConfiguration{
-						BootstrapOptions: &BootstrapOptions{ContainerRuntime: "foo"},
-						EksClusterName:        "my-eks-cluster",
-						NodeSecurityGroups:    []string{"sg-123456789"},
-						Image:                 "ami-12345",
-						InstanceType:          "m5.large",
-						KeyPairName:           "thisShouldBeOptional",
-						Subnets:               []string{"subnet-1111111", "subnet-222222"},
+						BootstrapOptions:   &BootstrapOptions{ContainerRuntime: "foo"},
+						EksClusterName:     "my-eks-cluster",
+						NodeSecurityGroups: []string{"sg-123456789"},
+						Image:              "ami-12345",
+						InstanceType:       "m5.large",
+						KeyPairName:        "thisShouldBeOptional",
+						Subnets:            []string{"subnet-1111111", "subnet-222222"},
 					},
 				}, nil, nil),
 			},
@@ -350,6 +351,41 @@ func TestInstanceGroupSpecValidate(t *testing.T) {
 			}
 		})
 
+	}
+}
+
+func TestLockedAnnotation(t *testing.T) {
+	tests := []struct {
+		name       string
+		annotation string
+		expected   bool
+	}{
+		{
+			name:       "Locked",
+			annotation: "true",
+			expected:   true,
+		},
+		{
+			name:       "Unlocked",
+			annotation: "false",
+			expected:   false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testIg := &InstanceGroup{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{
+						UpgradeLockedAnnotationKey: test.annotation,
+					},
+				},
+			}
+			res := testIg.Locked()
+			if res != test.expected {
+				t.Errorf("%v: got %v, expected %v", test.name, res, test.expected)
+			}
+		})
 	}
 }
 

@@ -125,6 +125,7 @@ func main() {
 		IamClient:   aws.GetAwsIamClient(awsRegion, cacheCfg, maxAPIRetries, controllerCollector),
 		AsgClient:   aws.GetAwsAsgClient(awsRegion, cacheCfg, maxAPIRetries, controllerCollector),
 		EksClient:   aws.GetAwsEksClient(awsRegion, cacheCfg, maxAPIRetries, controllerCollector),
+		SsmClient:   aws.GetAwsSsmClient(awsRegion, cacheCfg, maxAPIRetries, controllerCollector),
 		Ec2Metadata: metadata,
 	}
 
