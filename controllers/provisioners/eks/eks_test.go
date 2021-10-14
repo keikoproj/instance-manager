@@ -29,6 +29,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"github.com/aws/aws-sdk-go/service/ssm"
+	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
@@ -74,12 +76,17 @@ func NewEc2Mocker() *MockEc2Client {
 	return &MockEc2Client{}
 }
 
-func MockAwsWorker(asgClient *MockAutoScalingClient, iamClient *MockIamClient, eksClient *MockEksClient, ec2Client *MockEc2Client) awsprovider.AwsWorker {
+func NewSsmMocker() *MockSsmClient {
+	return &MockSsmClient{}
+}
+
+func MockAwsWorker(asgClient *MockAutoScalingClient, iamClient *MockIamClient, eksClient *MockEksClient, ec2Client *MockEc2Client, ssmClient *MockSsmClient) awsprovider.AwsWorker {
 	return awsprovider.AwsWorker{
 		Ec2Client: ec2Client,
 		AsgClient: asgClient,
 		IamClient: iamClient,
 		EksClient: eksClient,
+		SsmClient: ssmClient,
 	}
 }
 
@@ -367,6 +374,7 @@ type MockInstanceTypeInfo struct {
 	InstanceType string
 	VCpus        int64
 	MemoryMib    int64
+	Arch         string
 }
 
 func MockTypeInfo(types ...MockInstanceTypeInfo) []*ec2.InstanceTypeInfo {
@@ -376,6 +384,9 @@ func MockTypeInfo(types ...MockInstanceTypeInfo) []*ec2.InstanceTypeInfo {
 			InstanceType: aws.String(t.InstanceType),
 			VCpuInfo: &ec2.VCpuInfo{
 				DefaultVCpus: aws.Int64(t.VCpus),
+			},
+			ProcessorInfo: &ec2.ProcessorInfo{
+				SupportedArchitectures: []*string{aws.String(t.Arch)},
 			},
 			MemoryInfo: &ec2.MemoryInfo{
 				SizeInMiB: aws.Int64(t.MemoryMib),
@@ -835,4 +846,17 @@ func (i *MockIamClient) GetInstanceProfile(input *iam.GetInstanceProfileInput) (
 
 func (i *MockIamClient) WaitUntilInstanceProfileExists(input *iam.GetInstanceProfileInput) error {
 	return i.WaitUntilInstanceProfileExistsErr
+}
+
+type MockSsmClient struct {
+	ssmiface.SSMAPI
+	latestAMI string
+}
+
+func (i *MockSsmClient) GetParameter(input *ssm.GetParameterInput) (*ssm.GetParameterOutput, error) {
+	return &ssm.GetParameterOutput{
+		Parameter: &ssm.Parameter{
+			Value: aws.String(i.latestAMI),
+		},
+	}, nil
 }

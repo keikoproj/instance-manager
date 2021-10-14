@@ -61,3 +61,13 @@ Feature: CRUD Upgrade
     And the resource should converge to selector .status.currentState=ready
     And the resource condition NodesReady should be true
     And 3 nodes should be ready
+
+  Scenario: Lock an instance-group
+    Given an EKS cluster
+    When I update a resource instance-group-latest-locked.yaml with annotation instancemgr.keikoproj.io/lock-upgrades set to true
+    Then I update a resource instance-group-latest-locked.yaml with .spec.eks.configuration.instanceType set to t2.medium
+    And the resource should converge to selector .status.currentState=locked
+    And I update a resource instance-group-latest-locked.yaml with annotation instancemgr.keikoproj.io/lock-upgrades set to false
+    And the resource should converge to selector .status.currentState=ready
+    And the resource condition NodesReady should be true
+    And 3 nodes should be ready

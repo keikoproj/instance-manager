@@ -957,6 +957,7 @@ func TestIsRetryable(t *testing.T) {
 		{state: v1alpha1.ReconcileErr, expectedRetryable: false},
 		{state: v1alpha1.ReconcileReady, expectedRetryable: false},
 		{state: v1alpha1.ReconcileDeleted, expectedRetryable: false},
+		{state: v1alpha1.ReconcileLocked, expectedRetryable: false},
 		{state: v1alpha1.ReconcileDeleting, expectedRetryable: true},
 		{state: v1alpha1.ReconcileInit, expectedRetryable: true},
 		{state: v1alpha1.ReconcileInitCreate, expectedRetryable: true},

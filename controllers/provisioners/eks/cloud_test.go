@@ -42,9 +42,10 @@ func TestCloudDiscoveryPositive(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 	state := ctx.GetDiscoveredState()
 	status := ig.GetStatus()
@@ -124,9 +125,10 @@ func TestCloudDiscoveryWithTemplatePositive(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 	state := ctx.GetDiscoveredState()
 	status := ig.GetStatus()
@@ -210,16 +212,19 @@ func TestDeriveSubFamilyFlexiblePool(t *testing.T) {
 		g = gomega.NewGomegaWithT(t)
 	)
 
-	mockOfferings := MockTypeOffering("us-west-2", "z5.large", "z5.xlarge", "z5.2xlarge", "x4.large", "x4a.large", "x4.xlarge", "x3.2xlarge")
+	mockOfferings := MockTypeOffering("us-west-2", "z5.large", "z5.xlarge", "z5.2xlarge", "x4.large", "x4a.large", "x4.xlarge", "x3.2xlarge", "a5i.large", "a5g.large", "a5a.large")
 
 	mockInfo := MockTypeInfo(
-		MockInstanceTypeInfo{"z5.large", 1, 100},
-		MockInstanceTypeInfo{"z5.xlarge", 1, 100},
-		MockInstanceTypeInfo{"z5.2xlarge", 1, 100},
-		MockInstanceTypeInfo{"x4.large", 2, 100},
-		MockInstanceTypeInfo{"x4a.large", 2, 100},
-		MockInstanceTypeInfo{"x4.xlarge", 4, 200},
-		MockInstanceTypeInfo{"x3.2xlarge", 6, 400},
+		MockInstanceTypeInfo{"z5.large", 1, 100, "amd64"},
+		MockInstanceTypeInfo{"z5.xlarge", 1, 100, "amd64"},
+		MockInstanceTypeInfo{"z5.2xlarge", 1, 100, "amd64"},
+		MockInstanceTypeInfo{"x4.large", 2, 100, "amd64"},
+		MockInstanceTypeInfo{"x4a.large", 2, 100, "amd64"},
+		MockInstanceTypeInfo{"x4.xlarge", 4, 200, "amd64"},
+		MockInstanceTypeInfo{"x3.2xlarge", 6, 400, "amd64"},
+		MockInstanceTypeInfo{"a5i.large", 1, 100, "amd64"},
+		MockInstanceTypeInfo{"a5g.large", 1, 100, "arm64"},
+		MockInstanceTypeInfo{"a5a.large", 1, 100, "amd64"},
 	)
 
 	expectedPool := make(map[string][]InstanceSpec, 0)
@@ -297,6 +302,32 @@ func TestDeriveSubFamilyFlexiblePool(t *testing.T) {
 			Weight: "1",
 		},
 	}
+	expectedPool["a5g.large"] = []InstanceSpec{
+		{
+			Type:   "a5g.large",
+			Weight: "1",
+		},
+	}
+	expectedPool["a5a.large"] = []InstanceSpec{
+		{
+			Type:   "a5a.large",
+			Weight: "1",
+		},
+		{
+			Type:   "a5i.large",
+			Weight: "1",
+		},
+	}
+	expectedPool["a5i.large"] = []InstanceSpec{
+		{
+			Type:   "a5i.large",
+			Weight: "1",
+		},
+		{
+			Type:   "a5a.large",
+			Weight: "1",
+		},
+	}
 
 	p := subFamilyFlexiblePool(mockOfferings, mockInfo)
 	g.Expect(p).To(gomega.Equal(expectedPool))
@@ -311,9 +342,10 @@ func TestCloudDiscoveryExistingRole(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 	configuration := ig.GetEKSConfiguration()
 	state := ctx.GetDiscoveredState()
@@ -345,9 +377,10 @@ func TestCloudDiscoverySpotPrice(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 	status := ig.GetStatus()
 	configuration := ig.GetEKSConfiguration()
@@ -423,9 +456,10 @@ func TestLaunchConfigDeletion(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 	configuration := ig.GetEKSConfiguration()
 

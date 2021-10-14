@@ -147,7 +147,14 @@ func AddAnnotation(u *unstructured.Unstructured, key, value string) {
 	u.SetAnnotations(annotations)
 }
 
-func HasAnnotation(annotations map[string]string, key, value string) bool {
+func HasAnnotation(annotations map[string]string, key string) bool {
+	if _, ok := annotations[key]; ok {
+		return true
+	}
+	return false
+}
+
+func HasAnnotationWithValue(annotations map[string]string, key, value string) bool {
 	if val, ok := annotations[key]; ok {
 		if strings.EqualFold(val, value) {
 			return true

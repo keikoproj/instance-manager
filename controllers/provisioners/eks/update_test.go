@@ -45,9 +45,10 @@ func TestUpdateWithDriftRotationPositive(t *testing.T) {
 		iamMock       = NewIamMocker()
 		eksMock       = NewEksMocker()
 		ec2Mock       = NewEc2Mocker()
+		ssmMock       = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
 	mockScalingGroup := &autoscaling.Group{
@@ -131,9 +132,10 @@ func TestUpdateWithLaunchTemplate(t *testing.T) {
 		iamMock       = NewIamMocker()
 		eksMock       = NewEksMocker()
 		ec2Mock       = NewEc2Mocker()
+		ssmMock       = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
 	spec.Type = v1alpha1.LaunchTemplate
@@ -304,9 +306,10 @@ func TestUpdateWithRotationPositive(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
 	ctx.SetDiscoveredState(&DiscoveredState{
@@ -381,9 +384,10 @@ func TestLaunchConfigurationDrifted(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
 	ctx.SetDiscoveredState(&DiscoveredState{
@@ -488,9 +492,10 @@ func TestUpdateScalingGroupNegative(t *testing.T) {
 		iamMock = NewIamMocker()
 		eksMock = NewEksMocker()
 		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 	ig.GetEKSConfiguration().SetMetricsCollection([]string{"GroupMinSize", "GroupMaxSize", "GroupDesiredCapacity"})
 
@@ -563,9 +568,10 @@ func TestScalingGroupUpdatePredicate(t *testing.T) {
 		iamMock       = NewIamMocker()
 		eksMock       = NewEksMocker()
 		ec2Mock       = NewEc2Mocker()
+		ssmMock       = NewSsmMocker()
 	)
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 	spec.MinSize = int64(3)
 	spec.MaxSize = int64(6)
@@ -621,13 +627,14 @@ func TestUpdateManagedPolicies(t *testing.T) {
 		iamMock       = NewIamMocker()
 		eksMock       = NewEksMocker()
 		ec2Mock       = NewEc2Mocker()
+		ssmMock       = NewSsmMocker()
 	)
 
 	defaultPolicies := []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}
 	defaultPoliciesIrsa := []string{"AmazonEKSWorkerNodePolicy", "AmazonEC2ContainerRegistryReadOnly"}
 	defaultPoliciesWarmPool := []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly", "AutoScalingReadOnlyAccess"}
 
-	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
 	tests := []struct {
@@ -692,4 +699,84 @@ func TestUpdateManagedPolicies(t *testing.T) {
 		g.Expect(iamMock.AttachRolePolicyCallCount).To(gomega.Equal(tc.expectedAttached))
 		g.Expect(iamMock.DetachRolePolicyCallCount).To(gomega.Equal(tc.expectedDetached))
 	}
+}
+
+func TestUpdateWithLatestAmiID(t *testing.T) {
+	var (
+		g       = gomega.NewGomegaWithT(t)
+		k       = MockKubernetesClientSet()
+		ig      = MockInstanceGroup()
+		asgMock = NewAutoScalingMocker()
+		iamMock = NewIamMocker()
+		eksMock = NewEksMocker()
+		ec2Mock = NewEc2Mocker()
+		ssmMock = NewSsmMocker()
+	)
+
+	testLatestAmiID := "ami-12345678"
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
+	ctx := MockContext(ig, k, w)
+
+	mockScalingGroup := &autoscaling.Group{
+		AutoScalingGroupName: aws.String("some-scaling-group"),
+		DesiredCapacity:      aws.Int64(1),
+		Instances: []*autoscaling.Instance{
+			{
+				InstanceId:              aws.String("i-1234"),
+				LaunchConfigurationName: aws.String("some-launch-config"),
+			},
+		},
+	}
+	asgMock.AutoScalingGroups = []*autoscaling.Group{mockScalingGroup}
+
+	// skip role creation
+	ig.GetEKSConfiguration().SetInstanceProfileName("some-profile")
+	ig.GetEKSConfiguration().SetRoleName("some-role")
+	iamMock.Role = &iam.Role{
+		Arn:      aws.String("some-arn"),
+		RoleName: aws.String("some-role"),
+	}
+
+	// Setup Latest AMI
+	ig.GetEKSConfiguration().Image = "latest"
+	ssmMock.latestAMI = testLatestAmiID
+
+	ec2Mock.InstanceTypes = []*ec2.InstanceTypeInfo{
+		&ec2.InstanceTypeInfo{
+			InstanceType: aws.String("m5.large"),
+			ProcessorInfo: &ec2.ProcessorInfo{
+				SupportedArchitectures: []*string{aws.String("x86_64")},
+			},
+		},
+	}
+
+	err := ctx.CloudDiscovery()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	ctx.SetDiscoveredState(&DiscoveredState{
+		Publisher: kubeprovider.EventPublisher{
+			Client: k.Kubernetes,
+		},
+		ScalingGroup: mockScalingGroup,
+		ScalingConfiguration: &scaling.LaunchConfiguration{
+			AwsWorker: w,
+		},
+		InstanceProfile: &iam.InstanceProfile{
+			Arn: aws.String("some-instance-arn"),
+		},
+		ClusterNodes: nil,
+		Cluster:      nil,
+		InstanceTypeInfo: []*ec2.InstanceTypeInfo{
+			{
+				InstanceType: aws.String("m5.large"),
+				ProcessorInfo: &ec2.ProcessorInfo{
+					SupportedArchitectures: []*string{aws.String("x86_64")},
+				},
+			},
+		},
+	})
+
+	err = ctx.Update()
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	g.Expect(ctx.GetInstanceGroup().Spec.EKSSpec.EKSConfiguration.Image).To(gomega.Equal(testLatestAmiID))
 }

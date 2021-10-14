@@ -17,6 +17,7 @@ Feature: CRUD Create
     And I create a resource instance-group-launch-template-mixed.yaml
     And I create a resource manager-configmap.yaml
     And I create a resource instance-group-gitops.yaml
+    And I create a resource instance-group-latest-locked.yaml
 
   Scenario: Create an instance-group with rollingUpdate strategy
     Given an EKS cluster
@@ -84,6 +85,14 @@ Feature: CRUD Create
   Scenario: Create an instance-group with shortened resource
     Given an EKS cluster
     When I create a resource instance-group-gitops.yaml
+    Then the resource should be created
+    And the resource should converge to selector .status.currentState=ready
+    And the resource condition NodesReady should be true
+    And 2 nodes should be ready
+  
+  Scenario: Create an instance-group with latest ami
+    Given an EKS cluster
+    When I create a resource instance-group-latest-locked.yaml
     Then the resource should be created
     And the resource should converge to selector .status.currentState=ready
     And the resource condition NodesReady should be true

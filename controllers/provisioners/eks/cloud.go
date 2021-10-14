@@ -177,6 +177,16 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	}
 	state.SetInstanceTypeInfo(instanceTypes)
 
+	if strings.EqualFold(configuration.Image, v1alpha1.ImageLatestValue) {
+		latestAmiId, err := ctx.GetEksLatestAmi()
+		if err != nil {
+			return errors.Wrap(err, "failed to discover latest AMI ID")
+		}
+		configuration.Image = latestAmiId
+		ctx.Log.V(4).Info("Updating Image ID with latest", "ami_id", latestAmiId)
+	}
+
+	// All information needed to creating the scaling group must happen before this line.
 	// find all owned scaling groups
 	ownedScalingGroups := ctx.findOwnedScalingGroups(scalingGroups)
 	state.SetOwnedScalingGroups(ownedScalingGroups)
@@ -207,6 +217,7 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to describe lifecycle hooks")
 	}
+
 	// update status with scaling group info
 	status.SetActiveScalingGroupName(asgName)
 	status.SetCurrentMin(int(aws.Int64Value(targetScalingGroup.MinSize)))
@@ -412,6 +423,7 @@ func subFamilyFlexiblePool(offerings []*ec2.InstanceTypeOffering, typeInfo []*ec
 	for _, t := range offerings {
 		var (
 			offeringType      = aws.StringValue(t.InstanceType)
+			desiredArchs      = awsprovider.GetInstanceArchitectures(typeInfo, offeringType)
 			desiredFamily     = awsprovider.GetInstanceFamily(offeringType)
 			desiredGeneration = awsprovider.GetInstanceGeneration(offeringType)
 			cpu               = awsprovider.GetOfferingVCPU(typeInfo, offeringType)
@@ -436,7 +448,16 @@ func subFamilyFlexiblePool(offerings []*ec2.InstanceTypeOffering, typeInfo []*ec
 					Type:   instanceType,
 					Weight: DefaultOfferingWeight,
 				}
+				supportedArchs = awsprovider.GetInstanceArchitectures(typeInfo, instanceType)
 			)
+
+			if len(desiredArchs) != len(supportedArchs) {
+				continue
+			}
+
+			if !common.StringSliceContains(desiredArchs, supportedArchs) {
+				continue
+			}
 
 			if !strings.EqualFold(family, desiredFamily) {
 				continue

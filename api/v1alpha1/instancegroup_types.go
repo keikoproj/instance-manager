@@ -47,8 +47,9 @@ const (
 	ReconcileModified  ReconcileState = "ReconcileModified"
 
 	// End States
-	ReconcileReady ReconcileState = "Ready"
-	ReconcileErr   ReconcileState = "Error"
+	ReconcileLocked ReconcileState = "Locked"
+	ReconcileReady  ReconcileState = "Ready"
+	ReconcileErr    ReconcileState = "Error"
 
 	// Userdata bootstrap stages
 	PreBootstrapStage  = "PreBootstrap"
@@ -76,13 +77,21 @@ const (
 	HostPlacementTenancyType      = "host"
 	DefaultPlacementTenancyType   = "default"
 	DedicatedPlacementTenancyType = "dedicated"
+
+	ImageLatestValue = "latest"
 )
 
+type ContainerRuntime string
 type ScalingConfigurationType string
 
 const (
 	LaunchConfiguration ScalingConfigurationType = "LaunchConfiguration"
 	LaunchTemplate      ScalingConfigurationType = "LaunchTemplate"
+
+	DockerRuntime     ContainerRuntime = "dockerd"
+	ContainerDRuntime ContainerRuntime = "containerd"
+
+	UpgradeLockedAnnotationKey = "instancemgr.keikoproj.io/lock-upgrades"
 )
 
 var (
@@ -112,6 +121,7 @@ var (
 
 	DefaultCRDStrategyMaxRetries = 3
 
+	AllowedContainerRuntimes            = []ContainerRuntime{ContainerDRuntime, DockerRuntime}
 	AllowedFileSystemTypes              = []string{FileSystemTypeXFS, FileSystemTypeEXT4}
 	AllowedMixedPolicyStrategies        = []string{LaunchTemplateStrategyCapacityOptimized, LaunchTemplateStrategyLowestPrice}
 	AllowedInstancePools                = []string{SubFamilyFlexibleInstancePool}
@@ -220,7 +230,8 @@ type EKSManagedSpec struct {
 }
 
 type BootstrapOptions struct {
-	MaxPods int64 `json:"maxPods,omitempty"`
+	MaxPods          int64            `json:"maxPods,omitempty"`
+	ContainerRuntime ContainerRuntime `json:"containerRuntime,omitempty"`
 }
 
 type WarmPoolSpec struct {
@@ -419,6 +430,15 @@ func (ig *InstanceGroup) GetUpgradeStrategy() *AwsUpgradeStrategy {
 func (ig *InstanceGroup) SetUpgradeStrategy(strategy AwsUpgradeStrategy) {
 	ig.Spec.AwsUpgradeStrategy = strategy
 }
+func (ig *InstanceGroup) Locked() bool {
+	annotations := ig.GetAnnotations()
+	if val, ok := annotations[UpgradeLockedAnnotationKey]; ok {
+		if strings.EqualFold(val, "true") {
+			return true
+		}
+	}
+	return false
+}
 
 func (s *EKSSpec) Validate() error {
 	var (
@@ -507,6 +527,15 @@ func (s *EKSSpec) HasWarmPool() bool {
 	return false
 }
 
+func contains(s []ContainerRuntime, e ContainerRuntime) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *EKSConfiguration) Validate() error {
 	if common.StringEmpty(c.EksClusterName) {
 		return errors.Errorf("validation failed, 'clusterName' is a required parameter")
@@ -537,6 +566,12 @@ func (c *EKSConfiguration) Validate() error {
 			processes = append(processes, m)
 		}
 		c.SuspendedProcesses = processes
+	}
+
+	if c.BootstrapOptions != nil {
+		if c.BootstrapOptions.ContainerRuntime != "" && !contains(AllowedContainerRuntimes, c.BootstrapOptions.ContainerRuntime) {
+			return errors.Errorf("validation failed, 'bootstrapOptions.containerRuntime' must be one of %+v", AllowedContainerRuntimes)
+		}
 	}
 
 	hooks := []LifecycleHookSpec{}

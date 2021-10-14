@@ -329,7 +329,7 @@ func GetResources(kube dynamic.Interface, instanceGroup *v1alpha1.InstanceGroup,
 
 		annotations := ru.GetAnnotations()
 
-		if HasAnnotation(annotations, OwnershipAnnotationKey, OwnershipAnnotationValue) && HasAnnotation(annotations, ScopeAnnotationKey, status.GetActiveScalingGroupName()) {
+		if HasAnnotationWithValue(annotations, OwnershipAnnotationKey, OwnershipAnnotationValue) && HasAnnotationWithValue(annotations, ScopeAnnotationKey, status.GetActiveScalingGroupName()) {
 			if IsPathValue(ru, statusJSONPath, completedStatus) || IsPathValue(ru, statusJSONPath, errorStatus) {
 				// if resource is not completed and not failed, it must be still active
 				inactiveResources = append(inactiveResources, ru)

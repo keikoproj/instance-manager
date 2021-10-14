@@ -12,6 +12,7 @@ Feature: CRUD Update
     And I update a resource instance-group-launch-template.yaml with .spec.eks.minSize set to 3
     And I update a resource instance-group-launch-template-mixed.yaml with .spec.eks.minSize set to 3
     And I update a resource instance-group-managed.yaml with .spec.eks-managed.minSize set to 3
+    And I update a resource instance-group-latest-locked.yaml with .spec.eks.minSize set to 3
 
   Scenario: Update an instance-group with rollingUpdate strategy
     Given an EKS cluster
@@ -58,5 +59,11 @@ Feature: CRUD Update
   Scenario: Update an instance-group with managed node-group
     Given an EKS cluster
     When I update a resource instance-group-managed.yaml with .spec.eks-managed.minSize set to 3
+    Then the resource should converge to selector .status.currentState=ready
+    And 3 nodes should be ready
+
+  Scenario: Update an instance-group with latest ami
+    Given an EKS cluster
+    When I update a resource instance-group-latest-locked.yaml with .spec.eks.minSize set to 3
     Then the resource should converge to selector .status.currentState=ready
     And 3 nodes should be ready

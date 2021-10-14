@@ -29,14 +29,15 @@ import (
 )
 
 const (
-	ProvisionerName                     = "eks"
-	defaultLaunchConfigurationRetention = 2
-	OverrideDefaultLabelsAnnotation     = "instancemgr.keikoproj.io/default-labels"
-	IRSAEnabledAnnotation               = "instancemgr.keikoproj.io/irsa-enabled"
-	OsFamilyAnnotation                  = "instancemgr.keikoproj.io/os-family"
-	ClusterAutoscalerEnabledAnnotation  = "instancemgr.keikoproj.io/cluster-autoscaler-enabled"
-	CustomNetworkingEnabledAnnotation   = "instancemgr.keikoproj.io/custom-networking-enabled"
-	CustomNetworkingHostPodsAnnotation  = "instancemgr.keikoproj.io/custom-networking-host-pods"
+	ProvisionerName                                   = "eks"
+	defaultLaunchConfigurationRetention               = 2
+	OverrideDefaultLabelsAnnotation                   = "instancemgr.keikoproj.io/default-labels"
+	IRSAEnabledAnnotation                             = "instancemgr.keikoproj.io/irsa-enabled"
+	OsFamilyAnnotation                                = "instancemgr.keikoproj.io/os-family"
+	ClusterAutoscalerEnabledAnnotation                = "instancemgr.keikoproj.io/cluster-autoscaler-enabled"
+	CustomNetworkingEnabledAnnotation                 = "instancemgr.keikoproj.io/custom-networking-enabled"
+	CustomNetworkingHostPodsAnnotation                = "instancemgr.keikoproj.io/custom-networking-host-pods"
+	CustomNetworkingPrefixAssignmentEnabledAnnotation = "instancemgr.keikoproj.io/custom-networking-prefix-assignment-enabled"
 
 	OsFamilyWindows      = "windows"
 	OsFamilyBottleRocket = "bottlerocket"
@@ -55,6 +56,7 @@ var (
 	DefaultManagedPolicies    = []string{"AmazonEKSWorkerNodePolicy", "AmazonEC2ContainerRegistryReadOnly"}
 	CNIManagedPolicy          = "AmazonEKS_CNI_Policy"
 	AutoscalingReadOnlyPolicy = "AutoScalingReadOnlyAccess"
+	SupportedArchitectures    = []string{"x86_64", "arm64"}
 )
 
 // New constructs a new instance group provisioner of EKS type
@@ -195,4 +197,8 @@ func (p *InstancePool) GetPool(key string) ([]InstanceSpec, bool) {
 		return val, true
 	}
 	return nil, false
+}
+
+func (ctx *EksInstanceGroupContext) Locked() bool {
+	return ctx.InstanceGroup.Locked()
 }

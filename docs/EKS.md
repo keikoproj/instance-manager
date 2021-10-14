@@ -58,6 +58,11 @@ spec:
       # All (will suspend all above processes)
       suspendProcesses: <[]string> : must match scaling process names to suspend
 
+      bootstrapOptions:
+        containerRuntime: <string> : one of "dockerd" or "containerd". Specifies which container runtime to use. Currently only available on Amazon Linux 2
+        maxPods: <int> : maximum number of pods that can be run per-node in this IG.
+                 
+
       bootstrapArguments: <string> : additional flags to pass to boostrap.sh script
       spotPrice: <string> : must be a decimal number represnting a minimal spot price
 
@@ -655,4 +660,6 @@ The following operators are supported:
 |instancemgr.keikoproj.io/os-family|InstanceGroup|either "windows", "bottlerocket", or "amazonlinux2" (default)|this is required if you are running a windows or bottlerocket based AMI, by default the controller will try to bootstrap an amazonlinux2 AMI|
 |instancemgr.keikoproj.io/default-labels|InstanceGroup|comma-seprarated key-value string e.g. "label1=value1,label2=value2"|allows overriding the default node labels added by the controller, by default the role label is added depending on the cluster version|
 |instancemgr.keikoproj.io/custom-networking-enabled|InstanceGroup|"true"|setting this annotation to true will automatically calculate the correct setting for max pods and pass it to the kubelet|
+|instancemgr.keikoproj.io/custom-networking-prefix-assignment-enabled|InstanceGroup|"true"|setting this annotation to true will change the max pod calculations to reflect the pod density supported by vpc prefix assignment. Supported in AWS VPC CNI versions 1.9.0 and above - see [AWS VPC CNI 1.9.0](https://github.com/aws/amazon-vpc-cni-k8s/releases/tag/v1.9.0) for more information.|
 |instancemgr.keikoproj.io/custom-networking-host-pods|InstanceGroup|"2"|setting this annotation increases the number of max pods on nodes with custom networking, due to the fact that hostNetwork pods do not use an additional IP address |
+|instancemgr.keikoproj.io/lock-upgrades|InstanceGroup|bool|setting this annotation to true will prevent instance-manager from triggering upgrades to the nodes within an instance group. This is useful for controlling when an upgrade happens. Changes to this annotation will trigger a reconcile loop|

@@ -88,6 +88,7 @@ eks:DescribeNodegroup
 eks:DeleteNodegroup
 eks:UpdateNodegroupConfig
 eks:DescribeCluster
+ssm:GetParameter
 ```
 
 The following IAM permissions are required if you want the controller to be creating IAM roles for your instance groups, otherwise you can omit this and provide an existing role in the custom resource.

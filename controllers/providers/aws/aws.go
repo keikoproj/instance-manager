@@ -18,6 +18,7 @@ package aws
 import (
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/pkg/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
@@ -54,6 +56,7 @@ const (
 	DescribeLaunchTemplateVersionsTTL time.Duration = 60 * time.Second
 	DescribeInstanceTypesTTL          time.Duration = 24 * time.Hour
 	DescribeInstanceTypeOfferingTTL   time.Duration = 1 * time.Hour
+	GetParameterTTL                   time.Duration = 1 * time.Hour
 
 	CacheBackgroundPruningInterval time.Duration = 1 * time.Hour
 	CacheMaxItems                  int64         = 250
@@ -116,6 +119,7 @@ type AwsWorker struct {
 	EksClient   eksiface.EKSAPI
 	IamClient   iamiface.IAMAPI
 	Ec2Client   ec2iface.EC2API
+	SsmClient   ssmiface.SSMAPI
 	Ec2Metadata *ec2metadata.EC2Metadata
 	Parameters  map[string]interface{}
 }
@@ -218,6 +222,20 @@ func GetInstanceFamily(instanceType string) string {
 	return ""
 }
 
+func GetInstanceArchitectures(typeInfo []*ec2.InstanceTypeInfo, instanceType string) []string {
+
+	instanceTypeInfo := GetInstanceTypeInfo(typeInfo, instanceType)
+	if instanceTypeInfo == nil || instanceTypeInfo.ProcessorInfo == nil {
+		return []string{}
+	}
+	var archs = []string{}
+	for _, s := range instanceTypeInfo.ProcessorInfo.SupportedArchitectures {
+		archs = append(archs, aws.StringValue(s))
+	}
+	sort.Strings(archs)
+	return archs
+}
+
 func GetScalingConfigName(group *autoscaling.Group) string {
 	var configName string
 	if IsUsingLaunchConfiguration(group) {
@@ -231,10 +249,26 @@ func GetScalingConfigName(group *autoscaling.Group) string {
 }
 
 func GetInstanceTypeNetworkInfo(instanceTypes []*ec2.InstanceTypeInfo, instanceType string) *ec2.NetworkInfo {
+	i := GetInstanceTypeInfo(instanceTypes, instanceType)
+	if i != nil {
+		return i.NetworkInfo
+	}
+	return nil
+}
+
+func GetInstanceTypeInfo(instanceTypes []*ec2.InstanceTypeInfo, instanceType string) *ec2.InstanceTypeInfo {
 	for _, instanceTypeInfo := range instanceTypes {
 		if aws.StringValue(instanceTypeInfo.InstanceType) == instanceType {
-			return instanceTypeInfo.NetworkInfo
+			return instanceTypeInfo
 		}
+	}
+	return nil
+}
+
+func GetInstanceTypeArchitectures(instanceTypes []*ec2.InstanceTypeInfo, instanceType string) []string {
+	i := GetInstanceTypeInfo(instanceTypes, instanceType)
+	if i != nil {
+		return aws.StringValueSlice((*i).ProcessorInfo.SupportedArchitectures)
 	}
 	return nil
 }

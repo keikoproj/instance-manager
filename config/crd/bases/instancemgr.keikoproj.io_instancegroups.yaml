@@ -75,6 +75,8 @@ spec:
                         type: string
                       bootstrapOptions:
                         properties:
+                          containerRuntime:
+                            type: string
                           maxPods:
                             format: int64
                             type: integer
