@@ -1,0 +1,44 @@
+apiVersion: instancemgr.keikoproj.io/v1alpha1
+kind: InstanceGroup
+metadata:
+  annotations:
+    instancemgr.keikoproj.io/lock-upgrades: "false"
+  labels:
+    controller-tools.k8s.io: "1.0"
+  name: bdd-test-latest-locked
+  namespace: instance-manager-bdd
+spec:
+  provisioner: eks
+  strategy:
+    type: rollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  eks:
+    maxSize: 4
+    minSize: 2
+    configuration:
+      labels:
+        test: bdd-test-latest-locked
+      taints:
+      - key: node-role.kubernetes.io/bdd-test
+        value: bdd-test
+        effect: NoSchedule
+      clusterName: {{ .ClusterName }}
+      subnets: {{range $element := .Subnets}}
+        - {{$element}}
+      {{ end }}
+      keyPairName: {{ .KeyPairName }}
+      image: latest
+      instanceType: t2.small
+      volumes:
+      - name: /dev/xvdb
+        type: gp2
+        size: 30
+        mountOptions:
+          fileSystem: xfs
+          mount: /data
+      securityGroups: {{range $element := .NodeSecurityGroups}}
+        - {{$element}}
+      {{ end }}
+      metricsCollection:
+      - all
