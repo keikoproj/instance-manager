@@ -51,7 +51,9 @@ type InstanceGroupReconciler struct {
 	Auth                   *InstanceGroupAuthenticator
 	ConfigMap              *corev1.ConfigMap
 	Namespaces             map[string]corev1.Namespace
-	NamespacesLock         *sync.RWMutex
+	NamespacesLock         *sync.Mutex
+	DrainGroupMapper       *sync.Map
+	DrainErrorMapper       *sync.Map
 	ConfigRetention        int
 	Metrics                *common.MetricsCollector
 }
@@ -132,6 +134,7 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 
 	// set/unset finalizer
 	r.SetFinalizer(instanceGroup)
+	namespacedName := instanceGroup.NamespacedName()
 
 	input := provisioners.ProvisionerInput{
 		AwsWorker:       r.Auth.Aws,
@@ -148,6 +151,13 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 		configHash = kubeprovider.ConfigmapHash(r.ConfigMap)
 	)
 	status.SetConfigHash(configHash)
+
+	drainGroup, _ := r.DrainGroupMapper.LoadOrStore(namespacedName, &sync.WaitGroup{})
+	drainErrs, _ := r.DrainErrorMapper.LoadOrStore(namespacedName, make(chan error))
+	input.DrainManager = kubeprovider.DrainManager{
+		DrainErrors: drainErrs.(chan error),
+		DrainGroup:  drainGroup.(*sync.WaitGroup),
+	}
 
 	if !reflect.DeepEqual(*r.ConfigMap, corev1.ConfigMap{}) {
 		// Configmap exist - apply defaults/boundaries if namespace is not excluded

@@ -88,7 +88,6 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		if err := scalingConfig.Create(config); err != nil {
 			return errors.Wrap(err, "failed to create scaling configuration")
 		}
-
 	}
 
 	if scalingConfig.RotationNeeded(&scaling.DiscoverConfigurationInput{

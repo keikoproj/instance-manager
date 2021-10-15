@@ -20,5 +20,6 @@ require (
 	k8s.io/api v0.19.6
 	k8s.io/apimachinery v0.19.6
 	k8s.io/client-go v0.19.6
+	k8s.io/kubectl v0.19.6
 	sigs.k8s.io/controller-runtime v0.7.0
 )

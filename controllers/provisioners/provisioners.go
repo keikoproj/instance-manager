@@ -27,6 +27,7 @@ const (
 )
 
 type ProvisionerInput struct {
+	DrainManager    kubeprovider.DrainManager
 	AwsWorker       awsprovider.AwsWorker
 	Kubernetes      kubeprovider.KubernetesClientSet
 	InstanceGroup   *v1alpha1.InstanceGroup

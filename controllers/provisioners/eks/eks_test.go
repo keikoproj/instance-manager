@@ -413,7 +413,7 @@ func MockAwsCRDStrategy(spec string) v1alpha1.AwsUpgradeStrategy {
 
 func MockAwsRollingUpdateStrategy(maxUnavailable *intstr.IntOrString) v1alpha1.AwsUpgradeStrategy {
 	return v1alpha1.AwsUpgradeStrategy{
-		Type: kubeprovider.RollingUpdateStrategyName,
+		Type: RollingUpdateStrategyName,
 		RollingUpdateType: &v1alpha1.RollingUpdateStrategy{
 			MaxUnavailable: maxUnavailable,
 		},
@@ -424,6 +424,7 @@ func MockScalingInstances(nonUpdatable, updatable int) []*autoscaling.Instance {
 	instances := []*autoscaling.Instance{}
 	for i := 0; i < nonUpdatable; i++ {
 		instances = append(instances, &autoscaling.Instance{
+			LifecycleState:          aws.String(autoscaling.LifecycleStateInService),
 			LaunchConfigurationName: aws.String("some-launch-config"),
 			LaunchTemplate: &autoscaling.LaunchTemplateSpecification{
 				LaunchTemplateName: aws.String("some-launch-template"),

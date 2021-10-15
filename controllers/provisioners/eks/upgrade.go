@@ -26,7 +26,6 @@ import (
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/eks/scaling"
 	"github.com/pkg/errors"
-	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
@@ -63,9 +62,9 @@ func (ctx *EksInstanceGroupContext) UpgradeNodes() error {
 			break
 		}
 		return nil
-	case kubeprovider.RollingUpdateStrategyName:
+	case RollingUpdateStrategyName:
 		req := ctx.NewRollingUpdateRequest()
-		ok, err := kubeprovider.ProcessRollingUpgradeStrategy(req)
+		ok, err := req.ProcessRollingUpgradeStrategy()
 		if err != nil {
 			state.Publisher.Publish(kubeprovider.InstanceGroupUpgradeFailedEvent, "instancegroup", instanceGroup.NamespacedName(), "type", kubeprovider.RollingUpdateStrategyName, "error", err)
 			ctx.SetState(v1alpha1.ReconcileErr)

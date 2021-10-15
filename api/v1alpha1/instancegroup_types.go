@@ -106,12 +106,19 @@ var (
 		LaunchTemplate,
 	}
 
-	DefaultRollingUpdateStrategy = &RollingUpdateStrategy{
+	DefaultRollingUpgradeTimeoutSeconds int64 = 900
+	DefaultRollingUpgradeForce                = true
+	DefaultRollingUpdateStrategy              = &RollingUpdateStrategy{
 		MaxUnavailable: &intstr.IntOrString{
 			Type:   intstr.Int,
 			IntVal: 1,
 		},
+		DrainOptions: RollingUpgradeDrainOptions{
+			TimeoutSeconds: &DefaultRollingUpgradeTimeoutSeconds,
+			Force:          &DefaultRollingUpgradeForce,
+		},
 	}
+
 	DefaultCRDStrategyMaxRetries = 3
 
 	AllowedContainerRuntimes            = []ContainerRuntime{ContainerDRuntime, DockerRuntime}
@@ -160,7 +167,12 @@ type AwsUpgradeStrategy struct {
 }
 
 type RollingUpdateStrategy struct {
-	MaxUnavailable *intstr.IntOrString `json:"maxUnavailable,omitempty"`
+	MaxUnavailable *intstr.IntOrString        `json:"maxUnavailable,omitempty"`
+	DrainOptions   RollingUpgradeDrainOptions `json:"drainOptions,omitempty"`
+}
+
+func (s *RollingUpdateStrategy) GetDrainOptions() RollingUpgradeDrainOptions {
+	return s.DrainOptions
 }
 
 func (s *RollingUpdateStrategy) GetMaxUnavailable() *intstr.IntOrString {
@@ -169,6 +181,27 @@ func (s *RollingUpdateStrategy) GetMaxUnavailable() *intstr.IntOrString {
 
 func (s *RollingUpdateStrategy) SetMaxUnavailable(value *intstr.IntOrString) {
 	s.MaxUnavailable = value
+}
+
+type RollingUpgradeDrainOptions struct {
+	TimeoutSeconds *int64 `json:"timeoutSeconds,omitempty"`
+	Force          *bool  `json:"force,omitempty"`
+}
+
+func (d *RollingUpgradeDrainOptions) GetTimeoutSeconds() int64 {
+	return *d.TimeoutSeconds
+}
+
+func (d *RollingUpgradeDrainOptions) SetTimeoutSeconds(n *int64) {
+	d.TimeoutSeconds = n
+}
+
+func (d *RollingUpgradeDrainOptions) GetForce() bool {
+	return *d.Force
+}
+
+func (d *RollingUpgradeDrainOptions) SetForce(condition *bool) {
+	d.Force = condition
 }
 
 type CRDUpdateStrategy struct {
@@ -760,12 +793,14 @@ func (ig *InstanceGroup) Validate() error {
 		}
 	}
 
-	if strings.EqualFold(s.AwsUpgradeStrategy.Type, RollingUpdateStrategyName) && s.AwsUpgradeStrategy.RollingUpdateType == nil {
-		s.AwsUpgradeStrategy.RollingUpdateType = DefaultRollingUpdateStrategy
+	if strings.EqualFold(s.AwsUpgradeStrategy.Type, RollingUpdateStrategyName) {
+		if err := s.AwsUpgradeStrategy.RollingUpdateType.Validate(); err != nil {
+			return err
+		}
 	}
-
 	return nil
 }
+
 func (c *EKSConfiguration) GetRoleName() string {
 	return c.ExistingRoleName
 }
@@ -948,6 +983,26 @@ func (s *AwsUpgradeStrategy) GetCRDType() *CRDUpdateStrategy {
 
 func (s *AwsUpgradeStrategy) SetCRDType(crd *CRDUpdateStrategy) {
 	s.CRDType = crd
+}
+
+func (r *RollingUpdateStrategy) Validate() error {
+	if r == nil {
+		r = DefaultRollingUpdateStrategy
+	}
+
+	if r.MaxUnavailable == nil {
+		r.MaxUnavailable = DefaultRollingUpdateStrategy.MaxUnavailable
+	}
+
+	if r.DrainOptions.TimeoutSeconds == nil {
+		r.DrainOptions.TimeoutSeconds = DefaultRollingUpdateStrategy.DrainOptions.TimeoutSeconds
+	}
+
+	if r.DrainOptions.Force == nil {
+		r.DrainOptions.Force = DefaultRollingUpdateStrategy.DrainOptions.Force
+	}
+
+	return nil
 }
 
 func (c *CRDUpdateStrategy) Validate() error {

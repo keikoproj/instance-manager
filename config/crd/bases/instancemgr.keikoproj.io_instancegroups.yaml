@@ -403,6 +403,14 @@ spec:
                     type: object
                   rollingUpdate:
                     properties:
+                      drainOptions:
+                        properties:
+                          force:
+                            type: boolean
+                          timeoutSeconds:
+                            format: int64
+                            type: integer
+                        type: object
                       maxUnavailable:
                         anyOf:
                         - type: integer
