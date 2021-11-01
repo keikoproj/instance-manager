@@ -36,6 +36,8 @@ const (
 	OverrideDefaultLabelsAnnotation                   = "instancemgr.keikoproj.io/default-labels"
 	IRSAEnabledAnnotation                             = "instancemgr.keikoproj.io/irsa-enabled"
 	OsFamilyAnnotation                                = "instancemgr.keikoproj.io/os-family"
+	SSMIAMRoleAnnotation                              = "instancemgr.keikoproj.io/ssm-iam-role"
+	SSMCustomPathAnnotation                           = "instancemgr.keikoproj.io/ssm-ami-path"
 	ClusterAutoscalerEnabledAnnotation                = "instancemgr.keikoproj.io/cluster-autoscaler-enabled"
 	CustomNetworkingEnabledAnnotation                 = "instancemgr.keikoproj.io/custom-networking-enabled"
 	CustomNetworkingHostPodsAnnotation                = "instancemgr.keikoproj.io/custom-networking-host-pods"

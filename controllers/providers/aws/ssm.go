@@ -2,8 +2,10 @@ package aws
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ssm"
@@ -37,18 +39,26 @@ var (
 			"x86_64": EksOptimisedWindowsCore,
 		},
 	}
+
+	DefaultSess *session.Session
+	Config      *aws.Config
 )
 
-func GetAwsSsmClient(region string, cacheCfg *cache.Config, maxRetries int, collector *common.MetricsCollector) ssmiface.SSMAPI {
-	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
-	config = request.WithRetryer(config, NewRetryLogger(maxRetries, collector))
-	sess, err := session.NewSession(config)
+func GetDefaultAwsSsmClient(region string, cacheCfg *cache.Config, maxRetries int, collector *common.MetricsCollector) ssmiface.SSMAPI {
+	return GetAwsSsmClient("", region, cacheCfg, maxRetries, collector)
+}
+
+func GetAwsSsmClient(role, region string, cacheCfg *cache.Config, maxRetries int, collector *common.MetricsCollector) ssmiface.SSMAPI {
+	Config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
+	Config = request.WithRetryer(Config, NewRetryLogger(maxRetries, collector))
+	DefaultSess, err := session.NewSession(Config)
+	log.Info("Setting default session", "DefaultSess", DefaultSess)
 	if err != nil {
 		panic(err)
 	}
-	cache.AddCaching(sess, cacheCfg)
+	cache.AddCaching(DefaultSess, cacheCfg)
 	cacheCfg.SetCacheTTL("ssm", "GetParameter", GetParameterTTL)
-	sess.Handlers.Complete.PushFront(func(r *request.Request) {
+	DefaultSess.Handlers.Complete.PushFront(func(r *request.Request) {
 		ctx := r.HTTPRequest.Context()
 		log.V(1).Info("AWS API call",
 			"cacheHit", cache.IsCacheHit(ctx),
@@ -56,17 +66,40 @@ func GetAwsSsmClient(region string, cacheCfg *cache.Config, maxRetries int, coll
 			"operation", r.Operation.Name,
 		)
 	})
-	return ssm.New(sess)
+	if !strings.EqualFold(role, "") {
+		creds := stscreds.NewCredentials(DefaultSess, role)
+		return ssm.New(DefaultSess, &aws.Config{Credentials: creds})
+	}
+	return ssm.New(DefaultSess)
 }
 
-func (w *AwsWorker) GetEksLatestAmi(OSFamily string, arch string, kubernetesVersion string) (string, error) {
+func (w *AwsWorker) GetCustomAmi(role, path string) (string, error) {
+	log.Info("Inside GetCustomAmi")
+	log.Info("Getting default session", "DefaultSess", DefaultSess)
+	var ssmClient ssmiface.SSMAPI
 	input := &ssm.GetParameterInput{
-		Name: aws.String(fmt.Sprintf(EksAmis[OSFamily][arch], kubernetesVersion)),
+		Name: aws.String(path),
+	}
+	log.Info("Checking role")
+	DefaultSess, _ := session.NewSession(Config)
+
+	if !strings.EqualFold(role, "") {
+		log.Info("Assuming Role", "role", role, "Session", DefaultSess)
+		creds := stscreds.NewCredentials(DefaultSess, role)
+		ssmClient = ssm.New(DefaultSess, &aws.Config{Credentials: creds})
+	} else {
+		log.Info("Using default client")
+		ssmClient = w.SsmClient
 	}
 
-	output, err := w.SsmClient.GetParameter(input)
+	output, err := ssmClient.GetParameter(input)
 	if err != nil {
 		return "", err
 	}
 	return aws.StringValue(output.Parameter.Value), nil
+}
+
+func (w *AwsWorker) GetEksLatestAmi(role, OSFamily, arch, kubernetesVersion string) (string, error) {
+	path := fmt.Sprintf(EksAmis[OSFamily][arch], kubernetesVersion)
+	return w.GetCustomAmi(role, path)
 }

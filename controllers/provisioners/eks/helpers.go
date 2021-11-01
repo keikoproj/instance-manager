@@ -38,6 +38,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 func (ctx *EksInstanceGroupContext) ResolveSubnets() []string {
@@ -1202,11 +1203,21 @@ func (ctx *EksInstanceGroupContext) GetEksLatestAmi() (string, error) {
 		OSFamily = OsFamilyAmazonLinux2
 	}
 
+	iamRole := annotations[SSMIAMRoleAnnotation]
+	log.Log.Info("Iam Role", "role", iamRole)
+
 	supportedArchitectures := awsprovider.GetInstanceTypeArchitectures(state.GetInstanceTypeInfo(), configuration.InstanceType)
 	arch := FilterSupportedArch(supportedArchitectures)
 	if arch == "" {
 		return "", fmt.Errorf("No supported CPU architecture found for instance type %s", configuration.InstanceType)
 	}
 
-	return ctx.AwsWorker.GetEksLatestAmi(OSFamily, arch, clusterVersion)
+	if kubeprovider.HasAnnotation(annotations, SSMCustomPathAnnotation) {
+		path := annotations[SSMCustomPathAnnotation]
+		log.Log.Info("Get Custom AMI", "role", iamRole, "path", path)
+		return ctx.AwsWorker.GetCustomAmi(iamRole, path)
+	} else {
+		log.Log.Info("GetEksLatestAmi", "role", iamRole, "OSFamily", OSFamily, "arch", arch, "clusterVersion", clusterVersion)
+		return ctx.AwsWorker.GetEksLatestAmi(iamRole, OSFamily, arch, clusterVersion)
+	}
 }
