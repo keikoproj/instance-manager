@@ -71,13 +71,14 @@ func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 	)
 
 	ctx := &EksInstanceGroupContext{
-		InstanceGroup:    instanceGroup,
-		KubernetesClient: p.Kubernetes,
-		AwsWorker:        p.AwsWorker,
-		Log:              p.Log.WithName("eks"),
-		ResourcePrefix:   fmt.Sprintf("%v-%v-%v", configuration.GetClusterName(), instanceGroup.GetNamespace(), instanceGroup.GetName()),
-		ConfigRetention:  p.ConfigRetention,
-		Metrics:          p.Metrics,
+		InstanceGroup:              instanceGroup,
+		KubernetesClient:           p.Kubernetes,
+		AwsWorker:                  p.AwsWorker,
+		Log:                        p.Log.WithName("eks"),
+		ResourcePrefix:             fmt.Sprintf("%v-%v-%v", configuration.GetClusterName(), instanceGroup.GetNamespace(), instanceGroup.GetName()),
+		ConfigRetention:            p.ConfigRetention,
+		Metrics:                    p.Metrics,
+		DisableWinClusterInjection: p.DisableWinClusterInjection,
 	}
 
 	ctx.SetState(v1alpha1.ReconcileInit)
@@ -89,15 +90,16 @@ func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 
 type EksInstanceGroupContext struct {
 	sync.Mutex
-	InstanceGroup    *v1alpha1.InstanceGroup
-	KubernetesClient kubeprovider.KubernetesClientSet
-	AwsWorker        awsprovider.AwsWorker
-	DiscoveredState  *DiscoveredState
-	Log              logr.Logger
-	Configuration    *provisioners.ProvisionerConfiguration
-	ConfigRetention  int
-	ResourcePrefix   string
-	Metrics          *common.MetricsCollector
+	InstanceGroup              *v1alpha1.InstanceGroup
+	KubernetesClient           kubeprovider.KubernetesClientSet
+	AwsWorker                  awsprovider.AwsWorker
+	DiscoveredState            *DiscoveredState
+	Log                        logr.Logger
+	Configuration              *provisioners.ProvisionerConfiguration
+	ConfigRetention            int
+	ResourcePrefix             string
+	Metrics                    *common.MetricsCollector
+	DisableWinClusterInjection bool
 }
 
 type UserDataPayload struct {

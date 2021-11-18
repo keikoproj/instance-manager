@@ -43,17 +43,18 @@ import (
 // InstanceGroupReconciler reconciles an InstanceGroup object
 type InstanceGroupReconciler struct {
 	client.Client
-	SpotRecommendationTime float64
-	ConfigNamespace        string
-	NodeRelabel            bool
-	Log                    logr.Logger
-	MaxParallel            int
-	Auth                   *InstanceGroupAuthenticator
-	ConfigMap              *corev1.ConfigMap
-	Namespaces             map[string]corev1.Namespace
-	NamespacesLock         *sync.RWMutex
-	ConfigRetention        int
-	Metrics                *common.MetricsCollector
+	SpotRecommendationTime     float64
+	ConfigNamespace            string
+	NodeRelabel                bool
+	Log                        logr.Logger
+	MaxParallel                int
+	Auth                       *InstanceGroupAuthenticator
+	ConfigMap                  *corev1.ConfigMap
+	Namespaces                 map[string]corev1.Namespace
+	NamespacesLock             *sync.RWMutex
+	ConfigRetention            int
+	Metrics                    *common.MetricsCollector
+	DisableWinClusterInjection bool
 }
 
 type InstanceGroupAuthenticator struct {
@@ -134,13 +135,14 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 	r.SetFinalizer(instanceGroup)
 
 	input := provisioners.ProvisionerInput{
-		AwsWorker:       r.Auth.Aws,
-		Kubernetes:      r.Auth.Kubernetes,
-		Configuration:   r.ConfigMap,
-		InstanceGroup:   instanceGroup,
-		Log:             r.Log,
-		ConfigRetention: r.ConfigRetention,
-		Metrics:         r.Metrics,
+		AwsWorker:                  r.Auth.Aws,
+		Kubernetes:                 r.Auth.Kubernetes,
+		Configuration:              r.ConfigMap,
+		InstanceGroup:              instanceGroup,
+		Log:                        r.Log,
+		ConfigRetention:            r.ConfigRetention,
+		Metrics:                    r.Metrics,
+		DisableWinClusterInjection: r.DisableWinClusterInjection,
 	}
 
 	var (
