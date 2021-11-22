@@ -249,6 +249,83 @@ func TestGetBasicUserDataWindows(t *testing.T) {
 	}
 }
 
+func TestGetBasicUserDataWindowsWithInjectionDisabled(t *testing.T) {
+	var (
+		k             = MockKubernetesClientSet()
+		ig            = MockInstanceGroup()
+		asgMock       = NewAutoScalingMocker()
+		iamMock       = NewIamMocker()
+		eksMock       = NewEksMocker()
+		ec2Mock       = NewEc2Mocker()
+		ssmMock       = NewSsmMocker()
+		configuration = ig.GetEKSConfiguration()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
+	ctx := MockContext(ig, k, w)
+
+	configuration.BootstrapOptions = &v1alpha1.BootstrapOptions{
+		MaxPods: 4,
+	}
+	configuration.Labels = map[string]string{
+		"foo": "bar",
+	}
+	configuration.Taints = []corev1.Taint{
+		{
+			Key:    "foo",
+			Value:  "bar",
+			Effect: "NoSchedule",
+		},
+	}
+
+	configuration.BootstrapArguments = "--eviction-hard=memory.available<300Mi,nodefs.available<5% --system-reserved=memory=2.5Gi --v=2"
+	configuration.UserData = []v1alpha1.UserDataStage{
+		{
+			Stage: "PreBootstrap",
+			Data:  "foo",
+		},
+		{
+			Stage: "PostBootstrap",
+			Data:  "bar",
+		},
+	}
+
+	ig.Annotations[OsFamilyAnnotation] = OsFamilyWindows
+
+	expectedDataWindows := `
+<powershell>
+  foo
+  [string]$EKSBinDir = "$env:ProgramFiles\Amazon\EKS"
+  [string]$EKSBootstrapScriptName = 'Start-EKSBootstrap.ps1'
+  [string]$EKSBootstrapScriptFile = "$EKSBinDir\$EKSBootstrapScriptName"
+  [string]$IMDSToken=(curl -UseBasicParsing -Method PUT "http://169.254.169.254/latest/api/token" -H @{ "X-aws-ec2-metadata-token-ttl-seconds" = "21600"} | % { Echo $_.Content})
+  [string]$InstanceID=(curl -UseBasicParsing -Method GET "http://169.254.169.254/latest/meta-data/instance-id" -H @{ "X-aws-ec2-metadata-token" = "$IMDSToken"} | % { Echo $_.Content})
+  [string]$Lifecycle = Get-ASAutoScalingInstance $InstanceID | % { Echo $_.LifecycleState}
+  if ($Lifecycle -like "*Warmed*") {
+    Echo "Not starting Kubelet due to warmed state."
+    & C:\ProgramData\Amazon\EC2-Windows\Launch\Scripts\InitializeInstance.ps1 –Schedule
+  } else {
+    & $EKSBootstrapScriptFile -EKSClusterName foo -KubeletExtraArgs '--node-labels=foo=bar,instancemgr.keikoproj.io/image=ami-123456789012,node.kubernetes.io/role=instance-group-1 --register-with-taints=foo=bar:NoSchedule --eviction-hard=memory.available<300Mi,nodefs.available<5% --system-reserved=memory=2.5Gi --v=2 --max-pods=4' 3>&1 4>&1 5>&1 6>&1
+    bar
+  }
+</powershell>`
+
+	ctx.DisableWinClusterInjection = true
+	var (
+		args            = ctx.GetBootstrapArgs()
+		kubeletArgs     = ctx.GetKubeletExtraArgs()
+		userDataPayload = ctx.GetUserDataStages()
+		mounts          = ctx.GetMountOpts()
+	)
+
+	userData := ctx.GetBasicUserData("foo", args, kubeletArgs, userDataPayload, mounts)
+	basicUserDataDecoded, _ := base64.StdEncoding.DecodeString(userData)
+	basicUserDataString := string(basicUserDataDecoded)
+	if basicUserDataString != expectedDataWindows {
+		t.Fatalf("\nExpected: START>%v<END\n Got: START>%v<END", expectedDataWindows, basicUserDataString)
+	}
+}
+
 func TestCustomNetworkingMaxPods(t *testing.T) {
 	var (
 		k       = MockKubernetesClientSet()
