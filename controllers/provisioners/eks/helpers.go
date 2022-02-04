@@ -489,8 +489,6 @@ func (ctx *EksInstanceGroupContext) GetLabelList() []string {
 	return labelList
 }
 
-
-
 func (ctx *EksInstanceGroupContext) GetComputedBootstrapOptions() *v1alpha1.BootstrapOptions {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
