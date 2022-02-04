@@ -403,7 +403,7 @@ func TestCustomNetworkingMaxPods(t *testing.T) {
 				CustomNetworkingEnabledAnnotation:                 "true",
 			},
 			bootstrapOptions: nil,
-			expectedMaxPods:  "--max-pods=290",
+			expectedMaxPods:  "--max-pods=110",
 		},
 		{
 			annotations: map[string]string{
