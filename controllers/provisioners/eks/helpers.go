@@ -65,9 +65,18 @@ func (ctx *EksInstanceGroupContext) ResolveSubnets() []string {
 		}
 		resolved = append(resolved, aws.StringValue(sn.SubnetId))
 	}
-	sort.Strings(resolved)
 
-	return resolved
+	var dedupe = make([]string, 0)
+	for _, item := range resolved {
+		if common.ContainsString(dedupe, item) {
+			ctx.Log.Info("ignoring duplicate value in subnet list", "subnet", item)
+		} else {
+			dedupe = append(dedupe, item)
+		}
+	}
+
+	sort.Strings(dedupe)
+	return dedupe
 }
 
 func (ctx *EksInstanceGroupContext) ResolveSecurityGroups() []string {
@@ -512,7 +521,7 @@ func (ctx *EksInstanceGroupContext) GetComputedBootstrapOptions() *v1alpha1.Boot
 		}
 
 		// Don't set maxPods above Kubernetes-recommended 110 per node for large clusters.
-		maxPods = common.Min(enis*((aws.Int64Value(instanceTypeNetworkInfo.Ipv4AddressesPerInterface)-1)*ipsPerInterface) + hostNetworkPods, 110)
+		maxPods = common.Min(enis*((aws.Int64Value(instanceTypeNetworkInfo.Ipv4AddressesPerInterface)-1)*ipsPerInterface)+hostNetworkPods, 110)
 
 		if configuration.BootstrapOptions == nil {
 			return &v1alpha1.BootstrapOptions{
