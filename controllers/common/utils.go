@@ -256,6 +256,13 @@ func StringSliceContains(x, y []string) bool {
 	return true
 }
 
+func Min(a, b int64) int64 {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func GetLastElementBy(s, sep string) string {
 	sp := strings.Split(s, sep)
 	return sp[len(sp)-1]
