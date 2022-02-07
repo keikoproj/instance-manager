@@ -102,7 +102,8 @@ func TestSetDefaultsRestricted(t *testing.T) {
     - spec.eks.configuration.labels
     - spec.eks.configuration.securityGroups
     - spec.eks.configuration.instanceType
-    - spec.strategy`
+    - spec.strategy
+    - spec.eks.configuration.suspendProcesses`
 
 	mockConditionals := `
 - annotationSelector: "instancemgr.keikoproj.io/os-family=windows"
@@ -135,6 +136,7 @@ spec:
 
 	cm := MockConfigMap(MockConfigData("boundaries", mockBoundaries, "defaults", mockDefaults, "conditionals", mockConditionals))
 	cr := MockResource()
+	cr.Spec.EKSSpec.EKSConfiguration.SuspendedProcesses = []string{"AZRebalance"}
 	cr.Spec.EKSSpec.EKSConfiguration.EksClusterName = "someCluster"
 	cr.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups = []string{"sg-000000000000"}
 	cr.Spec.EKSSpec.EKSConfiguration.InstanceType = "m5.xlarge"
@@ -155,6 +157,7 @@ spec:
 		},
 	}))
 	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.NodeSecurityGroups).To(gomega.Equal([]string{"sg-123456789012"}))
+	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.SuspendedProcesses).To(gomega.BeNil())
 	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.InstanceType).To(gomega.Equal("m5.large"))
 	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Labels).To(gomega.Equal(MockLabels("label-key", "label-value")))
 	g.Expect(c.InstanceGroup.Spec.EKSSpec.EKSConfiguration.Taints).To(gomega.Equal([]corev1.Taint{MockTaint("taint-key", "taint-value", "NoSchedule")}))

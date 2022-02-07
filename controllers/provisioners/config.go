@@ -17,8 +17,9 @@ package provisioners
 
 import (
 	"fmt"
-	"k8s.io/apimachinery/pkg/labels"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/ghodss/yaml"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
@@ -176,7 +177,7 @@ func (c *ProvisionerConfiguration) setRestrictedFields(unstructuredInstanceGroup
 				setFieldInAnyConditional = true
 				err := unstructured.SetNestedField(unstructuredInstanceGroup, field, path...)
 				if err != nil {
-					errors.Wrap(err, "failed to set nested field")
+					return errors.Wrap(err, "failed to set nested field")
 				}
 			}
 		}
@@ -187,7 +188,13 @@ func (c *ProvisionerConfiguration) setRestrictedFields(unstructuredInstanceGroup
 			// default value exists for restricted path
 			err := unstructured.SetNestedField(unstructuredInstanceGroup, field, path...)
 			if err != nil {
-				errors.Wrap(err, "failed to set nested field")
+				return errors.Wrap(err, "failed to set nested field")
+			}
+		} else {
+			// if no default value exist, make sure to ignore CR value for restricted fields
+			err := unstructured.SetNestedField(unstructuredInstanceGroup, nil, path...)
+			if err != nil {
+				return errors.Wrap(err, "failed to set nested field to nil")
 			}
 		}
 	}
