@@ -226,7 +226,7 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	if spec.IsLaunchConfiguration() {
 
 		state.ScalingConfiguration, err = scaling.NewLaunchConfiguration(instanceGroup.NamespacedName(), ctx.AwsWorker, &scaling.DiscoverConfigurationInput{
-			ScalingGroup: targetScalingGroup,
+			ScalingGroup:     targetScalingGroup,
 			TargetConfigName: state.ScalingConfiguration.Name(),
 		})
 		if err != nil {
@@ -239,7 +239,7 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 
 	if spec.IsLaunchTemplate() {
 		state.ScalingConfiguration, err = scaling.NewLaunchTemplate(instanceGroup.NamespacedName(), ctx.AwsWorker, &scaling.DiscoverConfigurationInput{
-			ScalingGroup: targetScalingGroup,
+			ScalingGroup:     targetScalingGroup,
 			TargetConfigName: state.ScalingConfiguration.Name(),
 		})
 		if err != nil {
