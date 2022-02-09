@@ -238,7 +238,7 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 
 	if spec.IsLaunchTemplate() {
 		state.ScalingConfiguration, err = scaling.NewLaunchTemplate(instanceGroup.NamespacedName(), ctx.AwsWorker, &scaling.DiscoverConfigurationInput{
-			ScalingGroup: targetScalingGroup,
+			TargetConfigName: status.GetActiveLaunchTemplateName(),
 		})
 		if err != nil {
 			return errors.Wrap(err, "failed to discover launch templates")
