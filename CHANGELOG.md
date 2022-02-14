@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [v0.14.0-alpha2] - 2022-2-14
+* feat: add support for calculating max pods when prefix assignment is … by @backjo in https://github.com/keikoproj/instance-manager/pull/326
+* fix: check architecture when considering similar instance types in the same family by @backjo in https://github.com/keikoproj/instance-manager/pull/332
+* feat: automated ami upgrades + upgrade locking by @preflightsiren in https://github.com/keikoproj/instance-manager/pull/327
+* chore: Add missing bdd templates by @preflightsiren in https://github.com/keikoproj/instance-manager/pull/334
+* fix: Stop passing in ClusterCA and Endpoint information for Windows nodes by @backjo in https://github.com/keikoproj/instance-manager/pull/337
+* fix: don't set max pods above kubernetes recommended limit by @backjo in https://github.com/keikoproj/instance-manager/pull/342
+* chore: update go, improve cross-compilation in docker by @backjo in https://github.com/keikoproj/instance-manager/pull/343
+* fix: Deduplicate Subnets by @eytan-avisror in https://github.com/keikoproj/instance-manager/pull/344
+* fix: Enforce Restricted Fields usage when no default value by @eytan-avisror in https://github.com/keikoproj/instance-manager/pull/345
+* fix: Avoid launch template creation loop when switching from launch config and failing by @sahilbadla in https://github.com/keikoproj/instance-manager/pull/346
+
 ## [v0.13.0-alpha2] - 2021-7-21
 - feat: add support for specifying container runtime (#323)
 - fix: calculate cluster dns correctly for non /16 blocks (#319)
