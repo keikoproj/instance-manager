@@ -408,6 +408,19 @@ func (d *DiscoveredState) SetClusterNodes(nodes *corev1.NodeList) {
 func (d *DiscoveredState) GetClusterNodes() *corev1.NodeList {
 	return d.ClusterNodes
 }
+func (d *DiscoveredState) GetRunningInstanceTypes() []string {
+	types := make([]string, 0)
+	if d.ScalingGroup == nil {
+		return types
+	}
+	for _, t := range d.ScalingGroup.Instances {
+		instanceType := aws.StringValue(t.InstanceType)
+		if !common.ContainsEqualFold(types, instanceType) {
+			types = append(types, instanceType)
+		}
+	}
+	return types
+}
 
 func (d *DiscoveredState) SetSubFamilyFlexiblePool(pool map[string][]InstanceSpec) {
 	d.InstancePool.SubFamilyFlexiblePool = InstancePool{
