@@ -309,6 +309,17 @@ func MockTagDescription(key, value string) *autoscaling.TagDescription {
 	}
 }
 
+func MockTemplateOverrides(weight string, types ...string) []*autoscaling.LaunchTemplateOverrides {
+	overrides := make([]*autoscaling.LaunchTemplateOverrides, 0)
+	for _, t := range types {
+		overrides = append(overrides, &autoscaling.LaunchTemplateOverrides{
+			InstanceType:     aws.String(t),
+			WeightedCapacity: aws.String(weight),
+		})
+	}
+	return overrides
+}
+
 func MockScalingGroup(name string, withTemplate bool, t ...*autoscaling.TagDescription) *autoscaling.Group {
 	asg := &autoscaling.Group{
 		AutoScalingGroupName: aws.String(name),
@@ -316,6 +327,11 @@ func MockScalingGroup(name string, withTemplate bool, t ...*autoscaling.TagDescr
 		MinSize:              aws.Int64(3),
 		MaxSize:              aws.Int64(6),
 		VPCZoneIdentifier:    aws.String("subnet-1,subnet-2,subnet-3"),
+		Instances: []*autoscaling.Instance{
+			{
+				InstanceType: aws.String("m5.xlarge"),
+			},
+		},
 	}
 
 	if withTemplate {
