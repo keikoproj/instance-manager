@@ -806,6 +806,85 @@ func TestGetMountOpts(t *testing.T) {
 	}
 }
 
+func TestGetOverrides(t *testing.T) {
+	var (
+		g             = gomega.NewGomegaWithT(t)
+		k             = MockKubernetesClientSet()
+		ig            = MockInstanceGroup()
+		configuration = ig.GetEKSConfiguration()
+		asgMock       = NewAutoScalingMocker()
+		iamMock       = NewIamMocker()
+		eksMock       = NewEksMocker()
+		ec2Mock       = NewEc2Mocker()
+		ssmMock       = NewSsmMocker()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
+	ctx := MockContext(ig, k, w)
+	state := ctx.GetDiscoveredState()
+
+	instancePool := "SubFamilyFlexible"
+
+	tests := []struct {
+		primaryType        string
+		scalingGroup       *autoscaling.Group
+		mixedInstancesSpec *v1alpha1.MixedInstancesPolicySpec
+		expectedOverrides  []*autoscaling.LaunchTemplateOverrides
+	}{
+		{
+			primaryType:  "m5.xlarge",
+			scalingGroup: MockScalingGroup("asg-1", true),
+			mixedInstancesSpec: &v1alpha1.MixedInstancesPolicySpec{
+				InstanceTypes: []*v1alpha1.InstanceTypeSpec{
+					{
+						Type:   "m5a.xlarge",
+						Weight: 1,
+					},
+					{
+						Type:   "m5g.xlarge",
+						Weight: 1,
+					},
+				},
+			},
+			expectedOverrides: MockTemplateOverrides("1", "m5a.xlarge", "m5g.xlarge", "m5.xlarge"),
+		},
+		{
+			primaryType:  "m5.xlarge",
+			scalingGroup: MockScalingGroup("asg-1", true),
+			mixedInstancesSpec: &v1alpha1.MixedInstancesPolicySpec{
+				InstancePool: &instancePool,
+			},
+			expectedOverrides: MockTemplateOverrides("1", "m5.xlarge"),
+		},
+		{
+			primaryType:  "t2.xlarge",
+			scalingGroup: MockScalingGroup("asg-1", true),
+			mixedInstancesSpec: &v1alpha1.MixedInstancesPolicySpec{
+				InstanceTypes: []*v1alpha1.InstanceTypeSpec{
+					{
+						Type:   "t2a.xlarge",
+						Weight: 1,
+					},
+					{
+						Type:   "t2g.xlarge",
+						Weight: 1,
+					},
+				},
+			},
+			expectedOverrides: MockTemplateOverrides("1", "t2a.xlarge", "t2g.xlarge", "t2.xlarge", "m5.xlarge"),
+		},
+	}
+
+	for i, tc := range tests {
+		t.Logf("Test #%v - %+v", i, tc.expectedOverrides)
+		configuration.MixedInstancesPolicy = tc.mixedInstancesSpec
+		state.ScalingGroup = tc.scalingGroup
+		ig.Spec.EKSSpec.EKSConfiguration.InstanceType = tc.primaryType
+		overrides := ctx.GetOverrides()
+		g.Expect(overrides).To(gomega.ConsistOf(tc.expectedOverrides))
+	}
+}
+
 func TestGetUserDataStages(t *testing.T) {
 	var (
 		g             = gomega.NewGomegaWithT(t)
