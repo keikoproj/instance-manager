@@ -849,13 +849,13 @@ func (i *MockIamClient) WaitUntilInstanceProfileExists(input *iam.GetInstancePro
 
 type MockSsmClient struct {
 	ssmiface.SSMAPI
-	latestAMI string
+	parameterMap map[string]string
 }
 
 func (i *MockSsmClient) GetParameter(input *ssm.GetParameterInput) (*ssm.GetParameterOutput, error) {
 	return &ssm.GetParameterOutput{
 		Parameter: &ssm.Parameter{
-			Value: aws.String(i.latestAMI),
+			Value: aws.String(i.parameterMap[*input.Name]),
 		},
 	}, nil
 }

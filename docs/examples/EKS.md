@@ -203,3 +203,29 @@ spec:
     configuration:
       image: latest
 ```
+
+
+## SSM-based versioned AMI
+
+It might not be acceptable to pin your `InstanceGroup` to the latest AMI. If you want to pin to a specific version,
+you can specify the relevant version information using syntax like `ssm://version`. An example for the EKS-optimized Linux AMI might look like:
+
+```yaml
+apiVersion: instancemgr.keikoproj.io/v1alpha1
+kind: InstanceGroup
+metadata:
+  name: hello-world
+  namespace: instance-manager
+  annotations:
+    instancemgr.keikoproj.io/os-family: "amazonlinux2" #Default if not provided
+spec:
+  strategy: <...>
+  provisioner: eks
+  eks:
+    configuration:
+      image: ssm://amazon-eks-node-1.18-v20220226 # resolves to value in /aws/service/eks/optimized-ami/1.18/amazon-linux-2/amazon-eks-node-1.18-v20220226/image_id
+```
+
+Using this type of image reference over a raw ami ID has a few benefits:
+- The same image reference can be used across regions, since it's not a direct reference to the AMI.
+- The image is more readable - for users leveraging GitOps, the changes will be much easier to review.

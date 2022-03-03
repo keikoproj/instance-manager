@@ -186,6 +186,16 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 		ctx.Log.V(4).Info("Updating Image ID with latest", "ami_id", latestAmiId)
 	}
 
+	if strings.HasPrefix(configuration.Image, v1alpha1.ImageSSMPrefix) {
+		ssmKey := strings.TrimPrefix(configuration.Image, v1alpha1.ImageSSMPrefix)
+		amiId, err := ctx.GetEksSSMAmi(&ssmKey)
+		if err != nil {
+			return errors.Wrap(err, "failed to discover ami")
+		}
+		configuration.Image = amiId
+		ctx.Log.V(4).Info("Updating Image ID with ami", "ami_id", amiId)
+	}
+
 	// All information needed to creating the scaling group must happen before this line.
 	// find all owned scaling groups
 	ownedScalingGroups := ctx.findOwnedScalingGroups(scalingGroups)

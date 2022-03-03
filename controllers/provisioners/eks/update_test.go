@@ -701,6 +701,11 @@ func TestUpdateManagedPolicies(t *testing.T) {
 	}
 }
 
+type amiTest struct {
+	igImage     string
+	expectedAmi string
+}
+
 func TestUpdateWithLatestAmiID(t *testing.T) {
 	var (
 		g       = gomega.NewGomegaWithT(t)
@@ -714,6 +719,8 @@ func TestUpdateWithLatestAmiID(t *testing.T) {
 	)
 
 	testLatestAmiID := "ami-12345678"
+	testCustomAmi := "ami-98765432"
+
 	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
@@ -738,9 +745,10 @@ func TestUpdateWithLatestAmiID(t *testing.T) {
 	}
 
 	// Setup Latest AMI
-	ig.GetEKSConfiguration().Image = "latest"
-	ssmMock.latestAMI = testLatestAmiID
-
+	ssmMock.parameterMap = map[string]string{
+		"/aws/service/eks/optimized-ami/1.18/amazon-linux-2/recommended/image_id":                    testLatestAmiID,
+		"/aws/service/eks/optimized-ami/1.18/amazon-linux-2/amazon-eks-node-1.18-v20220226/image_id": testCustomAmi,
+	}
 	ec2Mock.InstanceTypes = []*ec2.InstanceTypeInfo{
 		&ec2.InstanceTypeInfo{
 			InstanceType: aws.String("m5.large"),
@@ -750,33 +758,48 @@ func TestUpdateWithLatestAmiID(t *testing.T) {
 		},
 	}
 
-	err := ctx.CloudDiscovery()
-	g.Expect(err).NotTo(gomega.HaveOccurred())
+	testAmis := []amiTest{
+		{
+			igImage:     "latest",
+			expectedAmi: testLatestAmiID,
+		},
+		{
+			igImage:     "ssm://amazon-eks-node-1.18-v20220226",
+			expectedAmi: testCustomAmi,
+		},
+	}
 
-	ctx.SetDiscoveredState(&DiscoveredState{
-		Publisher: kubeprovider.EventPublisher{
-			Client: k.Kubernetes,
-		},
-		ScalingGroup: mockScalingGroup,
-		ScalingConfiguration: &scaling.LaunchConfiguration{
-			AwsWorker: w,
-		},
-		InstanceProfile: &iam.InstanceProfile{
-			Arn: aws.String("some-instance-arn"),
-		},
-		ClusterNodes: nil,
-		Cluster:      nil,
-		InstanceTypeInfo: []*ec2.InstanceTypeInfo{
-			{
-				InstanceType: aws.String("m5.large"),
-				ProcessorInfo: &ec2.ProcessorInfo{
-					SupportedArchitectures: []*string{aws.String("x86_64")},
+	for _, tc := range testAmis {
+		ig.GetEKSConfiguration().Image = tc.igImage
+		err := ctx.CloudDiscovery()
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+
+		ctx.SetDiscoveredState(&DiscoveredState{
+			Publisher: kubeprovider.EventPublisher{
+				Client: k.Kubernetes,
+			},
+			ScalingGroup: mockScalingGroup,
+			ScalingConfiguration: &scaling.LaunchConfiguration{
+				AwsWorker: w,
+			},
+			InstanceProfile: &iam.InstanceProfile{
+				Arn: aws.String("some-instance-arn"),
+			},
+			ClusterNodes: nil,
+			Cluster:      nil,
+			InstanceTypeInfo: []*ec2.InstanceTypeInfo{
+				{
+					InstanceType: aws.String("m5.large"),
+					ProcessorInfo: &ec2.ProcessorInfo{
+						SupportedArchitectures: []*string{aws.String("x86_64")},
+					},
 				},
 			},
-		},
-	})
+		})
 
-	err = ctx.Update()
-	g.Expect(err).NotTo(gomega.HaveOccurred())
-	g.Expect(ctx.GetInstanceGroup().Spec.EKSSpec.EKSConfiguration.Image).To(gomega.Equal(testLatestAmiID))
+		err = ctx.Update()
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		g.Expect(ctx.GetInstanceGroup().Spec.EKSSpec.EKSConfiguration.Image).To(gomega.Equal(tc.expectedAmi))
+	}
+
 }
