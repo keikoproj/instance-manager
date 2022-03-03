@@ -1100,10 +1100,15 @@ func (ctx *EksInstanceGroupContext) GetOverrides() []*autoscaling.LaunchTemplate
 		primaryType   = configuration.InstanceType
 		mixedPolicy   = configuration.GetMixedInstancesPolicy()
 		state         = ctx.GetDiscoveredState()
+		runningTypes  = state.GetRunningInstanceTypes()
 	)
 	overrides := []*autoscaling.LaunchTemplateOverrides{}
+	if mixedPolicy == nil {
+		return overrides
+	}
 
-	if mixedPolicy != nil && mixedPolicy.InstanceTypes != nil {
+	// Create overrides from specific instanceTypes or derive from instancePool
+	if mixedPolicy.InstanceTypes != nil {
 		overrides = append(overrides, &autoscaling.LaunchTemplateOverrides{
 			InstanceType:     aws.String(primaryType),
 			WeightedCapacity: aws.String("1"),
@@ -1115,18 +1120,33 @@ func (ctx *EksInstanceGroupContext) GetOverrides() []*autoscaling.LaunchTemplate
 				WeightedCapacity: aws.String(weightStr),
 			})
 		}
-		return overrides
+	} else if mixedPolicy.InstancePool != nil {
+		if strings.EqualFold(*mixedPolicy.InstancePool, string(SubFamilyFlexible)) {
+			if pool, ok := state.InstancePool.SubFamilyFlexiblePool.GetPool(primaryType); ok {
+				for _, p := range pool {
+					overrides = append(overrides, &autoscaling.LaunchTemplateOverrides{
+						InstanceType:     aws.String(p.Type),
+						WeightedCapacity: aws.String(p.Weight),
+					})
+				}
+			}
+		}
 	}
 
-	switch {
-	case strings.EqualFold(*mixedPolicy.InstancePool, string(SubFamilyFlexible)):
-		if pool, ok := state.InstancePool.SubFamilyFlexiblePool.GetPool(primaryType); ok {
-			for _, p := range pool {
-				overrides = append(overrides, &autoscaling.LaunchTemplateOverrides{
-					InstanceType:     aws.String(p.Type),
-					WeightedCapacity: aws.String(p.Weight),
-				})
-			}
+	// if some type is already running in the group (when switching from LaunchConfiguration to LaunchTemplate), it must be included in overrides
+	// Once the type is replaced with the new primary type it will no longer be added as an override
+	var overrideTypes = make([]string, 0)
+	for _, o := range overrides {
+		override := aws.StringValue(o.InstanceType)
+		overrideTypes = append(overrideTypes, override)
+	}
+
+	for _, t := range runningTypes {
+		if !common.ContainsEqualFold(overrideTypes, t) {
+			overrides = append(overrides, &autoscaling.LaunchTemplateOverrides{
+				InstanceType:     aws.String(t),
+				WeightedCapacity: aws.String("1"),
+			})
 		}
 	}
 
