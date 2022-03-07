@@ -15,12 +15,12 @@ import (
 type architectureMap map[string]string
 
 const (
-	EksOptimisedAmiPath           = "/aws/service/eks/optimized-ami/%s/amazon-linux-2/recommended/image_id"
-	EksOptimisedAmazonLinux2Arm64 = "/aws/service/eks/optimized-ami/%s/amazon-linux-2-arm64/recommended/image_id"
-	EksOptimisedBottlerocket      = "/aws/service/bottlerocket/aws-k8s-%s/x86_64/latest/image_id"
-	EksOptimisedBottlerocketArm64 = "/aws/service/bottlerocket/aws-k8s-%s/arm64/latest/image_id"
-	EksOptimisedWindowsCore       = "/aws/service/ami-windows-latest/Windows_Server-2019-English-Core-EKS_Optimized-%s/image_id"
-	EksOptimisedWindowsFull       = "/aws/service/ami-windows-latest/Windows_Server-2019-English-Full-EKS_Optimized-%s/image_id"
+	EksOptimisedAmiPath           = "/aws/service/eks/optimized-ami/%s/amazon-linux-2/%s/image_id"
+	EksOptimisedAmazonLinux2Arm64 = "/aws/service/eks/optimized-ami/%s/amazon-linux-2-arm64/%s/image_id"
+	EksOptimisedBottlerocket      = "/aws/service/bottlerocket/aws-k8s-%s/x86_64/%s/image_id"
+	EksOptimisedBottlerocketArm64 = "/aws/service/bottlerocket/aws-k8s-%s/arm64/%s/image_id"
+	EksOptimisedWindowsCore       = "/aws/service/ami-windows-%s/Windows_Server-2019-English-Core-EKS_Optimized-%s/image_id"
+	EksOptimisedWindowsFull       = "/aws/service/ami-windows-%s/Windows_Server-2019-English-Full-EKS_Optimized-%s/image_id"
 )
 
 var (
@@ -36,6 +36,11 @@ var (
 		"windows": architectureMap{
 			"x86_64": EksOptimisedWindowsCore,
 		},
+	}
+	LatestIdentifiers = map[string]string{
+		"bottlerocket": "latest",
+		"amazonlinux2": "recommended",
+		"windows":      "latest",
 	}
 )
 
@@ -60,8 +65,16 @@ func GetAwsSsmClient(region string, cacheCfg *cache.Config, maxRetries int, coll
 }
 
 func (w *AwsWorker) GetEksLatestAmi(OSFamily string, arch string, kubernetesVersion string) (string, error) {
+	return w.GetEksSsmAmi(OSFamily, arch, kubernetesVersion, LatestIdentifiers[OSFamily])
+}
+
+func (w *AwsWorker) GetEksSsmAmi(OSFamily string, arch string, kubernetesVersion string, ssmId string) (string, error) {
+	var inputString = aws.String(fmt.Sprintf(EksAmis[OSFamily][arch], kubernetesVersion, ssmId))
+	if OSFamily == "windows" {
+		inputString = aws.String(fmt.Sprintf(EksAmis[OSFamily][arch], ssmId, kubernetesVersion))
+	}
 	input := &ssm.GetParameterInput{
-		Name: aws.String(fmt.Sprintf(EksAmis[OSFamily][arch], kubernetesVersion)),
+		Name: inputString,
 	}
 
 	output, err := w.SsmClient.GetParameter(input)

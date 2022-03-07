@@ -79,6 +79,7 @@ const (
 	DedicatedPlacementTenancyType = "dedicated"
 
 	ImageLatestValue = "latest"
+	ImageSSMPrefix   = "ssm://"
 )
 
 type ContainerRuntime string

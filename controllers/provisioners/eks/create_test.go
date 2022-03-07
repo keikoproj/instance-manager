@@ -342,6 +342,11 @@ func TestCreateAutoScalingGroupNegative(t *testing.T) {
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
 }
 
+type AMITest struct {
+	igImage     string
+	expectedAmi string
+}
+
 func TestCreateLatestAMI(t *testing.T) {
 	var (
 		g       = gomega.NewGomegaWithT(t)
@@ -355,6 +360,7 @@ func TestCreateLatestAMI(t *testing.T) {
 	)
 
 	testLatestAmiID := "ami-12345678"
+	testCustomAmi := "ami-98765432"
 	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
 
@@ -366,10 +372,11 @@ func TestCreateLatestAMI(t *testing.T) {
 		RoleName: aws.String("some-role"),
 	}
 
-	// Setup Latest AMI
-	ig.GetEKSConfiguration().Image = "latest"
-	ssmMock.latestAMI = testLatestAmiID
-
+	// Setup mock SSM parameters
+	ssmMock.parameterMap = map[string]string{
+		"/aws/service/eks/optimized-ami/1.18/amazon-linux-2/recommended/image_id":                    testLatestAmiID,
+		"/aws/service/eks/optimized-ami/1.18/amazon-linux-2/amazon-eks-node-1.18-v20220226/image_id": testCustomAmi,
+	}
 	ec2Mock.InstanceTypes = []*ec2.InstanceTypeInfo{
 		&ec2.InstanceTypeInfo{
 			InstanceType: aws.String("m5.large"),
@@ -379,19 +386,33 @@ func TestCreateLatestAMI(t *testing.T) {
 		},
 	}
 
-	err := ctx.CloudDiscovery()
-	g.Expect(err).NotTo(gomega.HaveOccurred())
-	// Must happen after ctx.CloudDiscover()
-	ctx.GetDiscoveredState().SetInstanceTypeInfo([]*ec2.InstanceTypeInfo{
+	testAmis := []AMITest{
 		{
-			InstanceType: aws.String("m5.large"),
-			ProcessorInfo: &ec2.ProcessorInfo{
-				SupportedArchitectures: []*string{aws.String("x86_64")},
-			},
+			igImage:     "latest",
+			expectedAmi: testLatestAmiID,
 		},
-	})
+		{
+			igImage:     "ssm://amazon-eks-node-1.18-v20220226",
+			expectedAmi: testCustomAmi,
+		},
+	}
 
-	err = ctx.Create()
-	g.Expect(err).NotTo(gomega.HaveOccurred())
-	g.Expect(ctx.GetInstanceGroup().Spec.EKSSpec.EKSConfiguration.Image).To(gomega.Equal(testLatestAmiID))
+	for _, tc := range testAmis {
+		ig.GetEKSConfiguration().Image = tc.igImage
+		err := ctx.CloudDiscovery()
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		// Must happen after ctx.CloudDiscover()
+		ctx.GetDiscoveredState().SetInstanceTypeInfo([]*ec2.InstanceTypeInfo{
+			{
+				InstanceType: aws.String("m5.large"),
+				ProcessorInfo: &ec2.ProcessorInfo{
+					SupportedArchitectures: []*string{aws.String("x86_64")},
+				},
+			},
+		})
+
+		err = ctx.Create()
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		g.Expect(ctx.GetInstanceGroup().Spec.EKSSpec.EKSConfiguration.Image).To(gomega.Equal(tc.expectedAmi))
+	}
 }

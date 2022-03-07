@@ -1240,3 +1240,21 @@ func (ctx *EksInstanceGroupContext) GetEksLatestAmi() (string, error) {
 
 	return ctx.AwsWorker.GetEksLatestAmi(OSFamily, arch, clusterVersion)
 }
+
+func (ctx *EksInstanceGroupContext) GetEksSsmAmi(id string) (string, error) {
+	var (
+		instanceGroup = ctx.GetInstanceGroup()
+		state         = ctx.GetDiscoveredState()
+		osFamily      = ctx.GetOsFamily()
+		configuration = instanceGroup.GetEKSConfiguration()
+	)
+	clusterVersion := state.GetClusterVersion()
+
+	supportedArchitectures := awsprovider.GetInstanceTypeArchitectures(state.GetInstanceTypeInfo(), configuration.InstanceType)
+	arch := FilterSupportedArch(supportedArchitectures)
+	if arch == "" {
+		return "", fmt.Errorf("No supported CPU architecture found for instance type %s", configuration.InstanceType)
+	}
+
+	return ctx.AwsWorker.GetEksSsmAmi(osFamily, arch, clusterVersion, id)
+}
