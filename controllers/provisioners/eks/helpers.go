@@ -1241,21 +1241,14 @@ func (ctx *EksInstanceGroupContext) GetEksLatestAmi() (string, error) {
 	return ctx.AwsWorker.GetEksLatestAmi(OSFamily, arch, clusterVersion)
 }
 
-func (ctx *EksInstanceGroupContext) GetEksSSMAmi(id *string) (string, error) {
+func (ctx *EksInstanceGroupContext) GetEksSsmAmi(id string) (string, error) {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
 		state         = ctx.GetDiscoveredState()
+		osFamily      = ctx.GetOsFamily()
 		configuration = instanceGroup.GetEKSConfiguration()
 	)
 	clusterVersion := state.GetClusterVersion()
-	annotations := instanceGroup.GetAnnotations()
-
-	var OSFamily string
-	if kubeprovider.HasAnnotation(annotations, OsFamilyAnnotation) {
-		OSFamily = annotations[OsFamilyAnnotation]
-	} else {
-		OSFamily = OsFamilyAmazonLinux2
-	}
 
 	supportedArchitectures := awsprovider.GetInstanceTypeArchitectures(state.GetInstanceTypeInfo(), configuration.InstanceType)
 	arch := FilterSupportedArch(supportedArchitectures)
@@ -1263,5 +1256,5 @@ func (ctx *EksInstanceGroupContext) GetEksSSMAmi(id *string) (string, error) {
 		return "", fmt.Errorf("No supported CPU architecture found for instance type %s", configuration.InstanceType)
 	}
 
-	return ctx.AwsWorker.GetEksSSMAmi(OSFamily, arch, clusterVersion, *id)
+	return ctx.AwsWorker.GetEksSsmAmi(osFamily, arch, clusterVersion, id)
 }

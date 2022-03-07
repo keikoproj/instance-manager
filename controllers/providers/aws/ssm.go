@@ -65,10 +65,10 @@ func GetAwsSsmClient(region string, cacheCfg *cache.Config, maxRetries int, coll
 }
 
 func (w *AwsWorker) GetEksLatestAmi(OSFamily string, arch string, kubernetesVersion string) (string, error) {
-	return w.GetEksSSMAmi(OSFamily, arch, kubernetesVersion, LatestIdentifiers[OSFamily])
+	return w.GetEksSsmAmi(OSFamily, arch, kubernetesVersion, LatestIdentifiers[OSFamily])
 }
 
-func (w *AwsWorker) GetEksSSMAmi(OSFamily string, arch string, kubernetesVersion string, ssmId string) (string, error) {
+func (w *AwsWorker) GetEksSsmAmi(OSFamily string, arch string, kubernetesVersion string, ssmId string) (string, error) {
 	var inputString = aws.String(fmt.Sprintf(EksAmis[OSFamily][arch], kubernetesVersion, ssmId))
 	if OSFamily == "windows" {
 		inputString = aws.String(fmt.Sprintf(EksAmis[OSFamily][arch], ssmId, kubernetesVersion))

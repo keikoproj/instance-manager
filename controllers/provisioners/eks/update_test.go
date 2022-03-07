@@ -704,6 +704,7 @@ func TestUpdateManagedPolicies(t *testing.T) {
 type amiTest struct {
 	igImage     string
 	expectedAmi string
+	osFamily    string
 }
 
 func TestUpdateWithLatestAmiID(t *testing.T) {
@@ -720,6 +721,8 @@ func TestUpdateWithLatestAmiID(t *testing.T) {
 
 	testLatestAmiID := "ami-12345678"
 	testCustomAmi := "ami-98765432"
+	testBottlerocketAmi := "ami-56789101"
+	testWindowsAmi := "ami-56789201"
 
 	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
@@ -746,8 +749,10 @@ func TestUpdateWithLatestAmiID(t *testing.T) {
 
 	// Setup Latest AMI
 	ssmMock.parameterMap = map[string]string{
-		"/aws/service/eks/optimized-ami/1.18/amazon-linux-2/recommended/image_id":                    testLatestAmiID,
-		"/aws/service/eks/optimized-ami/1.18/amazon-linux-2/amazon-eks-node-1.18-v20220226/image_id": testCustomAmi,
+		"/aws/service/eks/optimized-ami/1.18/amazon-linux-2/recommended/image_id":                      testLatestAmiID,
+		"/aws/service/eks/optimized-ami/1.18/amazon-linux-2/amazon-eks-node-1.18-v20220226/image_id":   testCustomAmi,
+		"/aws/service/bottlerocket/aws-k8s-1.18/x86_64/1.6.1/image_id":                                 testBottlerocketAmi,
+		"/aws/service/ami-windows-latest/Windows_Server-2019-English-Core-EKS_Optimized-1.18/image_id": testWindowsAmi,
 	}
 	ec2Mock.InstanceTypes = []*ec2.InstanceTypeInfo{
 		&ec2.InstanceTypeInfo{
@@ -762,15 +767,28 @@ func TestUpdateWithLatestAmiID(t *testing.T) {
 		{
 			igImage:     "latest",
 			expectedAmi: testLatestAmiID,
+			osFamily:    "amazonlinux2",
 		},
 		{
 			igImage:     "ssm://amazon-eks-node-1.18-v20220226",
 			expectedAmi: testCustomAmi,
+			osFamily:    "amazonlinux2",
+		},
+		{
+			igImage:     "ssm://1.6.1",
+			expectedAmi: testBottlerocketAmi,
+			osFamily:    "bottlerocket",
+		},
+		{
+			igImage:     "ssm://latest",
+			expectedAmi: testWindowsAmi,
+			osFamily:    "windows",
 		},
 	}
 
 	for _, tc := range testAmis {
 		ig.GetEKSConfiguration().Image = tc.igImage
+		ig.Annotations[OsFamilyAnnotation] = tc.osFamily
 		err := ctx.CloudDiscovery()
 		g.Expect(err).NotTo(gomega.HaveOccurred())
 

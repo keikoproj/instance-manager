@@ -188,7 +188,7 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 
 	if strings.HasPrefix(configuration.Image, v1alpha1.ImageSSMPrefix) {
 		ssmKey := strings.TrimPrefix(configuration.Image, v1alpha1.ImageSSMPrefix)
-		amiId, err := ctx.GetEksSSMAmi(&ssmKey)
+		amiId, err := ctx.GetEksSsmAmi(ssmKey)
 		if err != nil {
 			return errors.Wrap(err, "failed to discover ami")
 		}
