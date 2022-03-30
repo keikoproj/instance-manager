@@ -282,7 +282,7 @@ func (s *statusPatch) Type() types.PatchType {
 	return types.MergePatchType
 }
 
-func (s *statusPatch) Data(obj runtime.Object) ([]byte, error) {
+func (s *statusPatch) Data(obj client.Object) ([]byte, error) {
 	origObj := s.from.DeepCopyObject()
 	originalJSON, err := json.Marshal(origObj)
 	if err != nil {

@@ -40,6 +40,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	dynamic "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
@@ -121,8 +122,12 @@ func MockWarmPool(maxSize, minSize int64, status string) *autoscaling.WarmPoolCo
 
 func MockKubernetesClientSet() kubeprovider.KubernetesClientSet {
 	return kubeprovider.KubernetesClientSet{
-		Kubernetes:  fake.NewSimpleClientset(),
-		KubeDynamic: dynamic.NewSimpleDynamicClient(runtime.NewScheme()),
+		Kubernetes: fake.NewSimpleClientset(),
+		KubeDynamic: dynamic.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{
+			v1alpha1.GroupVersionResource:                                              "InstanceGroupList",
+			{Version: "v1", Resource: "nodes"}:                                         "NodeList",
+			{Group: "instancemgr.keikoproj.io", Version: "v1alpha1", Resource: "dogs"}: "DogList",
+		}),
 	}
 }
 
