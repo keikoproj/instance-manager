@@ -218,7 +218,7 @@ func GetKubernetesLocalConfig() (*rest.Config, error) {
 }
 
 func CRDExists(kubeClient dynamic.Interface, name string) bool {
-	CRDSchema := schema.GroupVersionResource{Group: "apiextensions.k8s.io", Version: "v1beta1", Resource: "customresourcedefinitions"}
+	CRDSchema := schema.GroupVersionResource{Group: "apiextensions.k8s.io", Version: "v1", Resource: "customresourcedefinitions"}
 	_, err := kubeClient.Resource(CRDSchema).Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
 		return false

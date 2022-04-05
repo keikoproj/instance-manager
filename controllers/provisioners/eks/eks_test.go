@@ -281,7 +281,7 @@ func MockCustomResourceSpec() *unstructured.Unstructured {
 func MockCustomResourceDefinition() *unstructured.Unstructured {
 	return &unstructured.Unstructured{
 		Object: map[string]interface{}{
-			"apiVersion": "apiextensions.k8s.io/v1beta1",
+			"apiVersion": "apiextensions.k8s.io/v1",
 			"kind":       "CustomResourceDefinition",
 			"metadata": map[string]interface{}{
 				"name": "dogs.instancemgr.keikoproj.io",
