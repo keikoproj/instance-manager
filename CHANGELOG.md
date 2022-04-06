@@ -4,7 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
-
+## [v0.14.1-alpha2] - 2022-4-6
+* fix: use non-deprecated CRD api by @backjo in https://github.com/keikoproj/instance-manager/pull/355
+* chore: upgrade dependencies by @eytan-avisror in https://github.com/keikoproj/instance-manager/pull/353
+* feat: allow resolving EKS AMIs by version/slug for better readability by @backjo in https://github.com/keikoproj/instance-manager/pull/351
+* fix: Add override instance type for running instances in MixedInstancePolicy by @eytan-avisror in https://github.com/keikoproj/instance-manager/pull/350
 ## [v0.14.0-alpha2] - 2022-2-14
 * feat: add support for calculating max pods when prefix assignment is … by @backjo in https://github.com/keikoproj/instance-manager/pull/326
 * fix: check architecture when considering similar instance types in the same family by @backjo in https://github.com/keikoproj/instance-manager/pull/332
