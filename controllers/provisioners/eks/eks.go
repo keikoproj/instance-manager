@@ -57,7 +57,6 @@ var (
 	AllowedOsFamilies         = []string{OsFamilyWindows, OsFamilyBottleRocket, OsFamilyAmazonLinux2}
 	DefaultManagedPolicies    = []string{"AmazonEKSWorkerNodePolicy", "AmazonEC2ContainerRegistryReadOnly"}
 	CNIManagedPolicy          = "AmazonEKS_CNI_Policy"
-	AutoscalingReadOnlyPolicy = "AutoScalingReadOnlyAccess"
 	SupportedArchitectures    = []string{"x86_64", "arm64"}
 )
 

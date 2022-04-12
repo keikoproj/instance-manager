@@ -137,7 +137,7 @@ func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, k
   [string]$EKSBootstrapScriptFile = "$EKSBinDir\$EKSBootstrapScriptName"
   [string]$IMDSToken=(curl -UseBasicParsing -Method PUT "http://169.254.169.254/latest/api/token" -H @{ "X-aws-ec2-metadata-token-ttl-seconds" = "21600"} | % { Echo $_.Content})
   [string]$InstanceID=(curl -UseBasicParsing -Method GET "http://169.254.169.254/latest/meta-data/instance-id" -H @{ "X-aws-ec2-metadata-token" = "$IMDSToken"} | % { Echo $_.Content})
-  [string]$Lifecycle = Get-ASAutoScalingInstance $InstanceID | % { Echo $_.LifecycleState}
+  [string]$Lifecycle=(curl -UseBasicParsing -Method GET "http://169.254.169.254/latest/meta-data/autoscaling/target-lifecycle-state" -H @{ "X-aws-ec2-metadata-token" = "$IMDSToken"} | % { Echo $_.Content})
   if ($Lifecycle -like "*Warmed*") {
     Echo "Not starting Kubelet due to warmed state."
     & C:\ProgramData\Amazon\EC2-Windows\Launch\Scripts\InitializeInstance.ps1 –Schedule
@@ -182,7 +182,7 @@ if [[ $(type -P $(which aws)) ]] && [[ $(type -P $(which jq)) ]] ; then
 	TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
 	INSTANCE_ID=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
 	REGION=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
-	LIFECYCLE=$(aws autoscaling describe-auto-scaling-instances --region $REGION --instance-id $INSTANCE_ID | jq ".AutoScalingInstances[].LifecycleState" || true)
+	LIFECYCLE=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/autoscaling/target-lifecycle-state)
 	if [[ $LIFECYCLE == *"Warmed"* ]]; then
 		rm /var/lib/cloud/instances/$INSTANCE_ID/sem/config_scripts_user
 		exit 0
@@ -1018,7 +1018,6 @@ func (ctx *EksInstanceGroupContext) UpdateLifecycleHooks(asgName string) error {
 func (ctx *EksInstanceGroupContext) GetManagedPoliciesList(additionalPolicies []string) []string {
 	var (
 		instanceGroup = ctx.GetInstanceGroup()
-		spec          = instanceGroup.GetEKSSpec()
 		annotations   = instanceGroup.GetAnnotations()
 	)
 
@@ -1047,10 +1046,6 @@ func (ctx *EksInstanceGroupContext) GetManagedPoliciesList(additionalPolicies []
 
 	if !irsaEnabled {
 		managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, CNIManagedPolicy))
-	}
-
-	if spec.HasWarmPool() {
-		managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, AutoscalingReadOnlyPolicy))
 	}
 
 	return managedPolicies
