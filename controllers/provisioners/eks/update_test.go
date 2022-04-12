@@ -632,7 +632,7 @@ func TestUpdateManagedPolicies(t *testing.T) {
 
 	defaultPolicies := []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}
 	defaultPoliciesIrsa := []string{"AmazonEKSWorkerNodePolicy", "AmazonEC2ContainerRegistryReadOnly"}
-	defaultPoliciesWarmPool := []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly", "AutoScalingReadOnlyAccess"}
+	defaultPoliciesWarmPool := []string{"AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"}
 
 	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
 	ctx := MockContext(ig, k, w)
@@ -652,9 +652,9 @@ func TestUpdateManagedPolicies(t *testing.T) {
 		// when IRSA is disabled, cni policy needs to be attached
 		{attachedPolicies: MockAttachedPolicies(defaultPoliciesIrsa...), additionalPolicies: []string{}, irsaEnabled: false, expectedAttached: 1, expectedDetached: 0},
 		// when warm pool is enabled, managed role is added
-		{attachedPolicies: MockAttachedPolicies(defaultPolicies...), additionalPolicies: []string{}, hasWarmPool: true, expectedAttached: 1, expectedDetached: 0},
+		{attachedPolicies: MockAttachedPolicies(defaultPolicies...), additionalPolicies: []string{}, hasWarmPool: true, expectedAttached: 0, expectedDetached: 0},
 		// when warm pool is disabled, managed role is removed
-		{attachedPolicies: MockAttachedPolicies(defaultPoliciesWarmPool...), additionalPolicies: []string{}, hasWarmPool: false, expectedAttached: 0, expectedDetached: 1},
+		{attachedPolicies: MockAttachedPolicies(defaultPoliciesWarmPool...), additionalPolicies: []string{}, hasWarmPool: false, expectedAttached: 0, expectedDetached: 0},
 		// default policies not attached
 		{attachedPolicies: MockAttachedPolicies(), additionalPolicies: []string{}, expectedAttached: 3, expectedDetached: 0},
 		// additional policies need to be attached
