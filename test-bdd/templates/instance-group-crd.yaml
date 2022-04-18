@@ -48,8 +48,5 @@ spec:
       securityGroups: {{range $element := .NodeSecurityGroups}}
         - {{$element}}
       {{ end }}
-      tags:
-      - key: k8s-minion-manager
-        value: use-spot
       metricsCollection:
       - all
