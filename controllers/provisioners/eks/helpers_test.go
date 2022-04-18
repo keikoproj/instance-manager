@@ -190,6 +190,7 @@ func TestGetBasicUserDataWindows(t *testing.T) {
 
 	configuration.BootstrapOptions = &v1alpha1.BootstrapOptions{
 		MaxPods: 4,
+		ContainerRuntime: "containerd",
 	}
 	configuration.Labels = map[string]string{
 		"foo": "bar",
@@ -229,7 +230,7 @@ func TestGetBasicUserDataWindows(t *testing.T) {
     Echo "Not starting Kubelet due to warmed state."
     & C:\ProgramData\Amazon\EC2-Windows\Launch\Scripts\InitializeInstance.ps1 –Schedule
   } else {
-    & $EKSBootstrapScriptFile -EKSClusterName foo -Base64ClusterCA dGVzdA== -APIServerEndpoint foo.amazonaws.com -KubeletExtraArgs '--node-labels=foo=bar,instancemgr.keikoproj.io/image=ami-123456789012,node.kubernetes.io/role=instance-group-1 --register-with-taints=foo=bar:NoSchedule --eviction-hard=memory.available<300Mi,nodefs.available<5% --system-reserved=memory=2.5Gi --v=2 --max-pods=4' 3>&1 4>&1 5>&1 6>&1
+    & $EKSBootstrapScriptFile -EKSClusterName foo -Base64ClusterCA dGVzdA== -APIServerEndpoint foo.amazonaws.com -ContainerRuntime containerd -KubeletExtraArgs '--node-labels=foo=bar,instancemgr.keikoproj.io/image=ami-123456789012,node.kubernetes.io/role=instance-group-1 --register-with-taints=foo=bar:NoSchedule --eviction-hard=memory.available<300Mi,nodefs.available<5% --system-reserved=memory=2.5Gi --v=2 --max-pods=4' 3>&1 4>&1 5>&1 6>&1
     bar
   }
 </powershell>`

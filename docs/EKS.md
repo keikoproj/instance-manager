@@ -59,7 +59,7 @@ spec:
       suspendProcesses: <[]string> : must match scaling process names to suspend
 
       bootstrapOptions:
-        containerRuntime: <string> : one of "dockerd" or "containerd". Specifies which container runtime to use. Currently only available on Amazon Linux 2
+        containerRuntime: <string> : one of "dockerd" or "containerd". Specifies which container runtime to use. Available for Amazon Linux 2 and Windows.
         maxPods: <int> : maximum number of pods that can be run per-node in this IG.
                  
 
