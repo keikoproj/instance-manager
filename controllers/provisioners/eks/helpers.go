@@ -553,6 +553,9 @@ func (ctx *EksInstanceGroupContext) GetBootstrapArgs() string {
 			sb.WriteString(fmt.Sprintf("-Base64ClusterCA %v ", aws.StringValue(state.Cluster.CertificateAuthority.Data)))
 			sb.WriteString(fmt.Sprintf("-APIServerEndpoint %v ", aws.StringValue(state.Cluster.Endpoint)))
 		}
+		if bootstrapOptions != nil && bootstrapOptions.ContainerRuntime != "" {
+			sb.WriteString(fmt.Sprintf("-ContainerRuntime %v ", bootstrapOptions.ContainerRuntime))
+		}
 		sb.WriteString(fmt.Sprintf("-KubeletExtraArgs '%v'", ctx.GetKubeletExtraArgs()))
 	case OsFamilyAmazonLinux2:
 		if bootstrapOptions != nil && bootstrapOptions.MaxPods > 0 {
