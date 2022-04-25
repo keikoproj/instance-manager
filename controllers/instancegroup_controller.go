@@ -55,6 +55,7 @@ type InstanceGroupReconciler struct {
 	ConfigRetention            int
 	Metrics                    *common.MetricsCollector
 	DisableWinClusterInjection bool
+	ManagerContext             *SharedContext
 }
 
 type InstanceGroupAuthenticator struct {

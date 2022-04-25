@@ -1,7 +1,10 @@
-version: "2"
 domain: keikoproj.io
 repo: _/tmp/instancemanager
 resources:
 - group: instancemgr
-  version: v1alpha1
   kind: InstanceGroup
+  version: v1alpha1
+- group: instancemgr
+  kind: VerticalScalingPolicy
+  version: v1alpha1
+version: "2"

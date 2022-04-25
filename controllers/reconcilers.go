@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	v1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
@@ -36,6 +37,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
@@ -53,6 +55,7 @@ func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			Watches(&source.Kind{Type: &corev1.Node{}}, handler.EnqueueRequestsFromMapFunc(r.nodeReconciler)).
 			Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.configMapReconciler)).
 			Watches(&source.Kind{Type: &corev1.Namespace{}}, handler.EnqueueRequestsFromMapFunc(r.namespaceReconciler)).
+			Watches(&source.Channel{Source: r.ManagerContext.InstanceGroupEvents}, handler.EnqueueRequestsFromMapFunc(instanceGroupReconciler)).
 			WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
 			Complete(r)
 	default:
@@ -61,8 +64,27 @@ func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			Watches(&source.Kind{Type: &corev1.Event{}}, handler.EnqueueRequestsFromMapFunc(r.spotEventReconciler)).
 			Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.configMapReconciler)).
 			Watches(&source.Kind{Type: &corev1.Namespace{}}, handler.EnqueueRequestsFromMapFunc(r.namespaceReconciler)).
+			Watches(&source.Channel{Source: r.ManagerContext.InstanceGroupEvents}, handler.EnqueueRequestsFromMapFunc(instanceGroupReconciler)).
 			WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
 			Complete(r)
+	}
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *VerticalScalingPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&v1alpha1.VerticalScalingPolicy{}).
+		Complete(r)
+}
+
+func instanceGroupReconciler(obj client.Object) []ctrl.Request {
+	return []ctrl.Request{
+		{
+			NamespacedName: types.NamespacedName{
+				Namespace: obj.GetNamespace(),
+				Name:      obj.GetName(),
+			},
+		},
 	}
 }
 
@@ -283,4 +305,64 @@ func (r *InstanceGroupReconciler) spotEventReconciler(obj client.Object) []ctrl.
 			NamespacedName: instanceGroup,
 		},
 	}
+}
+
+type SharedContext struct {
+	sync.RWMutex
+
+	InstanceGroupEvents chan event.GenericEvent
+
+	// "instance-manager/my-ig-1": []Node{}
+	Nodes map[string]corev1.Node
+
+	InstanceGroups map[string]v1alpha1.InstanceGroup
+
+	// "instance-manager/my-vsp": VSP{}
+	Policies map[string]v1alpha1.VerticalScalingPolicy
+
+	// "instance-manager/my-ig-1": "m5.xlarge"
+	ComputedTypes map[string]string
+}
+
+func (m *SharedContext) UpsertPolicy(policy *v1alpha1.VerticalScalingPolicy) {
+	m.Lock()
+	defer m.Unlock()
+	namespacedName := fmt.Sprintf("%v/%v", policy.GetNamespace(), policy.GetName())
+	m.Policies[namespacedName] = *policy
+}
+
+func (m *SharedContext) RemovePolicy(namespacedName string) {
+	m.Lock()
+	defer m.Unlock()
+	delete(m.Policies, namespacedName)
+}
+
+func (m *SharedContext) GetPolicy(namespacedName string) v1alpha1.VerticalScalingPolicy {
+	m.RLock()
+	defer m.RUnlock()
+	if v, ok := m.Policies[namespacedName]; ok {
+		return v
+	}
+	return v1alpha1.VerticalScalingPolicy{}
+}
+
+func (m *SharedContext) UpsertComputedType(targetName, t string) {
+	m.Lock()
+	defer m.Unlock()
+	m.ComputedTypes[targetName] = t
+}
+
+func (m *SharedContext) RemoveComputedType(targetName string) {
+	m.Lock()
+	defer m.Unlock()
+	delete(m.ComputedTypes, targetName)
+}
+
+func (m *SharedContext) GetComputedType(namespacedName string) string {
+	m.RLock()
+	defer m.RUnlock()
+	if v, ok := m.ComputedTypes[namespacedName]; ok {
+		return v
+	}
+	return ""
 }

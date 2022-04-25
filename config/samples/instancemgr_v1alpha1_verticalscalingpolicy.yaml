@@ -1,0 +1,21 @@
+apiVersion: instancemgr.keikoproj.io/v1alpha1
+kind: VerticalScalingPolicy
+metadata:
+  name: verticalscalingpolicy-sample
+spec:
+  instanceFamily: m5  # optional
+
+  resources:
+    requests:
+      mem: 8Gi
+      cpu: 2
+    limits:
+      mem: 64Gi
+      cpu: 16
+  behavior: {}
+  scaleTargetRef:
+    apiVersion: instancemgr.keikoproj.io/v1alpha1
+    kind: InstanceGroup
+    name: nodes
+    namespace: instance-manager
+
