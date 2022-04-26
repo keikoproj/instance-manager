@@ -62,7 +62,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 		r.Log.Error(err, "reconcile failed", "verticalscalingpolicy", req.NamespacedName)
 		return ctrl.Result{}, err
 	}
-	r.
+
 	// update the policies map
 	r.ManagerContext.UpsertPolicy(vsp)
 
