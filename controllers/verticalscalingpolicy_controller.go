@@ -17,11 +17,15 @@ package controllers
 
 import (
 	"context"
-	"fmt"
+	"strings"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/go-logr/logr"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/controllers/common"
+	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -35,6 +39,7 @@ type VerticalScalingPolicyReconciler struct {
 	Log            logr.Logger
 	Auth           *InstanceGroupAuthenticator
 	ManagerContext *SharedContext
+	Resync         chan event.GenericEvent
 }
 
 //+kubebuilder:rbac:groups=instancemgr.keikoproj.io,resources=verticalscalingpolicies,verbs=get;list;watch;create;update;patch;delete
@@ -68,7 +73,10 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 		return ctrl.Result{}, err
 	}
 
-	calculateInstanceTypeRange(vsp, types)
+	_, err = r.calculateInstanceTypeRange(vsp, types)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 
 	// decide on computed type
 
@@ -81,7 +89,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 	// Update computed type on shared data structure
 
 	// reconcile instance-group if there is drift
-	r.NotifyUpdates(vsp)
+	r.NotifyTargets(vsp)
 	return ctrl.Result{}, nil
 }
 
@@ -92,11 +100,78 @@ type InstanceTypeRange struct {
 	DesiredType   string
 }
 
-func calculateInstanceTypeRange(vsp *v1alpha1.VerticalScalingPolicy, instanceTypesInfo []*ec2.InstanceTypeInfo) *InstanceTypeRange {
-	return &InstanceTypeRange{}
+// Decides MaxType, MinType, and updates InstanceTypes
+func (r *VerticalScalingPolicyReconciler) calculateInstanceTypeRange(v *v1alpha1.VerticalScalingPolicy, instanceTypesInfo []*ec2.InstanceTypeInfo) (*InstanceTypeRange, error) {
+	var (
+		typeRange         = &InstanceTypeRange{}
+		hasInstanceFamily bool
+		resources         = v.Spec.Resources
+	)
+
+	// validate provided instance family
+	instanceFamily, ok := v.InstanceFamily()
+	if ok {
+		if instanceFamilyExists(instanceFamily, instanceTypesInfo) {
+			hasInstanceFamily = true
+		} else {
+			r.Log.Info("provided instance family does not exist", "instanceFamily", instanceFamily)
+		}
+	}
+
+	// if instance family is invalid or not provided, we need to detect it
+	if !hasInstanceFamily {
+		var err error
+		instanceFamily, err = r.deriveInstanceFamily(resources, instanceTypesInfo)
+		if err != nil {
+			return typeRange, errors.Wrap(err, "failed to derive instance family")
+		}
+	}
+
+	// get min/max type in a family according to requests/limits
+	typeRange.MinType = r.minInstanceType(resources, instanceTypesInfo, instanceFamily)
+	typeRange.MaxType = r.maxInstanceType(resources, instanceTypesInfo, instanceFamily)
+	typeRange.InstanceTypes = r.rangeInstanceTypes(instanceTypesInfo, typeRange.MinType, typeRange.MaxType)
+
+	return typeRange, nil
 }
 
-func (r *VerticalScalingPolicyReconciler) NotifyUpdates(vsp *v1alpha1.VerticalScalingPolicy) {
+// TODO: Alfredo
+
+// Decide which instance family to use
+func (r *VerticalScalingPolicyReconciler) deriveInstanceFamily(resources *corev1.ResourceRequirements, instanceTypesInfo []*ec2.InstanceTypeInfo) (string, error) {
+	return "", nil
+}
+
+// Decide which instance family to use
+func (r *VerticalScalingPolicyReconciler) minInstanceType(resources *corev1.ResourceRequirements, instanceTypesInfo []*ec2.InstanceTypeInfo, family string) string {
+	return ""
+}
+
+// Decide which instance family to use
+func (r *VerticalScalingPolicyReconciler) maxInstanceType(resources *corev1.ResourceRequirements, instanceTypesInfo []*ec2.InstanceTypeInfo, family string) string {
+	return ""
+}
+
+// Decide which instance family to use
+func (r *VerticalScalingPolicyReconciler) rangeInstanceTypes(instanceTypesInfo []*ec2.InstanceTypeInfo, min, max string) []string {
+	return []string{}
+}
+
+func instanceFamilyExists(family string, instanceTypesInfo []*ec2.InstanceTypeInfo) bool {
+	families := make([]string, 0)
+	for _, t := range instanceTypesInfo {
+		instanceType := aws.StringValue(t.InstanceType)
+		instance := strings.Split(instanceType, ".")
+		families = append(families, instance[0])
+	}
+
+	if !common.ContainsString(families, family) {
+		return false
+	}
+	return true
+}
+
+func (r *VerticalScalingPolicyReconciler) NotifyTargets(vsp *v1alpha1.VerticalScalingPolicy) {
 	vspTarget := vsp.Spec.Target
 	notification := event.GenericEvent{
 		Object: &metav1.PartialObjectMetadata{
@@ -106,6 +181,5 @@ func (r *VerticalScalingPolicyReconciler) NotifyUpdates(vsp *v1alpha1.VerticalSc
 			},
 		},
 	}
-	fmt.Println(notification)
 	r.ManagerContext.InstanceGroupEvents <- notification
 }

@@ -55,7 +55,7 @@ func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			Watches(&source.Kind{Type: &corev1.Node{}}, handler.EnqueueRequestsFromMapFunc(r.nodeReconciler)).
 			Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.configMapReconciler)).
 			Watches(&source.Kind{Type: &corev1.Namespace{}}, handler.EnqueueRequestsFromMapFunc(r.namespaceReconciler)).
-			Watches(&source.Channel{Source: r.ManagerContext.InstanceGroupEvents}, handler.EnqueueRequestsFromMapFunc(instanceGroupReconciler)).
+			Watches(&source.Channel{Source: r.ManagerContext.InstanceGroupEvents}, handler.EnqueueRequestsFromMapFunc(genericReconciler)).
 			WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
 			Complete(r)
 	default:
@@ -64,7 +64,7 @@ func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			Watches(&source.Kind{Type: &corev1.Event{}}, handler.EnqueueRequestsFromMapFunc(r.spotEventReconciler)).
 			Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.configMapReconciler)).
 			Watches(&source.Kind{Type: &corev1.Namespace{}}, handler.EnqueueRequestsFromMapFunc(r.namespaceReconciler)).
-			Watches(&source.Channel{Source: r.ManagerContext.InstanceGroupEvents}, handler.EnqueueRequestsFromMapFunc(instanceGroupReconciler)).
+			Watches(&source.Channel{Source: r.ManagerContext.InstanceGroupEvents}, handler.EnqueueRequestsFromMapFunc(genericReconciler)).
 			WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
 			Complete(r)
 	}
@@ -74,10 +74,11 @@ func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func (r *VerticalScalingPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.VerticalScalingPolicy{}).
+		Watches(&source.Channel{Source: r.Resync}, handler.EnqueueRequestsFromMapFunc(r.resyncAll)).
 		Complete(r)
 }
 
-func instanceGroupReconciler(obj client.Object) []ctrl.Request {
+func genericReconciler(obj client.Object) []ctrl.Request {
 	return []ctrl.Request{
 		{
 			NamespacedName: types.NamespacedName{
@@ -86,6 +87,28 @@ func instanceGroupReconciler(obj client.Object) []ctrl.Request {
 			},
 		},
 	}
+}
+
+func (r *VerticalScalingPolicyReconciler) resyncAll(obj client.Object) []ctrl.Request {
+	var (
+		vspList  = &v1alpha1.VerticalScalingPolicyList{}
+		requests []ctrl.Request
+	)
+	err := r.List(context.Background(), vspList)
+	if err != nil {
+		ctrl.Log.Error(err, "failed to list vertical scaling policies")
+		return nil
+	}
+
+	for _, v := range vspList.Items {
+		requests = append(requests, ctrl.Request{
+			NamespacedName: types.NamespacedName{
+				Namespace: v.GetNamespace(),
+				Name:      v.GetName(),
+			},
+		})
+	}
+	return requests
 }
 
 func (r *InstanceGroupReconciler) configMapReconciler(obj client.Object) []ctrl.Request {

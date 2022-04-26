@@ -48,6 +48,10 @@ type VerticalScalingPolicy struct {
 	Status VerticalScalingPolicyStatus `json:"status,omitempty"`
 }
 
+func (v *VerticalScalingPolicy) InstanceFamily() (string, bool) {
+	return v.Spec.InstanceFamily, v.Spec.InstanceFamily != ""
+}
+
 //+kubebuilder:object:root=true
 
 // VerticalScalingPolicyList contains a list of VerticalScalingPolicy

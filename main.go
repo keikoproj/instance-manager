@@ -21,6 +21,7 @@ import (
 	"os"
 	runt "runtime"
 	"sync"
+	"time"
 
 	"github.com/keikoproj/aws-sdk-go-cache/cache"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
@@ -73,6 +74,7 @@ func main() {
 		nodeRelabel                bool
 		disableWinClusterInjection bool
 		withVsp                    bool
+		vspResync                  time.Duration
 		maxParallel                int
 		maxAPIRetries              int
 		configRetention            int
@@ -88,7 +90,8 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&nodeRelabel, "node-relabel", true, "relabel nodes as they join with kubernetes.io/role label via controller")
-	flag.BoolVar(&withVsp, "with-vertical-scaling-policy", true, "Run the verticalscalingpolicy controller (only supported with EKS provisioner)")
+	flag.BoolVar(&withVsp, "with-vertical-scaling-policy", true, "Run the VerticalScalingPolicy controller (only supported with EKS provisioner)")
+	flag.DurationVar(&vspResync, "vertical-node-autoscaler-resync", time.Second*30, "the resync period for reconciling VerticalScalingPolicy objects")
 	flag.BoolVar(&disableWinClusterInjection, "disable-windows-cluster-ca-injection", false, "Setting this to true will cause the ClusterCA and Endpoint to not be injected for Windows nodes")
 
 	flag.Parse()
@@ -184,10 +187,12 @@ func main() {
 	}
 
 	if withVsp {
+		resyncChan := make(chan event.GenericEvent)
 		if err = (&controllers.VerticalScalingPolicyReconciler{
 			Client:         mgr.GetClient(),
 			Log:            ctrl.Log.WithName("controllers").WithName("verticalscalingpolicy"),
 			ManagerContext: sharedContext,
+			Resync:         resyncChan,
 			Auth: &controllers.InstanceGroupAuthenticator{
 				Aws:        awsWorker,
 				Kubernetes: kube,
@@ -196,6 +201,12 @@ func main() {
 			setupLog.Error(err, "unable to create controller", "controller", "verticalscalingpolicy")
 			os.Exit(1)
 		}
+		go func() {
+			for range time.Tick(vspResync) {
+				setupLog.Info("vertical scaling policy resync")
+				resyncChan <- event.GenericEvent{}
+			}
+		}()
 	}
 
 	// +kubebuilder:scaffold:builder
