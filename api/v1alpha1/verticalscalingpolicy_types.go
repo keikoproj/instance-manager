@@ -29,7 +29,19 @@ type VerticalScalingPolicySpec struct {
 }
 
 type BehaviorSpec struct {
-	//TODO
+	ScaleDown *ScalingSpec `json:"scaleDown,omitempty"`
+	ScaleUp   *ScalingSpec `json:"scaleUp,omitempty"`
+}
+
+type ScalingSpec struct {
+	StabilizationWindowSeconds int           `json:"stabilizationWindowSeconds,omitempty"`
+	Policies                   []*PolicySpec `json:"policies,omitempty"`
+}
+
+type PolicySpec struct {
+	Type          string `json:"type,omitempty"`
+	Value         int    `json:"value,omitempty"`
+	PeriodSeconds int    `json:"periodSeconds,omitempty"`
 }
 
 // VerticalScalingPolicyStatus defines the observed state of VerticalScalingPolicy
