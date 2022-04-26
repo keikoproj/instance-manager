@@ -326,3 +326,13 @@ func IntOrStrValue(x *intstr.IntOrString) int {
 func Int64ToStr(x int64) string {
 	return strconv.FormatInt(x, 10)
 }
+
+// GetStringIndexInSlice returns index of string 's' if a given slice 'slice' contains string 's', otherwise return -1
+func GetStringIndexInSlice(slice []string, s string) int {
+	for index, item := range slice {
+		if item == s {
+			return index
+		}
+	}
+	return -1
+}

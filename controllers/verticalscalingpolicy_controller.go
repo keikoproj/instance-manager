@@ -17,6 +17,7 @@ package controllers
 
 import (
 	"context"
+	"github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -31,6 +32,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	//"k8s.io/metrics/pkg/apis/metrics/v1beta1"
 )
 
 // VerticalScalingPolicyReconciler reconciles a VerticalScalingPolicy object
@@ -60,7 +62,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 		r.Log.Error(err, "reconcile failed", "verticalscalingpolicy", req.NamespacedName)
 		return ctrl.Result{}, err
 	}
-
+	r.
 	// update the policies map
 	r.ManagerContext.UpsertPolicy(vsp)
 
@@ -73,17 +75,50 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 		return ctrl.Result{}, err
 	}
 
-	_, err = r.calculateInstanceTypeRange(vsp, types)
+	instanceTypeRange, err := r.calculateInstanceTypeRange(vsp, types)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
 	// decide on computed type
 
-	// come up with matching instance type accroding to resouces/requests/limits and instance family
+	// come up with matching instance type according to resources/requests/limits and instance family
 
 	// Should we scale?
+	for _, ig := range vsp.Spec.Targets {
+		igObj := r.ManagerContext.InstanceGroups[ig.Name]
+		var nodesOfIG []corev1.Node
+		for _, node := range r.ManagerContext.Nodes {
+			if kubernetes.HasAnnotationWithValue(node.GetLabels(), v1alpha1.NodeIGAnnotationKey, ig.Namespace + "-" + ig.Name) {
+				nodesOfIG = append(nodesOfIG, node)
+			}
+		}
+		currInstanceTypeIndex := common.GetStringIndexInSlice(instanceTypeRange.InstanceTypes, igObj.Status.CurrentInstanceType)
+		if currInstanceTypeIndex == -1 {
+			r.Log.Error(err, "reconcile failed, current instance type not found in computed types", "verticalscalingpolicy", req.NamespacedName)
+			return ctrl.Result{}, err
+		}
 
+		// TODO: For period seconds we need to store node stats with timestamp or read and understand events
+		hasLargerInstanceType := len(instanceTypeRange.InstanceTypes) > currInstanceTypeIndex + 2
+		hasSmallerInstanceType := currInstanceTypeIndex - 1 >= 0
+		// If there is a larger instance type available, check if we want to vertically scale up the IG
+		if hasLargerInstanceType {
+			// Check if policy exists to scale up on nodes count close to max
+			scaleUpOnNodesCountPolicy := getBehaviorPolicy(vsp.Spec.Behavior.ScaleUp.Policies, v1alpha1.VSPolicyTypeNodesCountUtilizationPercent)
+			if scaleUpOnNodesCountPolicy != nil {
+				// Scale up if current nodes count is greater than specifiedPercentage*maxSize of IG
+				if len(nodesOfIG) > int(igObj.Spec.EKSSpec.MaxSize)*scaleUpOnNodesCountPolicy.Value/100 {
+					r.ManagerContext.ComputedTypes[igObj.Namespace + "/" + igObj.Name] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex + 1]
+				}
+
+			}
+		}
+		// If there is a smaller instance type available, check if we want to vertically scale down the IG
+		if hasSmallerInstanceType {
+
+		}
+	}
 	// check if behavior conditions are met + validations
 
 	// Update computed type on shared data structure
@@ -182,4 +217,13 @@ func (r *VerticalScalingPolicyReconciler) NotifyTargets(vsp *v1alpha1.VerticalSc
 		},
 	}
 	r.ManagerContext.InstanceGroupEvents <- notification
+}
+
+func getBehaviorPolicy(policies []*v1alpha1.PolicySpec, name string) *v1alpha1.PolicySpec {
+	for _, policy := range policies {
+		if policy.Type == name {
+			return policy
+		}
+	}
+	return nil
 }
