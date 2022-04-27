@@ -95,6 +95,14 @@ const (
 	UpgradeLockedAnnotationKey = "instancemgr.keikoproj.io/lock-upgrades"
 )
 
+const (
+	NodeIGAnnotationKey = "node.kubernetes.io/instancegroup"
+
+	VSPolicyTypeNodesCountUtilizationPercent = "NodesCountUtilizationPercentage"
+	VSPolicyTypeCPUUtilizationPercent = "CPUUtilizationPercent"
+	VSPolicyTypeMemoryUtilizationPercent = "MemoryUtilizationPercent"
+)
+
 var (
 	Strategies   = []string{CRDStrategyName, RollingUpdateStrategyName, ManagedStrategyName}
 	Provisioners = []string{
@@ -363,6 +371,7 @@ type InstanceGroupStatus struct {
 	Conditions                    []InstanceGroupCondition `json:"conditions,omitempty"`
 	Provisioner                   string                   `json:"provisioner,omitempty"`
 	Strategy                      string                   `json:"strategy,omitempty"`
+	CurrentInstanceType           string                   `json:"currentInstanceType,omitempty"`
 }
 
 type InstanceGroupConditionType string
