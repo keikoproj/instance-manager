@@ -17,8 +17,9 @@ package controllers
 
 import (
 	"context"
-	"github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"strings"
+
+	"github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -28,6 +29,7 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -87,12 +89,18 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 	// Should we scale?
 	for _, ig := range vsp.Spec.Targets {
 		igObj := r.ManagerContext.InstanceGroups[ig.Name]
+		igName := igObj.Namespace + "/" + igObj.Name
 		var nodesOfIG []corev1.Node
+		var scaleUp bool
+		var scaleDown bool
+		var desiredType string
+
 		for _, node := range r.ManagerContext.Nodes {
-			if kubernetes.HasAnnotationWithValue(node.GetLabels(), v1alpha1.NodeIGAnnotationKey, ig.Namespace + "-" + ig.Name) {
+			if kubernetes.HasAnnotationWithValue(node.GetLabels(), v1alpha1.NodeIGAnnotationKey, ig.Namespace+"-"+ig.Name) {
 				nodesOfIG = append(nodesOfIG, node)
 			}
 		}
+
 		currInstanceTypeIndex := common.GetStringIndexInSlice(instanceTypeRange.InstanceTypes, igObj.Status.CurrentInstanceType)
 		if currInstanceTypeIndex == -1 {
 			r.Log.Error(err, "reconcile failed, current instance type not found in computed types", "verticalscalingpolicy", req.NamespacedName)
@@ -100,20 +108,39 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 		}
 
 		// TODO: For period seconds we need to store node stats with timestamp or read and understand events
-		hasLargerInstanceType := len(instanceTypeRange.InstanceTypes) > currInstanceTypeIndex + 2
-		hasSmallerInstanceType := currInstanceTypeIndex - 1 >= 0
+		hasLargerInstanceType := len(instanceTypeRange.InstanceTypes) > currInstanceTypeIndex+2
+		hasSmallerInstanceType := currInstanceTypeIndex-1 >= 0
+
+		// Calculate current CPU utilization
+		totalCPUAllocatable := *resource.NewQuantity()
+		totalCPUCapacity := *resource.NewQuantity()
+		totalMemoryAllocatable := *resource.NewQuantity()
+		totalMemoryCapacity := *resource.NewQuantity()
+
+		for _, node := range nodesOfIG {
+			totalCPUAllocatable = totalCPUAllocatable.Add(node.Status.Allocatable.Cpu())
+			totalMemoryAllocatable = totalMemoryAllocatable.Add(node.Status.Allocatable.Memory())
+			totalCPUAllocatable = totalCPUAllocatable.Add(node.Status.Allocatable.Cpu())
+			totalMemoryAllocatable = totalMemoryAllocatable.Add(node.Status.Allocatable.Memory())
+		}
+
 		// If there is a larger instance type available, check if we want to vertically scale up the IG
 		if hasLargerInstanceType {
 			// Check if policy exists to scale up on nodes count close to max
 			scaleUpOnNodesCountPolicy := getBehaviorPolicy(vsp.Spec.Behavior.ScaleUp.Policies, v1alpha1.VSPolicyTypeNodesCountUtilizationPercent)
+
 			if scaleUpOnNodesCountPolicy != nil {
-				// Scale up if current nodes count is greater than specifiedPercentage*maxSize of IG
+				// Scale up if current nodes count crosses requested threshold (close to maxSize of IG)
 				if len(nodesOfIG) > int(igObj.Spec.EKSSpec.MaxSize)*scaleUpOnNodesCountPolicy.Value/100 {
-					r.ManagerContext.ComputedTypes[igObj.Namespace + "/" + igObj.Name] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex + 1]
+					r.ManagerContext.ComputedTypes[igName] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex+1]
 				}
+
+				// Scale up if total CPU utilization crosses requested threshold (close to node sizing)
+				if totalCPUCapacity.Sub(totalCPUAllocatable)
 
 			}
 		}
+
 		// If there is a smaller instance type available, check if we want to vertically scale down the IG
 		if hasSmallerInstanceType {
 
@@ -189,6 +216,9 @@ func (r *VerticalScalingPolicyReconciler) maxInstanceType(resources *corev1.Reso
 
 // Decide which instance family to use
 func (r *VerticalScalingPolicyReconciler) rangeInstanceTypes(instanceTypesInfo []*ec2.InstanceTypeInfo, min, max string) []string {
+	// Filter instanceTypesInfo by instanceFamily to find range of instanceTypes suitable for resource requests and limits
+	// Sort the instance family by first by cpu and then by memory
+
 	return []string{}
 }
 
