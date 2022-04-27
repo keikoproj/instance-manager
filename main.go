@@ -159,8 +159,11 @@ func main() {
 		Policies:            make(map[string]v1alpha1.VerticalScalingPolicy),
 		ComputedTypes:       make(map[string]string),
 		InstanceGroupEvents: make(chan event.GenericEvent),
+		Nodes:               make(map[string]*corev1.Node),
 		RWMutex:             sync.RWMutex{},
 	}
+
+	withNodeWatch := nodeRelabel || withVsp
 
 	err = (&controllers.InstanceGroupReconciler{
 		Metrics:                    controllerCollector,
@@ -170,7 +173,7 @@ func main() {
 		ConfigNamespace:            configNamespace,
 		Namespaces:                 make(map[string]corev1.Namespace),
 		NamespacesLock:             &sync.RWMutex{},
-		NodeRelabel:                nodeRelabel,
+		WithNodeWatch:              withNodeWatch,
 		DisableWinClusterInjection: disableWinClusterInjection,
 		Client:                     mgr.GetClient(),
 		Log:                        ctrl.Log.WithName("controllers").WithName("instancegroup"),

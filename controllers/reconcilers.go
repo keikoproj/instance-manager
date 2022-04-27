@@ -47,7 +47,7 @@ const (
 )
 
 func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	switch r.NodeRelabel {
+	switch r.WithNodeWatch {
 	case true:
 		return ctrl.NewControllerManagedBy(mgr).
 			For(&v1alpha1.InstanceGroup{}).
@@ -246,6 +246,19 @@ func (r *InstanceGroupReconciler) nodeReconciler(obj client.Object) []ctrl.Reque
 		roleLabelKey      = "kubernetes.io/role"
 		bootstrapLabelKey = "node.kubernetes.io/role"
 	)
+	unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
+	if err != nil {
+		r.Log.Error(err, "could not convert runtime object to unstructured")
+		return nil
+	}
+
+	node := &corev1.Node{}
+	if err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj, node); err != nil {
+		r.Log.Error(err, "could not convert unstructured object to node")
+		return nil
+	}
+
+	r.ManagerContext.Nodes[nodeName] = node
 
 	// if node already has a role label, don't modify it
 	if _, ok := nodeLabels[roleLabelKey]; ok {
@@ -336,7 +349,7 @@ type SharedContext struct {
 	InstanceGroupEvents chan event.GenericEvent
 
 	// "instance-manager/my-ig-1": []Node{}
-	Nodes map[string]corev1.Node
+	Nodes map[string]*corev1.Node
 
 	InstanceGroups map[string]v1alpha1.InstanceGroup
 

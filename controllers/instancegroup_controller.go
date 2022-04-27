@@ -45,7 +45,7 @@ type InstanceGroupReconciler struct {
 	client.Client
 	SpotRecommendationTime     float64
 	ConfigNamespace            string
-	NodeRelabel                bool
+	WithNodeWatch              bool
 	Log                        logr.Logger
 	MaxParallel                int
 	Auth                       *InstanceGroupAuthenticator
