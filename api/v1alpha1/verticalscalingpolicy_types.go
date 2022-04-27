@@ -24,7 +24,7 @@ import (
 type VerticalScalingPolicySpec struct {
 	InstanceFamily string                       `json:"instanceFamily,omitempty"`
 	Resources      *corev1.ResourceRequirements `json:"resources"`
-	Targets         []*corev1.ObjectReference      `json:"scaleTargetsRef"`
+	Targets        []*corev1.ObjectReference    `json:"scaleTargetsRef"`
 	Behavior       *BehaviorSpec                `json:"behavior"`
 }
 
@@ -46,17 +46,17 @@ type PolicySpec struct {
 
 // VerticalScalingPolicyStatus defines the observed state of VerticalScalingPolicy
 type VerticalScalingPolicyStatus struct {
-	CurrentState   string `json:"currentState,omitempty"`
-
+	CurrentState string `json:"currentState,omitempty"`
 	// store last reconcile time to check with stabilizationWindow whether to perform next scale up/down
 	TargetStatuses []*TargetStatus `json:"targetStatuses,omitempty"`
 }
 
 type TargetStatus struct {
-	InstanceGroup         string `json:"instanceGroup,omitempty"`
-	LastReconcilationTime string `json:"lastReconcilateTime,omitempty"`
-	State                 string `json:"state,omitempty"`
-	DesiredInstanceType   string `json:"desiredInstanceType,omitempty"`
+	InstanceGroup       string                  `json:"instanceGroup,omitempty"`
+	LastTransitionTime  metav1.Time             `json:"lastTransitionTime,omitempty"`
+	State               string                  `json:"state,omitempty"`
+	DesiredInstanceType string                  `json:"desiredInstanceType,omitempty"`
+	Conditions          []*corev1.NodeCondition `json:"conditions,omitempty"`
 }
 
 //+kubebuilder:object:root=true
