@@ -95,6 +95,13 @@ const (
 	UpgradeLockedAnnotationKey = "instancemgr.keikoproj.io/lock-upgrades"
 )
 
+const (
+	InstanceGroupNameAnnotationKey = "instancemgr.keikoproj.io/instancegroup"
+	NodesCountUtilizationPercent   = "NodesCountUtilizationPercentage"
+	CPUUtilizationPercent          = "CPUUtilizationPercent"
+	MemoryUtilizationPercent       = "MemoryUtilizationPercent"
+)
+
 var (
 	Strategies   = []string{CRDStrategyName, RollingUpdateStrategyName, ManagedStrategyName}
 	Provisioners = []string{
@@ -363,6 +370,7 @@ type InstanceGroupStatus struct {
 	Conditions                    []InstanceGroupCondition `json:"conditions,omitempty"`
 	Provisioner                   string                   `json:"provisioner,omitempty"`
 	Strategy                      string                   `json:"strategy,omitempty"`
+	CurrentInstanceType           string                   `json:"currentInstanceType,omitempty"`
 }
 
 type InstanceGroupConditionType string
@@ -578,9 +586,6 @@ func (c *EKSConfiguration) Validate() error {
 
 	if common.StringEmpty(c.Image) {
 		return errors.Errorf("validation failed, 'image' is a required parameter")
-	}
-	if common.StringEmpty(c.InstanceType) {
-		return errors.Errorf("validation failed, 'instanceType' is a required parameter")
 	}
 	if common.StringEmpty(c.KeyPairName) {
 		return errors.Errorf("validation failed, 'keyPair' is a required parameter")

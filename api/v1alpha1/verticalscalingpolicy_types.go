@@ -24,16 +24,38 @@ import (
 type VerticalScalingPolicySpec struct {
 	InstanceFamily string                       `json:"instanceFamily,omitempty"`
 	Resources      *corev1.ResourceRequirements `json:"resources"`
-	Target         *corev1.ObjectReference      `json:"scaleTargetRef"`
+	Targets        []*corev1.ObjectReference    `json:"scaleTargetsRef"`
 	Behavior       *BehaviorSpec                `json:"behavior"`
 }
 
 type BehaviorSpec struct {
-	//TODO
+	ScaleDown *ScalingSpec `json:"scaleDown,omitempty"`
+	ScaleUp   *ScalingSpec `json:"scaleUp,omitempty"`
+}
+
+type ScalingSpec struct {
+	StabilizationWindowSeconds int           `json:"stabilizationWindowSeconds,omitempty"`
+	Policies                   []*PolicySpec `json:"policies,omitempty"`
+}
+
+type PolicySpec struct {
+	Type          string `json:"type,omitempty"`
+	Value         int    `json:"value,omitempty"`
+	PeriodSeconds int    `json:"periodSeconds,omitempty"`
 }
 
 // VerticalScalingPolicyStatus defines the observed state of VerticalScalingPolicy
 type VerticalScalingPolicyStatus struct {
+	CurrentState string `json:"currentState,omitempty"`
+	// store last reconcile time to check with stabilizationWindow whether to perform next scale up/down
+	TargetStatuses map[string]*TargetStatus `json:"targetStatuses,omitempty"`
+}
+
+type TargetStatus struct {
+	State               string                  `json:"state,omitempty"`
+	LastTransitionTime  metav1.Time             `json:"lastTransitionTime,omitempty"`
+	DesiredInstanceType string                  `json:"desiredInstanceType,omitempty"`
+	Conditions          []*corev1.NodeCondition `json:"conditions,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -44,8 +66,8 @@ type VerticalScalingPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   VerticalScalingPolicySpec   `json:"spec,omitempty"`
-	Status VerticalScalingPolicyStatus `json:"status,omitempty"`
+	Spec   *VerticalScalingPolicySpec   `json:"spec,omitempty"`
+	Status *VerticalScalingPolicyStatus `json:"status,omitempty"`
 }
 
 func (v *VerticalScalingPolicy) InstanceFamily() (string, bool) {
