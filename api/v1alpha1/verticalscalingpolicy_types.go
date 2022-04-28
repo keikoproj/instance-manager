@@ -48,13 +48,12 @@ type PolicySpec struct {
 type VerticalScalingPolicyStatus struct {
 	CurrentState string `json:"currentState,omitempty"`
 	// store last reconcile time to check with stabilizationWindow whether to perform next scale up/down
-	TargetStatuses []*TargetStatus `json:"targetStatuses,omitempty"`
+	TargetStatuses map[string]*TargetStatus `json:"targetStatuses,omitempty"`
 }
 
 type TargetStatus struct {
-	InstanceGroup       string                  `json:"instanceGroup,omitempty"`
-	LastTransitionTime  metav1.Time             `json:"lastTransitionTime,omitempty"`
 	State               string                  `json:"state,omitempty"`
+	LastTransitionTime  metav1.Time             `json:"lastTransitionTime,omitempty"`
 	DesiredInstanceType string                  `json:"desiredInstanceType,omitempty"`
 	Conditions          []*corev1.NodeCondition `json:"conditions,omitempty"`
 }
@@ -67,8 +66,8 @@ type VerticalScalingPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   VerticalScalingPolicySpec   `json:"spec,omitempty"`
-	Status VerticalScalingPolicyStatus `json:"status,omitempty"`
+	Spec   *VerticalScalingPolicySpec   `json:"spec,omitempty"`
+	Status *VerticalScalingPolicyStatus `json:"status,omitempty"`
 }
 
 func (v *VerticalScalingPolicy) InstanceFamily() (string, bool) {

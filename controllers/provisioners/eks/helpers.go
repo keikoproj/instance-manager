@@ -479,6 +479,7 @@ func (ctx *EksInstanceGroupContext) GetComputedLabels() map[string]string {
 	}
 
 	labelMap[InstanceMgrImageLabel] = configuration.GetImage()
+	labelMap[v1alpha1.InstanceGroupNameAnnotationKey] = fmt.Sprintf("%v/%v", instanceGroup.GetName(), instanceGroup.GetNamespace())
 
 	return labelMap
 }
