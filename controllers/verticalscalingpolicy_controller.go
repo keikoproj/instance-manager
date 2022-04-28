@@ -53,7 +53,7 @@ type VerticalScalingPolicyReconciler struct {
 func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = context.Background()
 	_ = r.Log.WithValues("verticalscalingpolicy", req.NamespacedName)
-	var driftedTargets []string
+	driftedTargets := make(map[string]bool)
 
 	vsp := &v1alpha1.VerticalScalingPolicy{}
 	err := r.Get(ctxt, req.NamespacedName, vsp)
@@ -150,7 +150,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 				if len(nodesOfIG) > int(igObj.Spec.EKSSpec.MaxSize)*scaleUpOnNodesCountPolicy.Value/100 {
 					// Add periodSeconds logic here
 					r.ManagerContext.ComputedTypes[igName] = nextBiggerInstance
-					driftedTargets = append(driftedTargets, igName)
+					driftedTargets[igName] = true
 					continue
 				}
 			}
@@ -160,7 +160,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 				if 100*(totalCPUCapacityFloat-totalCPUAllocatableFloat)/totalCPUCapacityFloat > float64(scaleUpOnCpuUtilization.Value) {
 					// Add periodSeconds logic here
 					r.ManagerContext.ComputedTypes[igName] = nextBiggerInstance
-					driftedTargets = append(driftedTargets, igName)
+					driftedTargets[igName] = true
 					continue
 				}
 			}
@@ -169,7 +169,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 				if 100*(totalMemoryCapacityFloat-totalMemoryAllocatableFloat)/totalMemoryCapacityFloat > float64(scaleUpOnMemoryUtilization.Value) {
 					// Add periodSeconds logic here
 					r.ManagerContext.ComputedTypes[igName] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex+1]
-					driftedTargets = append(driftedTargets, igName)
+					driftedTargets[igName] = true
 					continue
 				}
 			}
@@ -202,7 +202,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 					if currentCapacityUtilization/2 < float64(scaleUpOnCpuUtilization.Value) { // Check if eventual scale up is a possibility
 						// Add periodSeconds logic here
 						r.ManagerContext.ComputedTypes[igName] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex-1]
-						driftedTargets = append(driftedTargets, igName)
+						driftedTargets[igName] = true
 						continue
 					}
 				}
@@ -213,7 +213,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 					if currentMemoryUtilization/2 < float64(scaleUpOnMemoryUtilization.Value) { // Check if eventual scale up is a possibility
 						// Add periodSeconds logic here
 						r.ManagerContext.ComputedTypes[igName] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex-1]
-						driftedTargets = append(driftedTargets, igName)
+						driftedTargets[igName] = true
 						continue
 					}
 				}
@@ -352,14 +352,15 @@ func instanceFamilyExists(family string, instanceTypesInfo []*ec2.InstanceTypeIn
 	return true
 }
 
-func (r *VerticalScalingPolicyReconciler) NotifyTargets(targets []string) {
-	for _, target := range targets {
+func (r *VerticalScalingPolicyReconciler) NotifyTargets(targets map[string]bool) {
+	for igName, _ := range targets {
 		r.ManagerContext.InstanceGroupEvents <- event.GenericEvent{
 			Object: &metav1.PartialObjectMetadata{
 				ObjectMeta: metav1.ObjectMeta{
 					// Target name is in format my-namespace/my-ig
-					Namespace: strings.Split(target, "/")[0],
-					Name:      strings.Split(target, "/")[1],
+					// TODO: use regex match to avoid index out of bounds
+					Namespace: strings.Split(igName, "/")[0],
+					Name:      strings.Split(igName, "/")[1],
 				},
 			},
 		}
