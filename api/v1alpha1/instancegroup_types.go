@@ -97,9 +97,6 @@ const (
 
 const (
 	InstanceGroupNameAnnotationKey = "instancemgr.keikoproj.io/instancegroup"
-	NodesCountUtilizationPercent   = "NodesCountUtilizationPercentage"
-	CPUUtilizationPercent          = "CPUUtilizationPercent"
-	MemoryUtilizationPercent       = "MemoryUtilizationPercent"
 )
 
 var (

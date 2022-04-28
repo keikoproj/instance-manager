@@ -133,10 +133,17 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 		totalMemoryCapacityFloat := totalMemoryCapacity.AsApproximateFloat64()
 		totalMemoryAllocatableFloat := totalMemoryAllocatable.AsApproximateFloat64()
 
+		currentCapacityUtilization := 100 * (totalCPUCapacityFloat - totalCPUAllocatableFloat) / totalCPUCapacityFloat
+		currentMemoryUtilization := 100 * (totalMemoryCapacityFloat - totalMemoryAllocatableFloat) / totalMemoryCapacityFloat
+
 		scaleUpBehaviorPolicies := vsp.Spec.Behavior.ScaleUp.Policies // TODO: Make sure to avoid null pointer exception here by validating vsp before this
 		scaleUpOnNodesCountPolicy := getBehaviorPolicy(scaleUpBehaviorPolicies, v1alpha1.NodesCountUtilizationPercent)
 		scaleUpOnCpuUtilization := getBehaviorPolicy(scaleUpBehaviorPolicies, v1alpha1.CPUUtilizationPercent)
 		scaleUpOnMemoryUtilization := getBehaviorPolicy(scaleUpBehaviorPolicies, v1alpha1.MemoryUtilizationPercent)
+
+		scaleDownBehaviorPolicies := vsp.Spec.Behavior.ScaleDown.Policies // TODO: Make sure to avoid null pointer exception here by validating vsp before this
+		scaleDownOnCpuUtilization := getBehaviorPolicy(scaleDownBehaviorPolicies, v1alpha1.CPUUtilizationPercent)
+		scaleDownOnMemoryUtilization := getBehaviorPolicy(scaleDownBehaviorPolicies, v1alpha1.MemoryUtilizationPercent)
 
 		scaleUp_stabilizationWindow := time.Duration(vsp.Spec.Behavior.ScaleUp.StabilizationWindowSeconds) * time.Second
 		scaleDown_stabilizationWindow := time.Duration(vsp.Spec.Behavior.ScaleDown.StabilizationWindowSeconds) * time.Second
@@ -177,13 +184,6 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 
 		// If there is a smaller instance type available, check if we want to vertically scale down the IG
 		if hasSmallerInstanceType && time.Since(vsp.Status.TargetStatuses[igName].LastTransitionTime.Time) > scaleDown_stabilizationWindow {
-			scaleDownBehaviorPolicies := vsp.Spec.Behavior.ScaleDown.Policies
-			scaleDownOnCpuUtilization := getBehaviorPolicy(scaleDownBehaviorPolicies, v1alpha1.CPUUtilizationPercent)
-			scaleDownOnMemoryUtilization := getBehaviorPolicy(scaleDownBehaviorPolicies, v1alpha1.MemoryUtilizationPercent)
-			currentCapacityUtilization := 100 * (totalCPUCapacityFloat - totalCPUAllocatableFloat) / totalCPUCapacityFloat
-			currentMemoryUtilization := 100 * (totalMemoryCapacityFloat - totalMemoryAllocatableFloat) / totalMemoryCapacityFloat
-			// minimumNodesRequired := 0
-
 			/**
 			 * When we scale down, utilizations on smaller instance double
 			 * If smaller instance utilization > scaleUpOnCpuUtilization || scaleUpOnMemoryUtilization
@@ -229,9 +229,25 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 	for _, ig := range r.ManagerContext.ComputedTypes {
 		r.Log.Info("Reconciling instance group %s to instanceType %s", ig, r.ManagerContext.ComputedTypes[ig])
 
+		conditions := []*v1alpha1.UtilizationCondition{
+			{
+				Type:               v1alpha1.CPUAboveScaleUpThreshold,
+				Status:             corev1.ConditionTrue,
+				LastHeartbeatTime:  metav1.Now(),
+				LastTransitionTime: metav1.Time{},
+			},
+			{
+				Type:               v1alpha1.MemoryAboveScaleUpThreshold,
+				Status:             corev1.ConditionTrue,
+				LastHeartbeatTime:  metav1.Now(),
+				LastTransitionTime: metav1.Time{},
+			},
+		}
+
 		vsp.Status.TargetStatuses[ig] = &v1alpha1.TargetStatus{
 			LastTransitionTime:  metav1.Time{Time: time.Now()},
 			DesiredInstanceType: r.ManagerContext.ComputedTypes[ig],
+			Conditions:          conditions,
 			// State: ig reconcilation state TODO: Ask Eytan
 		}
 	}
@@ -239,6 +255,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 	// Update vsp status to done
 
 	r.NotifyTargets(driftedTargets)
+
 	return ctrl.Result{}, nil
 }
 
@@ -367,7 +384,7 @@ func (r *VerticalScalingPolicyReconciler) NotifyTargets(targets map[string]bool)
 	}
 }
 
-func getBehaviorPolicy(policies []*v1alpha1.PolicySpec, name string) *v1alpha1.PolicySpec {
+func getBehaviorPolicy(policies []*v1alpha1.PolicySpec, name v1alpha1.UtilizationType) *v1alpha1.PolicySpec {
 	for _, policy := range policies {
 		if policy.Type == name {
 			return policy

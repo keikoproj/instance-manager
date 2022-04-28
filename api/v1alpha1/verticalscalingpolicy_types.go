@@ -39,9 +39,9 @@ type ScalingSpec struct {
 }
 
 type PolicySpec struct {
-	Type          string `json:"type,omitempty"`
-	Value         int    `json:"value,omitempty"`
-	PeriodSeconds int    `json:"periodSeconds,omitempty"`
+	Type          UtilizationType `json:"type,omitempty"`
+	Value         int             `json:"value,omitempty"`
+	PeriodSeconds int             `json:"periodSeconds,omitempty"`
 }
 
 // VerticalScalingPolicyStatus defines the observed state of VerticalScalingPolicy
@@ -55,7 +55,42 @@ type TargetStatus struct {
 	State               string                  `json:"state,omitempty"`
 	LastTransitionTime  metav1.Time             `json:"lastTransitionTime,omitempty"`
 	DesiredInstanceType string                  `json:"desiredInstanceType,omitempty"`
-	Conditions          []*corev1.NodeCondition `json:"conditions,omitempty"`
+	Conditions          []*UtilizationCondition `json:"conditions,omitempty"`
+}
+
+type UtilizationType string
+
+const (
+	CPUUtilizationPercent        UtilizationType = "CPUUtilizationPercentage"
+	MemoryUtilizationPercent     UtilizationType = "MemoryUtilizationPercentage"
+	NodesCountUtilizationPercent UtilizationType = "NodesCountUtilizationPercentage"
+
+	CPUBelowScaleDownThreshold    UtilizationType = "CPUBelowScaleDownThreshold"
+	MemoryBelowScaleDownThreshold UtilizationType = "MemoryBelowScaleDownThreshold"
+
+	CPUAboveScaleUpThreshold        UtilizationType = "CPUAboveScaleUpThreshold"
+	MemoryAboveScaleUpThreshold     UtilizationType = "MemoryAboveScaleUpThreshold"
+	NodesCountAboveScaleUpThreshold UtilizationType = "NodesCountAboveScaleUpThreshold"
+)
+
+// NodeCondition contains condition information for a node.
+type UtilizationCondition struct {
+	// Type of utilization condition.
+	Type UtilizationType `json:"type" protobuf:"bytes,1,opt,name=type,casttype=UtilizationType"`
+	// Status of the condition, one of True, False, Unknown.
+	Status corev1.ConditionStatus `json:"status" protobuf:"bytes,2,opt,name=status,casttype=ConditionStatus"`
+	// Last time we got an update on a given condition.
+	// +optional
+	LastHeartbeatTime metav1.Time `json:"lastHeartbeatTime,omitempty" protobuf:"bytes,3,opt,name=lastHeartbeatTime"`
+	// Last time the condition transit from one status to another.
+	// +optional
+	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty" protobuf:"bytes,4,opt,name=lastTransitionTime"`
+	// (brief) reason for the condition's last transition.
+	// +optional
+	Reason string `json:"reason,omitempty" protobuf:"bytes,5,opt,name=reason"`
+	// Human readable message indicating details about last transition.
+	// +optional
+	Message string `json:"message,omitempty" protobuf:"bytes,6,opt,name=message"`
 }
 
 //+kubebuilder:object:root=true
