@@ -98,9 +98,9 @@ const (
 const (
 	NodeIGAnnotationKey = "node.kubernetes.io/instancegroup"
 
-	VSPolicyTypeNodesCountUtilizationPercent = "NodesCountUtilizationPercentage"
-	VSPolicyTypeCPUUtilizationPercent = "CPUUtilizationPercent"
-	VSPolicyTypeMemoryUtilizationPercent = "MemoryUtilizationPercent"
+	NodesCountUtilizationPercent = "NodesCountUtilizationPercentage"
+	CPUUtilizationPercent = "CPUUtilizationPercent"
+	MemoryUtilizationPercent = "MemoryUtilizationPercent"
 )
 
 var (

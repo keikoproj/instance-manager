@@ -26,10 +26,11 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
+	"github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
+	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -112,37 +113,97 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 		hasSmallerInstanceType := currInstanceTypeIndex-1 >= 0
 
 		// Calculate current CPU utilization
-		totalCPUAllocatable := *resource.NewQuantity()
-		totalCPUCapacity := *resource.NewQuantity()
-		totalMemoryAllocatable := *resource.NewQuantity()
-		totalMemoryCapacity := *resource.NewQuantity()
+		totalCPUAllocatable := *resource.NewQuantity(0, resource.BinarySI)
+		totalCPUCapacity := *resource.NewQuantity(0, resource.BinarySI)
+
+		// Calculate current Memory utilization
+		totalMemoryAllocatable := *resource.NewQuantity(0, resource.BinarySI)
+		totalMemoryCapacity := *resource.NewQuantity(0, resource.BinarySI)
 
 		for _, node := range nodesOfIG {
-			totalCPUAllocatable = totalCPUAllocatable.Add(node.Status.Allocatable.Cpu())
-			totalMemoryAllocatable = totalMemoryAllocatable.Add(node.Status.Allocatable.Memory())
-			totalCPUAllocatable = totalCPUAllocatable.Add(node.Status.Allocatable.Cpu())
-			totalMemoryAllocatable = totalMemoryAllocatable.Add(node.Status.Allocatable.Memory())
+			totalCPUAllocatable.Add(*node.Status.Allocatable.Cpu())
+			totalMemoryAllocatable.Add(*node.Status.Allocatable.Memory())
+			totalCPUCapacity.Add(*node.Status.Capacity.Cpu())
+			totalMemoryCapacity.Add(*node.Status.Capacity.Memory())
 		}
+
+		totalCPUCapacityInt, _ := totalCPUCapacity.AsApproximateFloat64()
+		totalCPUAllocatableInt, _ := totalCPUAllocatable.AsApproximateFloat64()
+
+		totalMemoryCapacityInt, _ := totalMemoryCapacity.AsInAsApproximateFloat64()
+		totalMemoryAllocatableInt, _ := totalMemoryAllocatable.AsApproximateFloat64()
 
 		// If there is a larger instance type available, check if we want to vertically scale up the IG
 		if hasLargerInstanceType {
 			// Check if policy exists to scale up on nodes count close to max
-			scaleUpOnNodesCountPolicy := getBehaviorPolicy(vsp.Spec.Behavior.ScaleUp.Policies, v1alpha1.VSPolicyTypeNodesCountUtilizationPercent)
+			scaleUpBehaviorPolicies := vsp.Spec.Behavior.ScaleUp.Policies
+			scaleUpOnNodesCountPolicy := getBehaviorPolicy(scaleUpBehaviorPolicies, v1alpha1.NodesCountUtilizationPercent)
+			scaleUpOnCpuUtilization := getBehaviorPolicy(scaleUpBehaviorPolicies, v1alpha1.CPUUtilizationPercent)
+			scaleUpOnMemoryUtilization := getBehaviorPolicy(scaleUpBehaviorPolicies, v1alpha1.MemoryUtilizationPercent)
+
+			nextBiggerInstance := instanceTypeRange.InstanceTypes[currInstanceTypeIndex+1]
+			minimumNodesRequired := 0
+			// Loop through deployments/rollouts to find pods with node selectors and get the sum of replicas
+
+			/**
+			 * On the bigger instance, utilizations drop by 50%
+			 * If bigger instance utilization < scaleDownOnCpuUtilization || scaleDownOnMemoryUtilization
+			 * 		=> scale up is going to trigger a scale down after stabilizationWindowSeconds
+			 * 		=> we shouldn't scale up
+			 */
 
 			if scaleUpOnNodesCountPolicy != nil {
 				// Scale up if current nodes count crosses requested threshold (close to maxSize of IG)
 				if len(nodesOfIG) > int(igObj.Spec.EKSSpec.MaxSize)*scaleUpOnNodesCountPolicy.Value/100 {
-					r.ManagerContext.ComputedTypes[igName] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex+1]
+					// Add periodSeconds logic here
+					r.ManagerContext.ComputedTypes[igName] = nextBiggerInstance
+					continue
 				}
+			}
 
+			if scaleUpOnCpuUtilization != nil {
 				// Scale up if total CPU utilization crosses requested threshold (close to node sizing)
-				if totalCPUCapacity.Sub(totalCPUAllocatable)
+				if 100*(totalCPUCapacityInt-totalCPUAllocatableInt)/totalCPUCapacityInt > float64(scaleUpOnCpuUtilization.Value) {
+					// Add periodSeconds logic here
+					r.ManagerContext.ComputedTypes[igName] = nextBiggerInstance
+					continue
+				}
+			}
 
+			if scaleUpOnMemoryUtilization != nil {
+				if 100*(totalMemoryCapacityInt-totalMemoryAllocatableInt)/totalMemoryCapacityInt > float64(scaleUpOnMemoryUtilization.Value) {
+					// Add periodSeconds logic here
+					r.ManagerContext.ComputedTypes[igName] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex+1]
+					continue
+				}
 			}
 		}
 
 		// If there is a smaller instance type available, check if we want to vertically scale down the IG
 		if hasSmallerInstanceType {
+			scaleDownBehaviorPolicies := vsp.Spec.Behavior.ScaleDown.Policies
+			scaleDownOnCpuUtilization := getBehaviorPolicy(scaleDownBehaviorPolicies, v1alpha1.CPUUtilizationPercent)
+			scaleDownOnMemoryUtilization := getBehaviorPolicy(scaleDownBehaviorPolicies, v1alpha1.MemoryUtilizationPercent)
+			smallerInstance := instanceTypeRange.InstanceTypes[currInstanceTypeIndex-1]
+			minimumNodesRequired := 0
+
+			// actualNodesRequired > minimumNodesRequired -> due to horizontal scaling
+
+			if scaleDownOnCpuUtilization != nil {
+				if 100*(totalCPUCapacityInt-totalCPUAllocatableInt)/totalCPUCapacityInt < float64(scaleDownOnCpuUtilization.Value) {
+					// Add periodSeconds logic here
+					r.ManagerContext.ComputedTypes[igName] = smallerInstance
+					continue
+				}
+			}
+
+			if scaleDownOnMemoryUtilization != nil {
+				if 100*(totalMemoryCapacityInt-totalMemoryAllocatableInt)/totalMemoryCapacityInt < float64(scaleDownOnMemoryUtilization.Value) {
+					// Add periodSeconds logic here
+					r.ManagerContext.ComputedTypes[igName] = smallerInstance
+					continue
+				}
+			}
 
 		}
 	}
