@@ -18,6 +18,7 @@ package controllers
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 
@@ -91,10 +92,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 	for _, ig := range vsp.Spec.Targets {
 		igObj := r.ManagerContext.InstanceGroups[ig.Name]
 		igName := igObj.Namespace + "/" + igObj.Name
-		var nodesOfIG []corev1.Node
-		var scaleUp bool
-		var scaleDown bool
-		var desiredType string
+		var nodesOfIG []*corev1.Node
 
 		for _, node := range r.ManagerContext.Nodes {
 			if kubernetes.HasAnnotationWithValue(node.GetLabels(), v1alpha1.NodeIGAnnotationKey, ig.Namespace+"-"+ig.Name) {
@@ -112,14 +110,14 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 		hasLargerInstanceType := len(instanceTypeRange.InstanceTypes) > currInstanceTypeIndex+2
 		hasSmallerInstanceType := currInstanceTypeIndex-1 >= 0
 
-		// Calculate current CPU utilization
 		totalCPUAllocatable := *resource.NewQuantity(0, resource.BinarySI)
 		totalCPUCapacity := *resource.NewQuantity(0, resource.BinarySI)
 
-		// Calculate current Memory utilization
 		totalMemoryAllocatable := *resource.NewQuantity(0, resource.BinarySI)
 		totalMemoryCapacity := *resource.NewQuantity(0, resource.BinarySI)
 
+		// Calculate current CPU utilization
+		// Calculate current Memory utilization
 		for _, node := range nodesOfIG {
 			totalCPUAllocatable.Add(*node.Status.Allocatable.Cpu())
 			totalMemoryAllocatable.Add(*node.Status.Allocatable.Memory())
@@ -127,30 +125,22 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 			totalMemoryCapacity.Add(*node.Status.Capacity.Memory())
 		}
 
-		totalCPUCapacityInt, _ := totalCPUCapacity.AsApproximateFloat64()
-		totalCPUAllocatableInt, _ := totalCPUAllocatable.AsApproximateFloat64()
+		totalCPUCapacityFloat := totalCPUCapacity.AsApproximateFloat64()
+		totalCPUAllocatableFloat := totalCPUAllocatable.AsApproximateFloat64()
+		totalMemoryCapacityFloat := totalMemoryCapacity.AsApproximateFloat64()
+		totalMemoryAllocatableFloat := totalMemoryAllocatable.AsApproximateFloat64()
 
-		totalMemoryCapacityInt, _ := totalMemoryCapacity.AsInAsApproximateFloat64()
-		totalMemoryAllocatableInt, _ := totalMemoryAllocatable.AsApproximateFloat64()
+		scaleUpBehaviorPolicies := vsp.Spec.Behavior.ScaleUp.Policies // TODO: Make sure to avoid null pointer exception here by validating vsp before this
+		scaleUpOnNodesCountPolicy := getBehaviorPolicy(scaleUpBehaviorPolicies, v1alpha1.NodesCountUtilizationPercent)
+		scaleUpOnCpuUtilization := getBehaviorPolicy(scaleUpBehaviorPolicies, v1alpha1.CPUUtilizationPercent)
+		scaleUpOnMemoryUtilization := getBehaviorPolicy(scaleUpBehaviorPolicies, v1alpha1.MemoryUtilizationPercent)
+
+		scaleUp_stabilizationWindow := time.Duration(vsp.Spec.Behavior.ScaleUp.StabilizationWindowSeconds) * time.Second
+		scaleDown_stabilizationWindow := time.Duration(vsp.Spec.Behavior.ScaleDown.StabilizationWindowSeconds) * time.Second
 
 		// If there is a larger instance type available, check if we want to vertically scale up the IG
-		if hasLargerInstanceType {
-			// Check if policy exists to scale up on nodes count close to max
-			scaleUpBehaviorPolicies := vsp.Spec.Behavior.ScaleUp.Policies
-			scaleUpOnNodesCountPolicy := getBehaviorPolicy(scaleUpBehaviorPolicies, v1alpha1.NodesCountUtilizationPercent)
-			scaleUpOnCpuUtilization := getBehaviorPolicy(scaleUpBehaviorPolicies, v1alpha1.CPUUtilizationPercent)
-			scaleUpOnMemoryUtilization := getBehaviorPolicy(scaleUpBehaviorPolicies, v1alpha1.MemoryUtilizationPercent)
-
+		if hasLargerInstanceType && vsp.Status != nil && time.Since(vsp.Status.LastTransitionTime) > scaleUp_stabilizationWindow {
 			nextBiggerInstance := instanceTypeRange.InstanceTypes[currInstanceTypeIndex+1]
-			minimumNodesRequired := 0
-			// Loop through deployments/rollouts to find pods with node selectors and get the sum of replicas
-
-			/**
-			 * On the bigger instance, utilizations drop by 50%
-			 * If bigger instance utilization < scaleDownOnCpuUtilization || scaleDownOnMemoryUtilization
-			 * 		=> scale up is going to trigger a scale down after stabilizationWindowSeconds
-			 * 		=> we shouldn't scale up
-			 */
 
 			if scaleUpOnNodesCountPolicy != nil {
 				// Scale up if current nodes count crosses requested threshold (close to maxSize of IG)
@@ -163,7 +153,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 
 			if scaleUpOnCpuUtilization != nil {
 				// Scale up if total CPU utilization crosses requested threshold (close to node sizing)
-				if 100*(totalCPUCapacityInt-totalCPUAllocatableInt)/totalCPUCapacityInt > float64(scaleUpOnCpuUtilization.Value) {
+				if 100*(totalCPUCapacity.AsApproximateFloat64()-totalCPUAllocatableFloat)/totalCPUCapacity.AsApproximateFloat64() > float64(scaleUpOnCpuUtilization.Value) {
 					// Add periodSeconds logic here
 					r.ManagerContext.ComputedTypes[igName] = nextBiggerInstance
 					continue
@@ -171,7 +161,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 			}
 
 			if scaleUpOnMemoryUtilization != nil {
-				if 100*(totalMemoryCapacityInt-totalMemoryAllocatableInt)/totalMemoryCapacityInt > float64(scaleUpOnMemoryUtilization.Value) {
+				if 100*(totalMemoryCapacityFloat-totalMemoryAllocatableFloat)/totalMemoryCapacityFloat > float64(scaleUpOnMemoryUtilization.Value) {
 					// Add periodSeconds logic here
 					r.ManagerContext.ComputedTypes[igName] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex+1]
 					continue
@@ -180,38 +170,68 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 		}
 
 		// If there is a smaller instance type available, check if we want to vertically scale down the IG
-		if hasSmallerInstanceType {
+		if hasSmallerInstanceType && time.Since(vsp.Status.LastTransitionTime) > scaleDown_stabilizationWindow {
 			scaleDownBehaviorPolicies := vsp.Spec.Behavior.ScaleDown.Policies
 			scaleDownOnCpuUtilization := getBehaviorPolicy(scaleDownBehaviorPolicies, v1alpha1.CPUUtilizationPercent)
 			scaleDownOnMemoryUtilization := getBehaviorPolicy(scaleDownBehaviorPolicies, v1alpha1.MemoryUtilizationPercent)
-			smallerInstance := instanceTypeRange.InstanceTypes[currInstanceTypeIndex-1]
-			minimumNodesRequired := 0
+			currentCapacityUtilization := 100 * (totalCPUCapacityFloat - totalCPUAllocatableFloat) / totalCPUCapacityFloat
+			currentMemoryUtilization := 100 * (totalMemoryCapacityFloat - totalMemoryAllocatableFloat) / totalMemoryCapacityFloat
+			// minimumNodesRequired := 0
 
-			// actualNodesRequired > minimumNodesRequired -> due to horizontal scaling
+			/**
+			 * When we scale down, utilizations on smaller instance double
+			 * If smaller instance utilization > scaleUpOnCpuUtilization || scaleUpOnMemoryUtilization
+			 * 		=> scale down is going to trigger a scale up after stabilizationWindowSeconds
+			 * 		=> we shouldn't scale down
+			 *
+			 * TODO:
+			 * Number of smaller Instances >= Minimum number of nodes required due to affinity/antiaffinity rules
+			 * If number of smaller instances > nodesCountUtilizationThreshold
+			 * 		=> scale down is going to trigger a scale up after stabilizationWindowSeconds
+			 * 		=> we shouldn't scale down
+			 */
 
 			if scaleDownOnCpuUtilization != nil {
-				if 100*(totalCPUCapacityInt-totalCPUAllocatableInt)/totalCPUCapacityInt < float64(scaleDownOnCpuUtilization.Value) {
-					// Add periodSeconds logic here
-					r.ManagerContext.ComputedTypes[igName] = smallerInstance
-					continue
+				if currentCapacityUtilization < float64(scaleDownOnCpuUtilization.Value) { // Check if scale down is a possibility
+					if currentCapacityUtilization/2 < float64(scaleUpOnCpuUtilization.Value) { // Check if eventual scale up is a possibility
+						// Add periodSeconds logic here
+						r.ManagerContext.ComputedTypes[igName] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex-1]
+						continue
+					}
 				}
 			}
 
 			if scaleDownOnMemoryUtilization != nil {
-				if 100*(totalMemoryCapacityInt-totalMemoryAllocatableInt)/totalMemoryCapacityInt < float64(scaleDownOnMemoryUtilization.Value) {
-					// Add periodSeconds logic here
-					r.ManagerContext.ComputedTypes[igName] = smallerInstance
-					continue
+				if currentMemoryUtilization < float64(scaleDownOnMemoryUtilization.Value) { // Check if scale down is a possibility
+					if currentMemoryUtilization/2 < float64(scaleUpOnMemoryUtilization.Value) { // Check if eventual scale up is a possibility
+						// Add periodSeconds logic here
+						r.ManagerContext.ComputedTypes[igName] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex-1]
+						continue
+					}
 				}
 			}
-
 		}
 	}
+
 	// check if behavior conditions are met + validations
 
 	// Update computed type on shared data structure
 
 	// reconcile instance-group if there is drift
+	for _, ig := range r.ManagerContext.ComputedTypes {
+		r.Log.Info("Reconciling instance group %s to instanceType %s", ig, r.ManagerContext.ComputedTypes[ig])
+		// reconcile ig TODO: Ask Eytan
+
+		vsp.Status.TargetStatuses[ig] = &v1alpha1.TargetStatus{
+			DesiredInstanceType: r.ManagerContext.ComputedTypes[ig],
+			// State: ig reconcilation state TODO: Ask Eytan
+		}
+	}
+
+	vsp.Status.LastTransitionTime = time.Now()
+
+	// Update vsp status to done
+
 	r.NotifyTargets(vsp)
 	return ctrl.Result{}, nil
 }
