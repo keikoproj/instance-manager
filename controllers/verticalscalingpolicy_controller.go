@@ -20,8 +20,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/go-logr/logr"
@@ -139,7 +137,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 		scaleDown_stabilizationWindow := time.Duration(vsp.Spec.Behavior.ScaleDown.StabilizationWindowSeconds) * time.Second
 
 		// If there is a larger instance type available, check if we want to vertically scale up the IG
-		if hasLargerInstanceType && vsp.Status != nil && time.Since(vsp.Status.LastTransitionTime) > scaleUp_stabilizationWindow {
+		if hasLargerInstanceType && vsp.Status != nil && time.Since(vsp.Status.TargetStatuses[igName].LastTransitionTime) > scaleUp_stabilizationWindow {
 			nextBiggerInstance := instanceTypeRange.InstanceTypes[currInstanceTypeIndex+1]
 
 			if scaleUpOnNodesCountPolicy != nil {
@@ -170,7 +168,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 		}
 
 		// If there is a smaller instance type available, check if we want to vertically scale down the IG
-		if hasSmallerInstanceType && time.Since(vsp.Status.LastTransitionTime) > scaleDown_stabilizationWindow {
+		if hasSmallerInstanceType && time.Since(vsp.Status.TargetStatuses[igName].LastTransitionTime) > scaleDown_stabilizationWindow {
 			scaleDownBehaviorPolicies := vsp.Spec.Behavior.ScaleDown.Policies
 			scaleDownOnCpuUtilization := getBehaviorPolicy(scaleDownBehaviorPolicies, v1alpha1.CPUUtilizationPercent)
 			scaleDownOnMemoryUtilization := getBehaviorPolicy(scaleDownBehaviorPolicies, v1alpha1.MemoryUtilizationPercent)
@@ -223,12 +221,14 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 		// reconcile ig TODO: Ask Eytan
 
 		vsp.Status.TargetStatuses[ig] = &v1alpha1.TargetStatus{
+			LastTransitionTime:  time.Now(),
 			DesiredInstanceType: r.ManagerContext.ComputedTypes[ig],
 			// State: ig reconcilation state TODO: Ask Eytan
 		}
-	}
 
-	vsp.Status.LastTransitionTime = time.Now()
+		// Once IG is reconciled, we need to remove it from sharedContext.ComputedTypes
+		delete(r.ManagerContext.ComputedTypes, ig)
+	}
 
 	// Update vsp status to done
 

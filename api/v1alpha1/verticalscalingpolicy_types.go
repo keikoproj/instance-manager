@@ -48,14 +48,14 @@ type PolicySpec struct {
 
 // VerticalScalingPolicyStatus defines the observed state of VerticalScalingPolicy
 type VerticalScalingPolicyStatus struct {
-	CurrentState       string    `json:"currentState,omitempty"`
-	LastTransitionTime time.Time `json:"lastTransitionTime,omitempty"`
+	CurrentState string `json:"currentState,omitempty"`
 	// store last reconcile time to check with stabilizationWindow whether to perform next scale up/down
 	TargetStatuses map[string]*TargetStatus `json:"targetStatuses,omitempty"`
 }
 
 type TargetStatus struct {
 	State               string                  `json:"state,omitempty"`
+	LastTransitionTime  time.Time               `json:"lastTransitionTime,omitempty"`
 	DesiredInstanceType string                  `json:"desiredInstanceType,omitempty"`
 	Conditions          []*corev1.NodeCondition `json:"conditions,omitempty"`
 }
