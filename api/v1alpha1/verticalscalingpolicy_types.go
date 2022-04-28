@@ -60,20 +60,23 @@ type TargetStatus struct {
 
 type UtilizationType string
 
-// These are valid condition statuses. "ConditionTrue" means a resource is in the condition.
-// "ConditionFalse" means a resource is not in the condition. "ConditionUnknown" means kubernetes
-// can't decide if a resource is in the condition or not. In the future, we could add other
-// intermediate conditions, e.g. ConditionDegraded.
 const (
 	CPUUtilizationPercent        UtilizationType = "CPUUtilizationPercentage"
 	MemoryUtilizationPercent     UtilizationType = "MemoryUtilizationPercentage"
 	NodesCountUtilizationPercent UtilizationType = "NodesCountUtilizationPercentage"
+
+	CPUBelowScaleDownThreshold    UtilizationType = "CPUBelowScaleDownThreshold"
+	MemoryBelowScaleDownThreshold UtilizationType = "MemoryBelowScaleDownThreshold"
+
+	CPUAboveScaleUpThreshold        UtilizationType = "CPUAboveScaleUpThreshold"
+	MemoryAboveScaleUpThreshold     UtilizationType = "MemoryAboveScaleUpThreshold"
+	NodesCountAboveScaleUpThreshold UtilizationType = "NodesCountAboveScaleUpThreshold"
 )
 
 // NodeCondition contains condition information for a node.
 type UtilizationCondition struct {
-	// Type of node condition.
-	Type UtilizationType `json:"type" protobuf:"bytes,1,opt,name=type,casttype=UtilizationConditionType"`
+	// Type of utilization condition.
+	Type UtilizationType `json:"type" protobuf:"bytes,1,opt,name=type,casttype=UtilizationType"`
 	// Status of the condition, one of True, False, Unknown.
 	Status corev1.ConditionStatus `json:"status" protobuf:"bytes,2,opt,name=status,casttype=ConditionStatus"`
 	// Last time we got an update on a given condition.

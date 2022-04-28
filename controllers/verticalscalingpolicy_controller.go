@@ -229,20 +229,25 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 	for _, ig := range r.ManagerContext.ComputedTypes {
 		r.Log.Info("Reconciling instance group %s to instanceType %s", ig, r.ManagerContext.ComputedTypes[ig])
 
-		conditions := []*corev1.NodeCondition{
-			*corev1.NodeCondition{
-				Type:               "",
-				Status:             "",
-				LastHeartbeatTime:  metav1.Time{},
+		conditions := []*v1alpha1.UtilizationCondition{
+			{
+				Type:               v1alpha1.CPUAboveScaleUpThreshold,
+				Status:             corev1.ConditionTrue,
+				LastHeartbeatTime:  metav1.Now(),
 				LastTransitionTime: metav1.Time{},
-				Reason:             "",
-				Message:            "",
+			},
+			{
+				Type:               v1alpha1.MemoryAboveScaleUpThreshold,
+				Status:             corev1.ConditionTrue,
+				LastHeartbeatTime:  metav1.Now(),
+				LastTransitionTime: metav1.Time{},
 			},
 		}
 
 		vsp.Status.TargetStatuses[ig] = &v1alpha1.TargetStatus{
 			LastTransitionTime:  metav1.Time{Time: time.Now()},
 			DesiredInstanceType: r.ManagerContext.ComputedTypes[ig],
+			Conditions:          conditions,
 			// State: ig reconcilation state TODO: Ask Eytan
 		}
 	}
@@ -379,7 +384,7 @@ func (r *VerticalScalingPolicyReconciler) NotifyTargets(targets map[string]bool)
 	}
 }
 
-func getBehaviorPolicy(policies []*v1alpha1.PolicySpec, name string) *v1alpha1.PolicySpec {
+func getBehaviorPolicy(policies []*v1alpha1.PolicySpec, name v1alpha1.UtilizationType) *v1alpha1.PolicySpec {
 	for _, policy := range policies {
 		if policy.Type == name {
 			return policy
