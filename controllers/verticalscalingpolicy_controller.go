@@ -97,7 +97,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 		// var desiredType string
 
 		for _, node := range r.ManagerContext.Nodes {
-			if kubernetes.HasAnnotationWithValue(node.GetLabels(), v1alpha1.InstanceGroupNameAnnotationKey, igName) {
+			if kubernetes.HasAnnotationWithValue(node.GetLabels(), v1alpha1.InstanceGroupNameAnnotationKey, fmt.Sprintf("%v-%v", igObj.GetNamespace(), igObj.GetName())) {
 				nodesOfIG = append(nodesOfIG, node)
 			}
 		}
@@ -155,7 +155,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 
 			if scaleUpOnCpuUtilization != nil {
 				// Scale up if total CPU utilization crosses requested threshold (close to node sizing)
-				if 100*(totalCPUCapacity.AsApproximateFloat64()-totalCPUAllocatableFloat)/totalCPUCapacity.AsApproximateFloat64() > float64(scaleUpOnCpuUtilization.Value) {
+				if 100*(totalCPUCapacityFloat-totalCPUAllocatableFloat)/totalCPUCapacityFloat > float64(scaleUpOnCpuUtilization.Value) {
 					// Add periodSeconds logic here
 					r.ManagerContext.ComputedTypes[igName] = nextBiggerInstance
 					continue
