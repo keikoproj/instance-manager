@@ -17,6 +17,7 @@ package controllers
 
 import (
 	"context"
+	"sort"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -27,6 +28,7 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -94,13 +96,10 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 }
 
 type InstanceTypeRange struct {
-	MaxType       string   // m5.8xlarge
-	MinType       string   // m5.xlarge
 	InstanceTypes []string // [m5.xlarge, m5.2xlarge, m5.4xlarge, m5.8xlarge]
-	DesiredType   string
 }
 
-// Decides MaxType, MinType, and updates InstanceTypes
+// Returns InstanceTypes in InstanceTypeRange with types that fit the scaling policies resource requests/limits
 func (r *VerticalScalingPolicyReconciler) calculateInstanceTypeRange(v *v1alpha1.VerticalScalingPolicy, instanceTypesInfo []*ec2.InstanceTypeInfo) (*InstanceTypeRange, error) {
 	var (
 		typeRange         = &InstanceTypeRange{}
@@ -127,10 +126,8 @@ func (r *VerticalScalingPolicyReconciler) calculateInstanceTypeRange(v *v1alpha1
 		}
 	}
 
-	// get min/max type in a family according to requests/limits
-	typeRange.MinType = r.minInstanceType(resources, instanceTypesInfo, instanceFamily)
-	typeRange.MaxType = r.maxInstanceType(resources, instanceTypesInfo, instanceFamily)
-	typeRange.InstanceTypes = r.rangeInstanceTypes(instanceTypesInfo, typeRange.MinType, typeRange.MaxType)
+	// get types in a family that fit the requests/limits
+	typeRange.InstanceTypes = r.rangeInstanceTypes(resources, instanceTypesInfo, instanceFamily)
 
 	return typeRange, nil
 }
@@ -142,19 +139,56 @@ func (r *VerticalScalingPolicyReconciler) deriveInstanceFamily(resources *corev1
 	return "", nil
 }
 
-// Decide which instance family to use
-func (r *VerticalScalingPolicyReconciler) minInstanceType(resources *corev1.ResourceRequirements, instanceTypesInfo []*ec2.InstanceTypeInfo, family string) string {
-	return ""
-}
+// Returns a list of valid instance type names according to resource requirements and instance family
+func (r *VerticalScalingPolicyReconciler) rangeInstanceTypes(resources *corev1.ResourceRequirements, instanceTypesInfo []*ec2.InstanceTypeInfo, family string) []string {
+	var computedInstances []*ec2.InstanceTypeInfo
+	minCPU := resources.Requests.Cpu()
+	maxCPU := resources.Limits.Cpu()
+	minMem := resources.Requests.Memory()
+	maxMem := resources.Limits.Memory()
 
-// Decide which instance family to use
-func (r *VerticalScalingPolicyReconciler) maxInstanceType(resources *corev1.ResourceRequirements, instanceTypesInfo []*ec2.InstanceTypeInfo, family string) string {
-	return ""
-}
+	for _, instanceInfo := range instanceTypesInfo {
+		instanceCPUQuantity := resource.NewQuantity(*instanceInfo.VCpuInfo.DefaultCores, resource.BinarySI)
+		instanceMemQuantity := resource.NewQuantity(*instanceInfo.MemoryInfo.SizeInMiB, resource.BinarySI)
 
-// Decide which instance family to use
-func (r *VerticalScalingPolicyReconciler) rangeInstanceTypes(instanceTypesInfo []*ec2.InstanceTypeInfo, min, max string) []string {
-	return []string{}
+		// Make sure instance is in the family
+		if strings.HasPrefix(*instanceInfo.InstanceType, family+".") {
+			CPUMinHolder := instanceCPUQuantity.DeepCopy()
+			CPUMaxHolder := instanceCPUQuantity.DeepCopy()
+			MemMinHolder := instanceMemQuantity.DeepCopy()
+			MemMaxHolder := instanceMemQuantity.DeepCopy()
+
+			// Subtract resource lower/upper bounds from instanceQuantity to get the difference
+			CPUMinHolder.Sub(*minCPU)
+			CPUMaxHolder.Sub(*maxCPU)
+			MemMinHolder.Sub(*minMem)
+			MemMaxHolder.Sub(*maxMem)
+
+			CPUMinInt, _ := CPUMinHolder.AsInt64()
+			CPUMaxInt, _ := CPUMaxHolder.AsInt64()
+			MemMinInt, _ := MemMinHolder.AsInt64()
+			MemMaxInt, _ := MemMaxHolder.AsInt64()
+
+			// Make sure instance CPU and Memory are greater or equal to than VSP request requirements and less than or equal to VSP limit requirements
+			if CPUMinInt >= 0 && CPUMaxInt <= 0 && MemMinInt >= 0 && MemMaxInt <= 0 {
+				computedInstances = append(computedInstances, instanceInfo)
+			}
+		}
+	}
+
+	sort.Slice(computedInstances, func(i, j int) bool {
+		// Sort by CPU first, if they are the same then sort by Memory
+		if *computedInstances[i].VCpuInfo.DefaultCores != *computedInstances[j].VCpuInfo.DefaultCores {
+			return *computedInstances[i].VCpuInfo.DefaultCores < *computedInstances[j].VCpuInfo.DefaultCores
+		}
+		return *computedInstances[i].MemoryInfo.SizeInMiB < *computedInstances[j].MemoryInfo.SizeInMiB
+	})
+	var computedInstancesNames []string
+	for _, instanceInfo := range computedInstances {
+		computedInstancesNames = append(computedInstancesNames, *instanceInfo.InstanceType)
+	}
+
+	return computedInstancesNames
 }
 
 func instanceFamilyExists(family string, instanceTypesInfo []*ec2.InstanceTypeInfo) bool {
