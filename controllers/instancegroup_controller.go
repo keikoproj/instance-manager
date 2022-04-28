@@ -202,6 +202,11 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 		return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 	}
 
+	computedType := r.ManagerContext.GetComputedType(req.NamespacedName.String())
+	if !common.StringEmpty(computedType) {
+		input.InstanceGroup.Spec.EKSSpec.EKSConfiguration.InstanceType = computedType
+	}
+
 	if err = HandleReconcileRequest(ctx); err != nil {
 		ctx.SetState(v1alpha1.ReconcileErr)
 		r.PatchStatus(input.InstanceGroup, statusPatch)

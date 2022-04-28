@@ -16,8 +16,6 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"time"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -55,7 +53,7 @@ type VerticalScalingPolicyStatus struct {
 
 type TargetStatus struct {
 	State               string                  `json:"state,omitempty"`
-	LastTransitionTime  time.Time               `json:"lastTransitionTime,omitempty"`
+	LastTransitionTime  metav1.Time             `json:"lastTransitionTime,omitempty"`
 	DesiredInstanceType string                  `json:"desiredInstanceType,omitempty"`
 	Conditions          []*corev1.NodeCondition `json:"conditions,omitempty"`
 }

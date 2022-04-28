@@ -447,6 +447,8 @@ spec:
                 type: array
               configMD5:
                 type: string
+              currentInstanceType:
+                type: string
               currentMax:
                 type: integer
               currentMin:

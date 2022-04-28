@@ -17,6 +17,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -89,11 +90,14 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 	// Should we scale?
 	for _, ig := range vsp.Spec.Targets {
 		igObj := r.ManagerContext.InstanceGroups[ig.Name]
-		igName := igObj.Namespace + "/" + igObj.Name
-		var nodesOfIG []*corev1.Node
+		igName := fmt.Sprintf("%v/%v", igObj.GetNamespace(), igObj.GetName())
+		var nodesOfIG = make([]*corev1.Node, 0)
+		// var scaleUp bool
+		// var scaleDown bool
+		// var desiredType string
 
 		for _, node := range r.ManagerContext.Nodes {
-			if kubernetes.HasAnnotationWithValue(node.GetLabels(), v1alpha1.NodeIGAnnotationKey, ig.Namespace+"-"+ig.Name) {
+			if kubernetes.HasAnnotationWithValue(node.GetLabels(), v1alpha1.InstanceGroupNameAnnotationKey, igName) {
 				nodesOfIG = append(nodesOfIG, node)
 			}
 		}
@@ -318,16 +322,17 @@ func instanceFamilyExists(family string, instanceTypesInfo []*ec2.InstanceTypeIn
 }
 
 func (r *VerticalScalingPolicyReconciler) NotifyTargets(vsp *v1alpha1.VerticalScalingPolicy) {
-	vspTarget := vsp.Spec.Target
-	notification := event.GenericEvent{
-		Object: &metav1.PartialObjectMetadata{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      vspTarget.Name,
-				Namespace: vspTarget.Namespace,
+	targets := vsp.Spec.Targets
+	for _, target := range targets {
+		r.ManagerContext.InstanceGroupEvents <- event.GenericEvent{
+			Object: &metav1.PartialObjectMetadata{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      target.Name,
+					Namespace: target.Namespace,
+				},
 			},
-		},
+		}
 	}
-	r.ManagerContext.InstanceGroupEvents <- notification
 }
 
 func getBehaviorPolicy(policies []*v1alpha1.PolicySpec, name string) *v1alpha1.PolicySpec {
