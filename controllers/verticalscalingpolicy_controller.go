@@ -36,7 +36,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	//"k8s.io/metrics/pkg/apis/metrics/v1beta1"
 )
 
 // VerticalScalingPolicyReconciler reconciles a VerticalScalingPolicy object
@@ -54,6 +53,7 @@ type VerticalScalingPolicyReconciler struct {
 func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = context.Background()
 	_ = r.Log.WithValues("verticalscalingpolicy", req.NamespacedName)
+	driftedTargets := make(map[string]bool)
 
 	vsp := &v1alpha1.VerticalScalingPolicy{}
 	err := r.Get(ctxt, req.NamespacedName, vsp)
@@ -150,6 +150,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 				if len(nodesOfIG) > int(igObj.Spec.EKSSpec.MaxSize)*scaleUpOnNodesCountPolicy.Value/100 {
 					// Add periodSeconds logic here
 					r.ManagerContext.ComputedTypes[igName] = nextBiggerInstance
+					driftedTargets[igName] = true
 					continue
 				}
 			}
@@ -159,6 +160,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 				if 100*(totalCPUCapacityFloat-totalCPUAllocatableFloat)/totalCPUCapacityFloat > float64(scaleUpOnCpuUtilization.Value) {
 					// Add periodSeconds logic here
 					r.ManagerContext.ComputedTypes[igName] = nextBiggerInstance
+					driftedTargets[igName] = true
 					continue
 				}
 			}
@@ -167,6 +169,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 				if 100*(totalMemoryCapacityFloat-totalMemoryAllocatableFloat)/totalMemoryCapacityFloat > float64(scaleUpOnMemoryUtilization.Value) {
 					// Add periodSeconds logic here
 					r.ManagerContext.ComputedTypes[igName] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex+1]
+					driftedTargets[igName] = true
 					continue
 				}
 			}
@@ -199,6 +202,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 					if currentCapacityUtilization/2 < float64(scaleUpOnCpuUtilization.Value) { // Check if eventual scale up is a possibility
 						// Add periodSeconds logic here
 						r.ManagerContext.ComputedTypes[igName] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex-1]
+						driftedTargets[igName] = true
 						continue
 					}
 				}
@@ -209,6 +213,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 					if currentMemoryUtilization/2 < float64(scaleUpOnMemoryUtilization.Value) { // Check if eventual scale up is a possibility
 						// Add periodSeconds logic here
 						r.ManagerContext.ComputedTypes[igName] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex-1]
+						driftedTargets[igName] = true
 						continue
 					}
 				}
@@ -223,21 +228,17 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 	// reconcile instance-group if there is drift
 	for _, ig := range r.ManagerContext.ComputedTypes {
 		r.Log.Info("Reconciling instance group %s to instanceType %s", ig, r.ManagerContext.ComputedTypes[ig])
-		// reconcile ig TODO: Ask Eytan
 
 		vsp.Status.TargetStatuses[ig] = &v1alpha1.TargetStatus{
 			LastTransitionTime:  metav1.Time{Time: time.Now()},
 			DesiredInstanceType: r.ManagerContext.ComputedTypes[ig],
 			// State: ig reconcilation state TODO: Ask Eytan
 		}
-
-		// Once IG is reconciled, we need to remove it from sharedContext.ComputedTypes
-		delete(r.ManagerContext.ComputedTypes, ig)
 	}
 
 	// Update vsp status to done
 
-	r.NotifyTargets(vsp)
+	r.NotifyTargets(driftedTargets)
 	return ctrl.Result{}, nil
 }
 
@@ -351,14 +352,15 @@ func instanceFamilyExists(family string, instanceTypesInfo []*ec2.InstanceTypeIn
 	return true
 }
 
-func (r *VerticalScalingPolicyReconciler) NotifyTargets(vsp *v1alpha1.VerticalScalingPolicy) {
-	targets := vsp.Spec.Targets
-	for _, target := range targets {
+func (r *VerticalScalingPolicyReconciler) NotifyTargets(targets map[string]bool) {
+	for igName, _ := range targets {
 		r.ManagerContext.InstanceGroupEvents <- event.GenericEvent{
 			Object: &metav1.PartialObjectMetadata{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      target.Name,
-					Namespace: target.Namespace,
+					// Target name is in format my-namespace/my-ig
+					// TODO: use regex match to avoid index out of bounds
+					Namespace: strings.Split(igName, "/")[0],
+					Name:      strings.Split(igName, "/")[1],
 				},
 			},
 		}
