@@ -16,6 +16,9 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"strings"
+
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -72,6 +75,9 @@ const (
 	MemoryAboveScaleUpThreshold     UtilizationType = "MemoryAboveScaleUpThreshold"
 	NodesCountAboveScaleUpThreshold UtilizationType = "NodesCountAboveScaleUpThreshold"
 )
+
+var validScaleUpPolicyTypes = []UtilizationType{CPUUtilizationPercent, MemoryUtilizationPercent, NodesCountUtilizationPercent}
+var validScaleDownPolicyTypes = []UtilizationType{CPUUtilizationPercent, MemoryUtilizationPercent}
 
 // NodeCondition contains condition information for a node.
 type UtilizationCondition struct {
@@ -152,4 +158,91 @@ func (status *VerticalScalingPolicyStatus) SetCondition(igName string, condition
 
 func (status *VerticalScalingPolicyStatus) SetConditions(igName string, conditions []*UtilizationCondition) {
 	status.TargetStatuses[igName].Conditions = conditions
+}
+
+func (vsp *VerticalScalingPolicy) Validate() error {
+	s := vsp.Spec
+
+	if err := s.Validate(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *VerticalScalingPolicySpec) Validate() error {
+	if s.Behavior == nil {
+		return errors.Errorf("validation failed, behavior not provided in spec")
+	}
+
+	scaleUpSpec := s.getScaleUpSpec()
+	if scaleUpSpec != nil {
+		if err := scaleUpSpec.Validate("scaleup"); err != nil {
+			return err
+		}
+	}
+
+	scaleDownSpec := s.getScaleDownSpec()
+	if scaleDownSpec != nil {
+		if err := scaleDownSpec.Validate("scaledown"); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *ScalingSpec) Validate(direction string) error {
+	if s.Policies == nil {
+		return errors.Errorf("validation failed, no policies defined in scaling behaviors")
+	}
+
+	if s.StabilizationWindowSeconds < 0 {
+		return errors.Errorf("validation failed, invalid stabilizationWindowSeconds in scaling behaviors , must be an integer >0")
+	}
+
+	var validPolicyTypes []UtilizationType
+	if direction == "scaleup" {
+		validPolicyTypes = validScaleUpPolicyTypes
+	} else if direction == "scaledown" {
+		validPolicyTypes = validScaleDownPolicyTypes
+	}
+	for _, policy := range s.Policies {
+		err := policy.Validate(validPolicyTypes)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *PolicySpec) Validate(validPolicyTypes []UtilizationType) error {
+	if !isValidUtilizationType(validPolicyTypes, s.Type) {
+		return errors.Errorf("validation failed, invalid policy type %s in scaling behaviors, valid types are: %s", s.Type, validPolicyTypes)
+	}
+	if strings.Contains(string(s.Type), "Percent") {
+		if s.Value < 0 || s.Value > 100 {
+			return errors.Errorf("validation failed, invalid policy percentage value %d for policy type %s in scaling behaviors, value must be from 0-100", s.Value, s.Type)
+		}
+	}
+
+	return nil
+}
+
+func isValidUtilizationType(validTypes []UtilizationType, typeName UtilizationType) bool {
+	for _, validType := range validTypes {
+		if typeName == validType {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *VerticalScalingPolicySpec) getScaleUpSpec() *ScalingSpec {
+	return s.Behavior.ScaleUp
+}
+
+func (s *VerticalScalingPolicySpec) getScaleDownSpec() *ScalingSpec {
+	return s.Behavior.ScaleDown
 }

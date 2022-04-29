@@ -33,6 +33,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	api_types "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -90,8 +91,13 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 
 	// Should we scale?
 	for _, ig := range vsp.Spec.Targets {
-		igObj := r.ManagerContext.InstanceGroups[ig.Name]
+		var igObj v1alpha1.InstanceGroup
 		namespacedIGName := fmt.Sprintf("%v/%v", igObj.GetNamespace(), igObj.GetName())
+		err := r.Client.Get(ctxt, api_types.NamespacedName{Name: ig.Name, Namespace: vsp.ObjectMeta.Namespace}, &igObj)
+		if err != nil {
+			r.Log.Error(err, "reconcile failed, target instance group %s not found", "verticalscalingpolicy", namespacedIGName)
+			return ctrl.Result{}, err
+		}
 
 		var nodesOfIG = make([]*corev1.Node, 0)
 
@@ -141,15 +147,25 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 		currentCapacityUtilization := 100 * (totalCPUCapacityFloat - totalCPUAllocatableFloat) / totalCPUCapacityFloat
 		currentMemoryUtilization := 100 * (totalMemoryCapacityFloat - totalMemoryAllocatableFloat) / totalMemoryCapacityFloat
 
-		scaleUpOnNodesCountPolicy := vsp.Spec.Behavior.ScaleUp.GetPolicy(v1alpha1.NodesCountUtilizationPercent)
-		scaleUpOnCpuUtilizationPolicy := vsp.Spec.Behavior.ScaleUp.GetPolicy(v1alpha1.CPUUtilizationPercent)
-		scaleUpOnMemoryUtilizationPolicy := vsp.Spec.Behavior.ScaleUp.GetPolicy(v1alpha1.MemoryUtilizationPercent)
+		var scaleUpOnNodesCountPolicy, scaleUpOnCpuUtilizationPolicy, scaleUpOnMemoryUtilizationPolicy *v1alpha1.PolicySpec
+		var scaleDownOnCpuUtilizationPolicy, scaleDownOnMemoryUtilizationPolicy *v1alpha1.PolicySpec
+		var scaleUp_stabilizationWindow, scaleDown_stabilizationWindow time.Duration
 
-		scaleDownOnCpuUtilizationPolicy := vsp.Spec.Behavior.ScaleDown.GetPolicy(v1alpha1.CPUUtilizationPercent)
-		scaleDownOnMemoryUtilizationPolicy := vsp.Spec.Behavior.ScaleDown.GetPolicy(v1alpha1.MemoryUtilizationPercent)
+		if vsp.Spec.Behavior != nil {
+			if vsp.Spec.Behavior.ScaleUp != nil {
+				scaleUpOnNodesCountPolicy = vsp.Spec.Behavior.ScaleUp.GetPolicy(v1alpha1.NodesCountUtilizationPercent)
+				scaleUpOnCpuUtilizationPolicy = vsp.Spec.Behavior.ScaleUp.GetPolicy(v1alpha1.CPUUtilizationPercent)
+				scaleUpOnMemoryUtilizationPolicy = vsp.Spec.Behavior.ScaleUp.GetPolicy(v1alpha1.MemoryUtilizationPercent)
+				scaleUp_stabilizationWindow = time.Duration(vsp.Spec.Behavior.ScaleUp.StabilizationWindowSeconds) * time.Second
 
-		scaleUp_stabilizationWindow := time.Duration(vsp.Spec.Behavior.ScaleUp.StabilizationWindowSeconds) * time.Second
-		scaleDown_stabilizationWindow := time.Duration(vsp.Spec.Behavior.ScaleDown.StabilizationWindowSeconds) * time.Second
+			}
+			if vsp.Spec.Behavior.ScaleDown != nil {
+				scaleDownOnCpuUtilizationPolicy = vsp.Spec.Behavior.ScaleDown.GetPolicy(v1alpha1.CPUUtilizationPercent)
+				scaleDownOnMemoryUtilizationPolicy = vsp.Spec.Behavior.ScaleDown.GetPolicy(v1alpha1.MemoryUtilizationPercent)
+				scaleDown_stabilizationWindow = time.Duration(vsp.Spec.Behavior.ScaleDown.StabilizationWindowSeconds) * time.Second
+
+			}
+		}
 
 		// If there is a larger instance type available, check if we want to vertically scale up the IG
 		if hasLargerInstanceType && vsp.Status != nil && time.Since(vsp.Status.TargetStatuses[namespacedIGName].LastTransitionTime.Time) > scaleUp_stabilizationWindow {
