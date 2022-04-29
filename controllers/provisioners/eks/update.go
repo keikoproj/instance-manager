@@ -138,9 +138,13 @@ func (ctx *EksInstanceGroupContext) Update() error {
 	if nodesReady {
 		ctx.SetState(v1alpha1.ReconcileModified)
 	}
+
+	fmt.Println("test")
 	if rotationNeeded {
 		ctx.SetState(v1alpha1.ReconcileInitUpgrade)
 	} else {
+		fmt.Println("test2")
+		ctx.UpdateActiveInstanceType()
 		status.SetStrategyRetryCount(0)
 	}
 

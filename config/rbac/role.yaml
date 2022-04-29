@@ -74,3 +74,23 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - instancemgr.keikoproj.io
+  resources:
+  - verticalscalingpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - instancemgr.keikoproj.io
+  resources:
+  - verticalscalingpolicies/status
+  verbs:
+  - get
+  - patch
+  - update

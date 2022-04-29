@@ -1,0 +1,31 @@
+apiVersion: instancemgr.keikoproj.io/v1alpha1
+kind: VerticalScalingPolicy
+metadata:
+  name: verticalscalingpolicy-sample
+spec:
+  instanceFamily: m5
+  resources:
+    requests:
+      mem: 8Gi
+      cpu: 2
+    limits:
+      mem: 64Gi
+      cpu: 16
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: CPUUtilizationPercentage
+        value: 20
+        periodSeconds: 1800
+    scaleUp:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: NodeUtilizationPercentage
+        value: 90
+        periodSeconds: 60
+  scaleTargetRef:
+      apiVersion: instancemgr.keikoproj.io/v1alpha1
+      kind: InstanceGroup
+      name: my-instance-group
+

@@ -95,6 +95,11 @@ const (
 	UpgradeLockedAnnotationKey = "instancemgr.keikoproj.io/lock-upgrades"
 )
 
+const (
+	InstanceGroupNameAnnotationKey      = "instancemgr.keikoproj.io/instancegroup"
+	InstanceGroupNamespaceAnnotationKey = "instancemgr.keikoproj.io/instancegroup-namespace"
+)
+
 var (
 	Strategies   = []string{CRDStrategyName, RollingUpdateStrategyName, ManagedStrategyName}
 	Provisioners = []string{
@@ -351,6 +356,7 @@ type InstanceGroupStatus struct {
 	CurrentMax                    int                      `json:"currentMax,omitempty"`
 	ActiveLaunchConfigurationName string                   `json:"activeLaunchConfigurationName,omitempty"`
 	ActiveLaunchTemplateName      string                   `json:"activeLaunchTemplateName,omitempty"`
+	ActiveInstanceType            string                   `json:"activeInstanceType,omitempty"`
 	LatestTemplateVersion         string                   `json:"latestTemplateVersion,omitempty"`
 	ActiveScalingGroupName        string                   `json:"activeScalingGroupName,omitempty"`
 	NodesArn                      string                   `json:"nodesInstanceRoleArn,omitempty"`
@@ -578,9 +584,6 @@ func (c *EKSConfiguration) Validate() error {
 
 	if common.StringEmpty(c.Image) {
 		return errors.Errorf("validation failed, 'image' is a required parameter")
-	}
-	if common.StringEmpty(c.InstanceType) {
-		return errors.Errorf("validation failed, 'instanceType' is a required parameter")
 	}
 	if common.StringEmpty(c.KeyPairName) {
 		return errors.Errorf("validation failed, 'keyPair' is a required parameter")
@@ -1166,6 +1169,10 @@ func (status *InstanceGroupStatus) GetConditions() []InstanceGroupCondition {
 
 func (status *InstanceGroupStatus) SetConditions(conditions []InstanceGroupCondition) {
 	status.Conditions = conditions
+}
+
+func (status *InstanceGroupStatus) SetActiveInstanceType(instanceType string) {
+	status.ActiveInstanceType = instanceType
 }
 
 func (strategy *AwsUpgradeStrategy) GetType() string {

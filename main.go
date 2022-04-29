@@ -21,9 +21,10 @@ import (
 	"os"
 	runt "runtime"
 	"sync"
+	"time"
 
 	"github.com/keikoproj/aws-sdk-go-cache/cache"
-	instancemgrv1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/keikoproj/instance-manager/controllers/providers/aws"
@@ -34,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 	// +kubebuilder:scaffold:imports
@@ -47,7 +49,7 @@ var (
 const controllerVersion = "instancemgr-0.14.1"
 
 func init() {
-	instancemgrv1alpha1.AddToScheme(scheme)
+	v1alpha1.AddToScheme(scheme)
 	corev1.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
@@ -71,6 +73,8 @@ func main() {
 		enableLeaderElection       bool
 		nodeRelabel                bool
 		disableWinClusterInjection bool
+		withVsp                    bool
+		vspResync                  time.Duration
 		maxParallel                int
 		maxAPIRetries              int
 		configRetention            int
@@ -86,6 +90,8 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&nodeRelabel, "node-relabel", true, "relabel nodes as they join with kubernetes.io/role label via controller")
+	flag.BoolVar(&withVsp, "with-vertical-scaling-policy", true, "Run the VerticalScalingPolicy controller (only supported with EKS provisioner)")
+	flag.DurationVar(&vspResync, "vertical-node-autoscaler-resync", time.Second*30, "the resync period for reconciling VerticalScalingPolicy objects")
 	flag.BoolVar(&disableWinClusterInjection, "disable-windows-cluster-ca-injection", false, "Setting this to true will cause the ClusterCA and Endpoint to not be injected for Windows nodes")
 
 	flag.Parse()
@@ -149,6 +155,17 @@ func main() {
 		setupLog.Info("instance-manager configmap does not exist, will not load defaults/boundaries")
 	}
 
+	sharedContext := &controllers.SharedContext{
+		Policies:            make(map[string]v1alpha1.VerticalScalingPolicy),
+		ComputedTypes:       make(map[string]string),
+		InstanceGroupEvents: make(chan event.GenericEvent),
+		InstanceGroups:      make(map[string]*v1alpha1.InstanceGroup),
+		Nodes:               make(map[string]*corev1.Node),
+		RWMutex:             sync.RWMutex{},
+	}
+
+	withNodeWatch := nodeRelabel || withVsp
+
 	err = (&controllers.InstanceGroupReconciler{
 		Metrics:                    controllerCollector,
 		ConfigMap:                  cm,
@@ -157,11 +174,12 @@ func main() {
 		ConfigNamespace:            configNamespace,
 		Namespaces:                 make(map[string]corev1.Namespace),
 		NamespacesLock:             &sync.RWMutex{},
-		NodeRelabel:                nodeRelabel,
+		WithNodeWatch:              withNodeWatch,
 		DisableWinClusterInjection: disableWinClusterInjection,
 		Client:                     mgr.GetClient(),
 		Log:                        ctrl.Log.WithName("controllers").WithName("instancegroup"),
 		MaxParallel:                maxParallel,
+		ManagerContext:             sharedContext,
 		Auth: &controllers.InstanceGroupAuthenticator{
 			Aws:        awsWorker,
 			Kubernetes: kube,
@@ -171,8 +189,31 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "instancegroup")
 		os.Exit(1)
 	}
-	// +kubebuilder:scaffold:builder
 
+	if withVsp {
+		resyncChan := make(chan event.GenericEvent)
+		if err = (&controllers.VerticalScalingPolicyReconciler{
+			Client:         mgr.GetClient(),
+			Log:            ctrl.Log.WithName("controllers").WithName("verticalscalingpolicy"),
+			ManagerContext: sharedContext,
+			Resync:         resyncChan,
+			Auth: &controllers.InstanceGroupAuthenticator{
+				Aws:        awsWorker,
+				Kubernetes: kube,
+			},
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "verticalscalingpolicy")
+			os.Exit(1)
+		}
+		go func() {
+			for range time.Tick(vspResync) {
+				setupLog.Info("vertical scaling policy resync")
+				resyncChan <- event.GenericEvent{}
+			}
+		}()
+	}
+
+	// +kubebuilder:scaffold:builder
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")

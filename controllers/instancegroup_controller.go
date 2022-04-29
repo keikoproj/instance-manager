@@ -45,7 +45,7 @@ type InstanceGroupReconciler struct {
 	client.Client
 	SpotRecommendationTime     float64
 	ConfigNamespace            string
-	NodeRelabel                bool
+	WithNodeWatch              bool
 	Log                        logr.Logger
 	MaxParallel                int
 	Auth                       *InstanceGroupAuthenticator
@@ -55,6 +55,7 @@ type InstanceGroupReconciler struct {
 	ConfigRetention            int
 	Metrics                    *common.MetricsCollector
 	DisableWinClusterInjection bool
+	ManagerContext             *SharedContext
 }
 
 type InstanceGroupAuthenticator struct {
@@ -175,6 +176,7 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 			status.SetConfigHash("")
 		}
 	}
+	r.ManagerContext.InstanceGroups[req.NamespacedName.String()] = input.InstanceGroup
 
 	provisionerKind := strings.ToLower(input.InstanceGroup.Spec.Provisioner)
 
@@ -199,6 +201,11 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 		r.PatchStatus(input.InstanceGroup, statusPatch)
 		r.Metrics.IncFail(instanceGroup.NamespacedName(), ErrorReasonValidationFailed)
 		return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
+	}
+
+	computedType := r.ManagerContext.GetComputedType(req.NamespacedName.String())
+	if !common.StringEmpty(computedType) {
+		input.InstanceGroup.Spec.EKSSpec.EKSConfiguration.InstanceType = computedType
 	}
 
 	if err = HandleReconcileRequest(ctx); err != nil {

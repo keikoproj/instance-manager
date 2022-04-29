@@ -479,6 +479,8 @@ func (ctx *EksInstanceGroupContext) GetComputedLabels() map[string]string {
 	}
 
 	labelMap[InstanceMgrImageLabel] = configuration.GetImage()
+	labelMap[v1alpha1.InstanceGroupNameAnnotationKey] = fmt.Sprintf("%v", instanceGroup.GetName())
+	labelMap[v1alpha1.InstanceGroupNamespaceAnnotationKey] = fmt.Sprintf("%v", instanceGroup.GetNamespace())
 
 	return labelMap
 }
@@ -694,6 +696,30 @@ func (ctx *EksInstanceGroupContext) findTargetScalingGroup(groups []*autoscaling
 	}
 
 	return nil
+}
+
+func (ctx *EksInstanceGroupContext) UpdateActiveInstanceType() {
+	var (
+		state         = ctx.GetDiscoveredState()
+		instanceGroup = ctx.GetInstanceGroup()
+		status        = instanceGroup.GetStatus()
+		scalingGroup  = state.GetScalingGroup()
+	)
+
+	if scalingGroup == nil {
+		return
+	}
+
+	scalingTypes := make([]string, 0)
+	for _, instance := range scalingGroup.Instances {
+		scalingTypes = append(scalingTypes, aws.StringValue(instance.InstanceType))
+	}
+
+	scalingTypes = common.RemoveDuplicateValues(scalingTypes)
+
+	if len(scalingTypes) == 1 {
+		status.SetActiveInstanceType(scalingTypes[0])
+	}
 }
 
 func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {

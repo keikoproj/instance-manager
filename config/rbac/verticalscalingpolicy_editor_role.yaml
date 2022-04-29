@@ -1,0 +1,24 @@
+# permissions for end users to edit verticalscalingpolicies.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: verticalscalingpolicy-editor-role
+rules:
+- apiGroups:
+  - instancemgr.keikoproj.io
+  resources:
+  - verticalscalingpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - instancemgr.keikoproj.io
+  resources:
+  - verticalscalingpolicies/status
+  verbs:
+  - get
