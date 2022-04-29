@@ -91,11 +91,9 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 	// Should we scale?
 	for _, ig := range vsp.Spec.Targets {
 		igObj := r.ManagerContext.InstanceGroups[ig.Name]
-		igName := fmt.Sprintf("%v/%v", igObj.GetNamespace(), igObj.GetName())
+		namespacedIGName := fmt.Sprintf("%v/%v", igObj.GetNamespace(), igObj.GetName())
+
 		var nodesOfIG = make([]*corev1.Node, 0)
-		// var scaleUp bool
-		// var scaleDown bool
-		// var desiredType string
 
 		for _, node := range r.ManagerContext.Nodes {
 			if kubernetes.HasAnnotationWithValue(node.GetLabels(), v1alpha1.InstanceGroupNameAnnotationKey, fmt.Sprintf("%v-%v", igObj.GetNamespace(), igObj.GetName())) {
@@ -119,6 +117,13 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 		totalMemoryAllocatable := *resource.NewQuantity(0, resource.BinarySI)
 		totalMemoryCapacity := *resource.NewQuantity(0, resource.BinarySI)
 
+		nodesCountAboveScaleUpThreshold := vsp.Status.GetCondition(namespacedIGName, v1alpha1.NodesCountAboveScaleUpThreshold)
+		cpuAboveScaleUpThreshold := vsp.Status.GetCondition(namespacedIGName, v1alpha1.CPUAboveScaleUpThreshold)
+		memoryAboveScaleUpThreshold := vsp.Status.GetCondition(namespacedIGName, v1alpha1.MemoryAboveScaleUpThreshold)
+
+		cpuBelowScaleDownThreshold := vsp.Status.GetCondition(namespacedIGName, v1alpha1.CPUBelowScaleDownThreshold)
+		memoryBelowScaleDownThreshold := vsp.Status.GetCondition(namespacedIGName, v1alpha1.MemoryBelowScaleDownThreshold)
+
 		// Calculate current CPU utilization
 		// Calculate current Memory utilization
 		for _, node := range nodesOfIG {
@@ -136,54 +141,86 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 		currentCapacityUtilization := 100 * (totalCPUCapacityFloat - totalCPUAllocatableFloat) / totalCPUCapacityFloat
 		currentMemoryUtilization := 100 * (totalMemoryCapacityFloat - totalMemoryAllocatableFloat) / totalMemoryCapacityFloat
 
-		scaleUpBehaviorPolicies := vsp.Spec.Behavior.ScaleUp.Policies // TODO: Make sure to avoid null pointer exception here by validating vsp before this
-		scaleUpOnNodesCountPolicy := getBehaviorPolicy(scaleUpBehaviorPolicies, v1alpha1.NodesCountUtilizationPercent)
-		scaleUpOnCpuUtilization := getBehaviorPolicy(scaleUpBehaviorPolicies, v1alpha1.CPUUtilizationPercent)
-		scaleUpOnMemoryUtilization := getBehaviorPolicy(scaleUpBehaviorPolicies, v1alpha1.MemoryUtilizationPercent)
+		scaleUpOnNodesCountPolicy := vsp.Spec.Behavior.ScaleUp.GetPolicy(v1alpha1.NodesCountUtilizationPercent)
+		scaleUpOnCpuUtilizationPolicy := vsp.Spec.Behavior.ScaleUp.GetPolicy(v1alpha1.CPUUtilizationPercent)
+		scaleUpOnMemoryUtilizationPolicy := vsp.Spec.Behavior.ScaleUp.GetPolicy(v1alpha1.MemoryUtilizationPercent)
 
-		scaleDownBehaviorPolicies := vsp.Spec.Behavior.ScaleDown.Policies // TODO: Make sure to avoid null pointer exception here by validating vsp before this
-		scaleDownOnCpuUtilization := getBehaviorPolicy(scaleDownBehaviorPolicies, v1alpha1.CPUUtilizationPercent)
-		scaleDownOnMemoryUtilization := getBehaviorPolicy(scaleDownBehaviorPolicies, v1alpha1.MemoryUtilizationPercent)
+		scaleDownOnCpuUtilizationPolicy := vsp.Spec.Behavior.ScaleDown.GetPolicy(v1alpha1.CPUUtilizationPercent)
+		scaleDownOnMemoryUtilizationPolicy := vsp.Spec.Behavior.ScaleDown.GetPolicy(v1alpha1.MemoryUtilizationPercent)
 
 		scaleUp_stabilizationWindow := time.Duration(vsp.Spec.Behavior.ScaleUp.StabilizationWindowSeconds) * time.Second
 		scaleDown_stabilizationWindow := time.Duration(vsp.Spec.Behavior.ScaleDown.StabilizationWindowSeconds) * time.Second
 
 		// If there is a larger instance type available, check if we want to vertically scale up the IG
-		if hasLargerInstanceType && vsp.Status != nil && time.Since(vsp.Status.TargetStatuses[igName].LastTransitionTime.Time) > scaleUp_stabilizationWindow {
+		if hasLargerInstanceType && vsp.Status != nil && time.Since(vsp.Status.TargetStatuses[namespacedIGName].LastTransitionTime.Time) > scaleUp_stabilizationWindow {
 			nextBiggerInstance := instanceTypeRange.InstanceTypes[currInstanceTypeIndex+1]
 
 			if scaleUpOnNodesCountPolicy != nil {
+				nodesCountAboveScaleUpThreshold.LastHeartbeatTime = metav1.Now()
+
 				// Scale up if current nodes count crosses requested threshold (close to maxSize of IG)
 				if len(nodesOfIG) > int(igObj.Spec.EKSSpec.MaxSize)*scaleUpOnNodesCountPolicy.Value/100 {
-					// Add periodSeconds logic here
-					r.ManagerContext.ComputedTypes[igName] = nextBiggerInstance
-					driftedTargets[igName] = true
-					continue
+					if nodesCountAboveScaleUpThreshold.Status == corev1.ConditionFalse {
+						nodesCountAboveScaleUpThreshold.LastTransitionTime = metav1.Now()
+						nodesCountAboveScaleUpThreshold.Status = corev1.ConditionTrue
+					}
+
+					if time.Since(nodesCountAboveScaleUpThreshold.LastTransitionTime.Time) > time.Duration(scaleUpOnNodesCountPolicy.PeriodSeconds) {
+						r.ManagerContext.ComputedTypes[namespacedIGName] = nextBiggerInstance
+						driftedTargets[namespacedIGName] = true
+						continue
+					}
+
+				} else if nodesCountAboveScaleUpThreshold.Status == corev1.ConditionTrue {
+					nodesCountAboveScaleUpThreshold.LastTransitionTime = metav1.Now()
+					nodesCountAboveScaleUpThreshold.Status = corev1.ConditionFalse
 				}
 			}
 
-			if scaleUpOnCpuUtilization != nil {
+			if scaleUpOnCpuUtilizationPolicy != nil {
+				cpuAboveScaleUpThreshold.LastHeartbeatTime = metav1.Now()
+
 				// Scale up if total CPU utilization crosses requested threshold (close to node sizing)
-				if 100*(totalCPUCapacityFloat-totalCPUAllocatableFloat)/totalCPUCapacityFloat > float64(scaleUpOnCpuUtilization.Value) {
-					// Add periodSeconds logic here
-					r.ManagerContext.ComputedTypes[igName] = nextBiggerInstance
-					driftedTargets[igName] = true
-					continue
+				if 100*(totalCPUCapacityFloat-totalCPUAllocatableFloat)/totalCPUCapacityFloat > float64(scaleUpOnCpuUtilizationPolicy.Value) {
+					if cpuAboveScaleUpThreshold.Status == corev1.ConditionFalse {
+						cpuAboveScaleUpThreshold.LastTransitionTime = metav1.Now()
+						cpuAboveScaleUpThreshold.Status = corev1.ConditionTrue
+					}
+
+					if time.Since(cpuAboveScaleUpThreshold.LastTransitionTime.Time) > time.Duration(scaleUpOnCpuUtilizationPolicy.PeriodSeconds) {
+						r.ManagerContext.ComputedTypes[namespacedIGName] = nextBiggerInstance
+						driftedTargets[namespacedIGName] = true
+						continue
+					}
+				} else if cpuAboveScaleUpThreshold.Status == corev1.ConditionTrue {
+					cpuAboveScaleUpThreshold.LastTransitionTime = metav1.Now()
+					cpuAboveScaleUpThreshold.Status = corev1.ConditionFalse
 				}
 			}
 
-			if scaleUpOnMemoryUtilization != nil {
-				if 100*(totalMemoryCapacityFloat-totalMemoryAllocatableFloat)/totalMemoryCapacityFloat > float64(scaleUpOnMemoryUtilization.Value) {
-					// Add periodSeconds logic here
-					r.ManagerContext.ComputedTypes[igName] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex+1]
-					driftedTargets[igName] = true
-					continue
+			if scaleUpOnMemoryUtilizationPolicy != nil {
+				memoryAboveScaleUpThreshold.LastHeartbeatTime = metav1.Now()
+
+				if 100*(totalMemoryCapacityFloat-totalMemoryAllocatableFloat)/totalMemoryCapacityFloat > float64(scaleUpOnMemoryUtilizationPolicy.Value) {
+					if memoryAboveScaleUpThreshold.Status == corev1.ConditionFalse {
+						memoryAboveScaleUpThreshold.LastTransitionTime = metav1.Now()
+						memoryAboveScaleUpThreshold.Status = corev1.ConditionTrue
+					}
+
+					if time.Since(memoryAboveScaleUpThreshold.LastTransitionTime.Time) > time.Duration(scaleUpOnMemoryUtilizationPolicy.PeriodSeconds) {
+						r.ManagerContext.ComputedTypes[namespacedIGName] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex+1]
+						driftedTargets[namespacedIGName] = true
+						continue
+					}
+				} else if memoryAboveScaleUpThreshold.Status == corev1.ConditionTrue {
+					memoryAboveScaleUpThreshold.LastTransitionTime = metav1.Now()
+					memoryAboveScaleUpThreshold.Status = corev1.ConditionFalse
 				}
 			}
 		}
 
 		// If there is a smaller instance type available, check if we want to vertically scale down the IG
-		if hasSmallerInstanceType && time.Since(vsp.Status.TargetStatuses[igName].LastTransitionTime.Time) > scaleDown_stabilizationWindow {
+		if hasSmallerInstanceType && vsp.Status != nil && time.Since(vsp.Status.TargetStatuses[namespacedIGName].LastTransitionTime.Time) > scaleDown_stabilizationWindow {
 			/**
 			 * When we scale down, utilizations on smaller instance double
 			 * If smaller instance utilization > scaleUpOnCpuUtilization || scaleUpOnMemoryUtilization
@@ -197,28 +234,66 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 			 * 		=> we shouldn't scale down
 			 */
 
-			if scaleDownOnCpuUtilization != nil {
-				if currentCapacityUtilization < float64(scaleDownOnCpuUtilization.Value) { // Check if scale down is a possibility
-					if currentCapacityUtilization/2 < float64(scaleUpOnCpuUtilization.Value) { // Check if eventual scale up is a possibility
-						// Add periodSeconds logic here
-						r.ManagerContext.ComputedTypes[igName] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex-1]
-						driftedTargets[igName] = true
-						continue
+			if scaleDownOnCpuUtilizationPolicy != nil {
+				cpuBelowScaleDownThreshold.LastHeartbeatTime = metav1.Now()
+
+				if currentCapacityUtilization < float64(scaleDownOnCpuUtilizationPolicy.Value) { // Check if scale down is a possibility
+					if cpuBelowScaleDownThreshold.Status == corev1.ConditionFalse {
+						cpuBelowScaleDownThreshold.LastTransitionTime = metav1.Now()
+						cpuBelowScaleDownThreshold.Status = corev1.ConditionTrue
 					}
+
+					if time.Since(cpuBelowScaleDownThreshold.LastTransitionTime.Time) > time.Duration(scaleDownOnCpuUtilizationPolicy.PeriodSeconds) {
+						// Check if eventual scale up is a possibility
+						if currentCapacityUtilization/2 < float64(scaleUpOnCpuUtilizationPolicy.Value) {
+							r.ManagerContext.ComputedTypes[namespacedIGName] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex-1]
+							driftedTargets[namespacedIGName] = true
+							continue
+						}
+					}
+				} else if cpuBelowScaleDownThreshold.Status == corev1.ConditionTrue {
+					cpuBelowScaleDownThreshold.LastTransitionTime = metav1.Now()
+					cpuBelowScaleDownThreshold.Status = corev1.ConditionFalse
 				}
 			}
 
-			if scaleDownOnMemoryUtilization != nil {
-				if currentMemoryUtilization < float64(scaleDownOnMemoryUtilization.Value) { // Check if scale down is a possibility
-					if currentMemoryUtilization/2 < float64(scaleUpOnMemoryUtilization.Value) { // Check if eventual scale up is a possibility
-						// Add periodSeconds logic here
-						r.ManagerContext.ComputedTypes[igName] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex-1]
-						driftedTargets[igName] = true
-						continue
+			if scaleDownOnMemoryUtilizationPolicy != nil {
+				memoryBelowScaleDownThreshold.LastHeartbeatTime = metav1.Now()
+
+				if currentMemoryUtilization < float64(scaleDownOnMemoryUtilizationPolicy.Value) { // Check if scale down is a possibility
+					if memoryBelowScaleDownThreshold.Status == corev1.ConditionFalse {
+						memoryBelowScaleDownThreshold.LastTransitionTime = metav1.Now()
+						memoryBelowScaleDownThreshold.Status = corev1.ConditionTrue
 					}
+
+					if currentMemoryUtilization/2 < float64(scaleUpOnMemoryUtilizationPolicy.Value) { // Check if eventual scale up is a possibility
+						if time.Since(memoryBelowScaleDownThreshold.LastTransitionTime.Time) > time.Duration(scaleDownOnMemoryUtilizationPolicy.PeriodSeconds) {
+							r.ManagerContext.ComputedTypes[namespacedIGName] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex-1]
+							driftedTargets[namespacedIGName] = true
+							continue
+						}
+					}
+				} else if memoryBelowScaleDownThreshold.Status == corev1.ConditionTrue {
+					memoryBelowScaleDownThreshold.LastTransitionTime = metav1.Now()
+					memoryBelowScaleDownThreshold.Status = corev1.ConditionFalse
 				}
 			}
 		}
+
+		vsp.Status.TargetStatuses[namespacedIGName] = &v1alpha1.TargetStatus{
+			LastTransitionTime:  metav1.Time{Time: time.Now()},
+			DesiredInstanceType: r.ManagerContext.ComputedTypes[namespacedIGName],
+			Conditions: []*v1alpha1.UtilizationCondition{
+				nodesCountAboveScaleUpThreshold,
+				cpuAboveScaleUpThreshold,
+				memoryAboveScaleUpThreshold,
+				cpuBelowScaleDownThreshold,
+				memoryBelowScaleDownThreshold,
+			},
+		}
+
+		// State: ig reconcilation state TODO: Ask Eytan
+
 	}
 
 	// check if behavior conditions are met + validations
@@ -226,31 +301,6 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 	// Update computed type on shared data structure
 
 	// reconcile instance-group if there is drift
-	for _, ig := range r.ManagerContext.ComputedTypes {
-		r.Log.Info("Reconciling instance group %s to instanceType %s", ig, r.ManagerContext.ComputedTypes[ig])
-
-		conditions := []*v1alpha1.UtilizationCondition{
-			{
-				Type:               v1alpha1.CPUAboveScaleUpThreshold,
-				Status:             corev1.ConditionTrue,
-				LastHeartbeatTime:  metav1.Now(),
-				LastTransitionTime: metav1.Time{},
-			},
-			{
-				Type:               v1alpha1.MemoryAboveScaleUpThreshold,
-				Status:             corev1.ConditionTrue,
-				LastHeartbeatTime:  metav1.Now(),
-				LastTransitionTime: metav1.Time{},
-			},
-		}
-
-		vsp.Status.TargetStatuses[ig] = &v1alpha1.TargetStatus{
-			LastTransitionTime:  metav1.Time{Time: time.Now()},
-			DesiredInstanceType: r.ManagerContext.ComputedTypes[ig],
-			Conditions:          conditions,
-			// State: ig reconcilation state TODO: Ask Eytan
-		}
-	}
 
 	// Update vsp status to done
 
@@ -382,13 +432,4 @@ func (r *VerticalScalingPolicyReconciler) NotifyTargets(targets map[string]bool)
 			},
 		}
 	}
-}
-
-func getBehaviorPolicy(policies []*v1alpha1.PolicySpec, name v1alpha1.UtilizationType) *v1alpha1.PolicySpec {
-	for _, policy := range policies {
-		if policy.Type == name {
-			return policy
-		}
-	}
-	return nil
 }
