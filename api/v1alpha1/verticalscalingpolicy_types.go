@@ -121,3 +121,35 @@ type VerticalScalingPolicyList struct {
 func init() {
 	SchemeBuilder.Register(&VerticalScalingPolicy{}, &VerticalScalingPolicyList{})
 }
+
+func (scalingSpec *ScalingSpec) GetPolicy(name UtilizationType) *PolicySpec {
+	for _, policy := range scalingSpec.Policies {
+		if policy.Type == name {
+			return policy
+		}
+	}
+
+	return nil
+}
+
+func (status *VerticalScalingPolicyStatus) GetCondition(igName string, t UtilizationType) *UtilizationCondition {
+	for _, condition := range status.TargetStatuses[igName].Conditions {
+		if condition.Type == t {
+			return condition
+		}
+	}
+	return &UtilizationCondition{}
+}
+
+func (status *VerticalScalingPolicyStatus) SetCondition(igName string, condition *UtilizationCondition) {
+	for _, c := range status.TargetStatuses[igName].Conditions {
+		if condition.Type == c.Type {
+			c = condition
+			break
+		}
+	}
+}
+
+func (status *VerticalScalingPolicyStatus) SetConditions(igName string, conditions []*UtilizationCondition) {
+	status.TargetStatuses[igName].Conditions = conditions
+}
