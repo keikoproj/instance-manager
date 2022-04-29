@@ -76,6 +76,9 @@ const (
 	NodesCountAboveScaleUpThreshold UtilizationType = "NodesCountAboveScaleUpThreshold"
 )
 
+var validScaleUpPolicyTypes = []UtilizationType{CPUUtilizationPercent, MemoryUtilizationPercent, NodesCountUtilizationPercent}
+var validScaleDownPolicyTypes = []UtilizationType{CPUUtilizationPercent, MemoryUtilizationPercent}
+
 // NodeCondition contains condition information for a node.
 type UtilizationCondition struct {
 	// Type of utilization condition.
@@ -160,42 +163,71 @@ func (status *VerticalScalingPolicyStatus) SetConditions(igName string, conditio
 func (vsp *VerticalScalingPolicy) Validate() error {
 	s := vsp.Spec
 
+	if err := s.Validate(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *VerticalScalingPolicySpec) Validate() error {
 	if s.Behavior == nil {
 		return errors.Errorf("validation failed, behavior not provided in spec")
 	}
 
-	scaleUpSpec := vsp.getScaleUpSpec()
+	scaleUpSpec := s.getScaleUpSpec()
 	if scaleUpSpec != nil {
-		if err := scaleUpSpec.Validate([]UtilizationType{CPUUtilizationPercent, MemoryUtilizationPercent, NodesCountUtilizationPercent}); err != nil {
+		if err := scaleUpSpec.Validate("scaleup"); err != nil {
 			return err
 		}
 	}
 
-	scaleDownSpec := vsp.getScaleDownSpec()
+	scaleDownSpec := s.getScaleDownSpec()
 	if scaleDownSpec != nil {
-		if err := scaleDownSpec.Validate([]UtilizationType{CPUUtilizationPercent, MemoryUtilizationPercent}); err != nil {
+		if err := scaleDownSpec.Validate("scaledown"); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
-func (s *ScalingSpec) Validate(validPolicyTypes []UtilizationType) error {
+func (s *ScalingSpec) Validate(direction string) error {
 	if s.Policies == nil {
-		return errors.Errorf("validation failed, no policies defined for scaling behavior in spec")
+		return errors.Errorf("validation failed, no policies defined in scaling behaviors")
 	}
 
+	if s.StabilizationWindowSeconds < 0 {
+		return errors.Errorf("validation failed, invalid stabilizationWindowSeconds in scaling behaviors , must be an integer >0")
+	}
+
+	var validPolicyTypes []UtilizationType
+	if direction == "scaleup" {
+		validPolicyTypes = validScaleUpPolicyTypes
+	} else if direction == "scaledown" {
+		validPolicyTypes = validScaleDownPolicyTypes
+	}
 	for _, policy := range s.Policies {
-		if !isValidUtilizationType(validPolicyTypes, policy.Type) {
-			return errors.Errorf("validation failed, invalid policy type %s in scaling behaviors, valid types are: %s", policy.Type, validPolicyTypes)
+		err := policy.Validate(validPolicyTypes)
+		if err != nil {
+			return err
 		}
-		if strings.Contains(string(policy.Type), "Percent") {
-			if policy.Value < 0 || policy.Value > 100 {
-				return errors.Errorf("validation failed, invalid policy percentage value %d for policy type %s in scaling behaviors, value must be from 0-100", policy.Value, policy.Type)
-			}
-		}
-
 	}
+
+	return nil
+}
+
+func (s *PolicySpec) Validate(validPolicyTypes []UtilizationType) error {
+	if !isValidUtilizationType(validPolicyTypes, s.Type) {
+		return errors.Errorf("validation failed, invalid policy type %s in scaling behaviors, valid types are: %s", s.Type, validPolicyTypes)
+	}
+	if strings.Contains(string(s.Type), "Percent") {
+		if s.Value < 0 || s.Value > 100 {
+			return errors.Errorf("validation failed, invalid policy percentage value %d for policy type %s in scaling behaviors, value must be from 0-100", s.Value, s.Type)
+		}
+	}
+
+	return nil
 }
 
 func isValidUtilizationType(validTypes []UtilizationType, typeName UtilizationType) bool {
@@ -207,10 +239,10 @@ func isValidUtilizationType(validTypes []UtilizationType, typeName UtilizationTy
 	return false
 }
 
-func (s *VerticalScalingPolicy) getScaleUpSpec() *ScalingSpec {
-	return s.Spec.Behavior.ScaleUp
+func (s *VerticalScalingPolicySpec) getScaleUpSpec() *ScalingSpec {
+	return s.Behavior.ScaleUp
 }
 
-func (s *VerticalScalingPolicy) getScaleDownSpec() *ScalingSpec {
-	return s.Spec.Behavior.ScaleDown
+func (s *VerticalScalingPolicySpec) getScaleDownSpec() *ScalingSpec {
+	return s.Behavior.ScaleDown
 }
