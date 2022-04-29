@@ -4,7 +4,6 @@ metadata:
   name: verticalscalingpolicy-sample
 spec:
   instanceFamily: m5
-
   resources:
     requests:
       mem: 8Gi
@@ -16,18 +15,17 @@ spec:
     scaleDown:
       stabilizationWindowSeconds: 300
       policies:
-      - type: NodesCountUtilizationPercentage
-        value: 100
-        periodSeconds: 60
+      - type: CPUUtilizationPercentage
+        value: 20
+        periodSeconds: 1800
     scaleUp:
       stabilizationWindowSeconds: 300
       policies:
-      - type: NodesCountUtilizationPercentage
-        value: 20
+      - type: NodeUtilizationPercentage
+        value: 90
         periodSeconds: 60
-  scaleTargetsRef:
-  - apiVersion: instancemgr.keikoproj.io/v1alpha1
-    kind: InstanceGroup
-    name: nodes
-    namespace: instance-manager
+  scaleTargetRef:
+      apiVersion: instancemgr.keikoproj.io/v1alpha1
+      kind: InstanceGroup
+      name: my-instance-group
 

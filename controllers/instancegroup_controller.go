@@ -176,6 +176,7 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 			status.SetConfigHash("")
 		}
 	}
+	r.ManagerContext.InstanceGroups[req.NamespacedName.String()] = input.InstanceGroup
 
 	provisionerKind := strings.ToLower(input.InstanceGroup.Spec.Provisioner)
 

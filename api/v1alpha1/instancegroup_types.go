@@ -96,7 +96,8 @@ const (
 )
 
 const (
-	InstanceGroupNameAnnotationKey = "instancemgr.keikoproj.io/instancegroup"
+	InstanceGroupNameAnnotationKey      = "instancemgr.keikoproj.io/instancegroup"
+	InstanceGroupNamespaceAnnotationKey = "instancemgr.keikoproj.io/instancegroup-namespace"
 )
 
 var (
@@ -355,6 +356,7 @@ type InstanceGroupStatus struct {
 	CurrentMax                    int                      `json:"currentMax,omitempty"`
 	ActiveLaunchConfigurationName string                   `json:"activeLaunchConfigurationName,omitempty"`
 	ActiveLaunchTemplateName      string                   `json:"activeLaunchTemplateName,omitempty"`
+	ActiveInstanceType            string                   `json:"activeInstanceType,omitempty"`
 	LatestTemplateVersion         string                   `json:"latestTemplateVersion,omitempty"`
 	ActiveScalingGroupName        string                   `json:"activeScalingGroupName,omitempty"`
 	NodesArn                      string                   `json:"nodesInstanceRoleArn,omitempty"`
@@ -367,7 +369,6 @@ type InstanceGroupStatus struct {
 	Conditions                    []InstanceGroupCondition `json:"conditions,omitempty"`
 	Provisioner                   string                   `json:"provisioner,omitempty"`
 	Strategy                      string                   `json:"strategy,omitempty"`
-	CurrentInstanceType           string                   `json:"currentInstanceType,omitempty"`
 }
 
 type InstanceGroupConditionType string
@@ -1168,6 +1169,10 @@ func (status *InstanceGroupStatus) GetConditions() []InstanceGroupCondition {
 
 func (status *InstanceGroupStatus) SetConditions(conditions []InstanceGroupCondition) {
 	status.Conditions = conditions
+}
+
+func (status *InstanceGroupStatus) SetActiveInstanceType(instanceType string) {
+	status.ActiveInstanceType = instanceType
 }
 
 func (strategy *AwsUpgradeStrategy) GetType() string {

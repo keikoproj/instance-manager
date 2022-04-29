@@ -428,6 +428,8 @@ spec:
           status:
             description: InstanceGroupStatus defines the schema of resource Status
             properties:
+              activeInstanceType:
+                type: string
               activeLaunchConfigurationName:
                 type: string
               activeLaunchTemplateName:
@@ -446,8 +448,6 @@ spec:
                   type: object
                 type: array
               configMD5:
-                type: string
-              currentInstanceType:
                 type: string
               currentMax:
                 type: integer

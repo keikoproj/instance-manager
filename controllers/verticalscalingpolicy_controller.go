@@ -33,7 +33,6 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	api_types "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -84,6 +83,12 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 	if err != nil {
 		return ctrl.Result{}, err
 	}
+	instanceTypeRange.InstanceTypes = []string{
+		"m5.large",
+		"m5.xlarge",
+		"m5.2xlarge",
+		"m5.4xlarge",
+	}
 
 	// decide on computed type
 
@@ -91,26 +96,37 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 
 	// Should we scale?
 	for _, ig := range vsp.Spec.Targets {
-		var igObj v1alpha1.InstanceGroup
-		namespacedIGName := fmt.Sprintf("%v/%v", igObj.GetNamespace(), igObj.GetName())
-		err := r.Client.Get(ctxt, api_types.NamespacedName{Name: ig.Name, Namespace: vsp.ObjectMeta.Namespace}, &igObj)
-		if err != nil {
-			r.Log.Error(err, "reconcile failed, target instance group %s not found", "verticalscalingpolicy", namespacedIGName)
-			return ctrl.Result{}, err
+		namespacedName := fmt.Sprintf("%v/%v", ig.Namespace, ig.Name)
+		igObj := r.ManagerContext.InstanceGroups[namespacedName]
+		if igObj == nil {
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
-
+		namespacedIGName := fmt.Sprintf("%v/%v", igObj.GetNamespace(), igObj.GetName())
 		var nodesOfIG = make([]*corev1.Node, 0)
 
 		for _, node := range r.ManagerContext.Nodes {
-			if kubernetes.HasAnnotationWithValue(node.GetLabels(), v1alpha1.InstanceGroupNameAnnotationKey, fmt.Sprintf("%v-%v", igObj.GetNamespace(), igObj.GetName())) {
+			nodeLabels := node.GetLabels()
+			if kubernetes.HasAnnotationWithValue(nodeLabels, v1alpha1.InstanceGroupNameAnnotationKey, igObj.GetName()) && kubernetes.HasAnnotationWithValue(nodeLabels, v1alpha1.InstanceGroupNamespaceAnnotationKey, igObj.GetNamespace()) {
 				nodesOfIG = append(nodesOfIG, node)
 			}
 		}
 
-		currInstanceTypeIndex := common.GetStringIndexInSlice(instanceTypeRange.InstanceTypes, igObj.Status.CurrentInstanceType)
+		currInstanceTypeIndex := common.GetStringIndexInSlice(instanceTypeRange.InstanceTypes, igObj.Status.ActiveInstanceType)
+		fmt.Println(instanceTypeRange.InstanceTypes)
+		fmt.Println(igObj.Status.ActiveInstanceType)
 		if currInstanceTypeIndex == -1 {
 			r.Log.Error(err, "reconcile failed, current instance type not found in computed types", "verticalscalingpolicy", req.NamespacedName)
 			return ctrl.Result{}, err
+		}
+
+		if vsp.Status == nil {
+			vsp.Status = &v1alpha1.VerticalScalingPolicyStatus{
+				TargetStatuses: map[string]*v1alpha1.TargetStatus{
+					namespacedName: &v1alpha1.TargetStatus{
+						Conditions: make([]*v1alpha1.UtilizationCondition, 0),
+					},
+				},
+			}
 		}
 
 		// TODO: For period seconds we need to store node stats with timestamp or read and understand events
@@ -262,7 +278,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 
 					if time.Since(cpuBelowScaleDownThreshold.LastTransitionTime.Time) > time.Duration(scaleDownOnCpuUtilizationPolicy.PeriodSeconds) {
 						// Check if eventual scale up is a possibility
-						if currentCapacityUtilization/2 < float64(scaleUpOnCpuUtilizationPolicy.Value) {
+						if scaleUpOnCpuUtilizationPolicy != nil && currentCapacityUtilization/2 < float64(scaleUpOnCpuUtilizationPolicy.Value) {
 							r.ManagerContext.ComputedTypes[namespacedIGName] = nextSmallerInstance
 							driftedTargets[namespacedIGName] = true
 							continue
@@ -283,7 +299,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 						memoryBelowScaleDownThreshold.Status = corev1.ConditionTrue
 					}
 
-					if currentMemoryUtilization/2 < float64(scaleUpOnMemoryUtilizationPolicy.Value) { // Check if eventual scale up is a possibility
+					if scaleUpOnMemoryUtilizationPolicy != nil && currentMemoryUtilization/2 < float64(scaleUpOnMemoryUtilizationPolicy.Value) { // Check if eventual scale up is a possibility
 						if time.Since(memoryBelowScaleDownThreshold.LastTransitionTime.Time) > time.Duration(scaleDownOnMemoryUtilizationPolicy.PeriodSeconds) {
 							r.ManagerContext.ComputedTypes[namespacedIGName] = nextSmallerInstance
 							driftedTargets[namespacedIGName] = true
@@ -298,11 +314,8 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 		}
 
 		// TODO: Create a function to update status
-		if vsp.Status == nil {
-			vsp.Status = &v1alpha1.VerticalScalingPolicyStatus{
-				TargetStatuses: map[string]*v1alpha1.TargetStatus{},
-			}
-		}
+
+		fmt.Println(driftedTargets)
 
 		vsp.Status.TargetStatuses[namespacedIGName] = &v1alpha1.TargetStatus{
 			LastTransitionTime:  metav1.Time{Time: time.Now()},
@@ -320,13 +333,12 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 
 	}
 
-	// check if behavior conditions are met + validations
+	fmt.Printf("%+v", vsp.Status)
 
-	// Update computed type on shared data structure
-
-	// reconcile instance-group if there is drift
-
-	// Update vsp status to done
+	err = r.Update(context.Background(), vsp)
+	if err != nil {
+		fmt.Println(err)
+	}
 
 	r.NotifyTargets(driftedTargets)
 
@@ -334,7 +346,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 }
 
 type InstanceTypeRange struct {
-	InstanceTypes []string // [m5.xlarge, m5.2xlarge, m5.4xlarge, m5.8xlarge]
+	InstanceTypes []string
 }
 
 // Returns InstanceTypes in InstanceTypeRange with types that fit the scaling policies resource requests/limits
@@ -408,7 +420,7 @@ func (r *VerticalScalingPolicyReconciler) rangeInstanceTypes(resources *corev1.R
 			MemMaxInt, _ := MemMaxHolder.AsInt64()
 
 			// Make sure instance CPU and Memory are greater or equal to than VSP request requirements and less than or equal to VSP limit requirements
-			if CPUMinInt >= 0 && CPUMaxInt <= 0 && MemMinInt >= 0 && MemMaxInt <= 0 {
+			if CPUMinInt >= 0 && CPUMaxInt >= 0 && MemMinInt >= 0 && MemMaxInt >= 0 {
 				computedInstances = append(computedInstances, instanceInfo)
 			}
 		}
@@ -437,10 +449,7 @@ func instanceFamilyExists(family string, instanceTypesInfo []*ec2.InstanceTypeIn
 		families = append(families, instance[0])
 	}
 
-	if !common.ContainsString(families, family) {
-		return false
-	}
-	return true
+	return common.ContainsString(families, family)
 }
 
 func (r *VerticalScalingPolicyReconciler) NotifyTargets(targets map[string]bool) {

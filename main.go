@@ -159,6 +159,7 @@ func main() {
 		Policies:            make(map[string]v1alpha1.VerticalScalingPolicy),
 		ComputedTypes:       make(map[string]string),
 		InstanceGroupEvents: make(chan event.GenericEvent),
+		InstanceGroups:      make(map[string]*v1alpha1.InstanceGroup),
 		Nodes:               make(map[string]*corev1.Node),
 		RWMutex:             sync.RWMutex{},
 	}

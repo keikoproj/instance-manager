@@ -202,7 +202,7 @@ spec:
                               Unknown.
                             type: string
                           type:
-                            description: Type of node condition.
+                            description: Type of utilization condition.
                             type: string
                         required:
                         - status

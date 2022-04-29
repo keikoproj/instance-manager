@@ -351,7 +351,7 @@ type SharedContext struct {
 	// "instance-manager/my-ig-1": []Node{}
 	Nodes map[string]*corev1.Node
 
-	InstanceGroups map[string]v1alpha1.InstanceGroup
+	InstanceGroups map[string]*v1alpha1.InstanceGroup
 
 	// "instance-manager/my-vsp": VSP{}
 	Policies map[string]v1alpha1.VerticalScalingPolicy
