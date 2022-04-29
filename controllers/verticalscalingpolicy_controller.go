@@ -208,7 +208,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 					}
 
 					if time.Since(memoryAboveScaleUpThreshold.LastTransitionTime.Time) > time.Duration(scaleUpOnMemoryUtilizationPolicy.PeriodSeconds) {
-						r.ManagerContext.ComputedTypes[namespacedIGName] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex+1]
+						r.ManagerContext.ComputedTypes[namespacedIGName] = nextBiggerInstance
 						driftedTargets[namespacedIGName] = true
 						continue
 					}
@@ -221,6 +221,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 
 		// If there is a smaller instance type available, check if we want to vertically scale down the IG
 		if hasSmallerInstanceType && vsp.Status != nil && time.Since(vsp.Status.TargetStatuses[namespacedIGName].LastTransitionTime.Time) > scaleDown_stabilizationWindow {
+			nextSmallerInstance := instanceTypeRange.InstanceTypes[currInstanceTypeIndex-1]
 			/**
 			 * When we scale down, utilizations on smaller instance double
 			 * If smaller instance utilization > scaleUpOnCpuUtilization || scaleUpOnMemoryUtilization
@@ -246,7 +247,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 					if time.Since(cpuBelowScaleDownThreshold.LastTransitionTime.Time) > time.Duration(scaleDownOnCpuUtilizationPolicy.PeriodSeconds) {
 						// Check if eventual scale up is a possibility
 						if currentCapacityUtilization/2 < float64(scaleUpOnCpuUtilizationPolicy.Value) {
-							r.ManagerContext.ComputedTypes[namespacedIGName] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex-1]
+							r.ManagerContext.ComputedTypes[namespacedIGName] = nextSmallerInstance
 							driftedTargets[namespacedIGName] = true
 							continue
 						}
@@ -268,7 +269,7 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 
 					if currentMemoryUtilization/2 < float64(scaleUpOnMemoryUtilizationPolicy.Value) { // Check if eventual scale up is a possibility
 						if time.Since(memoryBelowScaleDownThreshold.LastTransitionTime.Time) > time.Duration(scaleDownOnMemoryUtilizationPolicy.PeriodSeconds) {
-							r.ManagerContext.ComputedTypes[namespacedIGName] = instanceTypeRange.InstanceTypes[currInstanceTypeIndex-1]
+							r.ManagerContext.ComputedTypes[namespacedIGName] = nextSmallerInstance
 							driftedTargets[namespacedIGName] = true
 							continue
 						}
@@ -277,6 +278,13 @@ func (r *VerticalScalingPolicyReconciler) Reconcile(ctxt context.Context, req ct
 					memoryBelowScaleDownThreshold.LastTransitionTime = metav1.Now()
 					memoryBelowScaleDownThreshold.Status = corev1.ConditionFalse
 				}
+			}
+		}
+
+		// TODO: Create a function to update status
+		if vsp.Status == nil {
+			vsp.Status = &v1alpha1.VerticalScalingPolicyStatus{
+				TargetStatuses: map[string]*v1alpha1.TargetStatus{},
 			}
 		}
 
