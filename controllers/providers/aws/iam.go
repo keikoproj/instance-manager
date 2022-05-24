@@ -218,7 +218,7 @@ func (w *AwsWorker) CreateScalingGroupRole(name string) (*iam.Role, *iam.Instanc
 		createdProfile = instanceProfile
 	}
 
-	if len(createdProfile.Roles) == 0 {
+	if createdProfile != nil && len(createdProfile.Roles) == 0 {
 		_, err := w.IamClient.AddRoleToInstanceProfile(&iam.AddRoleToInstanceProfileInput{
 			InstanceProfileName: aws.String(name),
 			RoleName:            aws.String(name),
