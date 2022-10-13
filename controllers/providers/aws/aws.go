@@ -67,8 +67,6 @@ const (
 	LaunchTemplateAllocationStrategy        = "prioritized"
 	LaunchTemplateLatestVersionKey          = "$Latest"
 	IAMPolicyPrefix                         = "arn:aws:iam::aws:policy"
-	IAMARNPrefix                            = "arn:aws:iam::"
-	ARNPrefix                               = "arn:aws:"
 	LaunchConfigurationNotFoundErrorMessage = "Launch configuration name not found"
 	defaultPolicyArn                        = "arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy"
 )
