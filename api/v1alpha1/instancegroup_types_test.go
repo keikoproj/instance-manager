@@ -342,6 +342,97 @@ func TestInstanceGroupSpecValidate(t *testing.T) {
 			},
 			want: "",
 		},
+		{
+			name: "eks with valid configuration for any random partition",
+			args: args{
+				instancegroup: MockInstanceGroup("eks", "rollingUpdate", &EKSSpec{
+					MaxSize: 1,
+					MinSize: 1,
+					Type:    "LaunchTemplate",
+					EKSConfiguration: &EKSConfiguration{
+						EksClusterName:        "my-eks-cluster",
+						NodeSecurityGroups:    []string{"sg-123456789"},
+						Image:                 "ami-12345",
+						InstanceType:          "m5.large",
+						KeyPairName:           "thisShouldBeOptional",
+						Subnets:               []string{"subnet-1111111", "subnet-222222"},
+						LicenseSpecifications: []string{"arn:some-partition:some-service:somewhere-west-1:some-account-number:license-configuration:lic-0a88baf9a84f39df630da6e67000f88f"},
+						Placement: &PlacementSpec{
+							AvailabilityZone:     "us-gov-west-1a",
+							HostResourceGroupArn: "arn:some-partition:some-group:somewhere-west-1:some-account-number:group/resourceName",
+							Tenancy:              "host",
+						},
+					},
+				}, nil, nil),
+			},
+			want: "",
+		},
+		{
+			name: "eks with invalid LicenseSpecifications for any random partition",
+			args: args{
+				instancegroup: MockInstanceGroup("eks", "rollingUpdate", &EKSSpec{
+					MaxSize: 1,
+					MinSize: 1,
+					Type:    "LaunchTemplate",
+					EKSConfiguration: &EKSConfiguration{
+						EksClusterName:        "my-eks-cluster",
+						NodeSecurityGroups:    []string{"sg-123456789"},
+						Image:                 "ami-12345",
+						InstanceType:          "m5.large",
+						KeyPairName:           "thisShouldBeOptional",
+						Subnets:               []string{"subnet-1111111", "subnet-222222"},
+						LicenseSpecifications: []string{"arn:missingfield:license-manager012345678901:license-configuration:lic-0a88baf9a84f39df630da6e67000f88f"},
+					},
+				}, nil, nil),
+			},
+			want: "validation failed, 'LicenseSpecifications[0]' must be a valid IAM role ARN",
+		},
+		{
+			name: "eks with invalid combination of HostResourceGroupArn and Tenancy in Placement for any random partition",
+			args: args{
+				instancegroup: MockInstanceGroup("eks", "rollingUpdate", &EKSSpec{
+					MaxSize: 1,
+					MinSize: 1,
+					Type:    "LaunchTemplate",
+					EKSConfiguration: &EKSConfiguration{
+						EksClusterName:     "my-eks-cluster",
+						NodeSecurityGroups: []string{"sg-123456789"},
+						Image:              "ami-12345",
+						InstanceType:       "m5.large",
+						KeyPairName:        "thisShouldBeOptional",
+						Subnets:            []string{"subnet-1111111", "subnet-222222"},
+						Placement: &PlacementSpec{
+							HostResourceGroupArn: "arn:some-partition:resource-groups:us-west-2:1122334455:group/resourceName",
+							Tenancy:              "default",
+						},
+					},
+				}, nil, nil),
+			},
+			want: "validation failed, Tenancy must be \"host\" when HostResourceGroupArn is set",
+		},
+		{
+			name: "eks with invalid HostResourceGroupArn in Placement for any random partition",
+			args: args{
+				instancegroup: MockInstanceGroup("eks", "rollingUpdate", &EKSSpec{
+					MaxSize: 1,
+					MinSize: 1,
+					Type:    "LaunchTemplate",
+					EKSConfiguration: &EKSConfiguration{
+						EksClusterName:     "my-eks-cluster",
+						NodeSecurityGroups: []string{"sg-123456789"},
+						Image:              "ami-12345",
+						InstanceType:       "m5.large",
+						KeyPairName:        "thisShouldBeOptional",
+						Subnets:            []string{"subnet-1111111", "subnet-222222"},
+						Placement: &PlacementSpec{
+							HostResourceGroupArn: "arn:missing-field:resource-groups1122334455:group/resourceName",
+							Tenancy:              "host",
+						},
+					},
+				}, nil, nil),
+			},
+			want: "validation failed, HostResourceGroupArn must be a valid dedicated HostResourceGroup ARN",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
