@@ -16,8 +16,6 @@ limitations under the License.
 package aws
 
 import (
-	"fmt"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -52,7 +50,6 @@ func (w *AwsWorker) GetAutoScalingBasicBlockDevice(name, volType, snapshot strin
 	if !common.StringEmpty(snapshot) {
 		device.Ebs.SnapshotId = aws.String(snapshot)
 	}
-	fmt.Printf("%+v\n", device)
 	return device
 }
 
