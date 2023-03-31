@@ -54,10 +54,10 @@ var (
 	InstanceMgrLifecycleLabel = "instancemgr.keikoproj.io/lifecycle"
 	InstanceMgrImageLabel     = "instancemgr.keikoproj.io/image"
 
-	AllowedOsFamilies         = []string{OsFamilyWindows, OsFamilyBottleRocket, OsFamilyAmazonLinux2}
-	DefaultManagedPolicies    = []string{"AmazonEKSWorkerNodePolicy", "AmazonEC2ContainerRegistryReadOnly"}
-	CNIManagedPolicy          = "AmazonEKS_CNI_Policy"
-	SupportedArchitectures    = []string{"x86_64", "arm64"}
+	AllowedOsFamilies      = []string{OsFamilyWindows, OsFamilyBottleRocket, OsFamilyAmazonLinux2}
+	DefaultManagedPolicies = []string{"AmazonEKSWorkerNodePolicy", "AmazonEC2ContainerRegistryReadOnly"}
+	CNIManagedPolicy       = "AmazonEKS_CNI_Policy"
+	SupportedArchitectures = []string{"x86_64", "arm64"}
 )
 
 // New constructs a new instance group provisioner of EKS type
