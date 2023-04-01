@@ -20,6 +20,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 
@@ -566,10 +567,10 @@ func (c *EKSConfiguration) Validate() error {
 		if common.StringEmpty(h.Name) {
 			return errors.Errorf("validation failed, 'name' is a required parameter")
 		}
-		if !common.StringEmpty(h.NotificationArn) && !strings.HasPrefix(h.NotificationArn, awsprovider.ARNPrefix) {
+		if !common.StringEmpty(h.NotificationArn) && !arn.IsARN(h.NotificationArn) {
 			return errors.Errorf("validation failed, 'notificationArn' must be a valid IAM role ARN")
 		}
-		if !common.StringEmpty(h.RoleArn) && !strings.HasPrefix(h.NotificationArn, awsprovider.ARNPrefix) {
+		if !common.StringEmpty(h.RoleArn) && !arn.IsARN(h.NotificationArn) {
 			return errors.Errorf("validation failed, 'roleArn' must be a valid IAM role ARN")
 		}
 		hooks = append(hooks, h)
@@ -619,7 +620,7 @@ func (c *EKSConfiguration) Validate() error {
 	}
 
 	for i, v := range c.LicenseSpecifications {
-		if !strings.HasPrefix(v, awsprovider.ARNPrefix) {
+		if !arn.IsARN(v) {
 			return errors.Errorf("validation failed, 'LicenseSpecifications[%d]' must be a valid IAM role ARN", i)
 		}
 	}
@@ -643,7 +644,7 @@ func (p *PlacementSpec) Validate() error {
 		return errors.Errorf("validation failed, Tenancy must be one of default, dedicated, host")
 	}
 
-	if !common.StringEmpty(p.HostResourceGroupArn) && !strings.HasPrefix(p.HostResourceGroupArn, awsprovider.ARNPrefix) {
+	if !common.StringEmpty(p.HostResourceGroupArn) && !arn.IsARN(p.HostResourceGroupArn) {
 		return errors.Errorf("validation failed, HostResourceGroupArn must be a valid dedicated HostResourceGroup ARN")
 	}
 

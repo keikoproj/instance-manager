@@ -28,6 +28,7 @@ import (
 
 	"github.com/Masterminds/semver"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/keikoproj/instance-manager/api/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
@@ -1027,9 +1028,7 @@ func (ctx *EksInstanceGroupContext) GetManagedPoliciesList(additionalPolicies []
 	managedPolicies := make([]string, 0)
 	for _, name := range additionalPolicies {
 		switch {
-		case strings.HasPrefix(name, awsprovider.IAMPolicyPrefix):
-			managedPolicies = append(managedPolicies, name)
-		case strings.HasPrefix(name, awsprovider.IAMARNPrefix):
+		case arn.IsARN(name):
 			managedPolicies = append(managedPolicies, name)
 		default:
 			managedPolicies = append(managedPolicies, fmt.Sprintf("%s/%s", awsprovider.IAMPolicyPrefix, name))
