@@ -334,7 +334,7 @@ func (lt *LaunchTemplate) RotationNeeded(input *DiscoverConfigurationInput) bool
 func (lt *LaunchTemplate) blockDeviceListRequest(volumes []v1alpha1.NodeVolume) []*ec2.LaunchTemplateBlockDeviceMappingRequest {
 	var devices []*ec2.LaunchTemplateBlockDeviceMappingRequest
 	for _, v := range volumes {
-		devices = append(devices, lt.GetLaunchTemplateBlockDeviceRequest(v.Name, v.Type, v.SnapshotID, v.Size, v.Iops, v.DeleteOnTermination, v.Encrypted))
+		devices = append(devices, lt.GetLaunchTemplateBlockDeviceRequest(v.Name, v.Type, v.SnapshotID, v.Size, v.Iops, v.Throughput, v.DeleteOnTermination, v.Encrypted))
 	}
 
 	return devices

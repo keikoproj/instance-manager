@@ -189,7 +189,7 @@ func TestGetBasicUserDataWindows(t *testing.T) {
 	ctx := MockContext(ig, k, w)
 
 	configuration.BootstrapOptions = &v1alpha1.BootstrapOptions{
-		MaxPods: 4,
+		MaxPods:          4,
 		ContainerRuntime: "containerd",
 	}
 	configuration.Labels = map[string]string{
