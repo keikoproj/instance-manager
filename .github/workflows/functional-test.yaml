@@ -1,6 +1,7 @@
 name: functional-test
 
 on:
+  workflow_dispatch:
   schedule:
     # run at 23:05 PM PST (cron uses UTC)
     - cron:  '5 15 * * *'
