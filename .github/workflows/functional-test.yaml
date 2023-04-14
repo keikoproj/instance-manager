@@ -38,7 +38,7 @@ jobs:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v2
         with:
-          ref: master
+          ref: fix/functional-test
 
       - name: test
         env:
