@@ -16,15 +16,15 @@ jobs:
     steps:
 
       - name: python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.6'
+          python-version: 'pypy3.9'
           architecture: 'x64'
 
       - name: setup
         run: |
           sudo apt update
-          sudo apt install python-pip
+          sudo apt install python3-pip
           pip install --user awscli
           curl -LO https://storage.googleapis.com/kubernetes-release/release/`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`/bin/linux/amd64/kubectl
           chmod +x ./kubectl
@@ -36,7 +36,7 @@ jobs:
           aws --version
 
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           ref: master
 
