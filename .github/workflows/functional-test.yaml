@@ -16,9 +16,9 @@ jobs:
     steps:
 
       - name: python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.6'
+          python-version: 'pypy3.9'
           architecture: 'x64'
 
       - name: setup
