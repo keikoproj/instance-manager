@@ -24,7 +24,7 @@ jobs:
       - name: setup
         run: |
           sudo apt update
-          sudo apt install python-pip
+          sudo apt install python3-pip
           pip install --user awscli
           curl -LO https://storage.googleapis.com/kubernetes-release/release/`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`/bin/linux/amd64/kubectl
           chmod +x ./kubectl
