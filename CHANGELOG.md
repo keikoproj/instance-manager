@@ -4,11 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
+## [v0.14.1-alpha2] - 2023-4-17
+
+* fix: functional test by @vgunapati and @garomonegro in (#383) (#382)
+* chore: Update functional-test.yaml ubuntu-20.04 by @garomonegro in (#381)
+* fix: Not honoring gp3 volume iops and throughput values by @vgunapati in (#380)
+* chore(deps): Bump golang.org/x/net (#377) 
+* chore(deps): Bump github.com/prometheus/client_golang (#375)
+* fix: Replace ARN format validation procedure by @srosenberg-apptio in (#374)
+* fix: remove spot dependency from functional test by @eytan-avisror in (#360)
+* feat: add support for container runtime on windows AMIs by @backjo in (#359)
+* chore: Add CodeQL analysis by @backjo in (#358)
+* feat: use IMDS for autoscaling information by @backjo in (#357)
+
 ## [v0.14.1-alpha2] - 2022-4-6
 * fix: use non-deprecated CRD api by @backjo in https://github.com/keikoproj/instance-manager/pull/355
 * chore: upgrade dependencies by @eytan-avisror in https://github.com/keikoproj/instance-manager/pull/353
 * feat: allow resolving EKS AMIs by version/slug for better readability by @backjo in https://github.com/keikoproj/instance-manager/pull/351
 * fix: Add override instance type for running instances in MixedInstancePolicy by @eytan-avisror in https://github.com/keikoproj/instance-manager/pull/350
+
 ## [v0.14.0-alpha2] - 2022-2-14
 * feat: add support for calculating max pods when prefix assignment is … by @backjo in https://github.com/keikoproj/instance-manager/pull/326
 * fix: check architecture when considering similar instance types in the same family by @backjo in https://github.com/keikoproj/instance-manager/pull/332
