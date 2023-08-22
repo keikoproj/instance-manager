@@ -75,6 +75,7 @@ func main() {
 		maxAPIRetries              int
 		configRetention            int
 		err                        error
+		setScalingConfigurationToLaunchConfig bool
 	)
 
 	flag.IntVar(&maxParallel, "max-workers", 5, "The number of maximum parallel reconciles")
@@ -87,6 +88,8 @@ func main() {
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&nodeRelabel, "node-relabel", true, "relabel nodes as they join with kubernetes.io/role label via controller")
 	flag.BoolVar(&disableWinClusterInjection, "disable-windows-cluster-ca-injection", false, "Setting this to true will cause the ClusterCA and Endpoint to not be injected for Windows nodes")
+	flag.BoolVar(&setScalingConfigurationToLaunchConfig, "scaling-configuration-to-launchconfig", false, "By default ASGs will have launchtemplates. Set this flag to true if launchconfigs needs to be the default.")
+
 
 	flag.Parse()
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
@@ -150,18 +153,19 @@ func main() {
 	}
 
 	err = (&controllers.InstanceGroupReconciler{
-		Metrics:                    controllerCollector,
-		ConfigMap:                  cm,
-		ConfigRetention:            configRetention,
-		SpotRecommendationTime:     spotRecommendationTime,
-		ConfigNamespace:            configNamespace,
-		Namespaces:                 make(map[string]corev1.Namespace),
-		NamespacesLock:             &sync.RWMutex{},
-		NodeRelabel:                nodeRelabel,
-		DisableWinClusterInjection: disableWinClusterInjection,
-		Client:                     mgr.GetClient(),
-		Log:                        ctrl.Log.WithName("controllers").WithName("instancegroup"),
-		MaxParallel:                maxParallel,
+		Metrics:                    			controllerCollector,
+		ConfigMap:                  			cm,
+		ConfigRetention:            			configRetention,
+		SpotRecommendationTime:     			spotRecommendationTime,
+		ConfigNamespace:            			configNamespace,
+		Namespaces:                 			make(map[string]corev1.Namespace),
+		NamespacesLock:             			&sync.RWMutex{},
+		NodeRelabel:                			nodeRelabel,
+		DisableWinClusterInjection: 			disableWinClusterInjection,
+		Client:                     			mgr.GetClient(),
+		Log:                        			ctrl.Log.WithName("controllers").WithName("instancegroup"),
+		MaxParallel:                			maxParallel,
+		SetScalingConfigurationToLaunchConfig: 	setScalingConfigurationToLaunchConfig,
 		Auth: &controllers.InstanceGroupAuthenticator{
 			Aws:        awsWorker,
 			Kubernetes: kube,

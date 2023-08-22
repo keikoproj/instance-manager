@@ -419,7 +419,7 @@ func (s *EKSSpec) Validate() error {
 	}
 
 	if s.Type != LaunchConfiguration && s.Type != LaunchTemplate {
-		s.Type = LaunchConfiguration
+		s.Type = LaunchTemplate
 	}
 
 	if s.Type == LaunchConfiguration {
