@@ -43,19 +43,19 @@ import (
 // InstanceGroupReconciler reconciles an InstanceGroup object
 type InstanceGroupReconciler struct {
 	client.Client
-	SpotRecommendationTime     				float64
-	ConfigNamespace            				string
-	NodeRelabel                				bool
-	Log                        				logr.Logger
-	MaxParallel                				int
-	Auth                       				*InstanceGroupAuthenticator
-	ConfigMap                  				*corev1.ConfigMap
-	Namespaces                 				map[string]corev1.Namespace
-	NamespacesLock             				*sync.RWMutex
-	ConfigRetention            				int
-	Metrics                    				*common.MetricsCollector
-	DisableWinClusterInjection 				bool
-	SetScalingConfigurationToLaunchConfig 	bool
+	SpotRecommendationTime                float64
+	ConfigNamespace                       string
+	NodeRelabel                           bool
+	Log                                   logr.Logger
+	MaxParallel                           int
+	Auth                                  *InstanceGroupAuthenticator
+	ConfigMap                             *corev1.ConfigMap
+	Namespaces                            map[string]corev1.Namespace
+	NamespacesLock                        *sync.RWMutex
+	ConfigRetention                       int
+	Metrics                               *common.MetricsCollector
+	DisableWinClusterInjection            bool
+	SetScalingConfigurationToLaunchConfig bool
 }
 
 type InstanceGroupAuthenticator struct {
@@ -202,7 +202,7 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 		return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
 	}
 
-	if r.SetScalingConfigurationToLaunchConfig{
+	if r.SetScalingConfigurationToLaunchConfig {
 		input.InstanceGroup.Spec.EKSSpec.Type = v1alpha1.LaunchConfiguration
 	}
 
