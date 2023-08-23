@@ -55,7 +55,7 @@ type InstanceGroupReconciler struct {
 	ConfigRetention                       int
 	Metrics                               *common.MetricsCollector
 	DisableWinClusterInjection            bool
-	SetScalingConfigurationToLaunchConfig bool
+	SetDefaultConfigurationToLaunchConfig bool
 }
 
 type InstanceGroupAuthenticator struct {
@@ -195,15 +195,18 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 		ctx = eksfargate.New(input)
 	}
 
+	// for igs without any config type mentioned, allow the default to be set to launchconfig.
+	if r.SetDefaultConfigurationToLaunchConfig {
+		if input.InstanceGroup.EKSSpec.Type != v1alpha1.LaunchConfiguration && input.InstanceGroup.EKSSpec.Type != v1alpha1.LaunchTemplate {
+			input.InstanceGroup.EKSSpec.Type = v1alpha1.LaunchConfiguration
+		}
+	}
+	
 	if err = input.InstanceGroup.Validate(); err != nil {
 		ctx.SetState(v1alpha1.ReconcileErr)
 		r.PatchStatus(input.InstanceGroup, statusPatch)
 		r.Metrics.IncFail(instanceGroup.NamespacedName(), ErrorReasonValidationFailed)
 		return ctrl.Result{}, errors.Wrapf(err, "provisioner %v reconcile failed", provisionerKind)
-	}
-
-	if r.SetScalingConfigurationToLaunchConfig {
-		input.InstanceGroup.Spec.EKSSpec.Type = v1alpha1.LaunchConfiguration
 	}
 
 	if err = HandleReconcileRequest(ctx); err != nil {
