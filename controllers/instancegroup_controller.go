@@ -197,8 +197,8 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 
 	// for igs without any config type mentioned, allow the default to be set to launchconfig.
 	if r.SetDefaultConfigurationToLaunchConfig {
-		if input.InstanceGroup.EKSSpec.Type != v1alpha1.LaunchConfiguration && input.InstanceGroup.EKSSpec.Type != v1alpha1.LaunchTemplate {
-			input.InstanceGroup.EKSSpec.Type = v1alpha1.LaunchConfiguration
+		if input.InstanceGroup.Spec.EKSSpec.Type != v1alpha1.LaunchConfiguration && input.InstanceGroup.Spec.EKSSpec.Type != v1alpha1.LaunchTemplate {
+			input.InstanceGroup.Spec.EKSSpec.Type = v1alpha1.LaunchConfiguration
 		}
 	}
 	
