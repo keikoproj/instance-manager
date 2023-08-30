@@ -22,6 +22,7 @@ import (
 
 type EksUnitTest struct {
 	InstanceGroup *InstanceGroup
+	Overrides     *ValidationOverrides
 }
 
 func (u *EksUnitTest) Run(t *testing.T) string {
@@ -34,12 +35,15 @@ func (u *EksUnitTest) Run(t *testing.T) string {
 }
 
 func TestInstanceGroupSpecValidate(t *testing.T) {
+	launchconfiguration := LaunchConfiguration
 	type args struct {
 		instancegroup *InstanceGroup
+		overrides     *ValidationOverrides
 	}
 	testFunction := func(t *testing.T, args args) string {
 		testCase := EksUnitTest{
 			InstanceGroup: args.instancegroup,
+			Overrides:     args.overrides,
 		}
 		return testCase.Run(t)
 	}
@@ -432,6 +436,16 @@ func TestInstanceGroupSpecValidate(t *testing.T) {
 			},
 			want: "validation failed, HostResourceGroupArn must be a valid dedicated HostResourceGroup ARN",
 		},
+		{
+			name: "default to launch config instead of launch template",
+			args: args{
+				instancegroup: MockInstanceGroup("eks-fargate", "managed", nil, nil, basicFargateSpec()),
+				overrides: &ValidationOverrides{
+					scalingConfigurationOverride: &launchconfiguration,
+				},
+			},
+			want: "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -439,6 +453,70 @@ func TestInstanceGroupSpecValidate(t *testing.T) {
 			if got != tt.want {
 				t.Errorf("%v: got %v, want %v", tt.name, got, tt.want)
 			}
+		})
+
+	}
+}
+
+func TestScalingConfigOverride(t *testing.T) {
+	launchconfiguration := LaunchConfiguration
+	launchtemplate := LaunchTemplate
+	type args struct {
+		instancegroup *InstanceGroup
+		overrides     *ValidationOverrides
+	}
+	testFunction := func(t *testing.T, args args) string {
+		testCase := EksUnitTest{
+			InstanceGroup: args.instancegroup,
+			Overrides:     args.overrides,
+		}
+		return testCase.Run(t)
+	}
+	tests := []struct {
+		name string
+		args args
+		want ScalingConfigurationType
+	}{
+		{
+			name: "override default to launchconfig instead of launchtemplate",
+			args: args{
+				instancegroup: MockInstanceGroup("eks-fargate", "managed", nil, nil, basicFargateSpec()),
+				overrides: &ValidationOverrides{
+					scalingConfigurationOverride: &launchconfiguration,
+				},
+			},
+			want: LaunchConfiguration,
+		},
+		{
+			name: "no default overrides",
+			args: args{
+				instancegroup: MockInstanceGroup("eks-fargate", "managed", nil, nil, basicFargateSpec()),
+				overrides:     &ValidationOverrides{},
+			},
+			want: LaunchTemplate,
+		},
+		{
+			name: "override default to launchtemplate",
+			args: args{
+				instancegroup: MockInstanceGroup("eks-fargate", "managed", nil, nil, basicFargateSpec()),
+				overrides: &ValidationOverrides{
+					scalingConfigurationOverride: &launchtemplate,
+				},
+			},
+			want: LaunchTemplate,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := testFunction(t, tt.args)
+			if err != "" {
+				t.Errorf("error:%v", err)
+			}
+			got := tt.args.instancegroup.Spec.EKSSpec.Type
+			if got != tt.want {
+				t.Errorf("%v: got %v, want %v", tt.name, got, tt.want)
+			}
+
 		})
 
 	}

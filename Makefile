@@ -38,7 +38,7 @@ all: check-go test clean manager
 # Run tests
 .PHONY: test
 test: generate fmt vet manifests
-	go test -v ./controllers/... ./api/... -coverprofile coverage.txt
+	go test ./controllers/... ./api/... -coverprofile coverage.txt
 
 .PHONY: bdd
 bdd:
