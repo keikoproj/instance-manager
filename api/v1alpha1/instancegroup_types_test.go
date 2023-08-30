@@ -25,7 +25,7 @@ type EksUnitTest struct {
 }
 
 func (u *EksUnitTest) Run(t *testing.T) string {
-	err := u.InstanceGroup.Validate()
+	err := u.InstanceGroup.Validate(&ValidationOverrides{})
 	if err == nil {
 		return aws.StringValue(nil)
 	} else {

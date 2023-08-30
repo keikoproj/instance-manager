@@ -65,17 +65,17 @@ func main() {
 	printVersion()
 
 	var (
-		metricsAddr                           string
-		configNamespace                       string
-		spotRecommendationTime                float64
-		enableLeaderElection                  bool
-		nodeRelabel                           bool
-		disableWinClusterInjection            bool
-		maxParallel                           int
-		maxAPIRetries                         int
-		configRetention                       int
-		err                                   error
-		setDefaultConfigurationToLaunchConfig bool
+		metricsAddr                 string
+		configNamespace             string
+		spotRecommendationTime      float64
+		enableLeaderElection        bool
+		nodeRelabel                 bool
+		disableWinClusterInjection  bool
+		maxParallel                 int
+		maxAPIRetries               int
+		configRetention             int
+		err                         error
+		defaultScalingConfiguration string
 	)
 
 	flag.IntVar(&maxParallel, "max-workers", 5, "The number of maximum parallel reconciles")
@@ -88,7 +88,7 @@ func main() {
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&nodeRelabel, "node-relabel", true, "relabel nodes as they join with kubernetes.io/role label via controller")
 	flag.BoolVar(&disableWinClusterInjection, "disable-windows-cluster-ca-injection", false, "Setting this to true will cause the ClusterCA and Endpoint to not be injected for Windows nodes")
-	flag.BoolVar(&setDefaultConfigurationToLaunchConfig, "scaling-configuration-to-launchconfig", false, "By default ASGs will have launchtemplates. Set this flag to true if launchconfigs needs to be the default.")
+	flag.StringVar(&defaultScalingConfiguration, "", string(instancemgrv1alpha1.LaunchTemplate), "By default ASGs will have launchtemplates. Set this flag to true if launchconfigs needs to be the default.")
 
 	flag.Parse()
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
@@ -151,20 +151,21 @@ func main() {
 		setupLog.Info("instance-manager configmap does not exist, will not load defaults/boundaries")
 	}
 
+	defaultScalingConfigurationType := instancemgrv1alpha1.ScalingConfigurationType(defaultScalingConfiguration)
 	err = (&controllers.InstanceGroupReconciler{
-		Metrics:                               controllerCollector,
-		ConfigMap:                             cm,
-		ConfigRetention:                       configRetention,
-		SpotRecommendationTime:                spotRecommendationTime,
-		ConfigNamespace:                       configNamespace,
-		Namespaces:                            make(map[string]corev1.Namespace),
-		NamespacesLock:                        &sync.RWMutex{},
-		NodeRelabel:                           nodeRelabel,
-		DisableWinClusterInjection:            disableWinClusterInjection,
-		Client:                                mgr.GetClient(),
-		Log:                                   ctrl.Log.WithName("controllers").WithName("instancegroup"),
-		MaxParallel:                           maxParallel,
-		SetDefaultConfigurationToLaunchConfig: setDefaultConfigurationToLaunchConfig,
+		Metrics:                     controllerCollector,
+		ConfigMap:                   cm,
+		ConfigRetention:             configRetention,
+		SpotRecommendationTime:      spotRecommendationTime,
+		ConfigNamespace:             configNamespace,
+		Namespaces:                  make(map[string]corev1.Namespace),
+		NamespacesLock:              &sync.RWMutex{},
+		NodeRelabel:                 nodeRelabel,
+		DisableWinClusterInjection:  disableWinClusterInjection,
+		Client:                      mgr.GetClient(),
+		Log:                         ctrl.Log.WithName("controllers").WithName("instancegroup"),
+		MaxParallel:                 maxParallel,
+		DefaultScalingConfiguration: &defaultScalingConfigurationType,
 		Auth: &controllers.InstanceGroupAuthenticator{
 			Aws:        awsWorker,
 			Kubernetes: kube,

@@ -43,19 +43,19 @@ import (
 // InstanceGroupReconciler reconciles an InstanceGroup object
 type InstanceGroupReconciler struct {
 	client.Client
-	SpotRecommendationTime                float64
-	ConfigNamespace                       string
-	NodeRelabel                           bool
-	Log                                   logr.Logger
-	MaxParallel                           int
-	Auth                                  *InstanceGroupAuthenticator
-	ConfigMap                             *corev1.ConfigMap
-	Namespaces                            map[string]corev1.Namespace
-	NamespacesLock                        *sync.RWMutex
-	ConfigRetention                       int
-	Metrics                               *common.MetricsCollector
-	DisableWinClusterInjection            bool
-	SetDefaultConfigurationToLaunchConfig bool
+	SpotRecommendationTime      float64
+	ConfigNamespace             string
+	NodeRelabel                 bool
+	Log                         logr.Logger
+	MaxParallel                 int
+	Auth                        *InstanceGroupAuthenticator
+	ConfigMap                   *corev1.ConfigMap
+	Namespaces                  map[string]corev1.Namespace
+	NamespacesLock              *sync.RWMutex
+	ConfigRetention             int
+	Metrics                     *common.MetricsCollector
+	DisableWinClusterInjection  bool
+	DefaultScalingConfiguration *v1alpha1.ScalingConfigurationType
 }
 
 type InstanceGroupAuthenticator struct {
@@ -196,13 +196,9 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 	}
 
 	// for igs without any config type mentioned, allow the default to be set to launchconfig.
-	if r.SetDefaultConfigurationToLaunchConfig {
-		if input.InstanceGroup.Spec.EKSSpec.Type != v1alpha1.LaunchConfiguration && input.InstanceGroup.Spec.EKSSpec.Type != v1alpha1.LaunchTemplate {
-			input.InstanceGroup.Spec.EKSSpec.Type = v1alpha1.LaunchConfiguration
-		}
-	}
-	
-	if err = input.InstanceGroup.Validate(); err != nil {
+	overrides := v1alpha1.NewValidationOverrides(r.DefaultScalingConfiguration)
+
+	if err = input.InstanceGroup.Validate(overrides); err != nil {
 		ctx.SetState(v1alpha1.ReconcileErr)
 		r.PatchStatus(input.InstanceGroup, statusPatch)
 		r.Metrics.IncFail(instanceGroup.NamespacedName(), ErrorReasonValidationFailed)
