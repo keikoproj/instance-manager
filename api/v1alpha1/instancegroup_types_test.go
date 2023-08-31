@@ -26,7 +26,7 @@ type EksUnitTest struct {
 }
 
 func (u *EksUnitTest) Run(t *testing.T) string {
-	err := u.InstanceGroup.Validate(&ValidationOverrides{})
+	err := u.InstanceGroup.Validate(u.Overrides)
 	if err == nil {
 		return aws.StringValue(nil)
 	} else {
@@ -480,7 +480,7 @@ func TestScalingConfigOverride(t *testing.T) {
 		{
 			name: "override default to launchconfig instead of launchtemplate",
 			args: args{
-				instancegroup: MockInstanceGroup("eks-fargate", "managed", nil, nil, basicFargateSpec()),
+				instancegroup: MockInstanceGroup("eks", "managed", MockEKSSpec(), nil, basicFargateSpec()),
 				overrides: &ValidationOverrides{
 					scalingConfigurationOverride: &launchconfiguration,
 				},
@@ -490,15 +490,15 @@ func TestScalingConfigOverride(t *testing.T) {
 		{
 			name: "no default overrides",
 			args: args{
-				instancegroup: MockInstanceGroup("eks-fargate", "managed", nil, nil, basicFargateSpec()),
-				overrides:     &ValidationOverrides{},
+				instancegroup: MockInstanceGroup("eks", "managed", MockEKSSpec(), nil, basicFargateSpec()),
+				overrides: &ValidationOverrides{},
 			},
 			want: LaunchTemplate,
 		},
 		{
 			name: "override default to launchtemplate",
 			args: args{
-				instancegroup: MockInstanceGroup("eks-fargate", "managed", nil, nil, basicFargateSpec()),
+				instancegroup: MockInstanceGroup("eks", "managed", MockEKSSpec(), nil, basicFargateSpec()),
 				overrides: &ValidationOverrides{
 					scalingConfigurationOverride: &launchtemplate,
 				},
@@ -584,4 +584,18 @@ func MockInstanceGroup(provisioner, strategy string, eksSpec *EKSSpec, eksManage
 		},
 	}
 
+}
+
+func MockEKSSpec() *EKSSpec {
+	return &EKSSpec{
+		Type: "invalid-scaling-config",
+		EKSConfiguration: &EKSConfiguration{
+			EksClusterName:     "sample-cluster",
+			Subnets:            []string{"subnet-1111111", "subnet-222222"},
+			NodeSecurityGroups: []string{"sg-sample-1", "sg-sample-2"},
+			Image:              "sample-ami",
+			InstanceType:       "sample-instance",
+			KeyPairName:        "sample-key-pair",
+		},
+	}
 }
