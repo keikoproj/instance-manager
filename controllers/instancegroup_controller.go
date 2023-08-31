@@ -195,7 +195,7 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 		ctx = eksfargate.New(input)
 	}
 
-	// for igs without any config type mentioned, allow the default to be set to launchconfig.
+	// for igs without any config type mentioned, allow overriding the default.
 	overrides := v1alpha1.NewValidationOverrides(r.DefaultScalingConfiguration)
 
 	if err = input.InstanceGroup.Validate(overrides); err != nil {

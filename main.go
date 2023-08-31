@@ -88,7 +88,7 @@ func main() {
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&nodeRelabel, "node-relabel", true, "relabel nodes as they join with kubernetes.io/role label via controller")
 	flag.BoolVar(&disableWinClusterInjection, "disable-windows-cluster-ca-injection", false, "Setting this to true will cause the ClusterCA and Endpoint to not be injected for Windows nodes")
-	flag.StringVar(&defaultScalingConfiguration, "", string(instancemgrv1alpha1.LaunchTemplate), "By default ASGs will have launchtemplates. Set this flag to true if launchconfigs needs to be the default.")
+	flag.StringVar(&defaultScalingConfiguration, "", string(instancemgrv1alpha1.LaunchTemplate), "By default ASGs will have LaunchTemplate. Set this string to either 'LaunchConfiguration' or 'LaunchTemplate' to enforce defaults.")
 
 	flag.Parse()
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
