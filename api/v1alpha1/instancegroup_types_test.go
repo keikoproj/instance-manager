@@ -491,7 +491,7 @@ func TestScalingConfigOverride(t *testing.T) {
 			name: "no default overrides",
 			args: args{
 				instancegroup: MockInstanceGroup("eks", "managed", MockEKSSpec(), nil, basicFargateSpec()),
-				overrides: &ValidationOverrides{},
+				overrides:     &ValidationOverrides{},
 			},
 			want: LaunchTemplate,
 		},
