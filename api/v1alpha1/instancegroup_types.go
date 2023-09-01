@@ -368,6 +368,15 @@ type InstanceGroupStatus struct {
 
 type InstanceGroupConditionType string
 
+type ValidationOverrides struct {
+	scalingConfigurationOverride *ScalingConfigurationType
+}
+
+func NewValidationOverrides(defaultScalingConfiguration *ScalingConfigurationType) *ValidationOverrides {
+	return &ValidationOverrides{
+		scalingConfigurationOverride: defaultScalingConfiguration,
+	}
+}
 func NewInstanceGroupCondition(cType InstanceGroupConditionType, status corev1.ConditionStatus) InstanceGroupCondition {
 	return InstanceGroupCondition{
 		Type:   cType,
@@ -409,7 +418,7 @@ func (ig *InstanceGroup) Locked() bool {
 	return false
 }
 
-func (s *EKSSpec) Validate() error {
+func (s *EKSSpec) Validate(overrides *ValidationOverrides) error {
 	var (
 		configuration = s.EKSConfiguration
 		configType    = s.Type
@@ -419,7 +428,10 @@ func (s *EKSSpec) Validate() error {
 	}
 
 	if s.Type != LaunchConfiguration && s.Type != LaunchTemplate {
-		s.Type = LaunchConfiguration
+		s.Type = LaunchTemplate
+		if overrides.scalingConfigurationOverride != nil {
+			s.Type = *overrides.scalingConfigurationOverride
+		}
 	}
 
 	if s.Type == LaunchConfiguration {
@@ -700,7 +712,7 @@ func (m *MixedInstancesPolicySpec) Validate() error {
 	return nil
 }
 
-func (ig *InstanceGroup) Validate() error {
+func (ig *InstanceGroup) Validate(overrides *ValidationOverrides) error {
 	s := ig.Spec
 
 	if !common.ContainsEqualFold(Provisioners, s.Provisioner) {
@@ -735,7 +747,7 @@ func (ig *InstanceGroup) Validate() error {
 		config := ig.GetEKSConfiguration()
 		spec := ig.GetEKSSpec()
 
-		if err := spec.Validate(); err != nil {
+		if err := spec.Validate(overrides); err != nil {
 			return err
 		}
 
