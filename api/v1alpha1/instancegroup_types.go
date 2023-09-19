@@ -430,6 +430,9 @@ func (s *EKSSpec) Validate(overrides *ValidationOverrides) error {
 	if s.Type != LaunchConfiguration && s.Type != LaunchTemplate {
 		s.Type = LaunchTemplate
 		if overrides.scalingConfigurationOverride != nil {
+			if *overrides.scalingConfigurationOverride != LaunchTemplate && *overrides.scalingConfigurationOverride != LaunchConfiguration {
+				return errors.Errorf("validation failed, 'scaling-configuration-override' has invalid value: %v ", *overrides.scalingConfigurationOverride)
+			}
 			s.Type = *overrides.scalingConfigurationOverride
 		}
 	}

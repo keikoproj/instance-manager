@@ -461,6 +461,8 @@ func TestInstanceGroupSpecValidate(t *testing.T) {
 func TestScalingConfigOverride(t *testing.T) {
 	launchconfiguration := LaunchConfiguration
 	launchtemplate := LaunchTemplate
+	var invalidScalingConfigType ScalingConfigurationType = "invalid-scaling-config-type"
+
 	type args struct {
 		instancegroup *InstanceGroup
 		overrides     *ValidationOverrides
@@ -473,9 +475,10 @@ func TestScalingConfigOverride(t *testing.T) {
 		return testCase.Run(t)
 	}
 	tests := []struct {
-		name string
-		args args
-		want ScalingConfigurationType
+		name          string
+		args          args
+		want          ScalingConfigurationType
+		expectedError bool
 	}{
 		{
 			name: "override default to launchconfig instead of launchtemplate",
@@ -485,7 +488,8 @@ func TestScalingConfigOverride(t *testing.T) {
 					scalingConfigurationOverride: &launchconfiguration,
 				},
 			},
-			want: LaunchConfiguration,
+			want:          LaunchConfiguration,
+			expectedError: false,
 		},
 		{
 			name: "no default overrides",
@@ -493,7 +497,8 @@ func TestScalingConfigOverride(t *testing.T) {
 				instancegroup: MockInstanceGroup("eks", "managed", MockEKSSpec(), nil, basicFargateSpec()),
 				overrides:     &ValidationOverrides{},
 			},
-			want: LaunchTemplate,
+			want:          LaunchTemplate,
+			expectedError: false,
 		},
 		{
 			name: "override default to launchtemplate",
@@ -503,15 +508,27 @@ func TestScalingConfigOverride(t *testing.T) {
 					scalingConfigurationOverride: &launchtemplate,
 				},
 			},
-			want: LaunchTemplate,
+			want:          LaunchTemplate,
+			expectedError: false,
+		},
+		{
+			name: "override default to an invalid scaling config type",
+			args: args{
+				instancegroup: MockInstanceGroup("eks", "managed", MockEKSSpec(), nil, basicFargateSpec()),
+				overrides: &ValidationOverrides{
+					scalingConfigurationOverride: &invalidScalingConfigType,
+				},
+			},
+			want:          LaunchTemplate,
+			expectedError: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := testFunction(t, tt.args)
-			if err != "" {
-				t.Errorf("error:%v", err)
-			}
+			if (!tt.expectedError && err != "") || (tt.expectedError && err == "") {
+				t.Errorf("%v: got: %v, expectedError: %v", tt.name, err, tt.expectedError)
+      }
 			got := tt.args.instancegroup.Spec.EKSSpec.Type
 			if got != tt.want {
 				t.Errorf("%v: got %v, want %v", tt.name, got, tt.want)
