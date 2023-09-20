@@ -29,9 +29,6 @@ GO_LDFLAGS ?= -ldflags="-s -w"
 IMG ?= instance-manager:latest
 INSTANCEMGR_TAG ?= latest
 
-# Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
-CRD_OPTIONS ?= "crd:trivialVersions=true"
-
 .PHONY: all
 all: check-go test clean manager
 
@@ -82,7 +79,7 @@ deploy: manifests
 # Generate manifests e.g. CRD, RBAC etc.
 .PHONY: manifests
 manifests: controller-gen
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=instance-manager webhook paths="./api/...;./controllers/..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) rbac:roleName=instance-manager crd webhook paths="./api/...;./controllers/..." output:crd:artifacts:config=config/crd/bases
 
 # Run go fmt against code
 .PHONY: fmt

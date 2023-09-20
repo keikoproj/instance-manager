@@ -528,7 +528,7 @@ func TestScalingConfigOverride(t *testing.T) {
 			err := testFunction(t, tt.args)
 			if (!tt.expectedError && err != "") || (tt.expectedError && err == "") {
 				t.Errorf("%v: got: %v, expectedError: %v", tt.name, err, tt.expectedError)
-      }
+			}
 			got := tt.args.instancegroup.Spec.EKSSpec.Type
 			if got != tt.want {
 				t.Errorf("%v: got %v, want %v", tt.name, got, tt.want)
