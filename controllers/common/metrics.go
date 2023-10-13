@@ -92,7 +92,7 @@ func (c *MetricsCollector) IncSuccess(instanceGroup string) {
 }
 
 func (c *MetricsCollector) IncFail(instanceGroup, reason string) {
-	c.failureCounter.With(prometheus.Labels{"instancegroup": instanceGroup}).Inc()
+	c.failureCounter.With(prometheus.Labels{"instancegroup": instanceGroup, "reason": reason}).Inc()
 }
 
 func (c *MetricsCollector) IncThrottle(serviceName, operationName string) {
