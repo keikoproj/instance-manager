@@ -11,7 +11,7 @@ require (
 	github.com/go-logr/logr v1.2.4
 	github.com/keikoproj/aws-auth v0.5.0
 	github.com/keikoproj/aws-sdk-go-cache v0.0.2
-	github.com/onsi/gomega v1.27.10
+	github.com/onsi/gomega v1.28.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.16.0
 	github.com/sirupsen/logrus v1.8.1
