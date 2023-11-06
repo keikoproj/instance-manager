@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
+
+## [v0.17.0-alpha2] - 2023-10-30
+* Fix incorrect counter name (#409)
+* Bump sigs.k8s.io/controller-runtime from 0.12.1 to 0.12.3 (#400)
+* Bump github.com/prometheus/client_golang (#403)
+* Bump github.com/onsi/gomega from 1.27.10 to 1.28.0 (#404)
+* Bump crazy-max/ghaction-docker-meta from 1 to 5 (#407)
+* Bump golang.org/x/net from 0.12.0 to 0.17.0 (#408)
+* Bump docker/build-push-action from 2 to 5 (#406)
+* Bump docker/login-action from 1 to 3 (#405)
+* Bump github.com/aws/aws-sdk-go from 1.45.14 to 1.45.19 (#402)
+* Bump codecov/codecov-action from 1 to 3 (#395)
+* Bump docker/setup-qemu-action from 1 to 3 (#397)
+* Bump docker/setup-buildx-action from 1 to 3 (#394)
+* Bump actions/setup-go from 2 to 4 (#393)
+* Bump actions/checkout from 2 to 4 (#396)
+* Add dependabot configuration (#392)
+* Update aws-auth and aws-sdk-go-cache (#391)
+* Update go to 1.19, client-go to v0.24.14, and controller-runtime to v0.12.1 (#389)
+* Set LaunchTemplate as default value for default-scaling-configuration (#387)
+* Bump gopkg.in/yaml.v3 (#386)
+* Feat: support overriding default scaling configuration (#385)
+
+## [v0.16.0-alpha2] - 2023-09-01
+* Make launchtemplates as a default scaling group configuration, instead of launchconfigurations. by @shreyas-badiger in https://github.com/keikoproj/instance-manager/pull/385
+
+
 ## [v0.15.0-alpha2] - 2023-4-17
 
 * fix: functional test by @vgunapati and @garomonegro in (#383) (#382)
