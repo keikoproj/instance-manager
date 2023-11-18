@@ -16,9 +16,9 @@ require (
 	github.com/prometheus/client_golang v1.17.0
 	github.com/sirupsen/logrus v1.8.1
 	golang.org/x/oauth2 v0.8.0 // indirect
-	k8s.io/api v0.25.14
-	k8s.io/apimachinery v0.25.14
-	k8s.io/client-go v0.25.14
+	k8s.io/api v0.25.15
+	k8s.io/apimachinery v0.25.15
+	k8s.io/client-go v0.25.15
 	sigs.k8s.io/controller-runtime v0.12.3
 )
 
