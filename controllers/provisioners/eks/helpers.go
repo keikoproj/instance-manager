@@ -141,7 +141,7 @@ func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, k
   [string]$Lifecycle=(curl -UseBasicParsing -Method GET "http://169.254.169.254/latest/meta-data/autoscaling/target-lifecycle-state" -H @{ "X-aws-ec2-metadata-token" = "$IMDSToken"} | % { Echo $_.Content})
   if ($Lifecycle -like "*Warmed*") {
     Echo "Not starting Kubelet due to warmed state."
-    & C:\ProgramData\Amazon\EC2-Windows\Launch\Scripts\InitializeInstance.ps1 –Schedule
+    & C:\ProgramData\Amazon\EC2-Windows\Launch\Scripts\InitializeInstance.ps1 -Schedule
   } else {
     & $EKSBootstrapScriptFile -EKSClusterName {{ .ClusterName }} {{ .Arguments }} 3>&1 4>&1 5>&1 6>&1
     {{range $post := .PostBootstrap}}{{$post}}{{end}}
