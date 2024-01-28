@@ -228,7 +228,7 @@ func TestGetBasicUserDataWindows(t *testing.T) {
   [string]$Lifecycle=(curl -UseBasicParsing -Method GET "http://169.254.169.254/latest/meta-data/autoscaling/target-lifecycle-state" -H @{ "X-aws-ec2-metadata-token" = "$IMDSToken"} | % { Echo $_.Content})
   if ($Lifecycle -like "*Warmed*") {
     Echo "Not starting Kubelet due to warmed state."
-    & C:\ProgramData\Amazon\EC2-Windows\Launch\Scripts\InitializeInstance.ps1 –Schedule
+    & C:\ProgramData\Amazon\EC2-Windows\Launch\Scripts\InitializeInstance.ps1 -Schedule
   } else {
     & $EKSBootstrapScriptFile -EKSClusterName foo -Base64ClusterCA dGVzdA== -APIServerEndpoint foo.amazonaws.com -ContainerRuntime containerd -KubeletExtraArgs '--node-labels=foo=bar,instancemgr.keikoproj.io/image=ami-123456789012,node.kubernetes.io/role=instance-group-1 --register-with-taints=foo=bar:NoSchedule --eviction-hard=memory.available<300Mi,nodefs.available<5% --system-reserved=memory=2.5Gi --v=2 --max-pods=4' 3>&1 4>&1 5>&1 6>&1
     bar
