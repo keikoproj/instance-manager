@@ -1,7 +1,7 @@
 export GO111MODULE=on
 
 CONTROLLER_GEN_VERSION := v0.4.1
-GO_MIN_VERSION := 11500 # go1.15
+GO_MIN_VERSION := 12000 # go1.20
 
 define generate_int_from_semver
   echo $(1) |cut -dv -f2 |awk '{split($$0,a,"."); print  a[3]+(100*a[2])+(10000* a[1])}'
@@ -130,7 +130,7 @@ endif
 .PHONY: check-go
 check-go:
 ifeq ($(GO_VERSION_CHECK),0)
-        $(error go1.11 or higher is required)
+        $(error go 1.20 or higher is required)
 endif
 
 .PHONY: lint
