@@ -7,3 +7,7 @@
 # the repo. Unless a later match takes precedence,
 # review when someone opens a pull request.
 *       @keikoproj/authorized-approvers @keikoproj/instance-manager-approvers
+
+# Admins own root and CI.
+.github/** @keikoproj/keiko-admins @keikoproj/keiko-maintainers
+/*     @keikoproj/keiko-admins @keikoproj/keiko-maintainers
