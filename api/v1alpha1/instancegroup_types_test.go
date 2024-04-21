@@ -1,10 +1,9 @@
 /*
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,10 +22,11 @@ import (
 
 type EksUnitTest struct {
 	InstanceGroup *InstanceGroup
+	Overrides     *ValidationOverrides
 }
 
 func (u *EksUnitTest) Run(t *testing.T) string {
-	err := u.InstanceGroup.Validate()
+	err := u.InstanceGroup.Validate(u.Overrides)
 	if err == nil {
 		return aws.StringValue(nil)
 	} else {
@@ -35,12 +35,15 @@ func (u *EksUnitTest) Run(t *testing.T) string {
 }
 
 func TestInstanceGroupSpecValidate(t *testing.T) {
+	launchconfiguration := LaunchConfiguration
 	type args struct {
 		instancegroup *InstanceGroup
+		overrides     *ValidationOverrides
 	}
 	testFunction := func(t *testing.T, args args) string {
 		testCase := EksUnitTest{
 			InstanceGroup: args.instancegroup,
+			Overrides:     args.overrides,
 		}
 		return testCase.Run(t)
 	}
@@ -433,6 +436,16 @@ func TestInstanceGroupSpecValidate(t *testing.T) {
 			},
 			want: "validation failed, HostResourceGroupArn must be a valid dedicated HostResourceGroup ARN",
 		},
+		{
+			name: "default to launch config instead of launch template",
+			args: args{
+				instancegroup: MockInstanceGroup("eks-fargate", "managed", nil, nil, basicFargateSpec()),
+				overrides: &ValidationOverrides{
+					scalingConfigurationOverride: &launchconfiguration,
+				},
+			},
+			want: "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -440,6 +453,87 @@ func TestInstanceGroupSpecValidate(t *testing.T) {
 			if got != tt.want {
 				t.Errorf("%v: got %v, want %v", tt.name, got, tt.want)
 			}
+		})
+
+	}
+}
+
+func TestScalingConfigOverride(t *testing.T) {
+	launchconfiguration := LaunchConfiguration
+	launchtemplate := LaunchTemplate
+	var invalidScalingConfigType ScalingConfigurationType = "invalid-scaling-config-type"
+
+	type args struct {
+		instancegroup *InstanceGroup
+		overrides     *ValidationOverrides
+	}
+	testFunction := func(t *testing.T, args args) string {
+		testCase := EksUnitTest{
+			InstanceGroup: args.instancegroup,
+			Overrides:     args.overrides,
+		}
+		return testCase.Run(t)
+	}
+	tests := []struct {
+		name          string
+		args          args
+		want          ScalingConfigurationType
+		expectedError bool
+	}{
+		{
+			name: "override default to launchconfig instead of launchtemplate",
+			args: args{
+				instancegroup: MockInstanceGroup("eks", "managed", MockEKSSpec(), nil, basicFargateSpec()),
+				overrides: &ValidationOverrides{
+					scalingConfigurationOverride: &launchconfiguration,
+				},
+			},
+			want:          LaunchConfiguration,
+			expectedError: false,
+		},
+		{
+			name: "no default overrides",
+			args: args{
+				instancegroup: MockInstanceGroup("eks", "managed", MockEKSSpec(), nil, basicFargateSpec()),
+				overrides:     &ValidationOverrides{},
+			},
+			want:          LaunchTemplate,
+			expectedError: false,
+		},
+		{
+			name: "override default to launchtemplate",
+			args: args{
+				instancegroup: MockInstanceGroup("eks", "managed", MockEKSSpec(), nil, basicFargateSpec()),
+				overrides: &ValidationOverrides{
+					scalingConfigurationOverride: &launchtemplate,
+				},
+			},
+			want:          LaunchTemplate,
+			expectedError: false,
+		},
+		{
+			name: "override default to an invalid scaling config type",
+			args: args{
+				instancegroup: MockInstanceGroup("eks", "managed", MockEKSSpec(), nil, basicFargateSpec()),
+				overrides: &ValidationOverrides{
+					scalingConfigurationOverride: &invalidScalingConfigType,
+				},
+			},
+			want:          LaunchTemplate,
+			expectedError: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := testFunction(t, tt.args)
+			if (!tt.expectedError && err != "") || (tt.expectedError && err == "") {
+				t.Errorf("%v: got: %v, expectedError: %v", tt.name, err, tt.expectedError)
+			}
+			got := tt.args.instancegroup.Spec.EKSSpec.Type
+			if got != tt.want {
+				t.Errorf("%v: got %v, want %v", tt.name, got, tt.want)
+			}
+
 		})
 
 	}
@@ -507,4 +601,18 @@ func MockInstanceGroup(provisioner, strategy string, eksSpec *EKSSpec, eksManage
 		},
 	}
 
+}
+
+func MockEKSSpec() *EKSSpec {
+	return &EKSSpec{
+		Type: "invalid-scaling-config",
+		EKSConfiguration: &EKSConfiguration{
+			EksClusterName:     "sample-cluster",
+			Subnets:            []string{"subnet-1111111", "subnet-222222"},
+			NodeSecurityGroups: []string{"sg-sample-1", "sg-sample-2"},
+			Image:              "sample-ami",
+			InstanceType:       "sample-instance",
+			KeyPairName:        "sample-key-pair",
+		},
+	}
 }

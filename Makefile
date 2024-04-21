@@ -1,7 +1,7 @@
 export GO111MODULE=on
 
 CONTROLLER_GEN_VERSION := v0.4.1
-GO_MIN_VERSION := 11500 # go1.15
+GO_MIN_VERSION := 12000 # go1.20
 
 define generate_int_from_semver
   echo $(1) |cut -dv -f2 |awk '{split($$0,a,"."); print  a[3]+(100*a[2])+(10000* a[1])}'
@@ -29,16 +29,13 @@ GO_LDFLAGS ?= -ldflags="-s -w"
 IMG ?= instance-manager:latest
 INSTANCEMGR_TAG ?= latest
 
-# Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
-CRD_OPTIONS ?= "crd:trivialVersions=true"
-
 .PHONY: all
 all: check-go test clean manager
 
 # Run tests
 .PHONY: test
 test: generate fmt vet manifests
-	go test -v ./controllers/... ./api/... -coverprofile coverage.txt
+	go test ./controllers/... ./api/... -coverprofile coverage.txt
 
 .PHONY: bdd
 bdd:
@@ -82,7 +79,7 @@ deploy: manifests
 # Generate manifests e.g. CRD, RBAC etc.
 .PHONY: manifests
 manifests: controller-gen
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=instance-manager webhook paths="./api/...;./controllers/..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) rbac:roleName=instance-manager crd webhook paths="./api/...;./controllers/..." output:crd:artifacts:config=config/crd/bases
 
 # Run go fmt against code
 .PHONY: fmt
@@ -124,7 +121,7 @@ controller-gen: controller-gen-find check-controller-gen
 .PHONY: controller-gen-real
 controller-gen-find:
 ifeq (, $(shell which controller-gen))
-	go get sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
+	go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
 CONTROLLER_GEN=$(shell go env GOPATH)/bin/controller-gen
 else
 CONTROLLER_GEN=$(shell which controller-gen)
@@ -133,7 +130,7 @@ endif
 .PHONY: check-go
 check-go:
 ifeq ($(GO_VERSION_CHECK),0)
-        $(error go1.11 or higher is required)
+        $(error go 1.20 or higher is required)
 endif
 
 .PHONY: lint

@@ -16,8 +16,6 @@ limitations under the License.
 package aws
 
 import (
-	"strings"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -25,7 +23,7 @@ import (
 	"github.com/keikoproj/instance-manager/controllers/common"
 )
 
-func (w *AwsWorker) GetAutoScalingBasicBlockDevice(name, volType, snapshot string, volSize, iops int64, delete, encrypt *bool) *autoscaling.BlockDeviceMapping {
+func (w *AwsWorker) GetAutoScalingBasicBlockDevice(name, volType, snapshot string, volSize, iops int64, throughput int64, delete, encrypt *bool) *autoscaling.BlockDeviceMapping {
 	device := &autoscaling.BlockDeviceMapping{
 		DeviceName: aws.String(name),
 		Ebs: &autoscaling.Ebs{
@@ -40,8 +38,11 @@ func (w *AwsWorker) GetAutoScalingBasicBlockDevice(name, volType, snapshot strin
 	if encrypt != nil {
 		device.Ebs.Encrypted = encrypt
 	}
-	if iops != 0 && strings.EqualFold(volType, "io1") {
+	if iops != 0 && common.ContainsEqualFold(AllowedVolumeTypesWithProvisionedIOPS, volType) {
 		device.Ebs.Iops = aws.Int64(iops)
+	}
+	if throughput != 0 && common.ContainsEqualFold(AllowedVolumeTypesWithProvisionedThroughput, volType) {
+		device.Ebs.Throughput = aws.Int64(throughput)
 	}
 	if volSize != 0 {
 		device.Ebs.VolumeSize = aws.Int64(volSize)
@@ -49,11 +50,10 @@ func (w *AwsWorker) GetAutoScalingBasicBlockDevice(name, volType, snapshot strin
 	if !common.StringEmpty(snapshot) {
 		device.Ebs.SnapshotId = aws.String(snapshot)
 	}
-
 	return device
 }
 
-func (w *AwsWorker) GetLaunchTemplateBlockDeviceRequest(name, volType, snapshot string, volSize, iops int64, delete, encrypt *bool) *ec2.LaunchTemplateBlockDeviceMappingRequest {
+func (w *AwsWorker) GetLaunchTemplateBlockDeviceRequest(name, volType, snapshot string, volSize, iops int64, throughput int64, delete, encrypt *bool) *ec2.LaunchTemplateBlockDeviceMappingRequest {
 	device := &ec2.LaunchTemplateBlockDeviceMappingRequest{
 		DeviceName: aws.String(name),
 		Ebs: &ec2.LaunchTemplateEbsBlockDeviceRequest{
@@ -68,8 +68,11 @@ func (w *AwsWorker) GetLaunchTemplateBlockDeviceRequest(name, volType, snapshot 
 	if encrypt != nil {
 		device.Ebs.Encrypted = encrypt
 	}
-	if iops != 0 && strings.EqualFold(volType, "io1") {
+	if iops != 0 && common.ContainsEqualFold(AllowedVolumeTypesWithProvisionedIOPS, volType) {
 		device.Ebs.Iops = aws.Int64(iops)
+	}
+	if throughput != 0 && common.ContainsEqualFold(AllowedVolumeTypesWithProvisionedThroughput, volType) {
+		device.Ebs.Throughput = aws.Int64(throughput)
 	}
 	if volSize != 0 {
 		device.Ebs.VolumeSize = aws.Int64(volSize)

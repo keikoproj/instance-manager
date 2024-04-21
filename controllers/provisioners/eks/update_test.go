@@ -408,7 +408,7 @@ func TestLaunchConfigurationDrifted(t *testing.T) {
 		SecurityGroups:          aws.StringSlice([]string{"sg-1", "sg-2"}),
 		KeyName:                 aws.String("somekey"),
 		UserData:                aws.String("userdata"),
-		BlockDeviceMappings:     []*autoscaling.BlockDeviceMapping{w.GetAutoScalingBasicBlockDevice("/dev/xvda", "gp2", "", 40, 100, nil, nil)},
+		BlockDeviceMappings:     []*autoscaling.BlockDeviceMapping{w.GetAutoScalingBasicBlockDevice("/dev/xvda", "gp2", "", 40, 100, 200, nil, nil)},
 	}
 
 	existingConfig := &scaling.CreateConfigurationInput{
@@ -422,10 +422,11 @@ func TestLaunchConfigurationDrifted(t *testing.T) {
 		UserData:              "userdata",
 		Volumes: []v1alpha1.NodeVolume{
 			{
-				Name: "/dev/xvda",
-				Type: "gp2",
-				Size: 40,
-				Iops: 100,
+				Name:       "/dev/xvda",
+				Type:       "gp2",
+				Size:       40,
+				Iops:       100,
+				Throughput: 200,
 			},
 		},
 	}
@@ -448,7 +449,7 @@ func TestLaunchConfigurationDrifted(t *testing.T) {
 	keyDrift.KeyName = aws.String("some-key")
 	usrDrift.UserData = aws.String("some-userdata")
 	devDrift.BlockDeviceMappings = []*autoscaling.BlockDeviceMapping{
-		w.GetAutoScalingBasicBlockDevice("some-device", "some-type", "", 32, 0, nil, nil),
+		w.GetAutoScalingBasicBlockDevice("some-device", "some-type", "", 32, 0, 0, nil, nil),
 	}
 
 	tests := []struct {

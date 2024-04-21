@@ -288,7 +288,7 @@ func (lc *LaunchConfiguration) placementTenancy(placement *v1alpha1.PlacementSpe
 func (lc *LaunchConfiguration) blockDeviceList(volumes []v1alpha1.NodeVolume) []*autoscaling.BlockDeviceMapping {
 	var devices []*autoscaling.BlockDeviceMapping
 	for _, v := range volumes {
-		devices = append(devices, lc.GetAutoScalingBasicBlockDevice(v.Name, v.Type, v.SnapshotID, v.Size, v.Iops, v.DeleteOnTermination, v.Encrypted))
+		devices = append(devices, lc.GetAutoScalingBasicBlockDevice(v.Name, v.Type, v.SnapshotID, v.Size, v.Iops, v.Throughput, v.DeleteOnTermination, v.Encrypted))
 	}
 	return sortConfigDevices(devices)
 }

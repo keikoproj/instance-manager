@@ -1,6 +1,7 @@
 name: functional-test
 
 on:
+  workflow_dispatch:
   schedule:
     # run at 23:05 PM PST (cron uses UTC)
     - cron:  '5 15 * * *'
@@ -10,20 +11,20 @@ jobs:
   functional-test:
     name: functional-test
     if: github.repository_owner == 'keikoproj'
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
 
     steps:
 
       - name: python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.6'
+          python-version: 'pypy3.9'
           architecture: 'x64'
 
       - name: setup
         run: |
           sudo apt update
-          sudo apt install python-pip
+          sudo apt install python3-pip
           pip install --user awscli
           curl -LO https://storage.googleapis.com/kubernetes-release/release/`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`/bin/linux/amd64/kubectl
           chmod +x ./kubectl
@@ -35,7 +36,7 @@ jobs:
           aws --version
 
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           ref: master
 
