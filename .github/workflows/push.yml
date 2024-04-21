@@ -41,13 +41,13 @@ jobs:
       uses: docker/login-action@v3
       with:
         registry: ghcr.io
-        username: ${{ secrets.CR_USERNAME }}
-        password: ${{ secrets.CR_PAT }}
+        username: ${{ secrets.GHA_USERNAME }}
+        password: ${{ secrets.GHA_TOKEN }}
 
     -
       name: Docker meta
       id: docker_meta
-      uses: crazy-max/ghaction-docker-meta@v5
+      uses: docker/metadata-action@v5
       with:
         images: ${{ github.repository_owner }}/instance-manager,ghcr.io/${{ github.repository_owner }}/instance-manager
     -
