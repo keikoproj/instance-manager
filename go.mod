@@ -8,7 +8,7 @@ require (
 	github.com/cucumber/godog v0.8.1
 	github.com/evanphx/json-patch v4.12.0+incompatible
 	github.com/ghodss/yaml v1.0.0
-	github.com/go-logr/logr v1.3.0
+	github.com/go-logr/logr v1.4.1
 	github.com/keikoproj/aws-auth v0.5.0
 	github.com/keikoproj/aws-sdk-go-cache v0.0.2
 	github.com/onsi/gomega v1.28.0
