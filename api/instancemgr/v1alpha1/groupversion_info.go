@@ -25,7 +25,8 @@ import (
 
 var (
 	// GroupVersion is group version used to register instance groups
-	GroupVersion = schema.GroupVersion{Group: "instancemgr.keikoproj.io", Version: "v1alpha1"}
+	GroupVersion       = schema.GroupVersion{Group: "instancemgr.keikoproj.io", Version: "v1alpha1"}
+	SchemeGroupVersion = GroupVersion
 
 	// GroupVersionResource is group version resource used to register instance groups
 	GroupVersionResource = schema.GroupVersionResource{
