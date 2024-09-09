@@ -23,7 +23,7 @@ import (
 	"sync"
 
 	"github.com/keikoproj/aws-sdk-go-cache/cache"
-	instancemgrv1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
+	instancemgrv1alpha1 "github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/keikoproj/instance-manager/controllers/providers/aws"
