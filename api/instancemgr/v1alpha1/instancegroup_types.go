@@ -138,6 +138,7 @@ var (
 // +kubebuilder:printcolumn:name="Strategy",type="string",JSONPath=".status.strategy",description="instance group upgrade strategy"
 // +kubebuilder:printcolumn:name="Lifecycle",type="string",JSONPath=".status.lifecycle",description="instance group lifecycle spot/normal"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="time passed since instancegroup creation"
+// +genclient
 type InstanceGroup struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`

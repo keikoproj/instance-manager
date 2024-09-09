@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	v1alpha "github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1mgr/v1alpha1mgr/v1alpha1mgr/v1alpha1"
+	v1alpha "github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1"
 )
 
 // CloudDeployer is a common interface that should be fulfilled by each provisioner
