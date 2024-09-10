@@ -20,7 +20,7 @@ import (
 
 	"github.com/keikoproj/instance-manager/controllers/provisioners/eks/scaling"
 
-	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/pkg/errors"
 

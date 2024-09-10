@@ -26,7 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
-	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 
 	"github.com/onsi/gomega"
