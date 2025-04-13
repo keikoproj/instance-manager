@@ -523,9 +523,8 @@ func TestCloudDiscoveryFailureGettingProfile(t *testing.T) {
 		MakeDescribeProfileFail: true,
 	}
 	ctx := testCase.BuildProvisioner(t)
-	if err := ctx.CloudDiscovery(); err != nil {
-		// This is expected to fail in this test
-	}
+	_ = ctx.CloudDiscovery() // Error is expected in this test case due to MakeDescribeProfileFail=true, but we'll ignore it
+
 	if ctx.GetDiscoveredState().GetProfileStatus() != aws.StringValue(nil) {
 		t.Fatalf("TestGetStateFailureGettingProfile: expected nil but got a status")
 	}
