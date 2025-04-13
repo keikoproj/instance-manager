@@ -28,7 +28,6 @@ import (
 
 	"github.com/cucumber/godog"
 	"github.com/cucumber/godog/colors"
-	"github.com/cucumber/messages-go/v10"
 	"github.com/keikoproj/instance-manager/test-bdd/testutil"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -88,9 +87,12 @@ func TestMain(m *testing.M) {
 	flag.Parse()
 	opt.Paths = flag.Args()
 
-	status := godog.RunWithOptions("godogs", func(s *godog.Suite) {
-		FeatureContext(s)
-	}, opt)
+	status := godog.TestSuite{
+		Name:                 "godogs",
+		TestSuiteInitializer: InitializeTestSuite,
+		ScenarioInitializer:  InitializeScenario,
+		Options:              &opt,
+	}.Run()
 
 	if st := m.Run(); st > status {
 		status = st
@@ -98,10 +100,10 @@ func TestMain(m *testing.M) {
 	os.Exit(status)
 }
 
-func FeatureContext(s *godog.Suite) {
+func InitializeTestSuite(ctx *godog.TestSuiteContext) {
 	t := FunctionalTest{}
 
-	s.BeforeSuite(func() {
+	ctx.BeforeSuite(func() {
 		log.Info("BDD >> trying to delete any existing test instance-groups")
 		if err := t.anEKSCluster(); err != nil {
 			log.Errorf("BDD >> failed to setup EKS cluster: %v", err)
@@ -111,7 +113,7 @@ func FeatureContext(s *godog.Suite) {
 		}
 	})
 
-	s.AfterSuite(func() {
+	ctx.AfterSuite(func() {
 		log.Info("BDD >> trying to delete any existing test instance-groups")
 		if err := t.anEKSCluster(); err != nil {
 			log.Errorf("BDD >> failed to setup EKS cluster: %v", err)
@@ -120,21 +122,25 @@ func FeatureContext(s *godog.Suite) {
 			log.Errorf("BDD >> failed to delete resources: %v", err)
 		}
 	})
+}
 
-	s.AfterStep(func(step *messages.Pickle_PickleStep, err error) {
+func InitializeScenario(ctx *godog.ScenarioContext) {
+	t := FunctionalTest{}
+
+	ctx.AfterStep(func(step *godog.Step, err error) {
 		time.Sleep(time.Second * 5)
 	})
 
 	// Order matters
-	s.Step(`^an EKS cluster`, t.anEKSCluster)
-	s.Step(`^(\d+) nodes should be (found|ready)`, t.nodesShouldBe)
-	s.Step(`^(\d+) nodes should be (found|ready) with label ([^"]*) set to ([^"]*)$`, t.nodesShouldBeWithLabel)
-	s.Step(`^the resource should be (created|deleted)$`, t.theResourceShouldBe)
-	s.Step(`^the resource should converge to selector ([^"]*)$`, t.theResourceShouldConvergeToSelector)
-	s.Step(`^the resource condition ([^"]*) should be (true|false)$`, t.theResourceConditionShouldBe)
-	s.Step(`^I (create|delete) a resource ([^"]*)$`, t.iOperateOnResource)
-	s.Step(`^I update a resource ([^"]*) with annotation ([^"]*) set to ([^"]*)$`, t.iUpdateResourceWithAnnotation)
-	s.Step(`^I update a resource ([^"]*) with ([^"]*) set to ([^"]*)$`, t.iUpdateResourceWithField)
+	ctx.Step(`^an EKS cluster`, t.anEKSCluster)
+	ctx.Step(`^(\d+) nodes should be (found|ready)`, t.nodesShouldBe)
+	ctx.Step(`^(\d+) nodes should be (found|ready) with label ([^"]*) set to ([^"]*)$`, t.nodesShouldBeWithLabel)
+	ctx.Step(`^the resource should be (created|deleted)$`, t.theResourceShouldBe)
+	ctx.Step(`^the resource should converge to selector ([^"]*)$`, t.theResourceShouldConvergeToSelector)
+	ctx.Step(`^the resource condition ([^"]*) should be (true|false)$`, t.theResourceConditionShouldBe)
+	ctx.Step(`^I (create|delete) a resource ([^"]*)$`, t.iOperateOnResource)
+	ctx.Step(`^I update a resource ([^"]*) with annotation ([^"]*) set to ([^"]*)$`, t.iUpdateResourceWithAnnotation)
+	ctx.Step(`^I update a resource ([^"]*) with ([^"]*) set to ([^"]*)$`, t.iUpdateResourceWithField)
 }
 
 func (t *FunctionalTest) anEKSCluster() error {
