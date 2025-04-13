@@ -47,8 +47,14 @@ var (
 const controllerVersion = "instancemgr-0.17.0"
 
 func init() {
-	instancemgrv1alpha1.AddToScheme(scheme)
-	corev1.AddToScheme(scheme)
+	if err := instancemgrv1alpha1.AddToScheme(scheme); err != nil {
+		setupLog.Error(err, "unable to add instancemgrv1alpha1 to scheme")
+		os.Exit(1)
+	}
+	if err := corev1.AddToScheme(scheme); err != nil {
+		setupLog.Error(err, "unable to add corev1 to scheme")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:scheme
 }
 

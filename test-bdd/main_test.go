@@ -41,6 +41,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 type FunctionalTest struct {
@@ -281,7 +284,7 @@ func (t *FunctionalTest) iUpdateResourceWithField(fileName, key string, value st
 func (t *FunctionalTest) theResourceConditionShouldBe(cType string, cond string) error {
 	var (
 		counter        int
-		expectedStatus = strings.Title(cond)
+		expectedStatus = cases.Title(language.English).String(cond)
 	)
 
 	for {
