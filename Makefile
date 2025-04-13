@@ -1,6 +1,6 @@
 export GO111MODULE=on
 
-CONTROLLER_GEN_VERSION := v0.14.0
+CONTROLLER_GEN_VERSION := v0.17.2
 GO_MIN_VERSION := 12000 # go1.20
 
 define generate_int_from_semver

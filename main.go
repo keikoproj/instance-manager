@@ -19,7 +19,7 @@ import (
 	"context"
 	"flag"
 	"os"
-	runt "runtime"
+	stdruntime "runtime"
 	"sync"
 
 	"github.com/keikoproj/aws-sdk-go-cache/cache"
@@ -28,14 +28,17 @@ import (
 	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
+	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/controller-runtime/pkg/metrics"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -47,22 +50,17 @@ var (
 const controllerVersion = "instancemgr-0.17.0"
 
 func init() {
-	if err := instancemgrv1alpha1.AddToScheme(scheme); err != nil {
-		setupLog.Error(err, "unable to add instancemgrv1alpha1 to scheme")
-		os.Exit(1)
-	}
-	if err := corev1.AddToScheme(scheme); err != nil {
-		setupLog.Error(err, "unable to add corev1 to scheme")
-		os.Exit(1)
-	}
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(instancemgrv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(corev1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
 func printVersion() {
 	setupLog.Info("controller starting",
-		"go-version", runt.Version(),
-		"os", runt.GOOS,
-		"arch", runt.GOARCH,
+		"go-version", stdruntime.Version(),
+		"os", stdruntime.GOOS,
+		"arch", stdruntime.GOARCH,
 		"version", controllerVersion,
 	)
 }
@@ -99,9 +97,9 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:             scheme,
-		MetricsBindAddress: metricsAddr,
-		LeaderElection:     enableLeaderElection,
+		Scheme:         scheme,
+		Metrics:        server.Options{BindAddress: metricsAddr},
+		LeaderElection: enableLeaderElection,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -139,7 +137,7 @@ func main() {
 		Ec2Metadata: metadata,
 	}
 
-	metrics.Registry.MustRegister(cacheCollector, controllerCollector)
+	prometheus.MustRegister(cacheCollector, controllerCollector)
 	kube := kubeprovider.KubernetesClientSet{
 		Kubernetes:  client,
 		KubeDynamic: dynClient,
