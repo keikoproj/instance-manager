@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Keiko Community Support
+    url: https://github.com/keikoproj/community
+    about: Please ask general questions about Keiko projects here
+  - name: Keiko Security Issues
+    url: https://github.com/keikoproj/instance-manager/security/policy
+    about: Please report security vulnerabilities here
