@@ -151,6 +151,7 @@ mkfs.xfs /dev/xvda
 mkdir /mnt/foo
 mount /dev/xvda /mnt/foo
 mount
+echo "/dev/xvda    /mnt/foo    xfs    defaults    0    2" >> /etc/fstab
 if [[ $(type -P $(which aws)) ]] && [[ $(type -P $(which jq)) ]] ; then
 	TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
 	INSTANCE_ID=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)

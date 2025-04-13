@@ -122,7 +122,7 @@ func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, k
 		nodeTaints       = configuration.GetTaints()
 		bootstrapOptions = ctx.GetComputedBootstrapOptions()
 	)
-	var maxPods int64 = 0
+	var maxPods int64
 
 	if bootstrapOptions != nil {
 		maxPods = bootstrapOptions.MaxPods
@@ -216,7 +216,9 @@ set +o xtrace
 	if tmpl, err = tmpl.Parse(UserDataTemplate); err != nil {
 		ctx.Log.Error(err, "failed to parse userData template")
 	}
-	tmpl.Execute(out, data)
+	if err := tmpl.Execute(out, data); err != nil {
+		ctx.Log.Error(err, "failed to execute userData template")
+	}
 	return base64.StdEncoding.EncodeToString(out.Bytes())
 }
 
@@ -275,6 +277,8 @@ func (ctx *EksInstanceGroupContext) GetMountOpts() []MountOpts {
 		var persistance bool
 		if vol.MountOptions.Persistance == nil {
 			persistance = true
+		} else {
+			persistance = *vol.MountOptions.Persistance
 		}
 
 		mountOpts = append(mountOpts, MountOpts{
@@ -513,7 +517,7 @@ func (ctx *EksInstanceGroupContext) GetComputedBootstrapOptions() *v1alpha1.Boot
 
 		instanceTypeNetworkInfo := awsprovider.GetInstanceTypeNetworkInfo(state.GetInstanceTypeInfo(), configuration.InstanceType)
 		var prefixAssignmentEnabled = instanceGroup.GetAnnotations()[CustomNetworkingPrefixAssignmentEnabledAnnotation] == "true"
-		var maxPods int64 = 0
+		var maxPods int64
 
 		var enis = aws.Int64Value(instanceTypeNetworkInfo.MaximumNetworkInterfaces) - 1 //Primary interface is not used for pod networking when custom networking is enabled
 		var ipsPerInterface int64 = 1
@@ -1059,15 +1063,13 @@ func (ctx *EksInstanceGroupContext) RemoveAuthRole(arn string) error {
 
 	var instanceGroup = ctx.GetInstanceGroup()
 	var osFamily = ctx.GetOsFamily()
-	var list = &unstructured.UnstructuredList{}
-	var sharedGroups = make([]string, 0)
-
 	list, err := ctx.KubernetesClient.KubeDynamic.Resource(v1alpha1.GroupVersionResource).List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
 
 	// find objects which share the same nodesInstanceRoleArn
+	var sharedGroups = make([]string, 0)
 	for _, obj := range list.Items {
 		if val, ok, _ := unstructured.NestedString(obj.Object, "status", "nodesInstanceRoleArn"); ok {
 			if strings.EqualFold(arn, val) {
