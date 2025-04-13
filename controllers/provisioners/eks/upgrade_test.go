@@ -210,7 +210,9 @@ func TestUpgradeCRDStrategy(t *testing.T) {
 
 	for i, tc := range tests {
 		t.Logf("#%v - \"%v\"", i, tc.input)
-		unstructured.SetNestedField(cr.Object, tc.input, "status", "dogStatus")
+		if err := unstructured.SetNestedField(cr.Object, tc.input, "status", "dogStatus"); err != nil {
+			t.Fatalf("failed to set nested field: %v", err)
+		}
 		_, err := k.KubeDynamic.Resource(crGvr).Namespace("default").Update(context.Background(), cr, metav1.UpdateOptions{})
 		g.Expect(err).NotTo(gomega.HaveOccurred())
 

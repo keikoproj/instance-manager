@@ -151,6 +151,7 @@ mkfs.xfs /dev/xvda
 mkdir /mnt/foo
 mount /dev/xvda /mnt/foo
 mount
+echo "/dev/xvda    /mnt/foo    xfs    defaults    0    2" >> /etc/fstab
 if [[ $(type -P $(which aws)) ]] && [[ $(type -P $(which jq)) ]] ; then
 	TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
 	INSTANCE_ID=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
@@ -1122,9 +1123,14 @@ func TestUpdateLifecycleHooks(t *testing.T) {
 		g.Expect(ok).To(gomega.Equal(tc.shouldAdd))
 		g.Expect(added).To(gomega.Equal(tc.expectedAdded))
 
-		ctx.UpdateLifecycleHooks("my-asg")
-		g.Expect(uint(len(tc.expectedRemoved))).To(gomega.Equal(asgMock.DeleteLifecycleHookCallCount))
-		g.Expect(uint(len(tc.expectedAdded))).To(gomega.Equal(asgMock.PutLifecycleHookCallCount))
+		err := ctx.UpdateLifecycleHooks("my-asg")
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		if tc.shouldRemove {
+			g.Expect(asgMock.DeleteLifecycleHookCallCount).To(gomega.Equal(uint(len(tc.expectedRemoved))))
+		}
+		if tc.shouldAdd {
+			g.Expect(asgMock.PutLifecycleHookCallCount).To(gomega.Equal(uint(len(tc.expectedAdded))))
+		}
 	}
 }
 

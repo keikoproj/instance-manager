@@ -196,7 +196,10 @@ func (u *EksManagedUnitTest) Run(t *testing.T) {
 		Object: obj,
 	}
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
-	kube.KubeDynamic.Resource(v1alpha1.GroupVersionResource).Namespace(u.InstanceGroup.GetNamespace()).Create(context.Background(), unstructuredInstanceGroup, metav1.CreateOptions{})
+	_, err := kube.KubeDynamic.Resource(v1alpha1.GroupVersionResource).Namespace(u.InstanceGroup.GetNamespace()).Create(context.Background(), unstructuredInstanceGroup, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("failed to create test instancegroup: %v", err)
+	}
 	input := provisioners.ProvisionerInput{
 		AwsWorker:     aws,
 		Kubernetes:    kube,

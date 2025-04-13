@@ -41,6 +41,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 type FunctionalTest struct {
@@ -100,14 +103,22 @@ func FeatureContext(s *godog.Suite) {
 
 	s.BeforeSuite(func() {
 		log.Info("BDD >> trying to delete any existing test instance-groups")
-		t.anEKSCluster()
-		t.deleteAll()
+		if err := t.anEKSCluster(); err != nil {
+			log.Errorf("BDD >> failed to setup EKS cluster: %v", err)
+		}
+		if err := t.deleteAll(); err != nil {
+			log.Errorf("BDD >> failed to delete resources: %v", err)
+		}
 	})
 
 	s.AfterSuite(func() {
 		log.Info("BDD >> trying to delete any existing test instance-groups")
-		t.anEKSCluster()
-		t.deleteAll()
+		if err := t.anEKSCluster(); err != nil {
+			log.Errorf("BDD >> failed to setup EKS cluster: %v", err)
+		}
+		if err := t.deleteAll(); err != nil {
+			log.Errorf("BDD >> failed to delete resources: %v", err)
+		}
 	})
 
 	s.AfterStep(func(f *gherkin.Step, err error) {
@@ -224,7 +235,9 @@ func (t *FunctionalTest) iUpdateResourceWithAnnotation(fileName, annotation stri
 		return err
 	}
 
-	unstructured.SetNestedField(updateTarget.UnstructuredContent(), value, []string{"metadata", "annotations", annotation}...)
+	if err := unstructured.SetNestedField(updateTarget.UnstructuredContent(), value, []string{"metadata", "annotations", annotation}...); err != nil {
+		return err
+	}
 
 	_, err = t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Update(context.Background(), updateTarget, metav1.UpdateOptions{})
 	if err != nil {
@@ -265,9 +278,13 @@ func (t *FunctionalTest) iUpdateResourceWithField(fileName, key string, value st
 	}
 
 	if overrideType {
-		unstructured.SetNestedField(updateTarget.UnstructuredContent(), intValue, keySlice...)
+		if err := unstructured.SetNestedField(updateTarget.UnstructuredContent(), intValue, keySlice...); err != nil {
+			return err
+		}
 	} else {
-		unstructured.SetNestedField(updateTarget.UnstructuredContent(), value, keySlice...)
+		if err := unstructured.SetNestedField(updateTarget.UnstructuredContent(), value, keySlice...); err != nil {
+			return err
+		}
 	}
 
 	_, err = t.DynamicClient.Resource(InstanceGroupSchema).Namespace(t.ResourceNamespace).Update(context.Background(), updateTarget, metav1.UpdateOptions{})
@@ -281,7 +298,7 @@ func (t *FunctionalTest) iUpdateResourceWithField(fileName, key string, value st
 func (t *FunctionalTest) theResourceConditionShouldBe(cType string, cond string) error {
 	var (
 		counter        int
-		expectedStatus = strings.Title(cond)
+		expectedStatus = cases.Title(language.English).String(cond)
 	)
 
 	for {
@@ -456,7 +473,7 @@ func (t *FunctionalTest) waitForNodeCountState(count int, state, selector string
 }
 
 func (t *FunctionalTest) deleteAll() error {
-	var deleteFn = func(path string, info os.FileInfo, err error) error {
+	var deleteFn = func(path string, info os.FileInfo, walkErr error) error {
 
 		if info.IsDir() || filepath.Ext(path) != ".yaml" {
 			return nil
@@ -477,12 +494,15 @@ func (t *FunctionalTest) deleteAll() error {
 			return nil
 		}
 
-		t.DynamicClient.Resource(gvr.Resource).Namespace(namespace).Delete(context.Background(), name, metav1.DeleteOptions{})
+		err = t.DynamicClient.Resource(gvr.Resource).Namespace(namespace).Delete(context.Background(), name, metav1.DeleteOptions{})
+		if err != nil && !kerrors.IsNotFound(err) {
+			log.Warnf("BDD >> failed to delete %v %v/%v: %v", kind, namespace, name, err)
+		}
 		log.Infof("BDD >> submitted deletion for %v %v/%v", kind, namespace, name)
 		return nil
 	}
 
-	var waitFn = func(path string, info os.FileInfo, err error) error {
+	var waitFn = func(path string, info os.FileInfo, walkErr error) error {
 		var counter int
 
 		if info.IsDir() || filepath.Ext(path) != ".yaml" {
@@ -538,7 +558,10 @@ func (t *FunctionalTest) deleteAll() error {
 		cmKind      = "ConfigMap"
 	)
 	log.Infof("BDD >> submitted deletion for %v %v/%v", cmKind, cmNamespace, cmName)
-	t.KubeClient.CoreV1().ConfigMaps(cmNamespace).Delete(context.Background(), cmName, metav1.DeleteOptions{})
+	err := t.KubeClient.CoreV1().ConfigMaps(cmNamespace).Delete(context.Background(), cmName, metav1.DeleteOptions{})
+	if err != nil && !kerrors.IsNotFound(err) {
+		log.Warnf("BDD >> failed to delete %v %v/%v: %v", cmKind, cmNamespace, cmName, err)
+	}
 
 	return nil
 }

@@ -11,11 +11,10 @@ const (
 type MetricsCollector struct {
 	prometheus.Collector
 
-	successCounter   *prometheus.CounterVec
-	failureCounter   *prometheus.CounterVec
-	throttleCounter  *prometheus.CounterVec
-	statusGauge      *prometheus.GaugeVec
-	lastUpgradeGauge *prometheus.GaugeVec
+	successCounter  *prometheus.CounterVec
+	failureCounter  *prometheus.CounterVec
+	throttleCounter *prometheus.CounterVec
+	statusGauge     *prometheus.GaugeVec
 }
 
 func NewMetricsCollector() *MetricsCollector {

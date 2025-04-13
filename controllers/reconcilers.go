@@ -37,7 +37,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 const (
@@ -49,18 +48,53 @@ func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	case true:
 		return ctrl.NewControllerManagedBy(mgr).
 			For(&v1alpha1.InstanceGroup{}).
-			Watches(&source.Kind{Type: &corev1.Event{}}, handler.EnqueueRequestsFromMapFunc(r.spotEventReconciler)).
-			Watches(&source.Kind{Type: &corev1.Node{}}, handler.EnqueueRequestsFromMapFunc(r.nodeReconciler)).
-			Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.configMapReconciler)).
-			Watches(&source.Kind{Type: &corev1.Namespace{}}, handler.EnqueueRequestsFromMapFunc(r.namespaceReconciler)).
+			Watches(
+				&corev1.Event{},
+				handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []ctrl.Request {
+					return r.spotEventReconciler(obj)
+				}),
+			).
+			Watches(
+				&corev1.Node{},
+				handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []ctrl.Request {
+					return r.nodeReconciler(obj)
+				}),
+			).
+			Watches(
+				&corev1.ConfigMap{},
+				handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []ctrl.Request {
+					return r.configMapReconciler(obj)
+				}),
+			).
+			Watches(
+				&corev1.Namespace{},
+				handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []ctrl.Request {
+					return r.namespaceReconciler(obj)
+				}),
+			).
 			WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
 			Complete(r)
 	default:
 		return ctrl.NewControllerManagedBy(mgr).
 			For(&v1alpha1.InstanceGroup{}).
-			Watches(&source.Kind{Type: &corev1.Event{}}, handler.EnqueueRequestsFromMapFunc(r.spotEventReconciler)).
-			Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.configMapReconciler)).
-			Watches(&source.Kind{Type: &corev1.Namespace{}}, handler.EnqueueRequestsFromMapFunc(r.namespaceReconciler)).
+			Watches(
+				&corev1.Event{},
+				handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []ctrl.Request {
+					return r.spotEventReconciler(obj)
+				}),
+			).
+			Watches(
+				&corev1.ConfigMap{},
+				handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []ctrl.Request {
+					return r.configMapReconciler(obj)
+				}),
+			).
+			Watches(
+				&corev1.Namespace{},
+				handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []ctrl.Request {
+					return r.namespaceReconciler(obj)
+				}),
+			).
 			WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
 			Complete(r)
 	}

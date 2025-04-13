@@ -4,15 +4,10 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
-	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
-)
-
-var (
-	log = ctrl.Log.WithName("provisioners")
 )
 
 const (

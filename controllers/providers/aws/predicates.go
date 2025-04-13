@@ -22,19 +22,11 @@ import (
 )
 
 func IsUsingLaunchConfiguration(group *autoscaling.Group) bool {
-	if group.LaunchConfigurationName != nil {
-		return true
-	}
-	return false
+	return group.LaunchConfigurationName != nil
 }
 
 func IsUsingLaunchTemplate(group *autoscaling.Group) bool {
-	if group.LaunchTemplate != nil {
-		if group.LaunchTemplate.LaunchTemplateName != nil {
-			return true
-		}
-	}
-	return false
+	return group.LaunchTemplate != nil && group.LaunchTemplate.LaunchTemplateName != nil
 }
 
 type ManagedNodeGroupReconcileState struct {
@@ -121,15 +113,9 @@ func IsProfileInConditionState(key string, condition string) bool {
 }
 
 func IsUsingMixedInstances(group *autoscaling.Group) bool {
-	if group.MixedInstancesPolicy != nil {
-		return true
-	}
-	return false
+	return group.MixedInstancesPolicy != nil
 }
 
 func IsUsingWarmPool(group *autoscaling.Group) bool {
-	if group.WarmPoolConfiguration != nil {
-		return true
-	}
-	return false
+	return group.WarmPoolConfiguration != nil
 }

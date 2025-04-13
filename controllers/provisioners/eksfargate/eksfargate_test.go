@@ -191,11 +191,6 @@ func (s *stubEKS) DeleteFargateProfile(input *eks.DeleteFargateProfileInput) (*e
 	}
 }
 
-func getProfile(state string) *eks.FargateProfile {
-	return &eks.FargateProfile{
-		Status: aws.String(state)}
-}
-
 func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
 	var deletionTimestamp metav1.Time
 
@@ -528,7 +523,8 @@ func TestCloudDiscoveryFailureGettingProfile(t *testing.T) {
 		MakeDescribeProfileFail: true,
 	}
 	ctx := testCase.BuildProvisioner(t)
-	ctx.CloudDiscovery()
+	_ = ctx.CloudDiscovery() // Error is expected in this test case due to MakeDescribeProfileFail=true, but we'll ignore it
+
 	if ctx.GetDiscoveredState().GetProfileStatus() != aws.StringValue(nil) {
 		t.Fatalf("TestGetStateFailureGettingProfile: expected nil but got a status")
 	}
@@ -542,7 +538,9 @@ func TestCloudDiscoverySuccessGettingProfile(t *testing.T) {
 		},
 	}
 	ctx := testCase.BuildProvisioner(t)
-	ctx.CloudDiscovery()
+	if err := ctx.CloudDiscovery(); err != nil {
+		t.Fatalf("TestGetStateSuccessGettingProfile: unexpected error in CloudDiscovery: %v", err)
+	}
 
 	if ctx.GetDiscoveredState().GetProfileStatus() == aws.StringValue(nil) {
 		t.Fatalf("TestGetStateSuccessGettingProfile: expected profile but got a nil")

@@ -151,14 +151,17 @@ func (ctx *EksInstanceGroupContext) GetOsFamily() string {
 }
 
 func (ctx *EksInstanceGroupContext) GetUpgradeStrategy() *v1alpha1.AwsUpgradeStrategy {
-	if &ctx.InstanceGroup.Spec.AwsUpgradeStrategy != nil {
+	// Check if the upgrade strategy has been set (non-zero value)
+	if ctx.InstanceGroup.Spec.AwsUpgradeStrategy != (v1alpha1.AwsUpgradeStrategy{}) {
 		return &ctx.InstanceGroup.Spec.AwsUpgradeStrategy
 	}
 	return &v1alpha1.AwsUpgradeStrategy{}
 }
+
 func (ctx *EksInstanceGroupContext) GetState() v1alpha1.ReconcileState {
 	return ctx.InstanceGroup.GetState()
 }
+
 func (ctx *EksInstanceGroupContext) SetState(state v1alpha1.ReconcileState) {
 	var (
 		name     = ctx.GetInstanceGroup().NamespacedName()
@@ -167,12 +170,14 @@ func (ctx *EksInstanceGroupContext) SetState(state v1alpha1.ReconcileState) {
 	ctx.Metrics.SetInstanceGroup(name, stateStr)
 	ctx.InstanceGroup.SetState(state)
 }
+
 func (ctx *EksInstanceGroupContext) GetDiscoveredState() *DiscoveredState {
 	if ctx.DiscoveredState == nil {
 		ctx.DiscoveredState = &DiscoveredState{}
 	}
 	return ctx.DiscoveredState
 }
+
 func (ctx *EksInstanceGroupContext) SetDiscoveredState(state *DiscoveredState) {
 	ctx.DiscoveredState = state
 }

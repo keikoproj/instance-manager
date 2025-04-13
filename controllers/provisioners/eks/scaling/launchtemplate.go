@@ -79,7 +79,7 @@ func (lt *LaunchTemplate) Discover(input *DiscoverConfigurationInput) error {
 			latest := aws.Int64Value(config.LatestVersionNumber)
 			versions, err := lt.DescribeLaunchTemplateVersions(name)
 			if err != nil {
-				errors.Wrap(err, "failed to describe autoscaling launch template versions")
+				return errors.Wrap(err, "failed to describe autoscaling launch template versions")
 			}
 			lt.TargetVersions = versions
 			lt.LatestVersion = lt.getVersion(latest)

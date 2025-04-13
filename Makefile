@@ -1,6 +1,6 @@
 export GO111MODULE=on
 
-CONTROLLER_GEN_VERSION := v0.14.0
+CONTROLLER_GEN_VERSION := v0.17.2
 GO_MIN_VERSION := 12000 # go1.20
 
 define generate_int_from_semver
@@ -30,11 +30,11 @@ IMG ?= instance-manager:latest
 INSTANCEMGR_TAG ?= latest
 
 .PHONY: all
-all: check-go test clean manager
+all: check-go lint test clean manager
 
 # Run tests
 .PHONY: test
-test: generate fmt vet manifests
+test: generate fmt vet manifests lint
 	go test ./controllers/... ./api/... -coverprofile coverage.txt
 
 .PHONY: bdd
@@ -126,7 +126,7 @@ endif
 .PHONY: lint
 lint: check-go
 	@echo "Running golangci-lint"
-	golangci-lint run ./... || echo "Linting errors found - these will be enforced in the future"
+	golangci-lint run ./...
 
 .PHONY: clean
 clean:

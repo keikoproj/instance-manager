@@ -481,6 +481,7 @@ func TestLaunchTemplateRotationNeeded(t *testing.T) {
 		g.Expect(err).NotTo(gomega.HaveOccurred())
 
 		n, err := strconv.ParseInt(tc.latestVersion, 10, 64)
+		g.Expect(err).NotTo(gomega.HaveOccurred())
 		lt.LatestVersion = &ec2.LaunchTemplateVersion{
 			VersionNumber: aws.Int64(n),
 		}
