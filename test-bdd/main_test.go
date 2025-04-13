@@ -28,7 +28,7 @@ import (
 
 	"github.com/cucumber/godog"
 	"github.com/cucumber/godog/colors"
-	"github.com/cucumber/godog/gherkin"
+	"github.com/cucumber/messages-go/v10"
 	"github.com/keikoproj/instance-manager/test-bdd/testutil"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -121,7 +121,7 @@ func FeatureContext(s *godog.Suite) {
 		}
 	})
 
-	s.AfterStep(func(f *gherkin.Step, err error) {
+	s.AfterStep(func(step *messages.Pickle_PickleStep, err error) {
 		time.Sleep(time.Second * 5)
 	})
 
@@ -375,11 +375,13 @@ func (t *FunctionalTest) theResourceShouldBe(state string) error {
 				return nil
 			}
 		}
+
 		counter++
 		time.Sleep(DefaultWaiterInterval)
 	}
 
 }
+
 func (t *FunctionalTest) theResourceShouldConvergeToSelector(selector string) error {
 	var (
 		counter  int
