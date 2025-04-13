@@ -1,6 +1,6 @@
 export GO111MODULE=on
 
-CONTROLLER_GEN_VERSION := v0.4.1
+CONTROLLER_GEN_VERSION := v0.14.0
 GO_MIN_VERSION := 12000 # go1.20
 
 define generate_int_from_semver
@@ -106,26 +106,16 @@ docker-build:
 docker-push:
 	docker push ${IMG}
 
-.PHONY: check-controller-gen
-check-controller-gen:
-	@if [ $(CONTROLLER_GEN_VERSION_CHECK) -eq 0 ]; then \
-	    echo "Need to upgrade controller-gen to $(CONTROLLER_GEN_VERSION) or higher"; \
-	    exit 1; \
-	fi
+LOCALBIN = $(shell pwd)/bin
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
 
-# find or download controller-gen
-# download controller-gen if necessary
+# Update controller-gen installation to better support ARM architectures
+CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 .PHONY: controller-gen
-controller-gen: controller-gen-find check-controller-gen
-
-.PHONY: controller-gen-real
-controller-gen-find:
-ifeq (, $(shell which controller-gen))
-	go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
-CONTROLLER_GEN=$(shell go env GOPATH)/bin/controller-gen
-else
-CONTROLLER_GEN=$(shell which controller-gen)
-endif
+controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary. If wrong version is installed, it will be overwritten.
+$(CONTROLLER_GEN): $(LOCALBIN)
+	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
 
 .PHONY: check-go
 check-go:
