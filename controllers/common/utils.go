@@ -20,7 +20,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"reflect"
 	"regexp"
 	"sort"
@@ -270,7 +270,7 @@ func ConcatenateList(list []string, delimiter string) string {
 }
 
 func ReadFile(path string) ([]byte, error) {
-	f, err := ioutil.ReadFile(path)
+	f, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}

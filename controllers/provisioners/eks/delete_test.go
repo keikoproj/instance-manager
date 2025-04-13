@@ -214,7 +214,9 @@ func TestRemoveAuthRoleNegative(t *testing.T) {
 		},
 	})
 
-	ctx.BootstrapNodes()
+	if err := ctx.BootstrapNodes(); err != nil {
+		t.Errorf("BootstrapNodes() error = %v", err)
+	}
 
 	// Only one role is added to aws-auth
 	auth, _, err := awsauth.ReadAuthMap(k.Kubernetes)

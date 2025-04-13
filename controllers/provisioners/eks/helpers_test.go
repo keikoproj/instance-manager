@@ -1123,9 +1123,14 @@ func TestUpdateLifecycleHooks(t *testing.T) {
 		g.Expect(ok).To(gomega.Equal(tc.shouldAdd))
 		g.Expect(added).To(gomega.Equal(tc.expectedAdded))
 
-		ctx.UpdateLifecycleHooks("my-asg")
-		g.Expect(uint(len(tc.expectedRemoved))).To(gomega.Equal(asgMock.DeleteLifecycleHookCallCount))
-		g.Expect(uint(len(tc.expectedAdded))).To(gomega.Equal(asgMock.PutLifecycleHookCallCount))
+		err := ctx.UpdateLifecycleHooks("my-asg")
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		if tc.shouldRemove {
+			g.Expect(asgMock.DeleteLifecycleHookCallCount).To(gomega.Equal(uint(len(tc.expectedRemoved))))
+		}
+		if tc.shouldAdd {
+			g.Expect(asgMock.PutLifecycleHookCallCount).To(gomega.Equal(uint(len(tc.expectedAdded))))
+		}
 	}
 }
 

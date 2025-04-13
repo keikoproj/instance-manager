@@ -165,9 +165,7 @@ func (w *AwsWorker) ListRolePolicies(name string) ([]*iam.AttachedPolicy, error)
 			RoleName: aws.String(name),
 		},
 		func(page *iam.ListAttachedRolePoliciesOutput, lastPage bool) bool {
-			for _, p := range page.AttachedPolicies {
-				policies = append(policies, p)
-			}
+			policies = append(policies, page.AttachedPolicies...)
 			return page.Marker != nil
 		})
 	if err != nil {

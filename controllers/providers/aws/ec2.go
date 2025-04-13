@@ -164,8 +164,6 @@ func (w *AwsWorker) DeleteLaunchTemplateVersions(name string, versions []string)
 
 func (w *AwsWorker) SubnetByName(name, vpc string) (*ec2.Subnet, error) {
 	subnets := []*ec2.Subnet{}
-	filteredSubnets := []*ec2.Subnet{}
-
 	err := w.Ec2Client.DescribeSubnetsPages(
 		&ec2.DescribeSubnetsInput{
 			Filters: []*ec2.Filter{
@@ -176,9 +174,7 @@ func (w *AwsWorker) SubnetByName(name, vpc string) (*ec2.Subnet, error) {
 			},
 		},
 		func(page *ec2.DescribeSubnetsOutput, lastPage bool) bool {
-			for _, p := range page.Subnets {
-				subnets = append(subnets, p)
-			}
+			subnets = append(subnets, page.Subnets...)
 			return page.NextToken != nil
 		},
 	)
@@ -186,6 +182,7 @@ func (w *AwsWorker) SubnetByName(name, vpc string) (*ec2.Subnet, error) {
 		return nil, err
 	}
 
+	filteredSubnets := []*ec2.Subnet{}
 	for _, s := range subnets {
 		for _, tag := range s.Tags {
 			k := aws.StringValue(tag.Key)
@@ -204,7 +201,6 @@ func (w *AwsWorker) SubnetByName(name, vpc string) (*ec2.Subnet, error) {
 
 func (w *AwsWorker) SecurityGroupByName(name, vpc string) (*ec2.SecurityGroup, error) {
 	groups := []*ec2.SecurityGroup{}
-	filteredGroups := []*ec2.SecurityGroup{}
 	err := w.Ec2Client.DescribeSecurityGroupsPages(
 		&ec2.DescribeSecurityGroupsInput{
 			Filters: []*ec2.Filter{
@@ -215,9 +211,7 @@ func (w *AwsWorker) SecurityGroupByName(name, vpc string) (*ec2.SecurityGroup, e
 			},
 		},
 		func(page *ec2.DescribeSecurityGroupsOutput, lastPage bool) bool {
-			for _, p := range page.SecurityGroups {
-				groups = append(groups, p)
-			}
+			groups = append(groups, page.SecurityGroups...)
 			return page.NextToken != nil
 		},
 	)
@@ -225,6 +219,7 @@ func (w *AwsWorker) SecurityGroupByName(name, vpc string) (*ec2.SecurityGroup, e
 		return nil, err
 	}
 
+	filteredGroups := []*ec2.SecurityGroup{}
 	for _, g := range groups {
 		for _, tag := range g.Tags {
 			k := aws.StringValue(tag.Key)

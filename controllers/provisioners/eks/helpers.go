@@ -707,13 +707,15 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 		instanceGroup = ctx.GetInstanceGroup()
 		status        = instanceGroup.GetStatus()
 		scalingGroup  = state.GetScalingGroup()
-		desiredCount  = int(aws.Int64Value(scalingGroup.DesiredCapacity))
 		nodes         = state.GetClusterNodes()
+		desiredCount  int
 	)
 
 	if scalingGroup == nil {
 		return false
 	}
+
+	desiredCount = int(aws.Int64Value(scalingGroup.DesiredCapacity))
 
 	ctx.Log.Info("waiting for node readiness conditions", "instancegroup", instanceGroup.NamespacedName())
 	if len(scalingGroup.Instances) != desiredCount {
