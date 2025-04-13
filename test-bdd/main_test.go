@@ -80,7 +80,7 @@ var opt = godog.Options{
 }
 
 func init() {
-	godog.BindFlags("godog.", flag.CommandLine, &opt)
+	godog.BindCommandLineFlags("godog.", &opt)
 }
 
 func TestMain(m *testing.M) {
