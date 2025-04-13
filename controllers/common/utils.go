@@ -67,13 +67,9 @@ func ContainsString(slice []string, s string) bool {
 	return false
 }
 
-func ContainsEqualFoldSubstring(str, substr string) bool {
-	x := strings.ToLower(str)
-	y := strings.ToLower(substr)
-	if strings.Contains(x, y) {
-		return true
-	}
-	return false
+// ContainsEqualFoldSubstring is a case insensitive implementation of strings.Contains
+func ContainsEqualFoldSubstring(x, y string) bool {
+	return strings.Contains(strings.ToLower(x), strings.ToLower(y))
 }
 
 // ContainsEqualFold returns true if a given slice 'slice' contains string 's' under unicode case-folding

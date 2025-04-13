@@ -492,24 +492,15 @@ func (s *EKSSpec) Validate(overrides *ValidationOverrides) error {
 }
 
 func (s *EKSSpec) IsLaunchTemplate() bool {
-	if s.Type == LaunchTemplate {
-		return true
-	}
-	return false
+	return s.Type == LaunchTemplate
 }
 
 func (s *EKSSpec) IsLaunchConfiguration() bool {
-	if s.Type == LaunchConfiguration {
-		return true
-	}
-	return false
+	return s.Type == LaunchConfiguration
 }
 
 func (s *EKSSpec) HasWarmPool() bool {
-	if s.WarmPool != nil {
-		return true
-	}
-	return false
+	return s.WarmPool != nil
 }
 
 func contains(s []ContainerRuntime, e ContainerRuntime) bool {
