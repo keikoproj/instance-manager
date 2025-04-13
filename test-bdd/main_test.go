@@ -127,8 +127,10 @@ func InitializeTestSuite(ctx *godog.TestSuiteContext) {
 func InitializeScenario(ctx *godog.ScenarioContext) {
 	t := FunctionalTest{}
 
-	ctx.AfterStep(func(step *godog.Step, err error) {
+	sc := ctx.StepContext()
+	sc.After(func(ctx context.Context, st *godog.Step, status godog.StepResultStatus, err error) (context.Context, error) {
 		time.Sleep(time.Second * 5)
+		return ctx, nil
 	})
 
 	// Order matters
