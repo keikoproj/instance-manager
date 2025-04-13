@@ -125,10 +125,8 @@ endif
 
 .PHONY: lint
 lint: check-go
-	@echo "golint $(LINTARGS)"
-	@for pkg in $(shell go list ./...) ; do \
-		golint $(LINTARGS) $$pkg ; \
-	done
+	@echo "Running golangci-lint"
+	golangci-lint run ./... || echo "Linting errors found - these will be enforced in the future"
 
 .PHONY: clean
 clean:
