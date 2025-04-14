@@ -23,3 +23,9 @@ FROM gcr.io/distroless/static:latest
 WORKDIR /
 COPY --from=builder /workspace/manager .
 ENTRYPOINT ["/manager"]
+LABEL org.opencontainers.image.source https://github.com/keikoproj/instance-manager
+LABEL org.opencontainers.image.version ${VERSION}
+LABEL org.opencontainers.image.created ${CREATED}
+LABEL org.opencontainers.image.license Apache-2.0
+LABEL org.opencontainers.image.url https://github.com/keikoproj/instance-manager
+LABEL org.opencontainers.image.description "A Kubernetes controller for managing EC2 and EKS nodes"
