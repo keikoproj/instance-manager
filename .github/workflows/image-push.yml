@@ -1,7 +1,7 @@
-name: push
+name: image-push
 permissions:
   contents: read
-  pull-requests: write
+  packages: write
 
 on:
   push:
