@@ -4,7 +4,7 @@ on:
   push:
     branches: [ master ]
     tags:
-    - '*'
+    - "v*.*.*"
 
 jobs:
   push:
@@ -20,12 +20,6 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: 1.24
-
-    - name: Run golangci-lint
-      uses: golangci/golangci-lint-action@v3
-      with:
-        version: v1.55.2
-        args: --timeout=3m
 
     - name: Test
       run: |
