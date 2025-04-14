@@ -127,18 +127,18 @@ jobs:
           provenance: false
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
-          outputs: |
-            type=registry
-            annotation-index.org.opencontainers.image.description=A Kubernetes controller for creating and managing worker node instance groups across multiple providers
-            annotation-index.org.opencontainers.image.licenses=Apache-2.0
-            annotation-index.org.opencontainers.image.source=https://github.com/keikoproj/instance-manager
-            annotation-index.org.opencontainers.image.url=https://github.com/keikoproj/instance-manager/blob/master/README.md
-            annotation-index.org.opencontainers.image.vendor=keikoproj
-            annotation-index.org.opencontainers.image.authors=Keikoproj Contributors
-            annotation-index.org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%S.%3NZ')
-            annotation-index.org.opencontainers.image.version=${{ github.ref_name }}
-            annotation-index.org.opencontainers.image.revision=${{ github.sha }}
-            annotation-index.org.opencontainers.image.title=Instance Manager
+          annotations: |
+            org.opencontainers.image.description=A Kubernetes controller for creating and managing worker node instance groups across multiple providers
+            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.source=https://github.com/keikoproj/instance-manager
+            org.opencontainers.image.url=https://github.com/keikoproj/instance-manager/blob/master/README.md
+            org.opencontainers.image.vendor=keikoproj
+            org.opencontainers.image.authors=Keikoproj Contributors
+            org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%S.%3NZ')
+            org.opencontainers.image.version=${{ github.ref_name }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.title=Instance Manager
+          outputs: type=registry
 
       - name: Generate artifact attestation (dockerhub)
         uses: actions/attest-build-provenance@v2
