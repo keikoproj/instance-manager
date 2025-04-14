@@ -93,7 +93,7 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.title=Instance Manager
           build-args: |
-            CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+            CREATED=${{ github.event.head_commit.timestamp || format('{0:yyyy-MM-ddTHH:mm:ssZ}', github.event.repository.updated_at) }}
             VERSION=${{ github.ref_name }}
             REVISION=${{ github.sha }}
 
