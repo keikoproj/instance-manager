@@ -84,16 +84,16 @@ func (w *AwsWorker) DescribeEKSCluster(clusterName string) (*eks.Cluster, error)
 }
 
 // TODO: Rename - GetNodeGroup
-func (w *AwsWorker) GetSelfNodeGroup() (error, *eks.Nodegroup) {
+func (w *AwsWorker) GetSelfNodeGroup() (*eks.Nodegroup, error) {
 	input := &eks.DescribeNodegroupInput{
 		ClusterName:   aws.String(w.Parameters["ClusterName"].(string)),
 		NodegroupName: aws.String(w.Parameters["NodegroupName"].(string)),
 	}
 	output, err := w.EksClient.DescribeNodegroup(input)
 	if err != nil {
-		return err, &eks.Nodegroup{}
+		return &eks.Nodegroup{}, err
 	}
-	return nil, output.Nodegroup
+	return output.Nodegroup, nil
 }
 
 func (w *AwsWorker) DeleteManagedNodeGroup() error {

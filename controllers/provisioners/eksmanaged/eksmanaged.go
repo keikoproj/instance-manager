@@ -45,7 +45,7 @@ func (ctx *EksManagedInstanceGroupContext) CloudDiscovery() error {
 
 	if provisioned {
 		discoveredState.SetProvisioned(true)
-		err, createdResource := ctx.AwsWorker.GetSelfNodeGroup()
+		createdResource, err := ctx.AwsWorker.GetSelfNodeGroup()
 		if err != nil {
 			return err
 		}
@@ -80,25 +80,7 @@ func (ctx *EksManagedInstanceGroupContext) StateDiscovery() {
 	)
 
 	if instanceGroup.GetState() == v1alpha1.ReconcileInit {
-		if ctx.InstanceGroup.ObjectMeta.DeletionTimestamp.IsZero() {
-			// resource is not being deleted
-			if provisioned {
-				// nodegroup exists
-				if awsprovider.IsNodeGroupInConditionState(nodeGroupState, OngoingStateString) {
-					// nodegroup is in an ongoing state
-					instanceGroup.SetState(v1alpha1.ReconcileModifying)
-				} else if awsprovider.IsNodeGroupInConditionState(nodeGroupState, FiniteStateString) {
-					// nodegroup is in a finite state
-					instanceGroup.SetState(v1alpha1.ReconcileInitUpdate)
-				} else if awsprovider.IsNodeGroupInConditionState(nodeGroupState, UnrecoverableErrorString) {
-					// nodegroup is in unrecoverable error state
-					instanceGroup.SetState(v1alpha1.ReconcileErr)
-				}
-			} else {
-				// nodegroup does not exist
-				instanceGroup.SetState(v1alpha1.ReconcileInitCreate)
-			}
-		} else {
+		if !instanceGroup.DeletionTimestamp.IsZero() {
 			// resource is being deleted
 			if provisioned {
 				if awsprovider.IsNodeGroupInConditionState(nodeGroupState, OngoingStateString) {
@@ -117,6 +99,24 @@ func (ctx *EksManagedInstanceGroupContext) StateDiscovery() {
 			} else {
 				// Stack does not exist
 				instanceGroup.SetState(v1alpha1.ReconcileDeleted)
+			}
+		} else {
+			// resource is not being deleted
+			if provisioned {
+				// nodegroup exists
+				if awsprovider.IsNodeGroupInConditionState(nodeGroupState, OngoingStateString) {
+					// nodegroup is in an ongoing state
+					instanceGroup.SetState(v1alpha1.ReconcileModifying)
+				} else if awsprovider.IsNodeGroupInConditionState(nodeGroupState, FiniteStateString) {
+					// nodegroup is in a finite state
+					instanceGroup.SetState(v1alpha1.ReconcileInitUpdate)
+				} else if awsprovider.IsNodeGroupInConditionState(nodeGroupState, UnrecoverableErrorString) {
+					// nodegroup is in unrecoverable error state
+					instanceGroup.SetState(v1alpha1.ReconcileErr)
+				}
+			} else {
+				// nodegroup does not exist
+				instanceGroup.SetState(v1alpha1.ReconcileInitCreate)
 			}
 		}
 	}

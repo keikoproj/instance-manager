@@ -37,7 +37,7 @@ func (ctx *EksInstanceGroupContext) StateDiscovery() {
 	}
 
 	var deleted bool
-	if !ctx.InstanceGroup.ObjectMeta.DeletionTimestamp.IsZero() {
+	if !ctx.InstanceGroup.DeletionTimestamp.IsZero() {
 		deleted = true
 	}
 

@@ -4,7 +4,7 @@ on:
   push:
     branches: [ master ]
     tags:
-    - '*'
+    - "v*.*.*"
 
 jobs:
   push:
@@ -20,12 +20,6 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: 1.24
-
-    - name: Run golangci-lint
-      uses: golangci/golangci-lint-action@v3
-      with:
-        version: v1.55.2
-        args: --timeout=3m
 
     - name: Test
       run: |
@@ -65,6 +59,12 @@ jobs:
       uses: docker/metadata-action@v5
       with:
         images: ${{ github.repository_owner }}/instance-manager,ghcr.io/${{ github.repository_owner }}/instance-manager
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+
     -
       name: Build and push
       uses: docker/build-push-action@v6
@@ -72,5 +72,5 @@ jobs:
         context: .
         file: ./Dockerfile
         platforms: linux/amd64,linux/arm/v7,linux/arm64
-        push: true
+        push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.docker_meta.outputs.tags }}

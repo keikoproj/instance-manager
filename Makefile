@@ -34,7 +34,7 @@ all: check-go lint test clean manager
 
 # Run tests
 .PHONY: test
-test: generate fmt vet manifests lint
+test: generate fmt vet manifests
 	go test ./controllers/... ./api/... -coverprofile coverage.txt
 
 .PHONY: bdd
@@ -117,6 +117,12 @@ controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessar
 $(CONTROLLER_GEN): $(LOCALBIN)
 	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
 
+GOLANGCI_LINT_VERSION := v2.1.1
+GOLANGCI_LINT = $(shell pwd)/bin/golangci-lint
+.PHONY: golangci-lint
+$(GOLANGCI_LINT): $(LOCALBIN)
+	GOBIN=$(LOCALBIN) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+
 .PHONY: check-go
 check-go:
 ifeq ($(GO_VERSION_CHECK),0)
@@ -124,9 +130,9 @@ ifeq ($(GO_VERSION_CHECK),0)
 endif
 
 .PHONY: lint
-lint: check-go
+lint: check-go $(GOLANGCI_LINT)
 	@echo "Running golangci-lint"
-	golangci-lint run ./...
+	$(GOLANGCI_LINT) run ./...
 
 .PHONY: clean
 clean:
