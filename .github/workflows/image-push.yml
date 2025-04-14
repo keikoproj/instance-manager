@@ -1,7 +1,4 @@
-name: image-push
-permissions:
-  contents: read
-  packages: write
+name: Create and publish a Docker image
 
 on:
   push:
@@ -10,8 +7,8 @@ on:
     - "v*.*.*"
 
 jobs:
-  build:
-    name: Build
+  build-image:
+    name: Build Image
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -59,7 +56,12 @@ jobs:
   merge-and-push:
     name: Merge and Push
     runs-on: ubuntu-latest
-    needs: build
+    needs: build-image
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
     if: github.event_name != 'pull_request'
     steps:
       - name: Set up Docker Buildx
@@ -93,8 +95,23 @@ jobs:
             org.opencontainers.image.version={{version}}
             
       - name: Create manifest list and push
+        id: push
         uses: docker/build-push-action@v6
         with:
           push: true
           tags: ${{ steps.docker_meta.outputs.tags }}
           labels: ${{ steps.docker_meta.outputs.labels }}
+
+      - name: Generate artifact attestation (dockerhub)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ github.repository_owner }}/instance-manager
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Generate artifact attestation (ghcr)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/instance-manager
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
