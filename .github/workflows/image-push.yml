@@ -1,4 +1,4 @@
-name: Create and publish multi-platform image
+name: Create and publish image
 permissions:
   contents: read         # Needed to check out the repository
   packages: write        # Needed to push images to GitHub Container Registry (ghcr.io)
@@ -68,7 +68,7 @@ jobs:
             org.opencontainers.image.authors=Keikoproj Contributors
             org.opencontainers.image.title=Instance Manager
 
-      - name: Build and push cross-platform container image
+      - name: Build and push cross-platform image
         id: push
         uses: docker/build-push-action@v6
         with:
