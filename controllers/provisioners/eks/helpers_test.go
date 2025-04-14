@@ -1272,7 +1272,7 @@ func TestGetEksLatestAmi(t *testing.T) {
 			name:          "AmazonLinux2-noarch",
 			OSFamily:      "amazonlinux2",
 			arch:          "noarch",
-			expectedError: fmt.Errorf("No supported CPU architecture found for instance type %s", instanceType),
+			expectedError: fmt.Errorf("no supported CPU architecture found for instance type %s", instanceType),
 		},
 	}
 

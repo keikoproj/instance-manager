@@ -326,7 +326,7 @@ func (ctx *FargateInstanceGroupContext) StateDiscovery() {
 	instanceGroup := ctx.GetInstanceGroup()
 	if instanceGroup.GetState() == v1alpha1.ReconcileInit {
 
-		if instanceGroup.ObjectMeta.DeletionTimestamp.IsZero() {
+		if instanceGroup.GetObjectMeta().GetDeletionTimestamp().IsZero() {
 			if ctx.GetDiscoveredState().IsProvisioned() {
 				// Role exists and the Profile exists in some form (creating)
 				if awsprovider.IsProfileInConditionState(ctx.GetDiscoveredState().GetProfileStatus(), OngoingStateString) {

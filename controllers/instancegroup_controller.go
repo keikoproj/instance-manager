@@ -75,13 +75,12 @@ const (
 
 func (r *InstanceGroupReconciler) Finalize(instanceGroup *v1alpha1.InstanceGroup) {
 	// Resource is being deleted
-	meta := &instanceGroup.ObjectMeta
-	deletionTimestamp := meta.GetDeletionTimestamp()
+	deletionTimestamp := instanceGroup.DeletionTimestamp
 	if !deletionTimestamp.IsZero() {
 		// And state is "Deleted"
 		if instanceGroup.GetState() == v1alpha1.ReconcileDeleted {
 			// remove all finalizers
-			meta.SetFinalizers([]string{})
+			instanceGroup.Finalizers = []string{}
 			if err := r.Update(context.Background(), instanceGroup); err != nil {
 				// avoid update errors for already deleted resources
 				if kubeprovider.IsStorageError(err) {
@@ -95,11 +94,11 @@ func (r *InstanceGroupReconciler) Finalize(instanceGroup *v1alpha1.InstanceGroup
 
 func (r *InstanceGroupReconciler) SetFinalizer(instanceGroup *v1alpha1.InstanceGroup) {
 	// Resource is not being deleted
-	if instanceGroup.ObjectMeta.DeletionTimestamp.IsZero() {
+	if instanceGroup.DeletionTimestamp.IsZero() {
 		// And does not contain finalizer
-		if !common.ContainsString(instanceGroup.ObjectMeta.Finalizers, FinalizerStr) {
+		if !common.ContainsString(instanceGroup.Finalizers, FinalizerStr) {
 			// Set Finalizer
-			instanceGroup.ObjectMeta.Finalizers = append(instanceGroup.ObjectMeta.Finalizers, FinalizerStr)
+			instanceGroup.Finalizers = append(instanceGroup.Finalizers, FinalizerStr)
 			if err := r.Update(context.Background(), instanceGroup); err != nil {
 				r.Log.Error(err, "failed to update custom resource")
 			}
@@ -127,7 +126,7 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 			return ctrl.Result{}, nil
 		}
 		r.Log.Error(err, "reconcile failed", "instancegroup", req.NamespacedName)
-		r.Metrics.IncFail(req.NamespacedName.String(), ErrorReasonGetFailed)
+		r.Metrics.IncFail(req.String(), ErrorReasonGetFailed)
 		return ctrl.Result{}, err
 	}
 	statusPatch := kubeprovider.MergePatch(*instanceGroup)
