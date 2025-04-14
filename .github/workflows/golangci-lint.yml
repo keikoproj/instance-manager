@@ -1,7 +1,7 @@
 name: golangci-lint
 permissions:
-  contents: read
-  pull-requests: write
+  contents: read        # Needed to check out the repository
+  pull-requests: write  # Needed to post lint results as PR comments
 
 on:
   pull_request:

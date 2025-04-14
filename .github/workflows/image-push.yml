@@ -1,4 +1,7 @@
 name: Create and publish a Docker image
+permissions:
+  contents: read         # Needed to check out the repository
+  packages: write        # Needed to push images to GitHub Container Registry (ghcr.io)
 
 on:
   push:
@@ -23,8 +26,8 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         
-      - name: Docker meta
-        id: docker_meta
+      - name: Docker metadata
+        id: metadata
         uses: docker/metadata-action@v5
         with:
           images: ${{ github.repository_owner }}/instance-manager,ghcr.io/${{ github.repository_owner }}/instance-manager
@@ -44,8 +47,8 @@ jobs:
           file: ./Dockerfile
           platforms: ${{ matrix.platform }}
           push: false
-          tags: ${{ steps.docker_meta.outputs.tags }}
-          labels: ${{ steps.docker_meta.outputs.labels }}
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
           outputs: type=image,name=${{ github.repository_owner }}/instance-manager,push-by-digest=true,name-canonical=true,push=false
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -60,8 +63,8 @@ jobs:
     permissions:
       contents: read
       packages: write
-      attestations: write
-      id-token: write
+      attestations: write  # For generating attestations
+      id-token: write      # For OIDC token authentication
     if: github.event_name != 'pull_request'
     steps:
       - name: Set up Docker Buildx
@@ -80,8 +83,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           
-      - name: Docker meta
-        id: docker_meta
+      - name: Docker metadata
+        id: metadata
         uses: docker/metadata-action@v5
         with:
           images: ${{ github.repository_owner }}/instance-manager,ghcr.io/${{ github.repository_owner }}/instance-manager
@@ -99,8 +102,8 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           push: true
-          tags: ${{ steps.docker_meta.outputs.tags }}
-          labels: ${{ steps.docker_meta.outputs.labels }}
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
 
       - name: Generate artifact attestation (dockerhub)
         uses: actions/attest-build-provenance@v2

@@ -1,7 +1,7 @@
 name: unit-test
 permissions:
-  contents: read
-  pull-requests: write
+  contents: read        # Needed to check out the repository
+  pull-requests: write  # Needed to post test results as PR comments
 
 on:
   push:

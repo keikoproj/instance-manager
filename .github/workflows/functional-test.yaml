@@ -1,7 +1,7 @@
 name: functional-test
 permissions:
-  contents: read
-  pull-requests: write
+  contents: read        # Needed to check out the repository
+  pull-requests: write  # Needed if test results are posted as PR comments
 
 on:
   workflow_dispatch:
