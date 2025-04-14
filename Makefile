@@ -27,7 +27,12 @@ GO_LDFLAGS ?= -ldflags="-s -w"
 
 # Image URL to use all building/pushing image targets
 IMG ?= instance-manager:latest
-INSTANCEMGR_TAG ?= latest
+GIT_COMMIT := $(shell git rev-parse HEAD)
+GIT_SHORT_SHA := $(shell git rev-parse --short HEAD)
+GIT_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+GIT_DIRTY := $(shell test -n "`git status --porcelain`" && echo "-dirty" || echo "")
+INSTANCEMGR_TAG ?= $(GIT_TAG)-$(GIT_SHORT_SHA)$(GIT_DIRTY)
+BUILD_DATE := $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 
 .PHONY: all
 all: check-go lint test clean manager
@@ -99,7 +104,19 @@ generate: controller-gen
 # Build the docker image
 .PHONY: docker-build
 docker-build:
-	docker build . -t ${IMG}
+	docker build . -t ${IMG} \
+		--build-arg CREATED=$(BUILD_DATE) \
+		--build-arg VERSION=$(INSTANCEMGR_TAG) \
+		--label "org.opencontainers.image.created=$(BUILD_DATE)" \
+		--label "org.opencontainers.image.version=$(INSTANCEMGR_TAG)" \
+		--label "org.opencontainers.image.revision=$(GIT_COMMIT)" \
+		--label "org.opencontainers.image.title=Instance Manager" \
+		--label "org.opencontainers.image.description=A Kubernetes controller for creating and managing worker node instance groups across multiple providers" \
+		--label "org.opencontainers.image.licenses=Apache-2.0" \
+		--label "org.opencontainers.image.source=https://github.com/keikoproj/instance-manager" \
+		--label "org.opencontainers.image.url=https://github.com/keikoproj/instance-manager/blob/master/README.md" \
+		--label "org.opencontainers.image.vendor=keikoproj" \
+		--label "org.opencontainers.image.authors=Keikoproj Contributors"
 
 # Push the docker image
 .PHONY: docker-push
