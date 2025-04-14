@@ -1,4 +1,4 @@
-name: Create and publish multi-platform Docker images
+name: Create and publish multi-platform image
 permissions:
   contents: read         # Needed to check out the repository
   packages: write        # Needed to push images to GitHub Container Registry (ghcr.io)
@@ -11,7 +11,7 @@ on:
 
 jobs:
   build-and-push:
-    name: Create Multi-Platform Container Images
+    name: Build and push multi-platform image
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -49,7 +49,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           
-      - name: Docker metadata
+      - name: Set Docker metadata
         id: metadata
         uses: docker/metadata-action@v5
         with:
@@ -68,7 +68,7 @@ jobs:
             org.opencontainers.image.authors=Keikoproj Contributors
             org.opencontainers.image.title=Instance Manager
 
-      - name: Build and push multi-arch image
+      - name: Build and push cross-platform container image
         id: push
         uses: docker/build-push-action@v6
         with:
@@ -81,24 +81,23 @@ jobs:
           labels: ${{ steps.metadata.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          annotations: |
-            org.opencontainers.image.description=A Kubernetes controller for creating and managing worker node instance groups across multiple providers
-            org.opencontainers.image.licenses=Apache-2.0
-            org.opencontainers.image.source=https://github.com/keikoproj/instance-manager
-            org.opencontainers.image.url=https://github.com/keikoproj/instance-manager/blob/master/README.md
-            org.opencontainers.image.vendor=keikoproj
-            org.opencontainers.image.authors=Keikoproj Contributors
-            org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-            org.opencontainers.image.version=${{ github.ref_name }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.title=Instance Manager
+          outputs: |
+            type=image,name=docker.io/${{ github.repository_owner }}/instance-manager,push=true
+            type=image,name=ghcr.io/${{ github.repository_owner }}/instance-manager,push=true
+            annotation-index.org.opencontainers.image.description=A Kubernetes controller for creating and managing worker node instance groups across multiple providers
+            annotation-index.org.opencontainers.image.licenses=Apache-2.0
+            annotation-index.org.opencontainers.image.source=https://github.com/keikoproj/instance-manager
+            annotation-index.org.opencontainers.image.url=https://github.com/keikoproj/instance-manager/blob/master/README.md
+            annotation-index.org.opencontainers.image.vendor=keikoproj
+            annotation-index.org.opencontainers.image.authors=Keikoproj Contributors
+            annotation-index.org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+            annotation-index.org.opencontainers.image.version=${{ github.ref_name }}
+            annotation-index.org.opencontainers.image.revision=${{ github.sha }}
+            annotation-index.org.opencontainers.image.title=Instance Manager
           build-args: |
             CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
             VERSION=${{ github.ref_name }}
             REVISION=${{ github.sha }}
-          outputs: |
-            type=image,name=docker.io/${{ github.repository_owner }}/instance-manager,push=true
-            type=image,name=ghcr.io/${{ github.repository_owner }}/instance-manager,push=true
 
       - name: Generate artifact attestation (dockerhub)
         uses: actions/attest-build-provenance@v2
