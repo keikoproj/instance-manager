@@ -1,4 +1,4 @@
-name: Create and publish a Docker image
+name: Create and publish multi-platform Docker images
 permissions:
   contents: read         # Needed to check out the repository
   packages: write        # Needed to push images to GitHub Container Registry (ghcr.io)
@@ -10,64 +10,9 @@ on:
     - "v*.*.*"
 
 jobs:
-  build-image:
-    name: Build Image
+  build-and-push:
+    name: Create Multi-Platform Container Images
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        platform: [linux/amd64, linux/arm64, linux/arm/v7]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        
-      - name: Docker metadata
-        id: metadata
-        uses: docker/metadata-action@v5
-        with:
-          images: docker.io/${{ github.repository_owner }}/instance-manager,ghcr.io/${{ github.repository_owner }}/instance-manager
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-          labels: |
-            org.opencontainers.image.description=A Kubernetes controller for creating and managing worker node instance groups across multiple providers
-            org.opencontainers.image.licenses=Apache-2.0
-            org.opencontainers.image.source=https://github.com/keikoproj/instance-manager
-            org.opencontainers.image.url=https://github.com/keikoproj/instance-manager/blob/master/README.md
-            org.opencontainers.image.vendor=keikoproj
-            org.opencontainers.image.authors=Keikoproj Contributors
-            org.opencontainers.image.created=${{ github.event.repository.updated_at }}
-            org.opencontainers.image.version=${{ github.ref_name }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.title=Instance Manager
-
-      - name: Build for ${{ matrix.platform }}
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: ${{ matrix.platform }}
-          push: false
-          tags: ${{ steps.metadata.outputs.tags }}
-          labels: ${{ steps.metadata.outputs.labels }}
-          outputs: type=image,name=docker.io/${{ github.repository_owner }}/instance-manager,push-by-digest=true,name-canonical=true,push=false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-            VERSION=${{ github.ref_name }}
-
-  merge-and-push:
-    name: Merge and Push
-    runs-on: ubuntu-latest
-    needs: build-image
     permissions:
       contents: read
       packages: write
@@ -77,6 +22,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -113,7 +68,7 @@ jobs:
             org.opencontainers.image.authors=Keikoproj Contributors
             org.opencontainers.image.title=Instance Manager
 
-      - name: Create manifest list and push
+      - name: Build and push multi-arch image
         id: push
         uses: docker/build-push-action@v6
         with:
@@ -124,9 +79,23 @@ jobs:
           provenance: false
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          annotations: |
+            org.opencontainers.image.description=A Kubernetes controller for creating and managing worker node instance groups across multiple providers
+            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.source=https://github.com/keikoproj/instance-manager
+            org.opencontainers.image.url=https://github.com/keikoproj/instance-manager/blob/master/README.md
+            org.opencontainers.image.vendor=keikoproj
+            org.opencontainers.image.authors=Keikoproj Contributors
+            org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+            org.opencontainers.image.version=${{ github.ref_name }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.title=Instance Manager
           build-args: |
             CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
             VERSION=${{ github.ref_name }}
+            REVISION=${{ github.sha }}
           outputs: |
             type=image,name=docker.io/${{ github.repository_owner }}/instance-manager,push=true
             type=image,name=ghcr.io/${{ github.repository_owner }}/instance-manager,push=true

@@ -24,6 +24,7 @@ FROM gcr.io/distroless/static:latest
 # Add ARG declarations to receive build args
 ARG CREATED
 ARG VERSION
+ARG REVISION
 
 WORKDIR /
 COPY --from=builder /workspace/manager .
@@ -31,6 +32,7 @@ ENTRYPOINT ["/manager"]
 LABEL org.opencontainers.image.source="https://github.com/keikoproj/instance-manager"
 LABEL org.opencontainers.image.version="${VERSION}"
 LABEL org.opencontainers.image.created="${CREATED}"
+LABEL org.opencontainers.image.revision="${REVISION}"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 LABEL org.opencontainers.image.url="https://github.com/keikoproj/instance-manager/blob/master/README.md"
 LABEL org.opencontainers.image.description="A Kubernetes controller for creating and managing worker node instance groups across multiple providers"
