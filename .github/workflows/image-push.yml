@@ -37,9 +37,16 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
           labels: |
+            org.opencontainers.image.description=A Kubernetes controller for creating and managing worker node instance groups across multiple providers
+            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.source=https://github.com/keikoproj/instance-manager
+            org.opencontainers.image.url=https://github.com/keikoproj/instance-manager/blob/master/README.md
+            org.opencontainers.image.vendor=keikoproj
+            org.opencontainers.image.authors=Keikoproj Contributors
             org.opencontainers.image.created={{date 'ISO8601'}}
             org.opencontainers.image.version={{version}}
-            
+            org.opencontainers.image.revision={{git.sha}}
+
       - name: Build for ${{ matrix.platform }}
         uses: docker/build-push-action@v6
         with:
@@ -94,9 +101,16 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
           labels: |
+            org.opencontainers.image.description=A Kubernetes controller for creating and managing worker node instance groups across multiple providers
+            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.source=https://github.com/keikoproj/instance-manager
+            org.opencontainers.image.url=https://github.com/keikoproj/instance-manager/blob/master/README.md
+            org.opencontainers.image.vendor=keikoproj
+            org.opencontainers.image.authors=Keikoproj Contributors
             org.opencontainers.image.created={{date 'ISO8601'}}
             org.opencontainers.image.version={{version}}
-            
+            org.opencontainers.image.revision={{git.sha}}
+
       - name: Create manifest list and push
         id: push
         uses: docker/build-push-action@v6
@@ -104,6 +118,7 @@ jobs:
           push: true
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
+          annotations: ${{ steps.metadata.outputs.labels }}
 
       - name: Generate artifact attestation (dockerhub)
         uses: actions/attest-build-provenance@v2
