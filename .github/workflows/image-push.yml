@@ -75,6 +75,9 @@ jobs:
       id-token: write      # For OIDC token authentication
     if: github.event_name != 'pull_request'
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         
