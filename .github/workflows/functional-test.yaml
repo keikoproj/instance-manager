@@ -13,7 +13,7 @@ jobs:
 
   functional-test:
     name: functional-test
-    if: github.repository_owner == 'keikoproj'
+    if: false               # Disable the workflow since AWS test environment has been removed
     runs-on: ubuntu-20.04
 
     steps:
