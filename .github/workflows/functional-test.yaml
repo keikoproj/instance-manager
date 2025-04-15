@@ -14,7 +14,7 @@ jobs:
   functional-test:
     name: functional-test
     if: false               # Disable the workflow since AWS test environment has been removed
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     steps:
 
