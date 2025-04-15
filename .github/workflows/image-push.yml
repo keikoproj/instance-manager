@@ -43,6 +43,14 @@ jobs:
         env:
           DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
 
+      # Extract primary Docker tag (without 'v')
+      - name: Extract primary Docker tag
+        id: docker_tag
+        run: |
+          TAGS="${{ steps.meta.outputs.tags }}"
+          PRIMARY_TAG=$(echo "$TAGS" | cut -d',' -f1)
+          echo "tag=$PRIMARY_TAG" >> $GITHUB_OUTPUT
+
       # Login to DockerHub
       - name: Login to DockerHub
         uses: docker/login-action@v3
@@ -99,13 +107,13 @@ jobs:
           append_body: true
           body: |
             ## Docker Images
-            - [DockerHub](https://hub.docker.com/r/${{ github.repository_owner }}/${{ github.event.repository.name }}/tags?name=${{ github.ref_name }})
+            - [DockerHub](https://hub.docker.com/r/${{ github.repository_owner }}/${{ github.event.repository.name }}/tags?name=${{ steps.docker_tag.outputs.tag }})
             - [GHCR](https://github.com/orgs/${{ github.repository_owner }}/packages/container/${{ github.event.repository.name }})
-            - `docker pull ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ github.ref_name }}`
-            - `docker pull ${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ github.ref_name }}`
+            - `docker pull ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ steps.docker_tag.outputs.tag }}`
+            - `docker pull ${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ steps.docker_tag.outputs.tag }}`
 
             ## Attestations
-            - DockerHub attestation for `${{ github.ref_name }}` published (see OCI provenance)
-            - GHCR attestation for `${{ github.ref_name }}` published (see OCI provenance)
+            - DockerHub attestation for `${{ steps.docker_tag.outputs.tag }}` published (see OCI provenance)
+            - GHCR attestation for `${{ steps.docker_tag.outputs.tag }}` published (see OCI provenance)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
