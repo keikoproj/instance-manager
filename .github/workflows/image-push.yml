@@ -43,7 +43,6 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=ref,event=branch
-            type=sha,format=short
         env:
           DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
 
