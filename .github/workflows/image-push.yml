@@ -109,7 +109,7 @@ jobs:
           body: |
             ## Docker Images
             - [DockerHub](https://hub.docker.com/r/${{ github.repository_owner }}/${{ github.event.repository.name }}/tags?name=${{ steps.docker_tag.outputs.tag }})
-            - [GHCR](https://github.com/orgs/${{ github.repository_owner }}/packages/container/${{ github.event.repository.name }})
+            - [GHCR](https://github.com/orgs/${{ github.repository_owner }}/pkgs/container/${{ github.event.repository.name }})
             - `docker pull ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ steps.docker_tag.outputs.tag }}`
             - `docker pull ${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ steps.docker_tag.outputs.tag }}`
 
