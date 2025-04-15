@@ -22,52 +22,66 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
-          cache: true
-          cache-dependency-path: go.sum
+          fetch-depth: 0  # Fetch all history for proper versioning
 
+      # Set up QEMU for multi-platform builds
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
+      # Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        
-      - name: Login to DockerHub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          
-      - name: Set Docker metadata
-        id: metadata
+      # Extract metadata for Docker
+      - name: Extract Docker metadata
+        id: meta
         uses: docker/metadata-action@v5
         with:
           images: docker.io/${{ github.repository_owner }}/instance-manager,ghcr.io/${{ github.repository_owner }}/instance-manager
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=branch
+            type=sha,format=short
           labels: |
+            org.opencontainers.image.source=https://github.com/keikoproj/instance-manager
+            org.opencontainers.image.description=A Kubernetes operator that manages the lifecycle of EC2 instances within a Kubernetes cluster
+            org.opencontainers.image.title=Instance Manager
+            org.opencontainers.image.documentation=https://github.com/keikoproj/instance-manager/blob/master/README.md
+            org.opencontainers.image.url=https://github.com/keikoproj/instance-manager
+            org.opencontainers.image.vendor=keikoproj
+            org.opencontainers.image.authors=Keikoproj Contributors
+            org.opencontainers.image.licenses=Apache-2.0
+          annotations: |
             org.opencontainers.image.description=A Kubernetes controller for creating and managing worker node instance groups across multiple providers
             org.opencontainers.image.licenses=Apache-2.0
             org.opencontainers.image.source=https://github.com/keikoproj/instance-manager
             org.opencontainers.image.url=https://github.com/keikoproj/instance-manager/blob/master/README.md
             org.opencontainers.image.vendor=keikoproj
             org.opencontainers.image.authors=Keikoproj Contributors
+            org.opencontainers.image.created=${{ github.event.head_commit.timestamp || format('{0:yyyy-MM-ddTHH:mm:ssZ}', github.event.repository.updated_at) }}
+            org.opencontainers.image.version=${{ github.ref_name }}
+            org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.title=Instance Manager
+          env:
+            DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
 
+      # Login to DockerHub
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Login to GitHub Container Registry
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
       - name: Build and push cross-platform image
         id: push
         uses: docker/build-push-action@v6
@@ -77,21 +91,11 @@ jobs:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: true
           provenance: false
-          tags: ${{ steps.metadata.outputs.tags }}
-          labels: ${{ steps.metadata.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          annotations: |
-            org.opencontainers.image.description=A Kubernetes controller for creating and managing worker node instance groups across multiple providers
-            org.opencontainers.image.licenses=Apache-2.0
-            org.opencontainers.image.source=https://github.com/keikoproj/instance-manager
-            org.opencontainers.image.url=https://github.com/keikoproj/instance-manager/blob/master/README.md
-            org.opencontainers.image.vendor=keikoproj
-            org.opencontainers.image.authors=Keikoproj Contributors
-            org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-            org.opencontainers.image.version=${{ github.ref_name }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.title=Instance Manager
           build-args: |
             CREATED=${{ github.event.head_commit.timestamp || format('{0:yyyy-MM-ddTHH:mm:ssZ}', github.event.repository.updated_at) }}
             VERSION=${{ github.ref_name }}
