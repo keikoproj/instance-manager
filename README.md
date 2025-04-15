@@ -1,7 +1,7 @@
 # instance-manager
 
-![functional-test](https://github.com/keikoproj/instance-manager/workflows/functional-test/badge.svg)
-![push](https://github.com/keikoproj/instance-manager/workflows/push/badge.svg)
+[![Build Status][BuildStatusImg]][BuildMasterUrl]
+[![Image Push](https://github.com/keikoproj/instance-manager/workflows/image-push/badge.svg)](https://github.com/keikoproj/instance-manager/actions/workflows/image-push.yml)
 [![codecov](https://codecov.io/gh/keikoproj/instance-manager/branch/master/graph/badge.svg?token=IJbjmSBliL)](https://codecov.io/gh/keikoproj/instance-manager)
 [![Go Report Card](https://goreportcard.com/badge/github.com/keikoproj/instance-manager)](https://goreportcard.com/report/github.com/keikoproj/instance-manager)
 [![slack](https://img.shields.io/badge/slack-join%20the%20conversation-ff69b4.svg)][SlackUrl]
@@ -94,3 +94,6 @@ Please see [DEVELOPER.md](.github/DEVELOPER.md).
 <!-- Markdown link -->
 [install]: https://github.com/keikoproj/instance-manager/blob/master/docs/INSTALL.md
 [SlackUrl]: https://keikoproj.slack.com/
+
+[BuildStatusImg]: https://github.com/keikoproj/instance-manager/actions/workflows/unit-test.yml/badge.svg
+[BuildMasterUrl]: https://github.com/keikoproj/instance-manager/actions/workflows/unit-test.yml
