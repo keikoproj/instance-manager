@@ -174,6 +174,124 @@ bar`
 	}
 }
 
+func TestGetBasicUserDataAmazonLinux2023(t *testing.T) {
+	var (
+		k             = MockKubernetesClientSet()
+		ig            = MockInstanceGroup()
+		asgMock       = NewAutoScalingMocker()
+		iamMock       = NewIamMocker()
+		eksMock       = NewEksMocker()
+		ec2Mock       = NewEc2Mocker()
+		ssmMock       = NewSsmMocker()
+		configuration = ig.GetEKSConfiguration()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
+	ctx := MockContext(ig, k, w)
+
+	configuration.BootstrapOptions = &v1alpha1.BootstrapOptions{
+		MaxPods:          4,
+		ContainerRuntime: "containerd",
+	}
+	configuration.Labels = map[string]string{
+		"foo": "bar",
+	}
+	configuration.Taints = []corev1.Taint{
+		{
+			Key:    "foo",
+			Value:  "bar",
+			Effect: "NoSchedule",
+		},
+	}
+	persistance := true
+	configuration.Volumes = []v1alpha1.NodeVolume{
+		{
+			Name: "/dev/xvda",
+			Type: "gp2",
+			MountOptions: &v1alpha1.NodeVolumeMountOptions{
+				FileSystem:  "xfs",
+				Mount:       "/mnt/foo",
+				Persistance: &persistance,
+			},
+		},
+	}
+	configuration.BootstrapArguments = "--eviction-hard=memory.available<300Mi,nodefs.available<5% --system-reserved=memory=2.5Gi --v=2"
+	configuration.UserData = []v1alpha1.UserDataStage{
+		{
+			Stage: "PreBootstrap",
+			Data:  "foo",
+		},
+		{
+			Stage: "PostBootstrap",
+			Data:  "bar",
+		},
+	}
+
+	ig.Annotations[OsFamilyAnnotation] = OsFamilyAmazonLinux2023
+
+	var (
+		args            = ctx.GetBootstrapArgs()
+		kubeletArgs     = ctx.GetKubeletExtraArgs()
+		userDataPayload = ctx.GetUserDataStages()
+		mounts          = ctx.GetMountOpts()
+	)
+
+	expectedDataLinux := `MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="BOUNDARY"
+
+--BOUNDARY
+Content-Type: text/x-shellscript; charset="us-ascii"
+
+#!/bin/bash
+echo "IG manager using AL2023 amis"
+foo
+mkfs.xfs /dev/xvda
+mkdir /mnt/foo
+mount /dev/xvda /mnt/foo
+mount
+echo "/dev/xvda    /mnt/foo    xfs    defaults    0    2" >> /etc/fstab
+if [[ $(type -P $(which aws)) ]] && [[ $(type -P $(which jq)) ]] ; then
+	TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+	INSTANCE_ID=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
+	REGION=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
+	LIFECYCLE=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/autoscaling/target-lifecycle-state)
+	if [[ $LIFECYCLE == *"Warmed"* ]]; then
+		rm /var/lib/cloud/instances/$INSTANCE_ID/sem/config_scripts_user
+		exit 0
+	fi
+fi
+--BOUNDARY
+Content-Type: application/node.eks.aws
+
+
+
+--BOUNDARY
+Content-Type: application/node.eks.aws
+
+---
+apiVersion: node.eks.aws/v1alpha1
+kind: NodeConfig
+spec:
+  kubelet:
+    flags:
+      - --node-labels=foo=bar,instancemgr.keikoproj.io/image=ami-123456789012,node.kubernetes.io/role=instance-group-1
+      - --register-with-taints=foo=bar:NoSchedule
+
+--BOUNDARY
+Content-Type: text/x-shellscript; charset="us-ascii"
+
+#!/bin/bash
+set +o xtrace
+bar
+--BOUNDARY--`
+	userData := ctx.GetBasicUserData("foo", args, kubeletArgs, userDataPayload, mounts)
+	basicUserDataDecoded, _ := base64.StdEncoding.DecodeString(userData)
+	basicUserDataString := string(basicUserDataDecoded)
+	if basicUserDataString != expectedDataLinux {
+		t.Fatalf("\nExpected: START>%v<END\n Got: START>%v<END", expectedDataLinux, basicUserDataString)
+	}
+}
+
 func TestGetBasicUserDataWindows(t *testing.T) {
 	var (
 		k             = MockKubernetesClientSet()

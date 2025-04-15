@@ -80,6 +80,7 @@ func main() {
 		configRetention             int
 		err                         error
 		defaultScalingConfiguration string
+		amazonLinuxOsFamily         string
 	)
 
 	flag.IntVar(&maxParallel, "max-workers", 5, "The number of maximum parallel reconciles")
@@ -93,6 +94,7 @@ func main() {
 	flag.BoolVar(&nodeRelabel, "node-relabel", true, "relabel nodes as they join with kubernetes.io/role label via controller")
 	flag.BoolVar(&disableWinClusterInjection, "disable-windows-cluster-ca-injection", false, "Setting this to true will cause the ClusterCA and Endpoint to not be injected for Windows nodes")
 	flag.StringVar(&defaultScalingConfiguration, "default-scaling-configuration", "LaunchTemplate", "By default ASGs will have LaunchTemplate. Set this string to either 'LaunchConfiguration' or 'LaunchTemplate' to enforce defaults.")
+	flag.StringVar(&amazonLinuxOsFamily, "amazon-linux-os-family", "", "Setting this determines the amazon linux os family version for instance groups. Set this string to 'amazonlinux2023' or 'amazonlinux2'.")
 	flag.Parse()
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
@@ -173,6 +175,7 @@ func main() {
 			Aws:        awsWorker,
 			Kubernetes: kube,
 		},
+		AmazonLinuxOsFamily: amazonLinuxOsFamily,
 	}).SetupWithManager(mgr)
 	if err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "instancegroup")
