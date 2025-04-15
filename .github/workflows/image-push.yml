@@ -48,7 +48,8 @@ jobs:
         id: docker_tag
         run: |
           TAGS="${{ steps.meta.outputs.tags }}"
-          PRIMARY_TAG=$(echo "$TAGS" | cut -d',' -f1)
+          FIRST_IMAGE=$(echo "$TAGS" | cut -d',' -f1)
+          PRIMARY_TAG="${FIRST_IMAGE##*:}"
           echo "tag=$PRIMARY_TAG" >> $GITHUB_OUTPUT
 
       # Login to DockerHub
