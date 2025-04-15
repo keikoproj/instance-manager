@@ -48,7 +48,7 @@ jobs:
         id: docker_tag
         run: |
           TAGS="${{ steps.meta.outputs.tags }}"
-          FIRST_IMAGE=$(echo "$TAGS" | cut -d',' -f1)
+          IFS=$'\n' read -r FIRST_IMAGE <<< "$TAGS"
           PRIMARY_TAG="${FIRST_IMAGE##*:}"
           echo "tag=$PRIMARY_TAG" >> $GITHUB_OUTPUT
 
