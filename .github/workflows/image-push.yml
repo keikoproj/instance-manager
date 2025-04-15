@@ -1,7 +1,9 @@
 name: Create and publish image
 permissions:
-  contents: read         # Needed to check out the repository
+  contents: write        # Needed to check out the repository and update releases
   packages: write        # Needed to push images to GitHub Container Registry (ghcr.io)
+  attestations: write    # For generating attestations
+  id-token: write        # For OIDC token authentication
 
 on:
   push:
@@ -13,11 +15,6 @@ jobs:
   build-and-push:
     name: Build and push image
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      attestations: write  # For generating attestations
-      id-token: write      # For OIDC token authentication
     if: github.event_name != 'pull_request'
     steps:
       - name: Checkout
