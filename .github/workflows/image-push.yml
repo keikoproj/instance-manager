@@ -64,8 +64,8 @@ jobs:
             org.opencontainers.image.version=${{ github.ref_name }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.title=Instance Manager
-          env:
-            DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
 
       # Login to DockerHub
       - name: Login to DockerHub
