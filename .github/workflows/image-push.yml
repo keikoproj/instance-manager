@@ -44,26 +44,6 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=ref,event=branch
             type=sha,format=short
-          labels: |
-            org.opencontainers.image.source=https://github.com/keikoproj/instance-manager
-            org.opencontainers.image.description=A Kubernetes operator that manages the lifecycle of EC2 instances within a Kubernetes cluster
-            org.opencontainers.image.title=Instance Manager
-            org.opencontainers.image.documentation=https://github.com/keikoproj/instance-manager/blob/master/README.md
-            org.opencontainers.image.url=https://github.com/keikoproj/instance-manager
-            org.opencontainers.image.vendor=keikoproj
-            org.opencontainers.image.authors=Keikoproj Contributors
-            org.opencontainers.image.licenses=Apache-2.0
-          annotations: |
-            org.opencontainers.image.description=A Kubernetes controller for creating and managing worker node instance groups across multiple providers
-            org.opencontainers.image.licenses=Apache-2.0
-            org.opencontainers.image.source=https://github.com/keikoproj/instance-manager
-            org.opencontainers.image.url=https://github.com/keikoproj/instance-manager/blob/master/README.md
-            org.opencontainers.image.vendor=keikoproj
-            org.opencontainers.image.authors=Keikoproj Contributors
-            org.opencontainers.image.created=${{ github.event.head_commit.timestamp || format('{0:yyyy-MM-ddTHH:mm:ssZ}', github.event.repository.updated_at) }}
-            org.opencontainers.image.version=${{ github.ref_name }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.title=Instance Manager
         env:
           DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
 
