@@ -38,7 +38,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: docker.io/${{ github.repository_owner }}/instance-manager,ghcr.io/${{ github.repository_owner }}/instance-manager
+          images: docker.io/${{ github.repository_owner }}/${{ github.event.repository.name }},ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -83,13 +83,32 @@ jobs:
       - name: Generate artifact attestation (dockerhub)
         uses: actions/attest-build-provenance@v2
         with:
-          subject-name: docker.io/${{ github.repository_owner }}/instance-manager
+          subject-name: docker.io/${{ github.repository_owner }}/${{ github.event.repository.name }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
 
       - name: Generate artifact attestation (ghcr)
         uses: actions/attest-build-provenance@v2
         with:
-          subject-name: ghcr.io/${{ github.repository_owner }}/instance-manager
+          subject-name: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
+
+      - name: Update GitHub Release with image and attestation links
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          append_body: true
+          body: |
+            ## Docker Images
+            - [DockerHub](https://hub.docker.com/r/${{ github.repository_owner }}/${{ github.event.repository.name }}/tags?name=${{ github.ref_name }})
+            - [GHCR](https://github.com/orgs/${{ github.repository_owner }}/packages/container/${{ github.event.repository.name }})
+            - `docker pull ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ github.ref_name }}`
+            - `docker pull ${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ github.ref_name }}`
+
+            ## Attestations
+            - DockerHub attestation for `${{ github.ref_name }}` published (see OCI provenance)
+            - GHCR attestation for `${{ github.ref_name }}` published (see OCI provenance)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
