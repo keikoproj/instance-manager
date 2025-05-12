@@ -1288,12 +1288,13 @@ func (ctx *EksInstanceGroupContext) GetEksLatestAmi() (string, error) {
 	)
 	clusterVersion := state.GetClusterVersion()
 	annotations := instanceGroup.GetAnnotations()
+	overrideAmazonLinuxFamily := strings.Trim(ctx.AmazonLinuxOsFamily, "\" ")
 
 	var OSFamily string
 	if kubeprovider.HasAnnotation(annotations, OsFamilyAnnotation) {
 		OSFamily = annotations[OsFamilyAnnotation]
-	} else if ctx.AmazonLinuxOsFamily != "" {
-		OSFamily = ctx.AmazonLinuxOsFamily
+	} else if overrideAmazonLinuxFamily != "" {
+		OSFamily = overrideAmazonLinuxFamily
 	} else {
 		OSFamily = OsFamilyAmazonLinux2
 	}

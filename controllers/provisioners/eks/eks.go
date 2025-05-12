@@ -17,12 +17,12 @@ package eks
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/go-logr/logr"
-
 	"github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
@@ -145,14 +145,15 @@ func (ctx *EksInstanceGroupContext) GetOsFamily() string {
 		instanceGroup = ctx.GetInstanceGroup()
 		annotations   = instanceGroup.GetAnnotations()
 	)
+	overrideAmazonLinuxFamily := strings.Trim(ctx.AmazonLinuxOsFamily, "\" ")
 
 	if v, exists := annotations[OsFamilyAnnotation]; exists {
 		if common.ContainsEqualFold(AllowedOsFamilies, v) {
 			return annotations[OsFamilyAnnotation]
 		}
 		ctx.Log.Info("used unsupported annotation value '%v=%v', will default to 'amazonlinux2', allowed values: %+v", OsFamilyAnnotation, v, AllowedOsFamilies)
-	} else if common.ContainsEqualFold(AllowedOsFamilies, ctx.AmazonLinuxOsFamily) {
-		return ctx.AmazonLinuxOsFamily
+	} else if common.ContainsEqualFold(AllowedOsFamilies, overrideAmazonLinuxFamily) {
+		return overrideAmazonLinuxFamily
 	}
 	return OsFamilyAmazonLinux2
 }
