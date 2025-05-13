@@ -46,7 +46,6 @@ func (ctx *EksInstanceGroupContext) Create() error {
 		placement       = configuration.GetPlacement()
 		metadataOptions = configuration.GetMetadataOptions()
 	)
-
 	ctx.SetState(v1alpha1.ReconcileModifying)
 
 	// no need to create a role if one is already provided

@@ -253,6 +253,8 @@ spec:
                           - stage
                           type: object
                         type: array
+                      amazonLinuxOsFamily:
+                        type: string
                       volumes:
                         items:
                           properties:

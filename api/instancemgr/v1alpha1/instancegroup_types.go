@@ -53,8 +53,9 @@ const (
 	ReconcileErr    ReconcileState = "Error"
 
 	// Userdata bootstrap stages
-	PreBootstrapStage  = "PreBootstrap"
-	PostBootstrapStage = "PostBootstrap"
+	PreBootstrapStage   = "PreBootstrap"
+	PostBootstrapStage  = "PostBootstrap"
+	NodeConfigYamlStage = "NodeConfigYaml"
 
 	LifecycleStateNormal      = "normal"
 	LifecycleStateSpot        = "spot"
@@ -840,6 +841,7 @@ func (c *EKSConfiguration) GetManagedPolicies() []string {
 func (c *EKSConfiguration) GetUserData() []UserDataStage {
 	return c.UserData
 }
+
 func (c *EKSConfiguration) SetManagedPolicies(policies []string) {
 	c.ManagedPolicies = policies
 }

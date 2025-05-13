@@ -17,12 +17,12 @@ package eks
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/go-logr/logr"
-
 	"github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
@@ -41,9 +41,10 @@ const (
 	CustomNetworkingHostPodsAnnotation                = "instancemgr.keikoproj.io/custom-networking-host-pods"
 	CustomNetworkingPrefixAssignmentEnabledAnnotation = "instancemgr.keikoproj.io/custom-networking-prefix-assignment-enabled"
 
-	OsFamilyWindows      = "windows"
-	OsFamilyBottleRocket = "bottlerocket"
-	OsFamilyAmazonLinux2 = "amazonlinux2"
+	OsFamilyWindows         = "windows"
+	OsFamilyBottleRocket    = "bottlerocket"
+	OsFamilyAmazonLinux2    = "amazonlinux2"
+	OsFamilyAmazonLinux2023 = "amazonlinux2023"
 )
 
 var (
@@ -54,7 +55,7 @@ var (
 	InstanceMgrLifecycleLabel = "instancemgr.keikoproj.io/lifecycle"
 	InstanceMgrImageLabel     = "instancemgr.keikoproj.io/image"
 
-	AllowedOsFamilies      = []string{OsFamilyWindows, OsFamilyBottleRocket, OsFamilyAmazonLinux2}
+	AllowedOsFamilies      = []string{OsFamilyWindows, OsFamilyBottleRocket, OsFamilyAmazonLinux2, OsFamilyAmazonLinux2023}
 	DefaultManagedPolicies = []string{"AmazonEKSWorkerNodePolicy", "AmazonEC2ContainerRegistryReadOnly"}
 	CNIManagedPolicy       = "AmazonEKS_CNI_Policy"
 	SupportedArchitectures = []string{"x86_64", "arm64"}
@@ -78,6 +79,7 @@ func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 		ConfigRetention:            p.ConfigRetention,
 		Metrics:                    p.Metrics,
 		DisableWinClusterInjection: p.DisableWinClusterInjection,
+		AmazonLinuxOsFamily:        p.AmazonLinuxOsFamily,
 	}
 
 	ctx.SetState(v1alpha1.ReconcileInit)
@@ -99,11 +101,13 @@ type EksInstanceGroupContext struct {
 	ResourcePrefix             string
 	Metrics                    *common.MetricsCollector
 	DisableWinClusterInjection bool
+	AmazonLinuxOsFamily        string
 }
 
 type UserDataPayload struct {
-	PreBootstrap  []string
-	PostBootstrap []string
+	PreBootstrap   []string
+	PostBootstrap  []string
+	NodeConfigYaml string
 }
 
 type MountOpts struct {
@@ -125,6 +129,8 @@ type EKSUserData struct {
 	PostBootstrap    []string
 	MountOptions     []MountOpts
 	MaxPods          int64
+	ClusterIP        string
+	NodeConfigYaml   string
 }
 
 func (ctx *EksInstanceGroupContext) GetInstanceGroup() *v1alpha1.InstanceGroup {
@@ -139,14 +145,16 @@ func (ctx *EksInstanceGroupContext) GetOsFamily() string {
 		instanceGroup = ctx.GetInstanceGroup()
 		annotations   = instanceGroup.GetAnnotations()
 	)
+	overrideAmazonLinuxFamily := strings.Trim(ctx.AmazonLinuxOsFamily, "\" ")
 
 	if v, exists := annotations[OsFamilyAnnotation]; exists {
 		if common.ContainsEqualFold(AllowedOsFamilies, v) {
 			return annotations[OsFamilyAnnotation]
 		}
 		ctx.Log.Info("used unsupported annotation value '%v=%v', will default to 'amazonlinux2', allowed values: %+v", OsFamilyAnnotation, v, AllowedOsFamilies)
+	} else if common.ContainsEqualFold(AllowedOsFamilies, overrideAmazonLinuxFamily) {
+		return overrideAmazonLinuxFamily
 	}
-
 	return OsFamilyAmazonLinux2
 }
 
