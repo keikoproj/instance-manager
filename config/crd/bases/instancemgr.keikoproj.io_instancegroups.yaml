@@ -78,6 +78,8 @@ spec:
                 properties:
                   configuration:
                     properties:
+                      nodeConfig:
+                        type: string
                       bootstrapArguments:
                         type: string
                       bootstrapOptions:
@@ -253,8 +255,6 @@ spec:
                           - stage
                           type: object
                         type: array
-                      amazonLinuxOsFamily:
-                        type: string
                       volumes:
                         items:
                           properties:

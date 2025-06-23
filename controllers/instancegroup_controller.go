@@ -56,7 +56,6 @@ type InstanceGroupReconciler struct {
 	Metrics                     *common.MetricsCollector
 	DisableWinClusterInjection  bool
 	DefaultScalingConfiguration *v1alpha1.ScalingConfigurationType
-	AmazonLinuxOsFamily         string
 }
 
 type InstanceGroupAuthenticator struct {
@@ -144,7 +143,6 @@ func (r *InstanceGroupReconciler) Reconcile(ctxt context.Context, req ctrl.Reque
 		ConfigRetention:            r.ConfigRetention,
 		Metrics:                    r.Metrics,
 		DisableWinClusterInjection: r.DisableWinClusterInjection,
-		AmazonLinuxOsFamily:        r.AmazonLinuxOsFamily,
 	}
 
 	var (

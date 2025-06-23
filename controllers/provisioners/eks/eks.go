@@ -79,7 +79,6 @@ func New(p provisioners.ProvisionerInput) *EksInstanceGroupContext {
 		ConfigRetention:            p.ConfigRetention,
 		Metrics:                    p.Metrics,
 		DisableWinClusterInjection: p.DisableWinClusterInjection,
-		AmazonLinuxOsFamily:        p.AmazonLinuxOsFamily,
 	}
 
 	ctx.SetState(v1alpha1.ReconcileInit)
@@ -101,7 +100,6 @@ type EksInstanceGroupContext struct {
 	ResourcePrefix             string
 	Metrics                    *common.MetricsCollector
 	DisableWinClusterInjection bool
-	AmazonLinuxOsFamily        string
 }
 
 type UserDataPayload struct {
@@ -145,17 +143,36 @@ func (ctx *EksInstanceGroupContext) GetOsFamily() string {
 		instanceGroup = ctx.GetInstanceGroup()
 		annotations   = instanceGroup.GetAnnotations()
 	)
-	overrideAmazonLinuxFamily := strings.Trim(ctx.AmazonLinuxOsFamily, "\" ")
 
-	if v, exists := annotations[OsFamilyAnnotation]; exists {
+	if ctx.IsAmazonLinux2023() {
+		ctx.Log.Info("using amazonlinux2023 for os family")
+		return OsFamilyAmazonLinux2023
+	} else if v, exists := annotations[OsFamilyAnnotation]; exists {
 		if common.ContainsEqualFold(AllowedOsFamilies, v) {
+			ctx.Log.Info("using amazon linux os family annotation", "value", v)
 			return annotations[OsFamilyAnnotation]
 		}
 		ctx.Log.Info("used unsupported annotation value '%v=%v', will default to 'amazonlinux2', allowed values: %+v", OsFamilyAnnotation, v, AllowedOsFamilies)
-	} else if common.ContainsEqualFold(AllowedOsFamilies, overrideAmazonLinuxFamily) {
-		return overrideAmazonLinuxFamily
 	}
 	return OsFamilyAmazonLinux2
+}
+
+func (ctx *EksInstanceGroupContext) IsAmazonLinux2023() bool {
+
+	isAmazonLinux2023 := false
+	var (
+		instanceGroup = ctx.GetInstanceGroup()
+		configuration = instanceGroup.GetEKSConfiguration()
+		userData      = configuration.GetUserData()
+	)
+
+	for _, stage := range userData {
+		if strings.EqualFold(stage.Stage, v1alpha1.NodeConfigYamlStage) {
+			return true
+		}
+
+	}
+	return isAmazonLinux2023
 }
 
 func (ctx *EksInstanceGroupContext) GetUpgradeStrategy() *v1alpha1.AwsUpgradeStrategy {

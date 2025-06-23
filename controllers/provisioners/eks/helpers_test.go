@@ -34,6 +34,18 @@ import (
 	"github.com/pkg/errors"
 )
 
+func mockUserDataStages() []v1alpha1.UserDataStage {
+	preBootstrapData := base64.StdEncoding.EncodeToString([]byte("echo Pre-bootstrap actions"))
+	postBootstrapData := base64.StdEncoding.EncodeToString([]byte("echo Post-bootstrap actions"))
+	nodeConfigYamlData := base64.StdEncoding.EncodeToString([]byte("image: my-custom-image"))
+
+	return []v1alpha1.UserDataStage{
+		{Stage: v1alpha1.PreBootstrapStage, Data: preBootstrapData},
+		{Stage: v1alpha1.PostBootstrapStage, Data: postBootstrapData},
+		{Stage: v1alpha1.NodeConfigYamlStage, Data: nodeConfigYamlData},
+	}
+}
+
 func TestAutoscalerTags(t *testing.T) {
 	var (
 		k       = MockKubernetesClientSet()
@@ -1398,6 +1410,57 @@ func TestGetEksLatestAmi(t *testing.T) {
 		ig.SetAnnotations(map[string]string{
 			OsFamilyAnnotation: tc.OSFamily,
 		})
+		config.InstanceType = instanceType
+		ctx := MockContext(ig, k, w)
+		ctx.GetDiscoveredState().SetInstanceTypeInfo([]*ec2.InstanceTypeInfo{
+			{
+				InstanceType: aws.String(instanceType),
+				ProcessorInfo: &ec2.ProcessorInfo{
+					SupportedArchitectures: []*string{aws.String(tc.arch)},
+				},
+			},
+		})
+		_, err := ctx.GetEksLatestAmi()
+		if err == nil && tc.expectedError == nil {
+			continue
+		}
+		if err != nil && tc.expectedError != nil && err.Error() != tc.expectedError.Error() {
+			t.Fatalf("expected %v got %v, test %s", tc.expectedError, err, tc.name)
+		}
+
+	}
+}
+
+func TestGetEksLatestAmiForAL2023(t *testing.T) {
+	var (
+		k            = MockKubernetesClientSet()
+		ig           = MockInstanceGroup()
+		config       = ig.GetEKSConfiguration()
+		asgMock      = NewAutoScalingMocker()
+		iamMock      = NewIamMocker()
+		eksMock      = NewEksMocker()
+		ec2Mock      = NewEc2Mocker()
+		ssmMock      = NewSsmMocker()
+		instanceType = "m5.large"
+	)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
+	ig.GetEKSConfiguration().UserData = mockUserDataStages()
+
+	tests := []struct {
+		name          string
+		OSFamily      string
+		arch          string
+		expectedError error
+	}{
+		{
+			name:          "amazonlinux2023",
+			OSFamily:      "",
+			arch:          "x86_64",
+			expectedError: nil,
+		},
+	}
+
+	for _, tc := range tests {
 		config.InstanceType = instanceType
 		ctx := MockContext(ig, k, w)
 		ctx.GetDiscoveredState().SetInstanceTypeInfo([]*ec2.InstanceTypeInfo{
