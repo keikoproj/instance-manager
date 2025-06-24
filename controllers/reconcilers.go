@@ -190,7 +190,10 @@ func (r *InstanceGroupReconciler) namespaceReconciler(obj client.Object) []ctrl.
 		return nil
 	}
 
+	oldNsAnnotations := map[string]string{}
+
 	if val, ok := r.Namespaces[name]; ok {
+		oldNsAnnotations = val.GetAnnotations()
 		if reflect.DeepEqual(val.GetAnnotations(), ns.GetAnnotations()) {
 			// annotations not modified
 			return nil
@@ -209,6 +212,7 @@ func (r *InstanceGroupReconciler) namespaceReconciler(obj client.Object) []ctrl.
 
 	requests := make([]ctrl.Request, 0)
 	for _, ig := range instanceGroups.Items {
+		ctrl.Log.Info("found namespace diff for instancegroup", "instancegroup", namespacedName, "old", oldNsAnnotations, "new", ns.GetAnnotations())
 		requests = append(requests, ctrl.Request{
 			NamespacedName: types.NamespacedName{
 				Namespace: ig.GetNamespace(),
@@ -255,6 +259,8 @@ func (r *InstanceGroupReconciler) nodeReconciler(obj client.Object) []ctrl.Reque
 			Labels: nodeLabels,
 		},
 	}
+
+	ctrl.Log.Info("patching node label", "nodeName", nodeName, "label", nodeLabels)
 
 	patchJSON, err := json.Marshal(labelPatch)
 	if err != nil {
@@ -312,6 +318,7 @@ func (r *InstanceGroupReconciler) spotEventReconciler(obj client.Object) []ctrl.
 		return nil
 	}
 
+	ctrl.Log.Info("found spot recommendation for instancegroup", "instancegroup", instanceGroup)
 	return []ctrl.Request{
 		{
 			NamespacedName: instanceGroup,

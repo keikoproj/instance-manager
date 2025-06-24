@@ -30,7 +30,6 @@ type ProvisionerInput struct {
 	ConfigRetention            int
 	Metrics                    *common.MetricsCollector
 	DisableWinClusterInjection bool
-	AmazonLinuxOsFamily        string
 }
 
 var (
