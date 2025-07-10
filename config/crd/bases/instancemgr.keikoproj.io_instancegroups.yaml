@@ -78,8 +78,6 @@ spec:
                 properties:
                   configuration:
                     properties:
-                      nodeConfig:
-                        type: string
                       bootstrapArguments:
                         type: string
                       bootstrapOptions:
