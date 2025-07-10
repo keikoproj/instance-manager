@@ -364,6 +364,7 @@ func (lt *LaunchTemplate) metadataOptions(input *v1alpha1.MetadataOptions) *ec2.
 		HttpEndpoint:            aws.String(input.HttpEndpoint),
 		HttpPutResponseHopLimit: aws.Int64(input.HttpPutHopLimit),
 		HttpTokens:              aws.String(input.HttpTokens),
+		InstanceMetadataTags:    aws.String("disabled"), // set disabled by default
 	}
 }
 
@@ -375,6 +376,7 @@ func (lt *LaunchTemplate) metadataOptionsRequest(input *v1alpha1.MetadataOptions
 		HttpEndpoint:            aws.String(input.HttpEndpoint),
 		HttpPutResponseHopLimit: aws.Int64(input.HttpPutHopLimit),
 		HttpTokens:              aws.String(input.HttpTokens),
+		InstanceMetadataTags:    aws.String("disabled"), // set disabled by default
 	}
 }
 
