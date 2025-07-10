@@ -794,3 +794,428 @@ func TestSortLicenseSpecifications(t *testing.T) {
 	}
 
 }
+
+func TestLaunchTemplateMetadataOptions(t *testing.T) {
+	var (
+		g       = gomega.NewGomegaWithT(t)
+		asgMock = &MockAutoScalingClient{}
+		ec2Mock = &MockEc2Client{}
+	)
+
+	w := awsprovider.AwsWorker{
+		AsgClient: asgMock,
+		Ec2Client: ec2Mock,
+	}
+
+	discoveryInput := &DiscoverConfigurationInput{
+		ScalingGroup: &autoscaling.Group{
+			AutoScalingGroupName: aws.String("my-asg"),
+			LaunchTemplate: &autoscaling.LaunchTemplateSpecification{
+				LaunchTemplateName: aws.String("prefix-my-launch-template"),
+				Version:            aws.String("6"),
+			},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		input    *v1alpha1.MetadataOptions
+		expected *ec2.LaunchTemplateInstanceMetadataOptions
+	}{
+		{
+			name:     "nil input",
+			input:    nil,
+			expected: nil,
+		},
+		{
+			name: "all fields set",
+			input: &v1alpha1.MetadataOptions{
+				HttpEndpoint:    "enabled",
+				HttpTokens:      "required",
+				HttpPutHopLimit: 2,
+			},
+			expected: &ec2.LaunchTemplateInstanceMetadataOptions{
+				HttpEndpoint:            aws.String("enabled"),
+				HttpTokens:              aws.String("required"),
+				HttpPutResponseHopLimit: aws.Int64(2),
+				InstanceMetadataTags:    aws.String("disabled"),
+			},
+		},
+		{
+			name: "only HttpEndpoint set",
+			input: &v1alpha1.MetadataOptions{
+				HttpEndpoint: "enabled",
+			},
+			expected: &ec2.LaunchTemplateInstanceMetadataOptions{
+				HttpEndpoint:            aws.String("enabled"),
+				HttpTokens:              aws.String(""),
+				HttpPutResponseHopLimit: aws.Int64(0),
+				InstanceMetadataTags:    aws.String("disabled"),
+			},
+		},
+		{
+			name: "only HttpTokens set",
+			input: &v1alpha1.MetadataOptions{
+				HttpTokens: "optional",
+			},
+			expected: &ec2.LaunchTemplateInstanceMetadataOptions{
+				HttpEndpoint:            aws.String(""),
+				HttpTokens:              aws.String("optional"),
+				HttpPutResponseHopLimit: aws.Int64(0),
+				InstanceMetadataTags:    aws.String("disabled"),
+			},
+		},
+		{
+			name: "only HttpPutHopLimit set",
+			input: &v1alpha1.MetadataOptions{
+				HttpPutHopLimit: 1,
+			},
+			expected: &ec2.LaunchTemplateInstanceMetadataOptions{
+				HttpEndpoint:            aws.String(""),
+				HttpTokens:              aws.String(""),
+				HttpPutResponseHopLimit: aws.Int64(1),
+				InstanceMetadataTags:    aws.String("disabled"),
+			},
+		},
+		{
+			name: "empty strings",
+			input: &v1alpha1.MetadataOptions{
+				HttpEndpoint: "",
+				HttpTokens:   "",
+			},
+			expected: &ec2.LaunchTemplateInstanceMetadataOptions{
+				HttpEndpoint:            aws.String(""),
+				HttpTokens:              aws.String(""),
+				HttpPutResponseHopLimit: aws.Int64(0),
+				InstanceMetadataTags:    aws.String("disabled"),
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			lt, err := NewLaunchTemplate("", w, discoveryInput)
+			g.Expect(err).NotTo(gomega.HaveOccurred())
+			output := lt.metadataOptions(tc.input)
+			g.Expect(output).To(gomega.Equal(tc.expected))
+		})
+	}
+}
+
+func TestLaunchTemplateMetadataOptionsRequest(t *testing.T) {
+	var (
+		g       = gomega.NewGomegaWithT(t)
+		asgMock = &MockAutoScalingClient{}
+		ec2Mock = &MockEc2Client{}
+	)
+
+	w := awsprovider.AwsWorker{
+		AsgClient: asgMock,
+		Ec2Client: ec2Mock,
+	}
+
+	discoveryInput := &DiscoverConfigurationInput{
+		ScalingGroup: &autoscaling.Group{
+			AutoScalingGroupName: aws.String("my-asg"),
+			LaunchTemplate: &autoscaling.LaunchTemplateSpecification{
+				LaunchTemplateName: aws.String("prefix-my-launch-template"),
+				Version:            aws.String("6"),
+			},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		input    *v1alpha1.MetadataOptions
+		expected *ec2.LaunchTemplateInstanceMetadataOptionsRequest
+	}{
+		{
+			name:     "nil input",
+			input:    nil,
+			expected: nil,
+		},
+		{
+			name: "all fields set",
+			input: &v1alpha1.MetadataOptions{
+				HttpEndpoint:    "enabled",
+				HttpTokens:      "required",
+				HttpPutHopLimit: 2,
+			},
+			expected: &ec2.LaunchTemplateInstanceMetadataOptionsRequest{
+				HttpEndpoint:            aws.String("enabled"),
+				HttpTokens:              aws.String("required"),
+				HttpPutResponseHopLimit: aws.Int64(2),
+				InstanceMetadataTags:    aws.String("disabled"),
+			},
+		},
+		{
+			name: "only HttpEndpoint set",
+			input: &v1alpha1.MetadataOptions{
+				HttpEndpoint: "enabled",
+			},
+			expected: &ec2.LaunchTemplateInstanceMetadataOptionsRequest{
+				HttpEndpoint:            aws.String("enabled"),
+				HttpTokens:              aws.String(""),
+				HttpPutResponseHopLimit: aws.Int64(0),
+				InstanceMetadataTags:    aws.String("disabled"),
+			},
+		},
+		{
+			name: "only HttpTokens set",
+			input: &v1alpha1.MetadataOptions{
+				HttpTokens: "optional",
+			},
+			expected: &ec2.LaunchTemplateInstanceMetadataOptionsRequest{
+				HttpEndpoint:            aws.String(""),
+				HttpTokens:              aws.String("optional"),
+				HttpPutResponseHopLimit: aws.Int64(0),
+				InstanceMetadataTags:    aws.String("disabled"),
+			},
+		},
+		{
+			name: "only HttpPutHopLimit set",
+			input: &v1alpha1.MetadataOptions{
+				HttpPutHopLimit: 1,
+			},
+			expected: &ec2.LaunchTemplateInstanceMetadataOptionsRequest{
+				HttpEndpoint:            aws.String(""),
+				HttpTokens:              aws.String(""),
+				HttpPutResponseHopLimit: aws.Int64(1),
+				InstanceMetadataTags:    aws.String("disabled"),
+			},
+		},
+		{
+			name: "empty strings",
+			input: &v1alpha1.MetadataOptions{
+				HttpEndpoint: "",
+				HttpTokens:   "",
+			},
+			expected: &ec2.LaunchTemplateInstanceMetadataOptionsRequest{
+				HttpEndpoint:            aws.String(""),
+				HttpTokens:              aws.String(""),
+				HttpPutResponseHopLimit: aws.Int64(0),
+				InstanceMetadataTags:    aws.String("disabled"),
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			lt, err := NewLaunchTemplate("", w, discoveryInput)
+			g.Expect(err).NotTo(gomega.HaveOccurred())
+			output := lt.metadataOptionsRequest(tc.input)
+			g.Expect(output).To(gomega.Equal(tc.expected))
+		})
+	}
+}
+
+func TestLaunchTemplateMetadataOptionsDrift(t *testing.T) {
+	var (
+		g       = gomega.NewGomegaWithT(t)
+		asgMock = &MockAutoScalingClient{}
+		ec2Mock = &MockEc2Client{}
+	)
+
+	w := awsprovider.AwsWorker{
+		AsgClient: asgMock,
+		Ec2Client: ec2Mock,
+	}
+
+	discoveryInput := &DiscoverConfigurationInput{
+		ScalingGroup: &autoscaling.Group{
+			AutoScalingGroupName: aws.String("my-asg"),
+			LaunchTemplate: &autoscaling.LaunchTemplateSpecification{
+				LaunchTemplateName: aws.String("prefix-my-launch-template"),
+				Version:            aws.String("6"),
+			},
+		},
+	}
+
+	// Create a mock launch template version with existing metadata options
+	existingMetadataOptions := &ec2.LaunchTemplateInstanceMetadataOptions{
+		HttpEndpoint:            aws.String("enabled"),
+		HttpTokens:              aws.String("required"),
+		HttpPutResponseHopLimit: aws.Int64(2),
+		InstanceMetadataTags:    aws.String("disabled"),
+	}
+
+	existingVersion := &ec2.LaunchTemplateVersion{
+		LaunchTemplateData: &ec2.ResponseLaunchTemplateData{
+			IamInstanceProfile: &ec2.LaunchTemplateIamInstanceProfileSpecification{
+				Arn: aws.String(""),
+			},
+			InstanceType:     aws.String(""),
+			SecurityGroupIds: aws.StringSlice([]string{}),
+			ImageId:          aws.String(""),
+			KeyName:          aws.String(""),
+			UserData:         aws.String(""),
+			MetadataOptions:  existingMetadataOptions,
+		},
+	}
+
+	tests := []struct {
+		name           string
+		input          *v1alpha1.MetadataOptions
+		shouldDrift    bool
+		expectedReason string
+	}{
+		{
+			name: "no drift - same metadata options",
+			input: &v1alpha1.MetadataOptions{
+				HttpEndpoint:    "enabled",
+				HttpTokens:      "required",
+				HttpPutHopLimit: 2,
+			},
+			shouldDrift:    false,
+			expectedReason: "",
+		},
+		{
+			name: "drift - HttpEndpoint changed",
+			input: &v1alpha1.MetadataOptions{
+				HttpEndpoint:    "disabled",
+				HttpTokens:      "required",
+				HttpPutHopLimit: 2,
+			},
+			shouldDrift:    true,
+			expectedReason: "metadata options have changed",
+		},
+		{
+			name: "drift - HttpTokens changed",
+			input: &v1alpha1.MetadataOptions{
+				HttpEndpoint:    "enabled",
+				HttpTokens:      "optional",
+				HttpPutHopLimit: 2,
+			},
+			shouldDrift:    true,
+			expectedReason: "metadata options have changed",
+		},
+		{
+			name: "drift - HttpPutHopLimit changed",
+			input: &v1alpha1.MetadataOptions{
+				HttpEndpoint:    "enabled",
+				HttpTokens:      "required",
+				HttpPutHopLimit: 3,
+			},
+			shouldDrift:    true,
+			expectedReason: "metadata options have changed",
+		},
+		{
+			name: "drift - metadata options changed",
+			input: &v1alpha1.MetadataOptions{
+				HttpEndpoint:    "disabled",
+				HttpTokens:      "optional",
+				HttpPutHopLimit: 1,
+			},
+			shouldDrift:    true,
+			expectedReason: "metadata options have changed",
+		},
+		{
+			name:           "drift - metadata options removed",
+			input:          nil,
+			shouldDrift:    true,
+			expectedReason: "metadata options have changed",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			lt, err := NewLaunchTemplate("", w, discoveryInput)
+			g.Expect(err).NotTo(gomega.HaveOccurred())
+			lt.LatestVersion = existingVersion
+
+			createInput := &CreateConfigurationInput{
+				MetadataOptions: tc.input,
+			}
+
+			result := lt.Drifted(createInput)
+			g.Expect(result).To(gomega.Equal(tc.shouldDrift))
+		})
+	}
+}
+
+func TestLaunchTemplateMetadataOptionsCreate(t *testing.T) {
+	var (
+		g       = gomega.NewGomegaWithT(t)
+		asgMock = &MockAutoScalingClient{}
+		ec2Mock = &MockEc2Client{}
+	)
+
+	w := awsprovider.AwsWorker{
+		AsgClient: asgMock,
+		Ec2Client: ec2Mock,
+	}
+
+	discoveryInput := &DiscoverConfigurationInput{
+		ScalingGroup: &autoscaling.Group{
+			AutoScalingGroupName: aws.String("my-asg"),
+			LaunchTemplate: &autoscaling.LaunchTemplateSpecification{
+				LaunchTemplateName: aws.String("prefix-my-launch-template"),
+				Version:            aws.String("6"),
+			},
+		},
+	}
+
+	// Mock existing launch template
+	existingTemplate := &ec2.LaunchTemplate{
+		LaunchTemplateName:  aws.String("my-launch-template"),
+		LatestVersionNumber: aws.Int64(1),
+	}
+
+	ec2Mock.LaunchTemplates = []*ec2.LaunchTemplate{existingTemplate}
+
+	tests := []struct {
+		name                    string
+		metadataOptions         *v1alpha1.MetadataOptions
+		expectCreateCall        bool
+		expectCreateVersionCall bool
+	}{
+		{
+			name: "create new launch template with metadata options",
+			metadataOptions: &v1alpha1.MetadataOptions{
+				HttpEndpoint:    "enabled",
+				HttpTokens:      "required",
+				HttpPutHopLimit: 2,
+			},
+			expectCreateCall:        true,
+			expectCreateVersionCall: false,
+		},
+		{
+			name:                    "create new launch template without metadata options",
+			metadataOptions:         nil,
+			expectCreateCall:        true,
+			expectCreateVersionCall: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Reset mock call counts
+			ec2Mock.CreateLaunchTemplateCallCount = 0
+			ec2Mock.CreateLaunchTemplateVersionCallCount = 0
+
+			lt, err := NewLaunchTemplate("", w, discoveryInput)
+			g.Expect(err).NotTo(gomega.HaveOccurred())
+
+			createInput := &CreateConfigurationInput{
+				Name:                  "my-launch-template",
+				IamInstanceProfileArn: "arn:aws:iam::123456789012:instance-profile/test-profile",
+				ImageId:               "ami-12345678",
+				InstanceType:          "t3.micro",
+				KeyName:               "test-key",
+				SecurityGroups:        []string{"sg-12345678"},
+				UserData:              "#!/bin/bash\necho 'test'",
+				MetadataOptions:       tc.metadataOptions,
+			}
+
+			err = lt.Create(createInput)
+			g.Expect(err).NotTo(gomega.HaveOccurred())
+
+			if tc.expectCreateCall {
+				g.Expect(ec2Mock.CreateLaunchTemplateCallCount).To(gomega.Equal(1))
+			}
+			if tc.expectCreateVersionCall {
+				g.Expect(ec2Mock.CreateLaunchTemplateVersionCallCount).To(gomega.Equal(1))
+			}
+		})
+	}
+}
