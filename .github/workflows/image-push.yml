@@ -87,14 +87,14 @@ jobs:
             REVISION=${{ github.sha }}
 
       - name: Generate artifact attestation (dockerhub)
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-name: docker.io/${{ github.repository_owner }}/${{ github.event.repository.name }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
 
       - name: Generate artifact attestation (ghcr)
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}
           subject-digest: ${{ steps.push.outputs.digest }}
