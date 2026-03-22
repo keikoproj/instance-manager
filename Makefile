@@ -1,7 +1,7 @@
 export GO111MODULE=on
 
 CONTROLLER_GEN_VERSION := v0.17.2
-GO_MIN_VERSION := 12000 # go1.20
+GO_MIN_VERSION := 12600 # go1.26
 
 define generate_int_from_semver
   echo $(1) |cut -dv -f2 |awk '{split($$0,a,"."); print  a[3]+(100*a[2])+(10000* a[1])}'
