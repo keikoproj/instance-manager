@@ -11,6 +11,13 @@ linters:
       - third_party$
       - builtin$
       - examples$
+    rules:
+      # aws-sdk-go v1 is deprecated at the package level but migration to v2 is a separate effort
+      - linters: [staticcheck]
+        text: "SA1019:"
+      # Pre-existing style issues unrelated to this PR
+      - linters: [staticcheck]
+        text: "QF1012:"
 formatters:
   exclusions:
     generated: lax
