@@ -134,7 +134,7 @@ controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessar
 $(CONTROLLER_GEN): $(LOCALBIN)
 	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
 
-GOLANGCI_LINT_VERSION := v2.1.1
+GOLANGCI_LINT_VERSION := v2.11.4
 GOLANGCI_LINT = $(shell pwd)/bin/golangci-lint
 .PHONY: golangci-lint
 $(GOLANGCI_LINT): $(LOCALBIN)
