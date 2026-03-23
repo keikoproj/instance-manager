@@ -8,7 +8,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
-	"github.com/keikoproj/aws-sdk-go-cache/cache"
 	"github.com/keikoproj/instance-manager/controllers/common"
 )
 
@@ -44,23 +43,13 @@ var (
 	}
 )
 
-func GetAwsSsmClient(region string, cacheCfg *cache.Config, maxRetries int, collector *common.MetricsCollector) ssmiface.SSMAPI {
+func GetAwsSsmClient(region string, maxRetries int, collector *common.MetricsCollector) ssmiface.SSMAPI {
 	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
 	config = request.WithRetryer(config, NewRetryLogger(maxRetries, collector))
 	sess, err := session.NewSession(config)
 	if err != nil {
 		panic(err)
 	}
-	cache.AddCaching(sess, cacheCfg)
-	cacheCfg.SetCacheTTL("ssm", "GetParameter", GetParameterTTL)
-	sess.Handlers.Complete.PushFront(func(r *request.Request) {
-		ctx := r.HTTPRequest.Context()
-		log.V(1).Info("AWS API call",
-			"cacheHit", cache.IsCacheHit(ctx),
-			"service", r.ClientInfo.ServiceName,
-			"operation", r.Operation.Name,
-		)
-	})
 	return ssm.New(sess)
 }
 

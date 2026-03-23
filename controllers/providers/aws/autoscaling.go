@@ -23,32 +23,17 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
-	"github.com/keikoproj/aws-sdk-go-cache/cache"
 	"github.com/keikoproj/instance-manager/controllers/common"
 )
 
 // GetAwsAsgClient returns an ASG client
-func GetAwsAsgClient(region string, cacheCfg *cache.Config, maxRetries int, collector *common.MetricsCollector) autoscalingiface.AutoScalingAPI {
+func GetAwsAsgClient(region string, maxRetries int, collector *common.MetricsCollector) autoscalingiface.AutoScalingAPI {
 	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
 	config = request.WithRetryer(config, NewRetryLogger(maxRetries, collector))
 	sess, err := session.NewSession(config)
 	if err != nil {
 		panic(err)
 	}
-
-	cache.AddCaching(sess, cacheCfg)
-	cacheCfg.SetCacheTTL("autoscaling", "DescribeAutoScalingGroups", DescribeAutoScalingGroupsTTL)
-	cacheCfg.SetCacheTTL("autoscaling", "DescribeWarmPool", DescribeWarmPoolTTL)
-	cacheCfg.SetCacheTTL("autoscaling", "DescribeLaunchConfigurations", DescribeLaunchConfigurationsTTL)
-	cacheCfg.SetCacheTTL("autoscaling", "DescribeLifecycleHooks", DescribeLifecycleHooksTTL)
-	sess.Handlers.Complete.PushFront(func(r *request.Request) {
-		ctx := r.HTTPRequest.Context()
-		log.V(1).Info("AWS API call",
-			"cacheHit", cache.IsCacheHit(ctx),
-			"service", r.ClientInfo.ServiceName,
-			"operation", r.Operation.Name,
-		)
-	})
 	return autoscaling.New(sess)
 }
 
