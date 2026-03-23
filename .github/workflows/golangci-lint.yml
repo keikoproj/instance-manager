@@ -9,7 +9,7 @@ on:
     branches: [ "master" ]
 
 env:
-  GO_VERSION: stable
+  GO_VERSION: "1.24"
   GOLANGCI_LINT_VERSION: v2.1.1
 
 jobs:
