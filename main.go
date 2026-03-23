@@ -137,7 +137,18 @@ func main() {
 		Ec2Metadata: metadata,
 	}
 
-	prometheus.MustRegister(cacheCollector, controllerCollector)
+	if err := prometheus.Register(cacheCollector); err != nil {
+		if _, ok := err.(prometheus.AlreadyRegisteredError); !ok {
+			setupLog.Error(err, "failed to register cache metrics collector")
+			os.Exit(1)
+		}
+	}
+	if err := prometheus.Register(controllerCollector); err != nil {
+		if _, ok := err.(prometheus.AlreadyRegisteredError); !ok {
+			setupLog.Error(err, "failed to register controller metrics collector")
+			os.Exit(1)
+		}
+	}
 	kube := kubeprovider.KubernetesClientSet{
 		Kubernetes:  client,
 		KubeDynamic: dynClient,
