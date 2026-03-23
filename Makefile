@@ -1,7 +1,7 @@
 export GO111MODULE=on
 
 CONTROLLER_GEN_VERSION := v0.17.2
-GO_MIN_VERSION := 12000 # go1.20
+GO_MIN_VERSION := 12600 # go1.26
 
 define generate_int_from_semver
   echo $(1) |cut -dv -f2 |awk '{split($$0,a,"."); print  a[3]+(100*a[2])+(10000* a[1])}'
@@ -134,7 +134,7 @@ controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessar
 $(CONTROLLER_GEN): $(LOCALBIN)
 	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
 
-GOLANGCI_LINT_VERSION := v2.1.1
+GOLANGCI_LINT_VERSION := v2.11.4
 GOLANGCI_LINT = $(shell pwd)/bin/golangci-lint
 .PHONY: golangci-lint
 $(GOLANGCI_LINT): $(LOCALBIN)
