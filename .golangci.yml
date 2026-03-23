@@ -7,6 +7,12 @@ linters:
       - common-false-positives
       - legacy
       - std-error-handling
+    rules:
+      # Suppress SA1019 deprecation warnings for aws-sdk-go v1 until migration to v2
+      # is complete. Tracked in https://github.com/keikoproj/instance-manager/issues/523
+      - linters:
+          - staticcheck
+        text: "SA1019.*\"github.com/aws/aws-sdk-go/"
     paths:
       - third_party$
       - builtin$
