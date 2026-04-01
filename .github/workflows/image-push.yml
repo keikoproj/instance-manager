@@ -33,7 +33,7 @@ jobs:
       # Extract metadata for Docker
       - name: Extract Docker metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: docker.io/${{ github.repository_owner }}/${{ github.event.repository.name }},ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}
           tags: |
