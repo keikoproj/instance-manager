@@ -17,7 +17,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	golang.org/x/oauth2 v0.30.0 // indirect
 	k8s.io/api v0.33.9
-	k8s.io/apimachinery v0.33.9
+	k8s.io/apimachinery v0.33.10
 	k8s.io/client-go v0.33.9
 	k8s.io/code-generator v0.32.13
 	sigs.k8s.io/controller-runtime v0.20.4
