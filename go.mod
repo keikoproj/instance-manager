@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/aws/aws-sdk-go v1.55.8
-	github.com/cucumber/godog v0.15.0
+	github.com/cucumber/godog v0.15.1
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v1.4.3
