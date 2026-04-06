@@ -1,0 +1,27 @@
+version: "2"
+linters:
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      # aws-sdk-go v1 is deprecated at the package level but migration to v2 is a separate effort
+      - linters: [staticcheck]
+        text: "SA1019:"
+      # Pre-existing style issues unrelated to this PR
+      - linters: [staticcheck]
+        text: "QF1012:"
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

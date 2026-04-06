@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	v1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
+	v1alpha1 "github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
@@ -37,7 +37,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 const (
@@ -49,18 +48,53 @@ func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	case true:
 		return ctrl.NewControllerManagedBy(mgr).
 			For(&v1alpha1.InstanceGroup{}).
-			Watches(&source.Kind{Type: &corev1.Event{}}, handler.EnqueueRequestsFromMapFunc(r.spotEventReconciler)).
-			Watches(&source.Kind{Type: &corev1.Node{}}, handler.EnqueueRequestsFromMapFunc(r.nodeReconciler)).
-			Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.configMapReconciler)).
-			Watches(&source.Kind{Type: &corev1.Namespace{}}, handler.EnqueueRequestsFromMapFunc(r.namespaceReconciler)).
+			Watches(
+				&corev1.Event{},
+				handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []ctrl.Request {
+					return r.spotEventReconciler(obj)
+				}),
+			).
+			Watches(
+				&corev1.Node{},
+				handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []ctrl.Request {
+					return r.nodeReconciler(obj)
+				}),
+			).
+			Watches(
+				&corev1.ConfigMap{},
+				handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []ctrl.Request {
+					return r.configMapReconciler(obj)
+				}),
+			).
+			Watches(
+				&corev1.Namespace{},
+				handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []ctrl.Request {
+					return r.namespaceReconciler(obj)
+				}),
+			).
 			WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
 			Complete(r)
 	default:
 		return ctrl.NewControllerManagedBy(mgr).
 			For(&v1alpha1.InstanceGroup{}).
-			Watches(&source.Kind{Type: &corev1.Event{}}, handler.EnqueueRequestsFromMapFunc(r.spotEventReconciler)).
-			Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.configMapReconciler)).
-			Watches(&source.Kind{Type: &corev1.Namespace{}}, handler.EnqueueRequestsFromMapFunc(r.namespaceReconciler)).
+			Watches(
+				&corev1.Event{},
+				handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []ctrl.Request {
+					return r.spotEventReconciler(obj)
+				}),
+			).
+			Watches(
+				&corev1.ConfigMap{},
+				handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []ctrl.Request {
+					return r.configMapReconciler(obj)
+				}),
+			).
+			Watches(
+				&corev1.Namespace{},
+				handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []ctrl.Request {
+					return r.namespaceReconciler(obj)
+				}),
+			).
 			WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxParallel}).
 			Complete(r)
 	}
@@ -156,7 +190,10 @@ func (r *InstanceGroupReconciler) namespaceReconciler(obj client.Object) []ctrl.
 		return nil
 	}
 
+	oldNsAnnotations := map[string]string{}
+
 	if val, ok := r.Namespaces[name]; ok {
+		oldNsAnnotations = val.GetAnnotations()
 		if reflect.DeepEqual(val.GetAnnotations(), ns.GetAnnotations()) {
 			// annotations not modified
 			return nil
@@ -175,6 +212,7 @@ func (r *InstanceGroupReconciler) namespaceReconciler(obj client.Object) []ctrl.
 
 	requests := make([]ctrl.Request, 0)
 	for _, ig := range instanceGroups.Items {
+		ctrl.Log.Info("found namespace diff for instancegroup", "instancegroup", namespacedName, "old", oldNsAnnotations, "new", ns.GetAnnotations())
 		requests = append(requests, ctrl.Request{
 			NamespacedName: types.NamespacedName{
 				Namespace: ig.GetNamespace(),
@@ -221,6 +259,8 @@ func (r *InstanceGroupReconciler) nodeReconciler(obj client.Object) []ctrl.Reque
 			Labels: nodeLabels,
 		},
 	}
+
+	ctrl.Log.Info("patching node label", "nodeName", nodeName, "label", nodeLabels)
 
 	patchJSON, err := json.Marshal(labelPatch)
 	if err != nil {
@@ -278,6 +318,7 @@ func (r *InstanceGroupReconciler) spotEventReconciler(obj client.Object) []ctrl.
 		return nil
 	}
 
+	ctrl.Log.Info("found spot recommendation for instancegroup", "instancegroup", instanceGroup)
 	return []ctrl.Request{
 		{
 			NamespacedName: instanceGroup,

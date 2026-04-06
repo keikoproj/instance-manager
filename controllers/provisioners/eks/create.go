@@ -20,7 +20,7 @@ import (
 
 	"github.com/keikoproj/instance-manager/controllers/provisioners/eks/scaling"
 
-	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/pkg/errors"
 
@@ -46,7 +46,6 @@ func (ctx *EksInstanceGroupContext) Create() error {
 		placement       = configuration.GetPlacement()
 		metadataOptions = configuration.GetMetadataOptions()
 	)
-
 	ctx.SetState(v1alpha1.ReconcileModifying)
 
 	// no need to create a role if one is already provided

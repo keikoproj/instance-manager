@@ -123,11 +123,8 @@ type AwsWorker struct {
 }
 
 func (w *AwsWorker) WithRetries(f func() bool) error {
-	var counter int
-	for {
-		if counter >= DefaultWaiterRetries {
-			break
-		}
+	counter := 0
+	for counter < DefaultWaiterRetries {
 		if f() {
 			return nil
 		}
@@ -145,9 +142,10 @@ func (w *AwsWorker) compactTags(tags []map[string]string) map[string]string {
 			value string
 		)
 		for t, v := range tagSet {
-			if t == "key" {
+			switch t {
+			case "key":
 				key = v
-			} else if t == "value" {
+			case "value":
 				value = v
 			}
 		}

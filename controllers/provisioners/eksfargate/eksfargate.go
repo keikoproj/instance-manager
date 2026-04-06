@@ -24,7 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/iam"
-	v1alpha1 "github.com/keikoproj/instance-manager/api/v1alpha1"
+	v1alpha1 "github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
 	"github.com/pkg/errors"
@@ -326,7 +326,7 @@ func (ctx *FargateInstanceGroupContext) StateDiscovery() {
 	instanceGroup := ctx.GetInstanceGroup()
 	if instanceGroup.GetState() == v1alpha1.ReconcileInit {
 
-		if instanceGroup.ObjectMeta.DeletionTimestamp.IsZero() {
+		if instanceGroup.GetObjectMeta().GetDeletionTimestamp().IsZero() {
 			if ctx.GetDiscoveredState().IsProvisioned() {
 				// Role exists and the Profile exists in some form (creating)
 				if awsprovider.IsProfileInConditionState(ctx.GetDiscoveredState().GetProfileStatus(), OngoingStateString) {

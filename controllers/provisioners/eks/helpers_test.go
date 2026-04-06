@@ -27,12 +27,24 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/onsi/gomega"
 	"github.com/pkg/errors"
 )
+
+func mockUserDataStages() []v1alpha1.UserDataStage {
+	preBootstrapData := base64.StdEncoding.EncodeToString([]byte("echo Pre-bootstrap actions"))
+	postBootstrapData := base64.StdEncoding.EncodeToString([]byte("echo Post-bootstrap actions"))
+	nodeConfigYamlData := base64.StdEncoding.EncodeToString([]byte("image: my-custom-image"))
+
+	return []v1alpha1.UserDataStage{
+		{Stage: v1alpha1.PreBootstrapStage, Data: preBootstrapData},
+		{Stage: v1alpha1.PostBootstrapStage, Data: postBootstrapData},
+		{Stage: v1alpha1.NodeConfigYamlStage, Data: nodeConfigYamlData},
+	}
+}
 
 func TestAutoscalerTags(t *testing.T) {
 	var (
@@ -151,6 +163,7 @@ mkfs.xfs /dev/xvda
 mkdir /mnt/foo
 mount /dev/xvda /mnt/foo
 mount
+echo "/dev/xvda    /mnt/foo    xfs    defaults    0    2" >> /etc/fstab
 if [[ $(type -P $(which aws)) ]] && [[ $(type -P $(which jq)) ]] ; then
 	TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
 	INSTANCE_ID=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
@@ -165,6 +178,124 @@ set -o xtrace
 /etc/eks/bootstrap.sh foo --use-max-pods false --container-runtime containerd --b64-cluster-ca dGVzdA== --apiserver-endpoint foo.amazonaws.com --dns-cluster-ip 172.20.0.10 --kubelet-extra-args '--node-labels=foo=bar,instancemgr.keikoproj.io/image=ami-123456789012,node.kubernetes.io/role=instance-group-1 --register-with-taints=foo=bar:NoSchedule --eviction-hard=memory.available<300Mi,nodefs.available<5% --system-reserved=memory=2.5Gi --v=2 --max-pods=4'
 set +o xtrace
 bar`
+	userData := ctx.GetBasicUserData("foo", args, kubeletArgs, userDataPayload, mounts)
+	basicUserDataDecoded, _ := base64.StdEncoding.DecodeString(userData)
+	basicUserDataString := string(basicUserDataDecoded)
+	if basicUserDataString != expectedDataLinux {
+		t.Fatalf("\nExpected: START>%v<END\n Got: START>%v<END", expectedDataLinux, basicUserDataString)
+	}
+}
+
+func TestGetBasicUserDataAmazonLinux2023(t *testing.T) {
+	var (
+		k             = MockKubernetesClientSet()
+		ig            = MockInstanceGroup()
+		asgMock       = NewAutoScalingMocker()
+		iamMock       = NewIamMocker()
+		eksMock       = NewEksMocker()
+		ec2Mock       = NewEc2Mocker()
+		ssmMock       = NewSsmMocker()
+		configuration = ig.GetEKSConfiguration()
+	)
+
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
+	ctx := MockContext(ig, k, w)
+
+	configuration.BootstrapOptions = &v1alpha1.BootstrapOptions{
+		MaxPods:          4,
+		ContainerRuntime: "containerd",
+	}
+	configuration.Labels = map[string]string{
+		"foo": "bar",
+	}
+	configuration.Taints = []corev1.Taint{
+		{
+			Key:    "foo",
+			Value:  "bar",
+			Effect: "NoSchedule",
+		},
+	}
+	persistance := true
+	configuration.Volumes = []v1alpha1.NodeVolume{
+		{
+			Name: "/dev/xvda",
+			Type: "gp2",
+			MountOptions: &v1alpha1.NodeVolumeMountOptions{
+				FileSystem:  "xfs",
+				Mount:       "/mnt/foo",
+				Persistance: &persistance,
+			},
+		},
+	}
+	configuration.BootstrapArguments = "--eviction-hard=memory.available<300Mi,nodefs.available<5% --system-reserved=memory=2.5Gi --v=2"
+	configuration.UserData = []v1alpha1.UserDataStage{
+		{
+			Stage: "PreBootstrap",
+			Data:  "foo",
+		},
+		{
+			Stage: "PostBootstrap",
+			Data:  "bar",
+		},
+	}
+
+	ig.Annotations[OsFamilyAnnotation] = OsFamilyAmazonLinux2023
+
+	var (
+		args            = ctx.GetBootstrapArgs()
+		kubeletArgs     = ctx.GetKubeletExtraArgs()
+		userDataPayload = ctx.GetUserDataStages()
+		mounts          = ctx.GetMountOpts()
+	)
+
+	expectedDataLinux := `MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="BOUNDARY"
+
+--BOUNDARY
+Content-Type: text/x-shellscript; charset="us-ascii"
+
+#!/bin/bash
+echo "IG manager using AL2023 amis"
+foo
+mkfs.xfs /dev/xvda
+mkdir /mnt/foo
+mount /dev/xvda /mnt/foo
+mount
+echo "/dev/xvda    /mnt/foo    xfs    defaults    0    2" >> /etc/fstab
+if [[ $(type -P $(which aws)) ]] && [[ $(type -P $(which jq)) ]] ; then
+	TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+	INSTANCE_ID=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
+	REGION=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
+	LIFECYCLE=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/autoscaling/target-lifecycle-state)
+	if [[ $LIFECYCLE == *"Warmed"* ]]; then
+		rm /var/lib/cloud/instances/$INSTANCE_ID/sem/config_scripts_user
+		exit 0
+	fi
+fi
+--BOUNDARY
+Content-Type: application/node.eks.aws
+
+
+
+--BOUNDARY
+Content-Type: application/node.eks.aws
+
+---
+apiVersion: node.eks.aws/v1alpha1
+kind: NodeConfig
+spec:
+  kubelet:
+    flags:
+      - --node-labels=foo=bar,instancemgr.keikoproj.io/image=ami-123456789012,node.kubernetes.io/role=instance-group-1
+      - --register-with-taints=foo=bar:NoSchedule
+
+--BOUNDARY
+Content-Type: text/x-shellscript; charset="us-ascii"
+
+#!/bin/bash
+set +o xtrace
+bar
+--BOUNDARY--`
 	userData := ctx.GetBasicUserData("foo", args, kubeletArgs, userDataPayload, mounts)
 	basicUserDataDecoded, _ := base64.StdEncoding.DecodeString(userData)
 	basicUserDataString := string(basicUserDataDecoded)
@@ -1122,9 +1253,14 @@ func TestUpdateLifecycleHooks(t *testing.T) {
 		g.Expect(ok).To(gomega.Equal(tc.shouldAdd))
 		g.Expect(added).To(gomega.Equal(tc.expectedAdded))
 
-		ctx.UpdateLifecycleHooks("my-asg")
-		g.Expect(uint(len(tc.expectedRemoved))).To(gomega.Equal(asgMock.DeleteLifecycleHookCallCount))
-		g.Expect(uint(len(tc.expectedAdded))).To(gomega.Equal(asgMock.PutLifecycleHookCallCount))
+		err := ctx.UpdateLifecycleHooks("my-asg")
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		if tc.shouldRemove {
+			g.Expect(asgMock.DeleteLifecycleHookCallCount).To(gomega.Equal(uint(len(tc.expectedRemoved))))
+		}
+		if tc.shouldAdd {
+			g.Expect(asgMock.PutLifecycleHookCallCount).To(gomega.Equal(uint(len(tc.expectedAdded))))
+		}
 	}
 }
 
@@ -1266,7 +1402,7 @@ func TestGetEksLatestAmi(t *testing.T) {
 			name:          "AmazonLinux2-noarch",
 			OSFamily:      "amazonlinux2",
 			arch:          "noarch",
-			expectedError: fmt.Errorf("No supported CPU architecture found for instance type %s", instanceType),
+			expectedError: fmt.Errorf("no supported CPU architecture found for instance type %s", instanceType),
 		},
 	}
 
@@ -1274,6 +1410,57 @@ func TestGetEksLatestAmi(t *testing.T) {
 		ig.SetAnnotations(map[string]string{
 			OsFamilyAnnotation: tc.OSFamily,
 		})
+		config.InstanceType = instanceType
+		ctx := MockContext(ig, k, w)
+		ctx.GetDiscoveredState().SetInstanceTypeInfo([]*ec2.InstanceTypeInfo{
+			{
+				InstanceType: aws.String(instanceType),
+				ProcessorInfo: &ec2.ProcessorInfo{
+					SupportedArchitectures: []*string{aws.String(tc.arch)},
+				},
+			},
+		})
+		_, err := ctx.GetEksLatestAmi()
+		if err == nil && tc.expectedError == nil {
+			continue
+		}
+		if err != nil && tc.expectedError != nil && err.Error() != tc.expectedError.Error() {
+			t.Fatalf("expected %v got %v, test %s", tc.expectedError, err, tc.name)
+		}
+
+	}
+}
+
+func TestGetEksLatestAmiForAL2023(t *testing.T) {
+	var (
+		k            = MockKubernetesClientSet()
+		ig           = MockInstanceGroup()
+		config       = ig.GetEKSConfiguration()
+		asgMock      = NewAutoScalingMocker()
+		iamMock      = NewIamMocker()
+		eksMock      = NewEksMocker()
+		ec2Mock      = NewEc2Mocker()
+		ssmMock      = NewSsmMocker()
+		instanceType = "m5.large"
+	)
+	w := MockAwsWorker(asgMock, iamMock, eksMock, ec2Mock, ssmMock)
+	ig.GetEKSConfiguration().UserData = mockUserDataStages()
+
+	tests := []struct {
+		name          string
+		OSFamily      string
+		arch          string
+		expectedError error
+	}{
+		{
+			name:          "amazonlinux2023",
+			OSFamily:      "",
+			arch:          "x86_64",
+			expectedError: nil,
+		},
+	}
+
+	for _, tc := range tests {
 		config.InstanceType = instanceType
 		ctx := MockContext(ig, k, w)
 		ctx.GetDiscoveredState().SetInstanceTypeInfo([]*ec2.InstanceTypeInfo{

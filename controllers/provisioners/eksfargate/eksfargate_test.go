@@ -26,7 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
-	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	"github.com/keikoproj/instance-manager/controllers/provisioners"
 	"github.com/pkg/errors"
@@ -189,11 +189,6 @@ func (s *stubEKS) DeleteFargateProfile(input *eks.DeleteFargateProfileInput) (*e
 	} else {
 		return nil, errors.New("delete profile failed")
 	}
-}
-
-func getProfile(state string) *eks.FargateProfile {
-	return &eks.FargateProfile{
-		Status: aws.String(state)}
 }
 
 func (f *FakeIG) getInstanceGroup() *v1alpha1.InstanceGroup {
@@ -528,7 +523,8 @@ func TestCloudDiscoveryFailureGettingProfile(t *testing.T) {
 		MakeDescribeProfileFail: true,
 	}
 	ctx := testCase.BuildProvisioner(t)
-	ctx.CloudDiscovery()
+	_ = ctx.CloudDiscovery() // Error is expected in this test case due to MakeDescribeProfileFail=true, but we'll ignore it
+
 	if ctx.GetDiscoveredState().GetProfileStatus() != aws.StringValue(nil) {
 		t.Fatalf("TestGetStateFailureGettingProfile: expected nil but got a status")
 	}
@@ -542,7 +538,9 @@ func TestCloudDiscoverySuccessGettingProfile(t *testing.T) {
 		},
 	}
 	ctx := testCase.BuildProvisioner(t)
-	ctx.CloudDiscovery()
+	if err := ctx.CloudDiscovery(); err != nil {
+		t.Fatalf("TestGetStateSuccessGettingProfile: unexpected error in CloudDiscovery: %v", err)
+	}
 
 	if ctx.GetDiscoveredState().GetProfileStatus() == aws.StringValue(nil) {
 		t.Fatalf("TestGetStateSuccessGettingProfile: expected profile but got a nil")

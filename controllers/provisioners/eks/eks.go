@@ -17,13 +17,13 @@ package eks
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/go-logr/logr"
-
-	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
@@ -41,9 +41,10 @@ const (
 	CustomNetworkingHostPodsAnnotation                = "instancemgr.keikoproj.io/custom-networking-host-pods"
 	CustomNetworkingPrefixAssignmentEnabledAnnotation = "instancemgr.keikoproj.io/custom-networking-prefix-assignment-enabled"
 
-	OsFamilyWindows      = "windows"
-	OsFamilyBottleRocket = "bottlerocket"
-	OsFamilyAmazonLinux2 = "amazonlinux2"
+	OsFamilyWindows         = "windows"
+	OsFamilyBottleRocket    = "bottlerocket"
+	OsFamilyAmazonLinux2    = "amazonlinux2"
+	OsFamilyAmazonLinux2023 = "amazonlinux2023"
 )
 
 var (
@@ -54,7 +55,7 @@ var (
 	InstanceMgrLifecycleLabel = "instancemgr.keikoproj.io/lifecycle"
 	InstanceMgrImageLabel     = "instancemgr.keikoproj.io/image"
 
-	AllowedOsFamilies      = []string{OsFamilyWindows, OsFamilyBottleRocket, OsFamilyAmazonLinux2}
+	AllowedOsFamilies      = []string{OsFamilyWindows, OsFamilyBottleRocket, OsFamilyAmazonLinux2, OsFamilyAmazonLinux2023}
 	DefaultManagedPolicies = []string{"AmazonEKSWorkerNodePolicy", "AmazonEC2ContainerRegistryReadOnly"}
 	CNIManagedPolicy       = "AmazonEKS_CNI_Policy"
 	SupportedArchitectures = []string{"x86_64", "arm64"}
@@ -102,8 +103,9 @@ type EksInstanceGroupContext struct {
 }
 
 type UserDataPayload struct {
-	PreBootstrap  []string
-	PostBootstrap []string
+	PreBootstrap   []string
+	PostBootstrap  []string
+	NodeConfigYaml string
 }
 
 type MountOpts struct {
@@ -125,6 +127,8 @@ type EKSUserData struct {
 	PostBootstrap    []string
 	MountOptions     []MountOpts
 	MaxPods          int64
+	ClusterIP        string
+	NodeConfigYaml   string
 }
 
 func (ctx *EksInstanceGroupContext) GetInstanceGroup() *v1alpha1.InstanceGroup {
@@ -140,25 +144,49 @@ func (ctx *EksInstanceGroupContext) GetOsFamily() string {
 		annotations   = instanceGroup.GetAnnotations()
 	)
 
-	if v, exists := annotations[OsFamilyAnnotation]; exists {
+	if ctx.IsAmazonLinux2023() {
+		ctx.Log.Info("using amazonlinux2023 for os family")
+		return OsFamilyAmazonLinux2023
+	} else if v, exists := annotations[OsFamilyAnnotation]; exists {
 		if common.ContainsEqualFold(AllowedOsFamilies, v) {
+			ctx.Log.Info("using amazon linux os family annotation", "value", v)
 			return annotations[OsFamilyAnnotation]
 		}
 		ctx.Log.Info("used unsupported annotation value '%v=%v', will default to 'amazonlinux2', allowed values: %+v", OsFamilyAnnotation, v, AllowedOsFamilies)
 	}
-
 	return OsFamilyAmazonLinux2
 }
 
+func (ctx *EksInstanceGroupContext) IsAmazonLinux2023() bool {
+
+	isAmazonLinux2023 := false
+	var (
+		instanceGroup = ctx.GetInstanceGroup()
+		configuration = instanceGroup.GetEKSConfiguration()
+		userData      = configuration.GetUserData()
+	)
+
+	for _, stage := range userData {
+		if strings.EqualFold(stage.Stage, v1alpha1.NodeConfigYamlStage) {
+			return true
+		}
+
+	}
+	return isAmazonLinux2023
+}
+
 func (ctx *EksInstanceGroupContext) GetUpgradeStrategy() *v1alpha1.AwsUpgradeStrategy {
-	if &ctx.InstanceGroup.Spec.AwsUpgradeStrategy != nil {
+	// Check if the upgrade strategy has been set (non-zero value)
+	if ctx.InstanceGroup.Spec.AwsUpgradeStrategy != (v1alpha1.AwsUpgradeStrategy{}) {
 		return &ctx.InstanceGroup.Spec.AwsUpgradeStrategy
 	}
 	return &v1alpha1.AwsUpgradeStrategy{}
 }
+
 func (ctx *EksInstanceGroupContext) GetState() v1alpha1.ReconcileState {
 	return ctx.InstanceGroup.GetState()
 }
+
 func (ctx *EksInstanceGroupContext) SetState(state v1alpha1.ReconcileState) {
 	var (
 		name     = ctx.GetInstanceGroup().NamespacedName()
@@ -167,12 +195,14 @@ func (ctx *EksInstanceGroupContext) SetState(state v1alpha1.ReconcileState) {
 	ctx.Metrics.SetInstanceGroup(name, stateStr)
 	ctx.InstanceGroup.SetState(state)
 }
+
 func (ctx *EksInstanceGroupContext) GetDiscoveredState() *DiscoveredState {
 	if ctx.DiscoveredState == nil {
 		ctx.DiscoveredState = &DiscoveredState{}
 	}
 	return ctx.DiscoveredState
 }
+
 func (ctx *EksInstanceGroupContext) SetDiscoveredState(state *DiscoveredState) {
 	ctx.DiscoveredState = state
 }

@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -79,7 +79,7 @@ func (lt *LaunchTemplate) Discover(input *DiscoverConfigurationInput) error {
 			latest := aws.Int64Value(config.LatestVersionNumber)
 			versions, err := lt.DescribeLaunchTemplateVersions(name)
 			if err != nil {
-				errors.Wrap(err, "failed to describe autoscaling launch template versions")
+				return errors.Wrap(err, "failed to describe autoscaling launch template versions")
 			}
 			lt.TargetVersions = versions
 			lt.LatestVersion = lt.getVersion(latest)
@@ -364,6 +364,7 @@ func (lt *LaunchTemplate) metadataOptions(input *v1alpha1.MetadataOptions) *ec2.
 		HttpEndpoint:            aws.String(input.HttpEndpoint),
 		HttpPutResponseHopLimit: aws.Int64(input.HttpPutHopLimit),
 		HttpTokens:              aws.String(input.HttpTokens),
+		InstanceMetadataTags:    aws.String("disabled"), // set disabled by default
 	}
 }
 
@@ -375,6 +376,7 @@ func (lt *LaunchTemplate) metadataOptionsRequest(input *v1alpha1.MetadataOptions
 		HttpEndpoint:            aws.String(input.HttpEndpoint),
 		HttpPutResponseHopLimit: aws.Int64(input.HttpPutHopLimit),
 		HttpTokens:              aws.String(input.HttpTokens),
+		InstanceMetadataTags:    aws.String("disabled"), // set disabled by default
 	}
 }
 

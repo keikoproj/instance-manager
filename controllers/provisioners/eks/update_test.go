@@ -27,7 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1"
 	"github.com/onsi/gomega"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -99,7 +99,6 @@ func TestUpdateWithDriftRotationPositive(t *testing.T) {
 	nodes, err := k.Kubernetes.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
-	// missing launch config causes drift
 	ctx.SetDiscoveredState(&DiscoveredState{
 		Publisher: kubeprovider.EventPublisher{
 			Client: k.Kubernetes,
@@ -257,7 +256,7 @@ func TestUpdateWithLaunchTemplate(t *testing.T) {
 			LaunchTemplateName: aws.String("some-launch-template"),
 		},
 	}
-	state.ScalingConfiguration.Discover(&scaling.DiscoverConfigurationInput{
+	err = state.ScalingConfiguration.Discover(&scaling.DiscoverConfigurationInput{
 		ScalingGroup: mockScalingGroup,
 	})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
@@ -285,7 +284,7 @@ func TestUpdateWithLaunchTemplate(t *testing.T) {
 		SpotRatio:     &ratio,
 		Strategy:      &strategy,
 	}
-	state.ScalingConfiguration.Discover(&scaling.DiscoverConfigurationInput{
+	err = state.ScalingConfiguration.Discover(&scaling.DiscoverConfigurationInput{
 		ScalingGroup: mockScalingGroup,
 	})
 	g.Expect(err).NotTo(gomega.HaveOccurred())

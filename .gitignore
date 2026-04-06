@@ -7,3 +7,6 @@ vendor
 vendor/*
 .DS_Store
 *.idea
+.windsurfrules
+.qodo
+.tool-versions

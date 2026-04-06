@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -109,7 +108,7 @@ func FindGVR(gvk *schema.GroupVersionKind, cfg *rest.Config) (*meta.RESTMapping,
 func GetResourceFromYaml(path string, config *rest.Config, args *TemplateArguments) (*meta.RESTMapping, *unstructured.Unstructured, error) {
 	resource := &unstructured.Unstructured{}
 
-	d, err := ioutil.ReadFile(path)
+	d, err := os.ReadFile(path)
 	if err != nil {
 		return nil, resource, err
 	}

@@ -1,7 +1,7 @@
 export GO111MODULE=on
 
-CONTROLLER_GEN_VERSION := v0.4.1
-GO_MIN_VERSION := 12000 # go1.20
+CONTROLLER_GEN_VERSION := v0.17.2
+GO_MIN_VERSION := 12600 # go1.26
 
 define generate_int_from_semver
   echo $(1) |cut -dv -f2 |awk '{split($$0,a,"."); print  a[3]+(100*a[2])+(10000* a[1])}'
@@ -27,10 +27,15 @@ GO_LDFLAGS ?= -ldflags="-s -w"
 
 # Image URL to use all building/pushing image targets
 IMG ?= instance-manager:latest
-INSTANCEMGR_TAG ?= latest
+GIT_COMMIT := $(shell git rev-parse HEAD)
+GIT_SHORT_SHA := $(shell git rev-parse --short HEAD)
+GIT_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+GIT_DIRTY := $(shell test -n "`git status --porcelain`" && echo "-dirty" || echo "")
+INSTANCEMGR_TAG ?= $(GIT_TAG)-$(GIT_SHORT_SHA)$(GIT_DIRTY)
+BUILD_DATE := $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 
 .PHONY: all
-all: check-go test clean manager
+all: check-go lint test clean manager
 
 # Run tests
 .PHONY: test
@@ -99,33 +104,41 @@ generate: controller-gen
 # Build the docker image
 .PHONY: docker-build
 docker-build:
-	docker build . -t ${IMG}
+	docker build . -t ${IMG} \
+		--build-arg CREATED=$(BUILD_DATE) \
+		--build-arg VERSION=$(INSTANCEMGR_TAG) \
+		--label "org.opencontainers.image.created=$(BUILD_DATE)" \
+		--label "org.opencontainers.image.version=$(INSTANCEMGR_TAG)" \
+		--label "org.opencontainers.image.revision=$(GIT_COMMIT)" \
+		--label "org.opencontainers.image.title=Instance Manager" \
+		--label "org.opencontainers.image.description=A Kubernetes controller for creating and managing worker node instance groups across multiple providers" \
+		--label "org.opencontainers.image.licenses=Apache-2.0" \
+		--label "org.opencontainers.image.source=https://github.com/keikoproj/instance-manager" \
+		--label "org.opencontainers.image.url=https://github.com/keikoproj/instance-manager/blob/master/README.md" \
+		--label "org.opencontainers.image.vendor=keikoproj" \
+		--label "org.opencontainers.image.authors=Keikoproj Contributors"
 
 # Push the docker image
 .PHONY: docker-push
 docker-push:
 	docker push ${IMG}
 
-.PHONY: check-controller-gen
-check-controller-gen:
-	@if [ $(CONTROLLER_GEN_VERSION_CHECK) -eq 0 ]; then \
-	    echo "Need to upgrade controller-gen to $(CONTROLLER_GEN_VERSION) or higher"; \
-	    exit 1; \
-	fi
+LOCALBIN = $(shell pwd)/bin
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
 
-# find or download controller-gen
-# download controller-gen if necessary
+# Update controller-gen installation to better support ARM architectures
+CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 .PHONY: controller-gen
-controller-gen: controller-gen-find check-controller-gen
+controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary. If wrong version is installed, it will be overwritten.
+$(CONTROLLER_GEN): $(LOCALBIN)
+	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
 
-.PHONY: controller-gen-real
-controller-gen-find:
-ifeq (, $(shell which controller-gen))
-	go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
-CONTROLLER_GEN=$(shell go env GOPATH)/bin/controller-gen
-else
-CONTROLLER_GEN=$(shell which controller-gen)
-endif
+GOLANGCI_LINT_VERSION := v2.11.4
+GOLANGCI_LINT = $(shell pwd)/bin/golangci-lint
+.PHONY: golangci-lint
+$(GOLANGCI_LINT): $(LOCALBIN)
+	GOBIN=$(LOCALBIN) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
 .PHONY: check-go
 check-go:
@@ -134,11 +147,9 @@ ifeq ($(GO_VERSION_CHECK),0)
 endif
 
 .PHONY: lint
-lint: check-go
-	@echo "golint $(LINTARGS)"
-	@for pkg in $(shell go list ./...) ; do \
-		golint $(LINTARGS) $$pkg ; \
-	done
+lint: check-go $(GOLANGCI_LINT)
+	@echo "Running golangci-lint"
+	$(GOLANGCI_LINT) run ./...
 
 .PHONY: clean
 clean:

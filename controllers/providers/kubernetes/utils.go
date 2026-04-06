@@ -19,13 +19,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"html/template"
+	"fmt"
 	"reflect"
 	"strings"
+	"text/template"
 
-	jsonpatch "github.com/evanphx/json-patch"
+	jsonpatch "github.com/evanphx/json-patch/v5"
 	"github.com/ghodss/yaml"
-	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,6 +38,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -220,10 +222,7 @@ func GetKubernetesLocalConfig() (*rest.Config, error) {
 func CRDExists(kubeClient dynamic.Interface, name string) bool {
 	CRDSchema := schema.GroupVersionResource{Group: "apiextensions.k8s.io", Version: "v1", Resource: "customresourcedefinitions"}
 	_, err := kubeClient.Resource(CRDSchema).Get(context.Background(), name, metav1.GetOptions{})
-	if err != nil {
-		return false
-	}
-	return true
+	return err == nil
 }
 
 func ParseCustomResourceYaml(raw string) (*unstructured.Unstructured, error) {
@@ -250,24 +249,17 @@ func ConfigmapHash(cm *corev1.ConfigMap) string {
 }
 
 func IsStorageError(err error) bool {
-	if common.ContainsEqualFoldSubstring(err.Error(), "StorageError: invalid object") {
-		return true
-	}
-	return false
+	return common.ContainsEqualFoldSubstring(err.Error(), "StorageError: invalid object")
 }
 
 func IsPathValue(resource unstructured.Unstructured, path, value string) bool {
 	val, err := GetUnstructuredPath(&resource, path)
 	if err != nil {
-		log.Error(err, "failed to get unstructured path from resource", "path", path)
+		ctrl.Log.Error(err, "failed to get unstructured path from resource", "path", path)
 		return false
 	}
 
-	if strings.EqualFold(val, value) {
-		return true
-	}
-
-	return false
+	return strings.EqualFold(val, value)
 }
 
 func CRDFullName(resource, group string) string {
@@ -302,4 +294,18 @@ func (s *statusPatch) Data(obj client.Object) ([]byte, error) {
 func MergePatch(obj v1alpha1.InstanceGroup) client.Patch {
 	obj.Spec = v1alpha1.InstanceGroupSpec{}
 	return &statusPatch{obj}
+}
+
+func ObjectDigest(obj interface{}) string {
+	if obj == nil {
+		return "N/A"
+	}
+	objStr := fmt.Sprintf("%v", obj)
+	return common.StringMD5(objStr)
+}
+
+func NewStatusPatch() *statusPatch {
+	obj := &v1alpha1.InstanceGroup{}
+	obj.Spec = v1alpha1.InstanceGroupSpec{}
+	return &statusPatch{*obj}
 }

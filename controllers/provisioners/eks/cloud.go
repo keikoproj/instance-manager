@@ -19,7 +19,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
@@ -275,12 +275,14 @@ func (ctx *EksInstanceGroupContext) CloudDiscovery() error {
 	}
 
 	// delete old launch configurations
-	state.ScalingConfiguration.Delete(&scaling.DeleteConfigurationInput{
+	if err := state.ScalingConfiguration.Delete(&scaling.DeleteConfigurationInput{
 		Name:           state.ScalingConfiguration.Name(),
 		Prefix:         ctx.ResourcePrefix,
 		DeleteAll:      false,
 		RetainVersions: ctx.ConfigRetention,
-	})
+	}); err != nil {
+		ctx.Log.Error(err, "failed to delete old scaling configurations")
+	}
 
 	switch status.GetNodesReadyCondition() {
 	case corev1.ConditionTrue:

@@ -24,7 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/iam"
 	awsauth "github.com/keikoproj/aws-auth/pkg/mapper"
-	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
 	"github.com/keikoproj/instance-manager/controllers/provisioners/eks/scaling"
 	"github.com/onsi/gomega"
@@ -214,7 +214,9 @@ func TestRemoveAuthRoleNegative(t *testing.T) {
 		},
 	})
 
-	ctx.BootstrapNodes()
+	if err := ctx.BootstrapNodes(); err != nil {
+		t.Errorf("BootstrapNodes() error = %v", err)
+	}
 
 	// Only one role is added to aws-auth
 	auth, _, err := awsauth.ReadAuthMap(k.Kubernetes)

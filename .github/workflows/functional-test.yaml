@@ -1,4 +1,7 @@
 name: functional-test
+permissions:
+  contents: read        # Needed to check out the repository
+  pull-requests: write  # Needed if test results are posted as PR comments
 
 on:
   workflow_dispatch:
@@ -10,13 +13,13 @@ jobs:
 
   functional-test:
     name: functional-test
-    if: github.repository_owner == 'keikoproj'
-    runs-on: ubuntu-20.04
+    if: false               # Disable the workflow since AWS test environment has been removed
+    runs-on: ubuntu-latest
 
     steps:
 
       - name: python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: 'pypy3.9'
           architecture: 'x64'
@@ -36,7 +39,7 @@ jobs:
           aws --version
 
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: master
 

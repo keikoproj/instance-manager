@@ -1,0 +1,120 @@
+name: Create and publish image
+permissions:
+  contents: write        # Needed to check out the repository and update releases
+  packages: write        # Needed to push images to GitHub Container Registry (ghcr.io)
+  attestations: write    # For generating attestations
+  id-token: write        # For OIDC token authentication
+
+on:
+  push:
+    branches: [ master ]
+    tags:
+    - "v*.*.*"
+
+jobs:
+  build-and-push:
+    name: Build and push image
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # Fetch all history for proper versioning
+
+      # Set up QEMU for multi-platform builds
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      # Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Extract metadata for Docker
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: docker.io/${{ github.repository_owner }}/${{ github.event.repository.name }},ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=branch
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+
+      # Extract primary Docker tag (without 'v')
+      - name: Extract primary Docker tag
+        id: docker_tag
+        run: |
+          TAGS="${{ steps.meta.outputs.tags }}"
+          IFS=$'\n' read -r FIRST_IMAGE <<< "$TAGS"
+          PRIMARY_TAG="${FIRST_IMAGE##*:}"
+          echo "tag=$PRIMARY_TAG" >> $GITHUB_OUTPUT
+
+      # Login to DockerHub
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Login to GitHub Container Registry
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Build and push cross-platform image
+        id: push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            CREATED=${{ github.event.head_commit.timestamp || format('{0:yyyy-MM-ddTHH:mm:ssZ}', github.event.repository.updated_at) }}
+            VERSION=${{ github.ref_name }}
+            REVISION=${{ github.sha }}
+
+      - name: Generate artifact attestation (dockerhub)
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: docker.io/${{ github.repository_owner }}/${{ github.event.repository.name }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Generate artifact attestation (ghcr)
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Update GitHub Release with image and attestation links
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          append_body: true
+          body: |
+            ## Docker Images
+            - [DockerHub](https://hub.docker.com/r/${{ github.repository_owner }}/${{ github.event.repository.name }}/tags?name=${{ steps.docker_tag.outputs.tag }})
+            - [GHCR](https://github.com/orgs/${{ github.repository_owner }}/pkgs/container/${{ github.event.repository.name }})
+            - `docker pull ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ steps.docker_tag.outputs.tag }}`
+            - `docker pull ${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ steps.docker_tag.outputs.tag }}`
+
+            ## Attestations
+            - DockerHub attestation for `${{ steps.docker_tag.outputs.tag }}` published (see OCI provenance)
+            - GHCR attestation for `${{ steps.docker_tag.outputs.tag }}` published (see OCI provenance)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,11 +1,11 @@
 # instance-manager
 
-![functional-test](https://github.com/keikoproj/instance-manager/workflows/functional-test/badge.svg)
-![push](https://github.com/keikoproj/instance-manager/workflows/push/badge.svg)
-[![codecov](https://codecov.io/gh/keikoproj/instance-manager/branch/master/graph/badge.svg?token=IJbjmSBliL)](https://codecov.io/gh/keikoproj/instance-manager)
-[![Go Report Card](https://goreportcard.com/badge/github.com/keikoproj/instance-manager)](https://goreportcard.com/report/github.com/keikoproj/instance-manager)
-[![slack](https://img.shields.io/badge/slack-join%20the%20conversation-ff69b4.svg)][SlackUrl]
-![version](https://img.shields.io/badge/version-0.17.0-blue.svg?cacheSeconds=2592000)
+[![Build Status][BuildStatusImg]][BuildMasterUrl]
+[![Image Push][ImagePushImg]][ImagePushUrl]
+[![Codecov][CodecovImg]][CodecovUrl]
+[![Go Report Card][GoReportImg]][GoReportUrl]
+[![slack][SlackImg]][SlackUrl]
+[![Release][ReleaseImg]][ReleaseUrl]
 > Create and manage instance groups with Kubernetes.
 
 **instance-manager** simplifies the creation of worker nodes from within a Kubernetes cluster and creates `InstanceGroup` objects in your cluster. Additionally, **instance-manager** will provision the actual machines and bootstrap them to the cluster.
@@ -94,3 +94,19 @@ Please see [DEVELOPER.md](.github/DEVELOPER.md).
 <!-- Markdown link -->
 [install]: https://github.com/keikoproj/instance-manager/blob/master/docs/INSTALL.md
 [SlackUrl]: https://keikoproj.slack.com/
+[SlackImg]: https://img.shields.io/badge/slack-join%20the%20conversation-ff69b4.svg
+
+[BuildStatusImg]: https://github.com/keikoproj/instance-manager/actions/workflows/unit-test.yml/badge.svg
+[BuildMasterUrl]: https://github.com/keikoproj/instance-manager/actions/workflows/unit-test.yml
+
+[ImagePushImg]: https://github.com/keikoproj/instance-manager/actions/workflows/image-push.yml/badge.svg
+[ImagePushUrl]: https://github.com/keikoproj/instance-manager/actions/workflows/image-push.yml
+
+[CodecovImg]: https://codecov.io/gh/keikoproj/instance-manager/branch/master/graph/badge.svg?token=IJbjmSBliL
+[CodecovUrl]: https://codecov.io/gh/keikoproj/instance-manager
+
+[GoReportImg]: https://goreportcard.com/badge/github.com/keikoproj/instance-manager
+[GoReportUrl]: https://goreportcard.com/report/github.com/keikoproj/instance-manager
+
+[ReleaseImg]: https://img.shields.io/github/release/keikoproj/instance-manager.svg
+[ReleaseUrl]: https://github.com/keikoproj/instance-manager/releases/latest

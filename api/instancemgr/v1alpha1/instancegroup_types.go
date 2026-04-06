@@ -53,8 +53,9 @@ const (
 	ReconcileErr    ReconcileState = "Error"
 
 	// Userdata bootstrap stages
-	PreBootstrapStage  = "PreBootstrap"
-	PostBootstrapStage = "PostBootstrap"
+	PreBootstrapStage   = "PreBootstrap"
+	PostBootstrapStage  = "PostBootstrap"
+	NodeConfigYamlStage = "NodeConfigYaml"
 
 	LifecycleStateNormal      = "normal"
 	LifecycleStateSpot        = "spot"
@@ -138,6 +139,7 @@ var (
 // +kubebuilder:printcolumn:name="Strategy",type="string",JSONPath=".status.strategy",description="instance group upgrade strategy"
 // +kubebuilder:printcolumn:name="Lifecycle",type="string",JSONPath=".status.lifecycle",description="instance group lifecycle spot/normal"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="time passed since instancegroup creation"
+// +genclient
 type InstanceGroup struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
@@ -491,24 +493,15 @@ func (s *EKSSpec) Validate(overrides *ValidationOverrides) error {
 }
 
 func (s *EKSSpec) IsLaunchTemplate() bool {
-	if s.Type == LaunchTemplate {
-		return true
-	}
-	return false
+	return s.Type == LaunchTemplate
 }
 
 func (s *EKSSpec) IsLaunchConfiguration() bool {
-	if s.Type == LaunchConfiguration {
-		return true
-	}
-	return false
+	return s.Type == LaunchConfiguration
 }
 
 func (s *EKSSpec) HasWarmPool() bool {
-	if s.WarmPool != nil {
-		return true
-	}
-	return false
+	return s.WarmPool != nil
 }
 
 func contains(s []ContainerRuntime, e ContainerRuntime) bool {
@@ -848,6 +841,7 @@ func (c *EKSConfiguration) GetManagedPolicies() []string {
 func (c *EKSConfiguration) GetUserData() []UserDataStage {
 	return c.UserData
 }
+
 func (c *EKSConfiguration) SetManagedPolicies(policies []string) {
 	c.ManagedPolicies = policies
 }

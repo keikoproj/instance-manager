@@ -20,7 +20,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 
 	"github.com/aws/aws-sdk-go/aws"

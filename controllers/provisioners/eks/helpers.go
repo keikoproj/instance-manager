@@ -30,7 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
-	"github.com/keikoproj/instance-manager/api/v1alpha1"
+	"github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	awsprovider "github.com/keikoproj/instance-manager/controllers/providers/aws"
 	kubeprovider "github.com/keikoproj/instance-manager/controllers/providers/kubernetes"
@@ -121,8 +121,10 @@ func (ctx *EksInstanceGroupContext) GetBasicUserData(clusterName, args string, k
 		nodeLabels       = ctx.GetComputedLabels()
 		nodeTaints       = configuration.GetTaints()
 		bootstrapOptions = ctx.GetComputedBootstrapOptions()
+		cluster          = state.GetCluster()
+		clusterIP        = ctx.AwsWorker.GetDNSClusterIP(cluster)
 	)
-	var maxPods int64 = 0
+	var maxPods int64
 
 	if bootstrapOptions != nil {
 		maxPods = bootstrapOptions.MaxPods
@@ -193,6 +195,59 @@ set -o xtrace
 /etc/eks/bootstrap.sh {{ .ClusterName }} {{ .Arguments }}
 set +o xtrace
 {{range $post := .PostBootstrap}}{{$post}}{{end}}`
+	case OsFamilyAmazonLinux2023:
+		UserDataTemplate = `MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="BOUNDARY"
+
+--BOUNDARY
+Content-Type: text/x-shellscript; charset="us-ascii"
+
+#!/bin/bash
+echo "IG manager using AL2023 amis"
+{{range $pre := .PreBootstrap}}{{$pre}}{{end}}
+{{- range .MountOptions}}
+mkfs.{{ .FileSystem | ToLower }} {{ .Device }}
+mkdir {{ .Mount }}
+mount {{ .Device }} {{ .Mount }}
+mount
+{{- if .Persistance}}
+echo "{{ .Device}}    {{ .Mount }}    {{ .FileSystem | ToLower }}    defaults    0    2" >> /etc/fstab
+{{- end}}
+{{- end}}
+if [[ $(type -P $(which aws)) ]] && [[ $(type -P $(which jq)) ]] ; then
+	TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+	INSTANCE_ID=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
+	REGION=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
+	LIFECYCLE=$(curl url -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/autoscaling/target-lifecycle-state)
+	if [[ $LIFECYCLE == *"Warmed"* ]]; then
+		rm /var/lib/cloud/instances/$INSTANCE_ID/sem/config_scripts_user
+		exit 0
+	fi
+fi
+--BOUNDARY
+Content-Type: application/node.eks.aws
+
+{{ .NodeConfigYaml }}
+
+--BOUNDARY
+Content-Type: application/node.eks.aws
+
+---
+apiVersion: node.eks.aws/v1alpha1
+kind: NodeConfig
+spec:
+  kubelet:
+    flags:
+      - --node-labels={{ $first := true }}{{ range $key, $value := .NodeLabels }}{{if not $first}},{{end}}{{ $key }}={{ $value }}{{ $first = false}}{{- end}}
+      - --register-with-taints={{ $first := true }}{{- range .NodeTaints}}{{if not $first}},{{end}}{{ .Key }}={{ .Value }}:{{ .Effect }}{{ $first = false}}{{- end}}
+
+--BOUNDARY
+Content-Type: text/x-shellscript; charset="us-ascii"
+
+#!/bin/bash
+set +o xtrace
+{{range $post := .PostBootstrap}}{{$post}}{{end}}
+--BOUNDARY--`
 	}
 
 	data := EKSUserData{
@@ -206,7 +261,9 @@ set +o xtrace
 		Arguments:        args,
 		PreBootstrap:     payload.PreBootstrap,
 		PostBootstrap:    payload.PostBootstrap,
+		NodeConfigYaml:   payload.NodeConfigYaml,
 		MountOptions:     mounts,
+		ClusterIP:        clusterIP,
 	}
 	out := &bytes.Buffer{}
 	tmpl := template.New("userData").Funcs(template.FuncMap{
@@ -216,7 +273,9 @@ set +o xtrace
 	if tmpl, err = tmpl.Parse(UserDataTemplate); err != nil {
 		ctx.Log.Error(err, "failed to parse userData template")
 	}
-	tmpl.Execute(out, data)
+	if err := tmpl.Execute(out, data); err != nil {
+		ctx.Log.Error(err, "failed to execute userData template")
+	}
 	return base64.StdEncoding.EncodeToString(out.Bytes())
 }
 
@@ -244,6 +303,12 @@ func (ctx *EksInstanceGroupContext) GetUserDataStages() UserDataPayload {
 				ctx.Log.Error(err, "failed to decode base64 stage data", "stage", stage.Stage, "data", stage.Data)
 			}
 			payload.PostBootstrap = append(payload.PostBootstrap, data)
+		case strings.EqualFold(stage.Stage, v1alpha1.NodeConfigYamlStage):
+			data, err := common.GetDecodedString(stage.Data)
+			if err != nil {
+				ctx.Log.Error(err, "failed to decode base64 stage data", "stage", stage.Stage, "data", stage.Data)
+			}
+			payload.NodeConfigYaml = data
 		default:
 			ctx.Log.Info("invalid userdata stage will not be rendered", "stage", stage.Stage, "data", stage.Data)
 		}
@@ -275,6 +340,8 @@ func (ctx *EksInstanceGroupContext) GetMountOpts() []MountOpts {
 		var persistance bool
 		if vol.MountOptions.Persistance == nil {
 			persistance = true
+		} else {
+			persistance = *vol.MountOptions.Persistance
 		}
 
 		mountOpts = append(mountOpts, MountOpts{
@@ -513,7 +580,7 @@ func (ctx *EksInstanceGroupContext) GetComputedBootstrapOptions() *v1alpha1.Boot
 
 		instanceTypeNetworkInfo := awsprovider.GetInstanceTypeNetworkInfo(state.GetInstanceTypeInfo(), configuration.InstanceType)
 		var prefixAssignmentEnabled = instanceGroup.GetAnnotations()[CustomNetworkingPrefixAssignmentEnabledAnnotation] == "true"
-		var maxPods int64 = 0
+		var maxPods int64
 
 		var enis = aws.Int64Value(instanceTypeNetworkInfo.MaximumNetworkInterfaces) - 1 //Primary interface is not used for pod networking when custom networking is enabled
 		var ipsPerInterface int64 = 1
@@ -558,7 +625,7 @@ func (ctx *EksInstanceGroupContext) GetBootstrapArgs() string {
 			sb.WriteString(fmt.Sprintf("-ContainerRuntime %v ", bootstrapOptions.ContainerRuntime))
 		}
 		sb.WriteString(fmt.Sprintf("-KubeletExtraArgs '%v'", ctx.GetKubeletExtraArgs()))
-	case OsFamilyAmazonLinux2:
+	case OsFamilyAmazonLinux2, OsFamilyAmazonLinux2023:
 		if bootstrapOptions != nil && bootstrapOptions.MaxPods > 0 {
 			sb.WriteString("--use-max-pods false ")
 		}
@@ -703,13 +770,15 @@ func (ctx *EksInstanceGroupContext) UpdateNodeReadyCondition() bool {
 		instanceGroup = ctx.GetInstanceGroup()
 		status        = instanceGroup.GetStatus()
 		scalingGroup  = state.GetScalingGroup()
-		desiredCount  = int(aws.Int64Value(scalingGroup.DesiredCapacity))
 		nodes         = state.GetClusterNodes()
+		desiredCount  int
 	)
 
 	if scalingGroup == nil {
 		return false
 	}
+
+	desiredCount = int(aws.Int64Value(scalingGroup.DesiredCapacity))
 
 	ctx.Log.Info("waiting for node readiness conditions", "instancegroup", instanceGroup.NamespacedName())
 	if len(scalingGroup.Instances) != desiredCount {
@@ -1059,15 +1128,13 @@ func (ctx *EksInstanceGroupContext) RemoveAuthRole(arn string) error {
 
 	var instanceGroup = ctx.GetInstanceGroup()
 	var osFamily = ctx.GetOsFamily()
-	var list = &unstructured.UnstructuredList{}
-	var sharedGroups = make([]string, 0)
-
 	list, err := ctx.KubernetesClient.KubeDynamic.Resource(v1alpha1.GroupVersionResource).List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
 
 	// find objects which share the same nodesInstanceRoleArn
+	var sharedGroups = make([]string, 0)
 	for _, obj := range list.Items {
 		if val, ok, _ := unstructured.NestedString(obj.Object, "status", "nodesInstanceRoleArn"); ok {
 			if strings.EqualFold(arn, val) {
@@ -1223,7 +1290,10 @@ func (ctx *EksInstanceGroupContext) GetEksLatestAmi() (string, error) {
 	annotations := instanceGroup.GetAnnotations()
 
 	var OSFamily string
-	if kubeprovider.HasAnnotation(annotations, OsFamilyAnnotation) {
+	if ctx.IsAmazonLinux2023() {
+		ctx.Log.Info("using amazonlinux2023 to get latest ami")
+		OSFamily = OsFamilyAmazonLinux2023
+	} else if kubeprovider.HasAnnotation(annotations, OsFamilyAnnotation) {
 		OSFamily = annotations[OsFamilyAnnotation]
 	} else {
 		OSFamily = OsFamilyAmazonLinux2
@@ -1232,7 +1302,7 @@ func (ctx *EksInstanceGroupContext) GetEksLatestAmi() (string, error) {
 	supportedArchitectures := awsprovider.GetInstanceTypeArchitectures(state.GetInstanceTypeInfo(), configuration.InstanceType)
 	arch := FilterSupportedArch(supportedArchitectures)
 	if arch == "" {
-		return "", fmt.Errorf("No supported CPU architecture found for instance type %s", configuration.InstanceType)
+		return "", fmt.Errorf("no supported CPU architecture found for instance type %s", configuration.InstanceType)
 	}
 
 	return ctx.AwsWorker.GetEksLatestAmi(OSFamily, arch, clusterVersion)
@@ -1250,7 +1320,7 @@ func (ctx *EksInstanceGroupContext) GetEksSsmAmi(id string) (string, error) {
 	supportedArchitectures := awsprovider.GetInstanceTypeArchitectures(state.GetInstanceTypeInfo(), configuration.InstanceType)
 	arch := FilterSupportedArch(supportedArchitectures)
 	if arch == "" {
-		return "", fmt.Errorf("No supported CPU architecture found for instance type %s", configuration.InstanceType)
+		return "", fmt.Errorf("no supported CPU architecture found for instance type %s", configuration.InstanceType)
 	}
 
 	return ctx.AwsWorker.GetEksSsmAmi(osFamily, arch, clusterVersion, id)
