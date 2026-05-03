@@ -24,29 +24,17 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
-	"github.com/keikoproj/aws-sdk-go-cache/cache"
 	"github.com/keikoproj/instance-manager/controllers/common"
 )
 
 // GetAwsEksClient returns an EKS client
-func GetAwsEksClient(region string, cacheCfg *cache.Config, maxRetries int, collector *common.MetricsCollector) eksiface.EKSAPI {
+func GetAwsEksClient(region string, maxRetries int, collector *common.MetricsCollector) eksiface.EKSAPI {
 	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
 	config = request.WithRetryer(config, NewRetryLogger(maxRetries, collector))
 	sess, err := session.NewSession(config)
 	if err != nil {
 		panic(err)
 	}
-	cache.AddCaching(sess, cacheCfg)
-	cacheCfg.SetCacheTTL("eks", "DescribeCluster", DescribeClusterTTL)
-	cacheCfg.SetCacheTTL("eks", "DescribeNodegroup", DescribeNodegroupTTL)
-	sess.Handlers.Complete.PushFront(func(r *request.Request) {
-		ctx := r.HTTPRequest.Context()
-		log.V(1).Info("AWS API call",
-			"cacheHit", cache.IsCacheHit(ctx),
-			"service", r.ClientInfo.ServiceName,
-			"operation", r.Operation.Name,
-		)
-	})
 	return eks.New(sess, config)
 }
 

@@ -24,36 +24,17 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
-	"github.com/keikoproj/aws-sdk-go-cache/cache"
 	"github.com/keikoproj/instance-manager/controllers/common"
 )
 
 // GetAwsEc2Client returns an EC2 client
-func GetAwsEc2Client(region string, cacheCfg *cache.Config, maxRetries int, collector *common.MetricsCollector) ec2iface.EC2API {
+func GetAwsEc2Client(region string, maxRetries int, collector *common.MetricsCollector) ec2iface.EC2API {
 	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
 	config = request.WithRetryer(config, NewRetryLogger(maxRetries, collector))
 	sess, err := session.NewSession(config)
 	if err != nil {
 		panic(err)
 	}
-
-	cache.AddCaching(sess, cacheCfg)
-	cacheCfg.SetCacheTTL("ec2", "DescribeSecurityGroups", DescribeSecurityGroupsTTL)
-	cacheCfg.SetCacheTTL("ec2", "DescribeSubnets", DescribeSubnetsTTL)
-	cacheCfg.SetCacheTTL("ec2", "DescribeInstanceTypes", DescribeInstanceTypesTTL)
-	cacheCfg.SetExcludeFlushing("ec2", "DescribeInstanceTypes", true)
-	cacheCfg.SetCacheTTL("ec2", "DescribeInstanceTypeOfferings", DescribeInstanceTypeOfferingTTL)
-	cacheCfg.SetExcludeFlushing("ec2", "DescribeInstanceTypeOfferings", true)
-	cacheCfg.SetCacheTTL("ec2", "DescribeLaunchTemplates", DescribeLaunchTemplatesTTL)
-	cacheCfg.SetCacheTTL("ec2", "DescribeLaunchTemplateVersions", DescribeLaunchTemplateVersionsTTL)
-	sess.Handlers.Complete.PushFront(func(r *request.Request) {
-		ctx := r.HTTPRequest.Context()
-		log.V(1).Info("AWS API call",
-			"cacheHit", cache.IsCacheHit(ctx),
-			"service", r.ClientInfo.ServiceName,
-			"operation", r.Operation.Name,
-		)
-	})
 	return ec2.New(sess)
 }
 

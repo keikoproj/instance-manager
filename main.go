@@ -22,7 +22,6 @@ import (
 	stdruntime "runtime"
 	"sync"
 
-	"github.com/keikoproj/aws-sdk-go-cache/cache"
 	instancemgrv1alpha1 "github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1"
 	"github.com/keikoproj/instance-manager/controllers"
 	"github.com/keikoproj/instance-manager/controllers/common"
@@ -125,24 +124,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	cacheCfg := cache.NewConfig(aws.CacheDefaultTTL, aws.CacheBackgroundPruningInterval, aws.CacheMaxItems, aws.CacheItemsToPrune)
-	cacheCollector := cacheCfg.NewCacheCollector("instance_manager")
 	controllerCollector := common.NewMetricsCollector()
 	awsWorker := aws.AwsWorker{
-		Ec2Client:   aws.GetAwsEc2Client(awsRegion, cacheCfg, maxAPIRetries, controllerCollector),
-		IamClient:   aws.GetAwsIamClient(awsRegion, cacheCfg, maxAPIRetries, controllerCollector),
-		AsgClient:   aws.GetAwsAsgClient(awsRegion, cacheCfg, maxAPIRetries, controllerCollector),
-		EksClient:   aws.GetAwsEksClient(awsRegion, cacheCfg, maxAPIRetries, controllerCollector),
-		SsmClient:   aws.GetAwsSsmClient(awsRegion, cacheCfg, maxAPIRetries, controllerCollector),
+		Ec2Client:   aws.GetAwsEc2Client(awsRegion, maxAPIRetries, controllerCollector),
+		IamClient:   aws.GetAwsIamClient(awsRegion, maxAPIRetries, controllerCollector),
+		AsgClient:   aws.GetAwsAsgClient(awsRegion, maxAPIRetries, controllerCollector),
+		EksClient:   aws.GetAwsEksClient(awsRegion, maxAPIRetries, controllerCollector),
+		SsmClient:   aws.GetAwsSsmClient(awsRegion, maxAPIRetries, controllerCollector),
 		Ec2Metadata: metadata,
 	}
 
-	if err := prometheus.Register(cacheCollector); err != nil {
-		if _, ok := err.(prometheus.AlreadyRegisteredError); !ok {
-			setupLog.Error(err, "failed to register cache metrics collector")
-			os.Exit(1)
-		}
-	}
 	if err := prometheus.Register(controllerCollector); err != nil {
 		if _, ok := err.(prometheus.AlreadyRegisteredError); !ok {
 			setupLog.Error(err, "failed to register controller metrics collector")

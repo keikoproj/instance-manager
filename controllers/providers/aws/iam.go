@@ -24,31 +24,18 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
-	"github.com/keikoproj/aws-sdk-go-cache/cache"
 	"github.com/keikoproj/instance-manager/controllers/common"
 	"github.com/pkg/errors"
 )
 
-// GetAwsIAMClient returns an IAM client
-func GetAwsIamClient(region string, cacheCfg *cache.Config, maxRetries int, collector *common.MetricsCollector) iamiface.IAMAPI {
+// GetAwsIamClient returns an IAM client
+func GetAwsIamClient(region string, maxRetries int, collector *common.MetricsCollector) iamiface.IAMAPI {
 	config := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
 	config = request.WithRetryer(config, NewRetryLogger(maxRetries, collector))
 	sess, err := session.NewSession(config)
 	if err != nil {
 		panic(err)
 	}
-	cache.AddCaching(sess, cacheCfg)
-	cacheCfg.SetCacheTTL("iam", "GetInstanceProfile", GetInstanceProfileTTL)
-	cacheCfg.SetCacheTTL("iam", "GetRole", GetRoleTTL)
-	cacheCfg.SetCacheTTL("iam", "ListAttachedRolePolicies", ListAttachedRolePoliciesTTL)
-	sess.Handlers.Complete.PushFront(func(r *request.Request) {
-		ctx := r.HTTPRequest.Context()
-		log.V(1).Info("AWS API call",
-			"cacheHit", cache.IsCacheHit(ctx),
-			"service", r.ClientInfo.ServiceName,
-			"operation", r.Operation.Name,
-		)
-	})
 	return iam.New(sess, config)
 }
 

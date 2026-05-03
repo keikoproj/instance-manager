@@ -40,28 +40,6 @@ var (
 )
 
 const (
-	CacheDefaultTTL                   time.Duration = 0 * time.Second
-	DescribeWarmPoolTTL               time.Duration = 60 * time.Second
-	DescribeAutoScalingGroupsTTL      time.Duration = 60 * time.Second
-	DescribeLaunchConfigurationsTTL   time.Duration = 60 * time.Second
-	ListAttachedRolePoliciesTTL       time.Duration = 60 * time.Second
-	GetRoleTTL                        time.Duration = 60 * time.Second
-	GetInstanceProfileTTL             time.Duration = 60 * time.Second
-	DescribeNodegroupTTL              time.Duration = 60 * time.Second
-	DescribeLifecycleHooksTTL         time.Duration = 180 * time.Second
-	DescribeClusterTTL                time.Duration = 180 * time.Second
-	DescribeSecurityGroupsTTL         time.Duration = 180 * time.Second
-	DescribeSubnetsTTL                time.Duration = 180 * time.Second
-	DescribeLaunchTemplatesTTL        time.Duration = 60 * time.Second
-	DescribeLaunchTemplateVersionsTTL time.Duration = 60 * time.Second
-	DescribeInstanceTypesTTL          time.Duration = 24 * time.Hour
-	DescribeInstanceTypeOfferingTTL   time.Duration = 1 * time.Hour
-	GetParameterTTL                   time.Duration = 1 * time.Hour
-
-	CacheBackgroundPruningInterval time.Duration = 1 * time.Hour
-	CacheMaxItems                  int64         = 250
-	CacheItemsToPrune              uint32        = 25
-
 	LaunchTemplateStrategyCapacityOptimized = "capacity-optimized"
 	LaunchTemplateStrategyLowestPrice       = "lowest-price"
 	LaunchTemplateAllocationStrategy        = "prioritized"
