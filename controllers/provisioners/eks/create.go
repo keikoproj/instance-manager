@@ -74,6 +74,7 @@ func (ctx *EksInstanceGroupContext) Create() error {
 		LicenseSpecifications: configuration.LicenseSpecifications,
 		Placement:             placement,
 		MetadataOptions:       metadataOptions,
+		TagSpecifications:     configuration.GetTagSpecifications(),
 	}
 
 	if err := scalingConfig.Create(config); err != nil {
