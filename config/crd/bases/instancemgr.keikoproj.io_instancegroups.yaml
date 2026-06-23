@@ -202,12 +202,6 @@ spec:
                         items:
                           type: string
                         type: array
-                      tags:
-                        items:
-                          additionalProperties:
-                            type: string
-                          type: object
-                        type: array
                       tagSpecifications:
                         items:
                           properties:
@@ -221,6 +215,12 @@ spec:
                               type: array
                           required:
                           - resourceType
+                          type: object
+                        type: array
+                      tags:
+                        items:
+                          additionalProperties:
+                            type: string
                           type: object
                         type: array
                       taints:
