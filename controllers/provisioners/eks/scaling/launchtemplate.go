@@ -96,7 +96,7 @@ func (lt *LaunchTemplate) Create(input *CreateConfigurationInput) error {
 		},
 		ImageId:               aws.String(input.ImageId),
 		InstanceType:          aws.String(input.InstanceType),
-		KeyName:               aws.String(input.KeyName),
+		KeyName:               optionalKeyName(input.KeyName),
 		SecurityGroupIds:      aws.StringSlice(input.SecurityGroups),
 		UserData:              aws.String(input.UserData),
 		BlockDeviceMappings:   lt.blockDeviceListRequest(input.Volumes),

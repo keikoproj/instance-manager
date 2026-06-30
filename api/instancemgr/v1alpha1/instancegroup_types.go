@@ -591,9 +591,6 @@ func (c *EKSConfiguration) Validate() error {
 	if common.StringEmpty(c.InstanceType) {
 		return errors.Errorf("validation failed, 'instanceType' is a required parameter")
 	}
-	if common.StringEmpty(c.KeyPairName) {
-		return errors.Errorf("validation failed, 'keyPair' is a required parameter")
-	}
 
 	for _, v := range c.Volumes {
 

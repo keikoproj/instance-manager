@@ -16,6 +16,7 @@ limitations under the License.
 package scaling
 
 import (
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/keikoproj/instance-manager/api/instancemgr/v1alpha1"
@@ -76,4 +77,11 @@ func ConvertToLaunchConfiguration(resource interface{}) *autoscaling.LaunchConfi
 		return lc
 	}
 	return &autoscaling.LaunchConfiguration{}
+}
+
+func optionalKeyName(keyName string) *string {
+	if keyName == "" {
+		return nil
+	}
+	return aws.String(keyName)
 }

@@ -140,10 +140,6 @@ func (w *AwsWorker) CreateManagedNodeGroup() error {
 		NodeRole:       aws.String(w.Parameters["NodeRole"].(string)),
 		NodegroupName:  aws.String(w.Parameters["NodegroupName"].(string)),
 		ReleaseVersion: aws.String(w.Parameters["ReleaseVersion"].(string)),
-		RemoteAccess: &eks.RemoteAccessConfig{
-			Ec2SshKey:            aws.String(w.Parameters["Ec2SshKey"].(string)),
-			SourceSecurityGroups: aws.StringSlice(w.Parameters["SourceSecurityGroups"].([]string)),
-		},
 		ScalingConfig: &eks.NodegroupScalingConfig{
 			MaxSize:     aws.Int64(w.Parameters["MaxSize"].(int64)),
 			MinSize:     aws.Int64(w.Parameters["MinSize"].(int64)),
@@ -152,6 +148,13 @@ func (w *AwsWorker) CreateManagedNodeGroup() error {
 		Subnets: aws.StringSlice(w.Parameters["Subnets"].([]string)),
 		Tags:    aws.StringMap(w.compactTags(w.Parameters["Tags"].([]map[string]string))),
 		Version: aws.String(w.Parameters["Version"].(string)),
+	}
+
+	if sshKey, ok := w.Parameters["Ec2SshKey"].(string); ok && sshKey != "" {
+		input.RemoteAccess = &eks.RemoteAccessConfig{
+			Ec2SshKey:            aws.String(sshKey),
+			SourceSecurityGroups: aws.StringSlice(w.Parameters["SourceSecurityGroups"].([]string)),
+		}
 	}
 
 	_, err := w.EksClient.CreateNodegroup(input)
