@@ -85,7 +85,7 @@ func (lc *LaunchConfiguration) Create(input *CreateConfigurationInput) error {
 		IamInstanceProfile:      aws.String(input.IamInstanceProfileArn),
 		ImageId:                 aws.String(input.ImageId),
 		InstanceType:            aws.String(input.InstanceType),
-		KeyName:                 aws.String(input.KeyName),
+		KeyName:                 optionalKeyName(input.KeyName),
 		SecurityGroups:          aws.StringSlice(input.SecurityGroups),
 		UserData:                aws.String(input.UserData),
 		BlockDeviceMappings:     devices,

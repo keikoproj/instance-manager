@@ -252,7 +252,9 @@ func (ctx *EksManagedInstanceGroupContext) processParameters() {
 	params["NodegroupName"] = instanceGroup.GetName()
 	params["ReleaseVersion"] = configuration.ReleaseVersion
 	params["Version"] = configuration.Version
-	params["Ec2SshKey"] = configuration.KeyPairName
+	if configuration.KeyPairName != "" {
+		params["Ec2SshKey"] = configuration.KeyPairName
+	}
 	params["SourceSecurityGroups"] = configuration.NodeSecurityGroups
 	params["Subnets"] = configuration.Subnets
 	params["Tags"] = configuration.Tags
