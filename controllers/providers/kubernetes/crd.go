@@ -104,6 +104,11 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 		return false, errors.Wrap(err, "failed to discover active custom resources")
 	}
 
+	// didReplace tracks whether we deleted a failed/stale CR on this pass.
+	// When we replace, the retry counter must NOT be reset: the retry counter
+	// exists to bound how many times we replace a failing CR, and resetting
+	// it on every successful re-create produced an infinite loop (#317).
+	var didReplace bool
 	if len(activeResources) > 0 {
 
 		switch strings.ToLower(policy) {
@@ -132,6 +137,7 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 						return false, errors.Wrap(err, "failed to delete custom resource")
 					}
 				}
+				didReplace = true
 			}
 			if isRunning {
 				// finally, if an active resource is still running, requeue until it's done
@@ -152,7 +158,12 @@ func ProcessCRDStrategy(kube dynamic.Interface, instanceGroup *v1alpha1.Instance
 		}
 	} else {
 		log.Info("submitted custom resource", "instancegroup", instanceGroupNamespacedName)
-		status.SetStrategyRetryCount(0)
+		if !didReplace {
+			// First-time submission for this strategy attempt: safe to clear
+			// the retry counter. On replace we keep the accumulated count so
+			// the retry budget is actually enforced.
+			status.SetStrategyRetryCount(0)
+		}
 	}
 
 	// get created resource
