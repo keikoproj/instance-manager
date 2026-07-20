@@ -6,6 +6,7 @@
     - [Spot instance support](#spot-instance-support)
     - [Upgrade Strategies](#upgrade-strategies)
     - [EC2 Instance placement](#ec2-instance-placement)
+    - [Launch template tag specifications](#launch-template-tag-specifications)
     - [Bring your own role](#bring-your-own-role)
     - [Auto-Updating AWS EKS Optimised AMI ID](#auto-updating-aws-eks-optimised-ami-id)
 
@@ -156,6 +157,37 @@ spec:
         availabiltyZone: "us-west-2a"
         hostResourceGroupArn: "arn:aws:resource-groups:us-west-2:1234456789:group/host-group-name"
         tenancy: "host"
+```
+
+### Launch template tag specifications
+
+When using launch templates, you can tag resources created at instance launch (such as EBS volumes) independently of Auto Scaling group tags. ASG `tags` propagate to instances only; use `tagSpecifications` to tag volumes and other launch-time resources.
+
+Each `tagSpecifications` entry requires a `resourceType` (`instance`, `volume`, `network-interface`, or `spot-instances-request`) and a list of tags in the same key/value format as `tags`.
+
+```yaml
+apiVersion: instancemgr.keikoproj.io/v1alpha1
+kind: InstanceGroup
+metadata:
+  name: hello-world
+  namespace: instance-manager
+spec:
+  strategy: <...>
+  provisioner: eks
+  eks:
+    type: LaunchTemplate
+    configuration:
+      tagSpecifications:
+      - resourceType: volume
+        tags:
+        - key: environment
+          value: production
+        - key: cost-center
+          value: cc123
+      - resourceType: instance
+        tags:
+        - key: Name
+          value: hello-world
 ```
 
 ### Bring your own role

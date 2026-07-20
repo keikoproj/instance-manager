@@ -231,6 +231,7 @@ type EKSConfiguration struct {
 	BootstrapOptions            *BootstrapOptions         `json:"bootstrapOptions,omitempty"`
 	SpotPrice                   string                    `json:"spotPrice,omitempty"`
 	Tags                        []map[string]string       `json:"tags,omitempty"`
+	TagSpecifications           []TagSpecification        `json:"tagSpecifications,omitempty"`
 	Labels                      map[string]string         `json:"labels,omitempty"`
 	Taints                      []corev1.Taint            `json:"taints,omitempty"`
 	UserData                    []UserDataStage           `json:"userData,omitempty"`
@@ -258,6 +259,11 @@ type MixedInstancesPolicySpec struct {
 	SpotRatio     *intstr.IntOrString `json:"spotRatio,omitempty"`
 	InstancePool  *string             `json:"instancePool,omitempty"`
 	InstanceTypes []*InstanceTypeSpec `json:"instanceTypes,omitempty"`
+}
+
+type TagSpecification struct {
+	ResourceType string              `json:"resourceType"`
+	Tags         []map[string]string `json:"tags,omitempty"`
 }
 
 type PlacementSpec struct {
@@ -870,6 +876,12 @@ func (c *EKSConfiguration) GetTags() []map[string]string {
 		return []map[string]string{}
 	}
 	return c.Tags
+}
+func (c *EKSConfiguration) GetTagSpecifications() []TagSpecification {
+	if c.TagSpecifications == nil {
+		return []TagSpecification{}
+	}
+	return c.TagSpecifications
 }
 func (c *EKSConfiguration) SetTags(tags []map[string]string) {
 	c.Tags = tags

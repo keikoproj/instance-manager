@@ -63,6 +63,7 @@ type CreateConfigurationInput struct {
 	LicenseSpecifications []string
 	Placement             *v1alpha1.PlacementSpec
 	MetadataOptions       *v1alpha1.MetadataOptions
+	TagSpecifications     []v1alpha1.TagSpecification
 }
 
 func ConvertToLaunchTemplate(resource interface{}) *ec2.LaunchTemplate {

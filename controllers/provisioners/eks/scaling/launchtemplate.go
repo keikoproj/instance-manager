@@ -103,6 +103,7 @@ func (lt *LaunchTemplate) Create(input *CreateConfigurationInput) error {
 		LicenseSpecifications: lt.LaunchTemplateLicenseConfigurationRequest(input.LicenseSpecifications),
 		Placement:             lt.launchTemplatePlacementRequest(input.Placement),
 		MetadataOptions:       lt.metadataOptionsRequest(input.MetadataOptions),
+		TagSpecifications:     lt.tagSpecificationsRequest(input.TagSpecifications),
 	}
 
 	if !lt.Provisioned() {
@@ -281,6 +282,16 @@ func (lt *LaunchTemplate) Drifted(input *CreateConfigurationInput) bool {
 		drift = true
 	}
 
+	existingTagSpecs := sortTagSpecifications(latestVersion.LaunchTemplateData.TagSpecifications)
+	newTagSpecs := tagSpecificationsFromInput(input.TagSpecifications)
+	if !reflect.DeepEqual(existingTagSpecs, newTagSpecs) {
+		log.Info("detected drift", "reason", "tag specifications have changed", "instancegroup", lt.OwnerName,
+			"previousValue", existingTagSpecs,
+			"newValue", newTagSpecs,
+		)
+		drift = true
+	}
+
 	if !drift {
 		log.Info("drift not detected", "instancegroup", lt.OwnerName)
 	}
@@ -385,6 +396,63 @@ func (lt *LaunchTemplate) launchTemplatePlacement(input *v1alpha1.PlacementSpec)
 		return &ec2.LaunchTemplatePlacement{}
 	}
 	return lt.LaunchTemplatePlacement(input.AvailabilityZone, input.HostResourceGroupArn, input.Tenancy)
+}
+
+func (lt *LaunchTemplate) tagSpecificationsRequest(specs []v1alpha1.TagSpecification) []*ec2.LaunchTemplateTagSpecificationRequest {
+	converted := tagSpecificationsFromInput(specs)
+	if len(converted) == 0 {
+		return nil
+	}
+	out := make([]*ec2.LaunchTemplateTagSpecificationRequest, 0, len(converted))
+	for _, spec := range converted {
+		out = append(out, &ec2.LaunchTemplateTagSpecificationRequest{
+			ResourceType: spec.ResourceType,
+			Tags:         spec.Tags,
+		})
+	}
+	return out
+}
+
+func tagSpecificationsFromInput(specs []v1alpha1.TagSpecification) []*ec2.LaunchTemplateTagSpecification {
+	if len(specs) == 0 {
+		return []*ec2.LaunchTemplateTagSpecification{}
+	}
+	out := make([]*ec2.LaunchTemplateTagSpecification, 0, len(specs))
+	for _, spec := range specs {
+		if common.StringEmpty(spec.ResourceType) || len(spec.Tags) == 0 {
+			continue
+		}
+		ec2Tags := make([]*ec2.Tag, 0, len(spec.Tags))
+		for _, t := range spec.Tags {
+			ec2Tags = append(ec2Tags, &ec2.Tag{
+				Key:   aws.String(t["key"]),
+				Value: aws.String(t["value"]),
+			})
+		}
+		out = append(out, &ec2.LaunchTemplateTagSpecification{
+			ResourceType: aws.String(spec.ResourceType),
+			Tags:         ec2Tags,
+		})
+	}
+	return sortTagSpecifications(out)
+}
+
+func sortTagSpecifications(specs []*ec2.LaunchTemplateTagSpecification) []*ec2.LaunchTemplateTagSpecification {
+	if len(specs) == 0 {
+		return []*ec2.LaunchTemplateTagSpecification{}
+	}
+	sort.Slice(specs, func(i, j int) bool {
+		return aws.StringValue(specs[i].ResourceType) < aws.StringValue(specs[j].ResourceType)
+	})
+	for _, spec := range specs {
+		if len(spec.Tags) == 0 {
+			continue
+		}
+		sort.Slice(spec.Tags, func(i, j int) bool {
+			return aws.StringValue(spec.Tags[i].Key) < aws.StringValue(spec.Tags[j].Key)
+		})
+	}
+	return specs
 }
 
 func (lt *LaunchTemplate) getVersion(id int64) *ec2.LaunchTemplateVersion {
