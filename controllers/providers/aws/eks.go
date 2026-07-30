@@ -16,6 +16,7 @@ limitations under the License.
 package aws
 
 import (
+	"net"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -217,14 +218,41 @@ func (w *AwsWorker) DescribeFargateProfile() (*eks.FargateProfile, error) {
 }
 
 func (w *AwsWorker) GetDNSClusterIP(cluster *eks.Cluster) string {
-	if cluster == nil {
+	if cluster == nil || cluster.KubernetesNetworkConfig == nil {
 		return ""
 	}
-	serviceCidr := aws.StringValue(cluster.KubernetesNetworkConfig.ServiceIpv4Cidr)
+	netCfg := cluster.KubernetesNetworkConfig
+
+	// IPv6 clusters populate ServiceIpv6Cidr and leave ServiceIpv4Cidr empty.
+	// The DNS service IP is the service CIDR's network address with its last
+	// byte set to 0x0a ("::a"), e.g. fd31:8cc0:942b::/108 -> fd31:8cc0:942b::a,
+	// mirroring the IPv4 ".10" convention below.
+	if serviceCidrV6 := aws.StringValue(netCfg.ServiceIpv6Cidr); serviceCidrV6 != "" {
+		prefix := strings.Split(serviceCidrV6, "/")[0] // remove block size
+		ip := net.ParseIP(prefix)
+		if ip == nil {
+			return ""
+		}
+		ip = ip.To16()
+		if ip == nil {
+			return ""
+		}
+		dnsIP := make(net.IP, len(ip))
+		copy(dnsIP, ip)
+		dnsIP[len(dnsIP)-1] = 0x0a // last byte "10", as is the convention
+		return dnsIP.String()
+	}
+
+	serviceCidr := aws.StringValue(netCfg.ServiceIpv4Cidr)
 	// addresses are by default assigned from either the 10.100.0.0/16 or 172.20.0.0/16 CIDR blocks.
 	// custom ranges could be blocks that are not /16 size.
 	ip := strings.Split(serviceCidr, "/")[0] // remove block size
 	blocks := strings.Split(ip, ".")
+	if len(blocks) != 4 {
+		// not an IPv4 dotted-quad (e.g. empty or malformed); avoid an
+		// index-out-of-range panic and let the caller omit --dns-cluster-ip.
+		return ""
+	}
 	blocks[3] = "10" // replace last byte in IP address with "10" as is the convention
 	return strings.Join(blocks, ".")
 }
