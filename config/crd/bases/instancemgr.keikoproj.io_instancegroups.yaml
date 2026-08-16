@@ -202,6 +202,21 @@ spec:
                         items:
                           type: string
                         type: array
+                      tagSpecifications:
+                        items:
+                          properties:
+                            resourceType:
+                              type: string
+                            tags:
+                              items:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                              type: array
+                          required:
+                          - resourceType
+                          type: object
+                        type: array
                       tags:
                         items:
                           additionalProperties:

@@ -623,6 +623,21 @@ func TestLaunchTemplateDrifted(t *testing.T) {
 			},
 			shouldDrift: true,
 		},
+		{
+			launchTemplate: MockLaunchTemplate("my-launch-template"),
+			latestVersion:  MockLaunchTemplateVersion(),
+			input: &CreateConfigurationInput{
+				TagSpecifications: []v1alpha1.TagSpecification{
+					{
+						ResourceType: "volume",
+						Tags: []map[string]string{
+							{"key": "environment", "value": "production"},
+						},
+					},
+				},
+			},
+			shouldDrift: true,
+		},
 	}
 
 	for i, tc := range tests {
@@ -637,6 +652,38 @@ func TestLaunchTemplateDrifted(t *testing.T) {
 		result := lt.Drifted(tc.input)
 		g.Expect(result).To(gomega.Equal(tc.shouldDrift))
 	}
+}
+
+func TestTagSpecificationsFromInput(t *testing.T) {
+	g := gomega.NewGomegaWithT(t)
+
+	specs := tagSpecificationsFromInput([]v1alpha1.TagSpecification{
+		{
+			ResourceType: "volume",
+			Tags: []map[string]string{
+				{"key": "environment", "value": "production"},
+			},
+		},
+		{
+			ResourceType: "instance",
+			Tags: []map[string]string{
+				{"key": "Name", "value": "my-node"},
+			},
+		},
+		{
+			ResourceType: "",
+			Tags: []map[string]string{
+				{"key": "ignored", "value": "true"},
+			},
+		},
+	})
+
+	g.Expect(specs).To(gomega.HaveLen(2))
+	g.Expect(aws.StringValue(specs[0].ResourceType)).To(gomega.Equal("instance"))
+	g.Expect(aws.StringValue(specs[0].Tags[0].Key)).To(gomega.Equal("Name"))
+	g.Expect(aws.StringValue(specs[1].ResourceType)).To(gomega.Equal("volume"))
+	g.Expect(aws.StringValue(specs[1].Tags[0].Key)).To(gomega.Equal("environment"))
+	g.Expect(tagSpecificationsFromInput(nil)).To(gomega.BeEmpty())
 }
 
 func TestLaunchTemplatePlacementRequest(t *testing.T) {

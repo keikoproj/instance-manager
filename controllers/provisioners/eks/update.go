@@ -77,6 +77,7 @@ func (ctx *EksInstanceGroupContext) Update() error {
 		LicenseSpecifications: configuration.LicenseSpecifications,
 		Placement:             placement,
 		MetadataOptions:       metadataOptions,
+		TagSpecifications:     configuration.GetTagSpecifications(),
 	}
 
 	// create new launchconfig if it has drifted

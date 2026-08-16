@@ -72,6 +72,15 @@ spec:
       #   value: tag-value
       tags: <[]map[string]string> : must be a list of maps with tag key-value
 
+      # tagSpecifications apply tags to resources created at instance launch (LaunchTemplate only).
+      # Use this to tag EBS volumes and other launch-time resources; tags above only propagate to instances via the ASG.
+      # tagSpecifications:
+      # - resourceType: volume
+      #   tags:
+      #   - key: environment
+      #     value: production
+      tagSpecifications: <[]TagSpecification> : must be a list of TagSpecification objects
+
       # adds node lables via bootstrap arguments - make sure to not use restricted labels
       labels: <map[string]string> : must be a key-value map of labels
 
@@ -259,6 +268,42 @@ spec:
     configuration:
       placement:
         tenancy: "host"
+```
+
+### TagSpecification
+
+TagSpecification defines tags applied to AWS resources when an instance is launched from a launch template. This is separate from `tags`, which are applied to the Auto Scaling group and propagated to EC2 instances only.
+
+`tagSpecifications` is supported when `spec.eks.type` is `LaunchTemplate`. Changes trigger a new launch template version and may require a node rotation to take effect on existing instances.
+
+Each entry targets one resource type. Supported `resourceType` values for launch template data are:
+
+- `instance`
+- `volume`
+- `network-interface`
+- `spot-instances-request`
+
+A `volume` entry applies the same tags to all EBS volumes created at launch (root and additional volumes from `volumes`). Tags use the same key/value map format as `tags`.
+
+```yaml
+spec:
+  provisioner: eks
+  eks:
+    type: LaunchTemplate
+    configuration:
+      tagSpecifications:
+      - resourceType: instance
+        tags:
+        - key: Name
+          value: my-node
+        - key: kubernetes.io/cluster/my-cluster
+          value: owned
+      - resourceType: volume
+        tags:
+        - key: environment
+          value: production
+        - key: cost-center
+          value: cc123
 ```
 
 ## Upgrade Strategies

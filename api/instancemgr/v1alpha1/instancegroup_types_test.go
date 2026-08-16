@@ -158,6 +158,24 @@ func TestInstanceGroupSpecValidate(t *testing.T) {
 			want: "",
 		},
 		{
+			name: "eks without keyPairName",
+			args: args{
+				instancegroup: MockInstanceGroup("eks", "rollingUpdate", &EKSSpec{
+					MaxSize: 1,
+					MinSize: 1,
+					Type:    "LaunchTemplate",
+					EKSConfiguration: &EKSConfiguration{
+						EksClusterName:     "my-eks-cluster",
+						NodeSecurityGroups: []string{"sg-123456789"},
+						Image:              "ami-12345",
+						InstanceType:       "m5.large",
+						Subnets:            []string{"subnet-1111111", "subnet-222222"},
+					},
+				}, nil, nil),
+			},
+			want: "",
+		},
+		{
 			name: "eks with invalid combination of HostResourceGroupArn and Tenancy in Placement",
 			args: args{
 				instancegroup: MockInstanceGroup("eks", "rollingUpdate", &EKSSpec{
