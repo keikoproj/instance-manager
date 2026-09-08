@@ -264,6 +264,7 @@ func TestCreateManagedRoleNegative(t *testing.T) {
 	g.Expect(ctx.GetState()).To(gomega.Equal(v1alpha1.ReconcileModifying))
 	iamMock.WaitUntilInstanceProfileExistsErr = nil
 	iamMock.CreateInstanceProfileErr = nil
+	iamMock.InstanceProfile = &iam.InstanceProfile{}
 
 	iamMock.AddRoleToInstanceProfileErr = awserr.New(iam.ErrCodeNoSuchEntityException, "", errors.New("some-error"))
 	err = ctx.Create()

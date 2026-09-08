@@ -212,7 +212,12 @@ func (w *AwsWorker) CreateScalingGroupRole(name string) (*iam.Role, *iam.Instanc
 		createdProfile = out.InstanceProfile
 		time.Sleep(DefaultInstanceProfilePropagationDelay)
 
-		_, err = w.IamClient.AddRoleToInstanceProfile(&iam.AddRoleToInstanceProfileInput{
+	} else {
+		createdProfile = instanceProfile
+	}
+
+	if createdProfile != nil && len(createdProfile.Roles) == 0 {
+		_, err := w.IamClient.AddRoleToInstanceProfile(&iam.AddRoleToInstanceProfileInput{
 			InstanceProfileName: aws.String(name),
 			RoleName:            aws.String(name),
 		})
@@ -222,10 +227,9 @@ func (w *AwsWorker) CreateScalingGroupRole(name string) (*iam.Role, *iam.Instanc
 					return createdRole, createdProfile, errors.Wrap(err, "failed to attach instance-profile")
 				}
 			}
+		} else {
+			createdProfile.Roles = append(createdProfile.Roles, createdRole)
 		}
-
-	} else {
-		createdProfile = instanceProfile
 	}
 
 	return createdRole, createdProfile, nil
